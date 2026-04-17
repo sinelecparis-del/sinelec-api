@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<title>SINELEC Paris</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#0a0a0a; color:#fff; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; min-height:100vh; }
+.header { background:#111; border-bottom:2px solid #F5A623; padding:16px 20px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:100; }
+.header h1 { font-size:20px; font-weight:900; color:#F5A623; letter-spacing:1px; }
+.header span { font-size:11px; color:#888; }
+.tabs { display:flex; background:#111; border-bottom:1px solid #222; }
+.tab { flex:1; padding:14px; text-align:center; font-size:13px; font-weight:700; color:#666; cursor:pointer; border-bottom:3px solid transparent; transition:all 0.2s; text-transform:uppercase; letter-spacing:0.5px; }
+.tab.active { color:#F5A623; border-bottom-color:#F5A623; }
+.content { padding:16px; max-width:600px; margin:0 auto; }
+.section { margin-bottom:20px; }
+.section-title { font-size:11px; font-weight:700; color:#F5A623; text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; }
+.input-group { margin-bottom:12px; }
+.input-group label { display:block; font-size:12px; color:#888; margin-bottom:4px; }
+.input-group input, .input-group textarea { width:100%; background:#18181b; border:1px solid #333; border-radius:8px; padding:12px; color:#fff; font-size:15px; outline:none; }
+.input-group input:focus, .input-group textarea:focus { border-color:#F5A623; }
+.input-group textarea { height:70px; resize:none; }
+.cat-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px; }
+.cat-btn { background:#18181b; border:1px solid #333; border-radius:8px; padding:10px 8px; color:#ccc; font-size:12px; cursor:pointer; text-align:center; transition:all 0.2s; }
+.cat-btn.selected { background:#F5A623; color:#000; border-color:#F5A623; font-weight:700; }
+.prestations { display:none; flex-direction:column; gap:6px; margin-bottom:12px; }
+.prestations.show { display:flex; }
+.prest-btn { background:#18181b; border:1px solid #333; border-radius:8px; padding:10px 12px; display:flex; justify-content:space-between; align-items:center; cursor:pointer; transition:all 0.2s; }
+.prest-name { font-size:13px; color:#ddd; }
+.prest-price { font-size:13px; font-weight:700; color:#F5A623; }
+.panier { background:#18181b; border-radius:10px; border:1px solid #333; overflow:hidden; margin-bottom:16px; }
+.panier-header { padding:12px 14px; background:#222; font-size:12px; font-weight:700; color:#F5A623; text-transform:uppercase; letter-spacing:0.5px; display:flex; justify-content:space-between; }
+.panier-empty { padding:20px; text-align:center; color:#555; font-size:13px; }
+.panier-item { padding:10px 14px; border-top:1px solid #2a2a2a; display:flex; align-items:center; gap:10px; }
+.panier-item-name { flex:1; font-size:13px; color:#ddd; }
+.panier-item-price { font-size:13px; font-weight:700; color:#fff; min-width:70px; text-align:right; }
+.qte-ctrl { display:flex; align-items:center; gap:6px; }
+.qte-btn { width:26px; height:26px; background:#333; border:none; border-radius:6px; color:#fff; font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+.qte-val { font-size:14px; font-weight:700; color:#F5A623; min-width:20px; text-align:center; }
+.del-btn { background:none; border:none; color:#555; font-size:16px; cursor:pointer; padding:4px; }
+.total-bar { background:#F5A623; border-radius:10px; padding:14px 16px; display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
+.total-label { font-size:13px; font-weight:700; color:#000; }
+.total-amount { font-size:22px; font-weight:900; color:#000; }
+.btn-gen { width:100%; background:#F5A623; color:#000; border:none; border-radius:10px; padding:18px; font-size:16px; font-weight:900; text-transform:uppercase; letter-spacing:0.5px; cursor:pointer; margin-top:8px; }
+.btn-gen:disabled { opacity:0.5; }
+.status { text-align:center; padding:12px; border-radius:8px; font-size:13px; margin-top:10px; display:none; }
+.status.success { background:#1a3a1a; color:#4ade80; border:1px solid #2d6a2d; display:block; }
+.status.error { background:#3a1a1a; color:#f87171; border:1px solid #6a2d2d; display:block; }
+.status.loading { background:#1a2a3a; color:#60a5fa; border:1px solid #2d4a6a; display:block; }
+.page { display:none; }
+.page.active { display:block; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>⚡ SINELEC</h1>
+  <span>Paris & IDF 24h/24</span>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('devis', this)">📋 Devis</div>
+  <div class="tab" onclick="switchTab('facture', this)">💶 Facture</div>
+</div>
+
+<div id="page-devis" class="page active">
+<div class="content">
+  <div class="section">
+    <div class="section-title">Informations client</div>
+    <div class="input-group"><label>Nom / Société</label><input type="text" id="d-client" placeholder="Ex: Dupont Marie"></div>
+    <div class="input-group"><label>Adresse</label><input type="text" id="d-adresse" placeholder="Ex: 12 rue de la Paix, 75001 Paris"></div>
+    <div class="input-group"><label>Email client (pour envoi auto)</label><input type="email" id="d-email" placeholder="client@email.com"></div>
+    <div class="input-group"><label>Description du chantier</label><textarea id="d-description" placeholder="Ex: Remplacement tableau + 3 prises"></textarea></div>
+  </div>
+  <div class="section">
+    <div class="section-title">Prestations</div>
+    <div class="cat-grid" id="d-cats"></div>
+    <div class="prestations" id="d-prests"></div>
+  </div>
+  <div class="panier">
+    <div class="panier-header"><span>🛒 Panier</span><span id="d-count">0 prestation(s)</span></div>
+    <div id="d-panier-items"><div class="panier-empty">Aucune prestation ajoutée</div></div>
+  </div>
+  <div class="total-bar">
+    <span class="total-label">TOTAL HT</span>
+    <span class="total-amount" id="d-total">0,00 €</span>
+  </div>
+  <button class="btn-gen" id="d-btn" onclick="generer('devis')">📄 Générer le devis PDF</button>
+  <div class="status" id="d-status"></div>
+</div>
+</div>
+
+<div id="page-facture" class="page">
+<div class="content">
+  <div class="section">
+    <div class="section-title">Informations client</div>
+    <div class="input-group"><label>Nom / Société</label><input type="text" id="f-client" placeholder="Ex: Dupont Marie"></div>
+    <div class="input-group"><label>Adresse</label><input type="text" id="f-adresse" placeholder="Ex: 12 rue de la Paix, 75001 Paris"></div>
+    <div class="input-group"><label>Email client (pour envoi auto)</label><input type="email" id="f-email" placeholder="client@email.com"></div>
+    <div class="input-group"><label>Description des travaux</label><textarea id="f-description" placeholder="Ex: Remplacement tableau réalisé"></textarea></div>
+  </div>
+  <div class="section">
+    <div class="section-title">Prestations réalisées</div>
+    <div class="cat-grid" id="f-cats"></div>
+    <div class="prestations" id="f-prests"></div>
+  </div>
+  <div class="panier">
+    <div class="panier-header"><span>🛒 Panier</span><span id="f-count">0 prestation(s)</span></div>
+    <div id="f-panier-items"><div class="panier-empty">Aucune prestation ajoutée</div></div>
+  </div>
+  <div class="total-bar">
+    <span class="total-label">TOTAL HT</span>
+    <span class="total-amount" id="f-total">0,00 €</span>
+  </div>
+  <button class="btn-gen" id="f-btn" onclick="generer('facture')">💶 Générer la facture PDF</button>
+  <div class="status" id="f-status"></div>
+</div>
+</div>
+
+<script>
+const BREVO_API_KEY = 'BREVO_KEY';
+
+const GRILLE = {
+  'Deplacement & MO': {
+    'Deplacement Paris': 50,
+    'Deplacement banlieue <20km': 80,
+    'Deplacement >20km (78/91/95)': 100,
+    'MO heure supplementaire': 70,
+    'Urgence jour': 130,
+    'Urgence soir 18h-22h': 165,
+    'Urgence nuit WE ferie': 220,
+  },
+  'Prises & Interrupteurs': {
+    'Prise standard': 90,
+    'Prise cuisiniere 32A': 140,
+    'Prise etanche IP44': 110,
+    'Prise RJ45': 65,
+    'Interrupteur simple': 90,
+    'Interrupteur va-et-vient': 110,
+    'Variateur connecte': 130,
+  },
+  'Eclairage': {
+    'Luminaire simple': 115,
+    'Lustre lourd': 200,
+    'Spot encastre': 75,
+    'Bandeau LED ml': 60,
+    'Point lumineux DCL': 100,
+    'Eclairage exterieur': 150,
+  },
+  'Tableau & Protections': {
+    'Disjoncteur standard': 150,
+    'Disjoncteur differentiel 30mA': 150,
+    'Inter differentiel 63A type A': 250,
+    'Parafoudre': 160,
+    'Mini tableau NF C 15-100': 185,
+    'Tableau complet 1 rangee': 1050,
+    'Tableau complet 2 rangees': 1850,
+    'Tableau complet 3 rangees': 2500,
+  },
+  'Depannage & Panne': {
+    'Recherche de panne': 120,
+    'Reparation court-circuit': 125,
+    'Reactivation coupure': 90,
+    'Diagnostic complet': 150,
+    'Recherche fuite courant': 130,
+  },
+  'Mise aux normes': {
+    'Mise a la terre complete': 650,
+    'Liaison equipotentielle princ.': 160,
+    'Liaison equipotentielle SDB': 140,
+    'Detecteur fumee DAAF': 85,
+    'Diagnostic electrique': 150,
+  },
+  'Circuits & Cablage': {
+    'Circuit apparent 5m': 200,
+    'Circuit encastre 5m': 300,
+    'Cable supplementaire ml': 20,
+    'Goulotte moulure ml': 15,
+    'Passage cable cloison': 120,
+  },
+  'Equipements': {
+    'Interphone audio': 500,
+    'Visiophone': 900,
+    'Chauffe-eau electrique': 250,
+    'Borne Green Up': 300,
+    'Borne IRVE 7kW': 1500,
+    'Detecteur mouvement': 90,
+    'VMC simple flux': 450,
+    'Radiateur inertie': 350,
+  },
+};
+
+const DETAILS = {
+  'Deplacement Paris': 'Deplacement technicien SINELEC Paris intra-muros (75). Vehicule professionnel equipe, outillage complet, disponibilite immediate.',
+  'Deplacement banlieue <20km': 'Deplacement technicien SINELEC en proche banlieue (92, 93, 94) dans un rayon de 20km. Vehicule professionnel equipe.',
+  'Deplacement >20km (78/91/95)': 'Deplacement technicien SINELEC en grande couronne (78, 91, 95) au-dela de 20km. Vehicule professionnel equipe.',
+  'MO heure supplementaire': 'Main d\'oeuvre technicien qualifie SINELEC, heure supplementaire. Travaux realises conformement NF C 15-100.',
+  'Urgence jour': 'Intervention urgente en journee (8h-18h). Deplacement prioritaire, technicien disponible immediatement. Forfait tout compris.',
+  'Urgence soir 18h-22h': 'Intervention urgente en soiree (18h-22h). Astreinte activee, technicien depêche en priorite. Disponibilite 7j/7.',
+  'Urgence nuit WE ferie': 'Intervention urgente de nuit (22h-8h), week-end ou jour ferie. Service 24h/24 7j/7. Technicien disponible immediatement.',
+  'Prise standard': 'Fourniture et pose prise 2P+T 16A. Comprend: depose ancienne, fourniture prise pro, pose, raccordement, test conformite NF C 15-100.',
+  'Prise cuisiniere 32A': 'Fourniture et pose prise 32A 2P+T pour cuisiniere/plaque. Comprend: depose ancienne, fourniture prise 32A, raccordement circuit dedie 6mm2, test NF C 15-100.',
+  'Prise etanche IP44': 'Fourniture et pose prise etanche IP44 exterieur/piece humide. Comprend: depose, fourniture prise etanche pro, pose, raccordement, test etancheite.',
+  'Prise RJ45': 'Fourniture et pose prise reseau RJ45 cat.6. Comprend: depose si necessaire, fourniture prise RJ45 pro, cablage, raccordement, test continuite.',
+  'Interrupteur simple': 'Fourniture et pose interrupteur simple. Comprend: depose ancienne piece, fourniture interrupteur pro, pose, raccordement, test NF C 15-100.',
+  'Interrupteur va-et-vient': 'Fourniture et pose interrupteur va-et-vient. Comprend: depose existant, fourniture 2 interrupteurs assortis, raccordement, test fonctionnel.',
+  'Variateur connecte': 'Fourniture et pose variateur ou interrupteur connecte. Comprend: depose existant, fourniture variateur pro, raccordement, parametrage, test.',
+  'Luminaire simple': 'Fourniture et pose luminaire (plafonnier/applique). Comprend: depose ancien, fourniture support DCL, raccordement, pose luminaire, test NF C 15-100.',
+  'Lustre lourd': 'Fourniture et pose lustre lourd (>5kg). Comprend: depose existant, crochet charge renforce, fourniture rosace DCL, raccordement, test.',
+  'Spot encastre': 'Fourniture et pose spot encastre LED. Comprend: percage/decoupe support, cablage, fourniture spot pro, raccordement, test allumage.',
+  'Bandeau LED ml': 'Fourniture et pose bandeau LED au ml. Comprend: support aluminium, bandeau LED pro, alimentation dediee, raccordement, test.',
+  'Point lumineux DCL': 'Creation point lumineux avec DCL. Comprend: tirage cable, pose boite encastrement, installation DCL, raccordement, test.',
+  'Eclairage exterieur': 'Fourniture et pose eclairage exterieur IP65. Comprend: cablage etanche, support IP65, raccordement circuit dedie, mise a la terre, test.',
+  'Disjoncteur standard': 'Fourniture et remplacement disjoncteur magnetothermique standard. Comprend: mise HT securisee, depose defectueux, fourniture disj. neuf Schneider/Legrand/Hager calibre adapte, raccordement peigne, test declenchement, remise sous tension. NF C 15-100. Garantie decennale ORUS.',
+  'Disjoncteur differentiel 30mA': 'Fourniture et remplacement disjoncteur differentiel 30mA type AC. Comprend: mise HT, depose existant, fourniture disj. diff. 30mA neuf Schneider/Legrand/Hager, cablage, test declenchement differentiel, verification selectivite. NF C 15-100. Garantie ORUS.',
+  'Inter differentiel 63A type A': 'Fourniture et remplacement interrupteur differentiel 63A type A 30mA. Comprend: mise HT totale, depose ancien, fourniture inter. diff. 63A type A neuf, raccordement, DLCU, test declenchement, remise sous tension progressive. NF C 15-100. Garantie ORUS.',
+  'Parafoudre': 'Fourniture et pose parafoudre type 2. Comprend: verification compatibilite tableau, fourniture parafoudre normalise, raccordement rail DIN, conducteur protection, test conformite NF C 15-100.',
+  'Mini tableau NF C 15-100': 'Fourniture et pose mini tableau conforme NF C 15-100. Comprend: depose ancien, coffret encastrable, disj. general differentiel, disjoncteurs par circuit, peigne, barre de terre, etiquetage. Garantie ORUS.',
+  'Tableau complet 1 rangee': 'Remplacement complet tableau electrique 1 rangee (13 modules). Comprend: depose ancien tableau, fourniture coffret Legrand/Schneider/Hager, inter. diff. 63A type A 30mA, disjoncteurs calibres par circuit, peigne alimentation, DLCU, barre de terre cuivre, etiquetage circuits, test complet, mise en service. NF C 15-100. Garantie decennale ORUS.',
+  'Tableau complet 2 rangees': 'Remplacement complet tableau electrique 2 rangees (26 modules). Comprend: depose complet, fourniture coffret 2 rangees Legrand/Schneider/Hager, 2 inter. diff. 63A type A 30mA, disjoncteurs calibres, peignes double rangee, DLCU, barre de terre cuivre, etiquetage, test complet, mise en service. NF C 15-100. Garantie decennale ORUS.',
+  'Tableau complet 3 rangees': 'Remplacement complet tableau electrique 3 rangees (39 modules). Comprend: depose complet, coffret 3 rangees Legrand/Schneider/Hager, disj. general, inter. diff. 63A type A par depart, disjoncteurs calibres, peignes, DLCU, barre de terre, etiquetage complet, test et reception. NF C 15-100. Garantie decennale ORUS.',
+  'Recherche de panne': 'Diagnostic et recherche de panne electrique. Comprend: analyse symptomes, test par circuit avec appareillage pro (multimetre, testeur boucle), identification precise origine, rapport verbal au client. Prix hors reparation.',
+  'Reparation court-circuit': 'Localisation et reparation court-circuit. Comprend: mise HT, recherche par secteur, identification defaut isolement/cablage, remplacement section defectueuse, test isolement, remise sous tension.',
+  'Reactivation coupure': 'Reactivation apres coupure generale. Comprend: diagnostic cause, verification installation, identification circuit defaillant, remise en securite, rearmement progressif, test fonctionnel complet.',
+  'Diagnostic complet': 'Diagnostic complet installation electrique. Comprend: controle 87 points NF C 16-600, mesures terre/isolement/DDR, rapport ecrit anomalies A1/A2/A3, recommandations travaux.',
+  'Recherche fuite courant': 'Recherche fuite de courant ou defaut isolement. Comprend: test circuits avec pince amperemetrique, mesure isolement cable par cable, identification source fuite, rapport et recommandation.',
+  'Mise a la terre complete': 'Realisation mise a la terre complete. Comprend: pose piquet de terre, cable cuivre 16mm2, raccordement barre de terre tableau, mesure resistance (<100 ohms), liaison equipotentielle principale. NF C 15-100.',
+  'Liaison equipotentielle princ.': 'Liaison equipotentielle principale. Comprend: conducteur cuivre 6mm2, raccordement masses metalliques (eau/gaz/chauffage), connexion barre de terre, test continuite. Obligatoire NF C 15-100.',
+  'Liaison equipotentielle SDB': 'Liaison equipotentielle supplementaire salle de bain. Comprend: conducteur 2.5mm2, raccordement masses metalliques (baignoire/robinetterie/radiateur), connexion terre, test. Obligatoire NF C 15-100.',
+  'Detecteur fumee DAAF': 'Fourniture et pose DAAF. Comprend: fourniture detecteur NF EN 14604, fixation plafond, test declenchement, notice remise client. Loi 9 mars 2010.',
+  'Diagnostic electrique': 'Diagnostic electrique complet NF C 16-600. Comprend: controle 87 points, mesures electriques, rapport ecrit signe avec anomalies classees A1/A2/A3.',
+  'Circuit apparent 5m': 'Creation circuit electrique apparent 5m. Comprend: tirage cable H07V-U en goulotte, pose boite derivation, disjoncteur dedie tableau, test isolement, mise en service.',
+  'Circuit encastre 5m': 'Creation circuit electrique encastre 5m. Comprend: saignee cloison, tirage cable H07V-U, rebouchage, boite encastrement, disjoncteur dedie, test, mise en service.',
+  'Cable supplementaire ml': 'Tirage cable electrique supplementaire au ml. Cable H07V-U 1.5 a 6mm2 selon circuit. Comprend fourniture cable, tirage, raccordements.',
+  'Goulotte moulure ml': 'Fourniture et pose goulotte/moulure PVC au ml. Comprend: fourniture goulotte pro, decoupe, fixation, accessoires angles et jonctions.',
+  'Passage cable cloison': 'Passage cable a travers cloison/mur/dalle. Comprend: percage foret adapte, fourniture fourreau protection, passage cable, calfeutrement coupe-feu.',
+  'Interphone audio': 'Fourniture et pose interphone audio 2 fils. Comprend: depose existant, fourniture interphone pro (platine ext. + combine int.), cablage, raccordement, reglage, test.',
+  'Visiophone': 'Fourniture et pose visiophone couleur ecran 7 pouces. Comprend: depose existant, fourniture visiophone pro, cablage, raccordement, parametrage, test.',
+  'Chauffe-eau electrique': 'Raccordement chauffe-eau electrique. Comprend: fourniture prise 20A ou raccordement direct, circuit dedie, disjoncteur 20A, cable 2.5mm2, test fonctionnement.',
+  'Borne Green Up': 'Fourniture et pose prise Green Up 3.7kW. Comprend: circuit dedie, disj. diff. 16A type A, cable 2.5mm2, test de charge. Conforme UTE C 15-722.',
+  'Borne IRVE 7kW': 'Fourniture et installation borne IRVE 7kW mode 3. Comprend: borne wallbox 7kW cable T2, circuit dedie 32A, cable 6mm2, disj. diff. 40A type A, mise en service, attestation IRVE. UTE C 15-722.',
+  'Detecteur mouvement': 'Fourniture et pose detecteur mouvement infrarouge 180/360. Comprend: fourniture detecteur pro, cablage circuit eclairage, reglage sensibilite et temporisation, test.',
+  'VMC simple flux': 'Fourniture et pose VMC simple flux autoreglable. Comprend: depose ancienne VMC, fourniture centrale VMC NF, pose, raccordement gaines, bouches extraction, circuit dedie 2A, test debit. DTU 68.3.',
+  'Radiateur inertie': 'Fourniture et pose radiateur inertie. Comprend: depose existant, fourniture radiateur inertie avec thermostat programmable, circuit dedie, disjoncteur calibre, raccordement, test.',
+};
+
+let compteurDevis = parseInt(localStorage.getItem('compteurDevis') || '0');
+let compteurFacture = parseInt(localStorage.getItem('compteurFacture') || '0');
+let panierD = [], panierF = [];
+
+function initCats(prefix) {
+  const grid = document.getElementById(`${prefix}-cats`);
+  grid.innerHTML = '';
+  Object.keys(GRILLE).forEach(cat => {
+    const btn = document.createElement('div');
+    btn.className = 'cat-btn';
+    btn.textContent = cat;
+    btn.onclick = () => {
+      document.querySelectorAll(`#${prefix}-cats .cat-btn`).forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      showPrests(prefix, cat);
+    };
+    grid.appendChild(btn);
+  });
+}
+
+function showPrests(prefix, cat) {
+  const container = document.getElementById(`${prefix}-prests`);
+  container.innerHTML = '';
+  container.classList.add('show');
+  Object.entries(GRILLE[cat]).forEach(([nom, prix]) => {
+    const div = document.createElement('div');
+    div.className = 'prest-btn';
+    div.innerHTML = `<span class="prest-name">${nom}</span><span class="prest-price">${prix} €</span>`;
+    div.onclick = () => {
+      addToCart(prefix, nom, prix);
+      div.style.borderColor = '#F5A623';
+      setTimeout(() => div.style.borderColor = '#333', 500);
+    };
+    container.appendChild(div);
+  });
+}
+
+function addToCart(prefix, nom, prix) {
+  const panier = prefix === 'd' ? panierD : panierF;
+  const ex = panier.find(i => i.designation === nom);
+  if (ex) ex.qte++;
+  else panier.push({ designation: nom, prixUnit: prix, qte: 1 });
+  renderPanier(prefix);
+}
+
+function changeQte(prefix, idx, delta) {
+  const panier = prefix === 'd' ? panierD : panierF;
+  panier[idx].qte = Math.max(1, panier[idx].qte + delta);
+  renderPanier(prefix);
+}
+
+function removeItem(prefix, idx) {
+  if (prefix === 'd') panierD.splice(idx, 1);
+  else panierF.splice(idx, 1);
+  renderPanier(prefix);
+}
+
+function renderPanier(prefix) {
+  const panier = prefix === 'd' ? panierD : panierF;
+  const container = document.getElementById(`${prefix}-panier-items`);
+  const countEl = document.getElementById(`${prefix}-count`);
+  const totalEl = document.getElementById(`${prefix}-total`);
+  if (panier.length === 0) {
+    container.innerHTML = '<div class="panier-empty">Aucune prestation ajoutee</div>';
+    countEl.textContent = '0 prestation(s)';
+    totalEl.textContent = '0,00 €';
+    return;
+  }
+  container.innerHTML = '';
+  let total = 0;
+  panier.forEach((item, idx) => {
+    const lineTotal = item.qte * item.prixUnit;
+    total += lineTotal;
+    const div = document.createElement('div');
+    div.className = 'panier-item';
+    div.innerHTML = `
+      <span class="panier-item-name">${item.designation}</span>
+      <div class="qte-ctrl">
+        <button class="qte-btn" onclick="changeQte('${prefix}',${idx},-1)">−</button>
+        <span class="qte-val">${item.qte}</span>
+        <button class="qte-btn" onclick="changeQte('${prefix}',${idx},1)">+</button>
+      </div>
+      <span class="panier-item-price">${lineTotal.toFixed(2)} €</span>
+      <button class="del-btn" onclick="removeItem('${prefix}',${idx})">🗑</button>
+    `;
+    container.appendChild(div);
+  });
+  countEl.textContent = `${panier.length} prestation(s)`;
+  totalEl.textContent = total.toFixed(2).replace('.', ',') + ' €';
+}
+
+function showStatus(prefix, type, msg) {
+  const el = document.getElementById(`${prefix}-status`);
+  el.className = `status ${type}`;
+  el.textContent = msg;
+}
+
+function genererPDF(type, data) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+
+  const ML = 15, MR = 12, MT = 48;
+  const CW = 183; // 210 - 15 - 12
+  const JAUNE = [245, 166, 35];
+  const NOIR = [17, 17, 17];
+  const GRIS = [68, 68, 68];
+  const GRIS_MED = [136, 136, 136];
+  const GRIS_LIGHT = [245, 245, 245];
+  const BLANC = [255, 255, 255];
+
+  // BANDE JAUNE GAUCHE
+  doc.setFillColor(245, 166, 35);
+  doc.rect(0, 0, 5, 297, 'F');
+
+  // TITRE
+  const titre = type === 'facture' ? 'FACTURE' : 'DEVIS';
+  doc.setFontSize(36);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(17, 17, 17);
+  doc.text(titre, 198, 18, { align: 'right' });
+
+  // BARRE JAUNE sous titre
+  doc.setFillColor(245, 166, 35);
+  doc.rect(145, 21, 53, 1.5, 'F');
+
+  // NUMÉRO DATE
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(17, 17, 17);
+  doc.text('N ' + data.num, 198, 27, { align: 'right' });
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(136, 136, 136);
+  doc.text('Date : ' + data.date, 198, 31, { align: 'right' });
+  if (type === 'devis') doc.text('Valable jusqu au : ' + data.valide, 198, 35, { align: 'right' });
+
+  // INFOS SINELEC
+  doc.setFontSize(7);
+  doc.setTextColor(136, 136, 136);
+  doc.setFont('helvetica', 'normal');
+  var infos = ['128 Rue La Boetie, 75008 Paris', 'Tel : 07 87 38 86 22', 'sinelec.paris@gmail.com', 'SIRET : 91015824500019'];
+  infos.forEach(function(line, i) { doc.text(line, ML, 22 + i * 4); });
+
+  // LIGNE SÉPARATRICE
+  doc.setDrawColor(229, 229, 229);
+  doc.setLineWidth(0.3);
+  doc.line(ML, 43, 198, 43);
+
+  // BLOC DE
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(245, 166, 35);
+  doc.text('DE', ML, MT + 2);
+  doc.setFillColor(245, 166, 35);
+  doc.rect(ML, MT + 3, 1.5, 18, 'F');
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(17, 17, 17);
+  doc.text('SINELEC PARIS', ML + 4, MT + 8);
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(68, 68, 68);
+  doc.text('128 Rue La Boetie, 75008 Paris', ML + 4, MT + 13);
+  doc.text('07 87 38 86 22 | sinelec.paris@gmail.com', ML + 4, MT + 18);
+
+  // BLOC CLIENT
+  var pourX = 110;
+  doc.setFillColor(255, 251, 242);
+  doc.rect(pourX - 4, MT - 2, 96, 26, 'F');
+  doc.setFillColor(245, 166, 35);
+  doc.rect(pourX - 4, MT - 2, 1.5, 26, 'F');
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(245, 166, 35);
+  doc.text('CLIENT', pourX, MT + 2);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(17, 17, 17);
+  doc.text(data.client, pourX, MT + 8);
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(68, 68, 68);
+  var addrLines = doc.splitTextToSize(data.adresse, 90);
+  doc.text(addrLines, pourX, MT + 13);
+  if (data.email) doc.text(data.email, pourX, MT + 22);
+
+  var y = MT + 33;
+
+  // EN-TÊTE TABLEAU
+  var rowH = 8;
+  doc.setFillColor(17, 17, 17);
+  doc.rect(ML, y, CW, rowH, 'F');
+  doc.setFillColor(245, 166, 35);
+  doc.rect(ML, y + rowH, CW, 1, 'F');
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(255, 255, 255);
+  var cols = [8, 95, 12, 8, 30, 30];
+  var headers = ['#', 'DESIGNATION', 'QTE', 'U.', 'PRIX U.HT', 'TOTAL HT'];
+  var cx = ML + 2;
+  headers.forEach(function(h, i) {
+    var align = i >= 4 ? 'right' : (i === 0 ? 'center' : 'left');
+    var tx = i >= 4 ? cx + cols[i] - 2 : cx;
+    doc.text(h, tx, y + 5.5, { align: align });
+    cx += cols[i];
+  });
+  y += rowH + 1;
+
+  // LIGNES PRESTATIONS
+  data.lignes.forEach(function(l, idx) {
+    var detail = DETAILS[l.designation] || '';
+    var detailLines = doc.splitTextToSize(detail, 91);
+    var lineH = Math.max(14, 8 + detailLines.length * 3.5);
+
+    // Fond alterné
+    if (idx % 2 === 1) {
+      doc.setFillColor(250, 250, 250);
+      doc.rect(ML, y, CW, lineH, 'F');
+    }
+    doc.setDrawColor(229, 229, 229);
+    doc.setLineWidth(0.1);
+    doc.line(ML, y + lineH, ML + CW, y + lineH);
+
+    // Numéro
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(136, 136, 136);
+    doc.text(String(idx + 1), ML + 4, y + 6, { align: 'center' });
+
+    // Désignation bold
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(17, 17, 17);
+    doc.setFontSize(8);
+    doc.text(l.designation, ML + 10, y + 5.5);
+
+    // Détail en gris
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 100, 100);
+    doc.setFontSize(6.5);
+    doc.text(detailLines, ML + 10, y + 9.5);
+
+    // Qté
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(17, 17, 17);
+    doc.setFontSize(8);
+    doc.text(String(l.qte), ML + 8 + 95 + 6, y + 6, { align: 'center' });
+
+    // Unité
+    doc.setTextColor(136, 136, 136);
+    doc.text('u', ML + 8 + 95 + 12 + 4, y + 6, { align: 'center' });
+
+    // Prix U
+    doc.setTextColor(17, 17, 17);
+    doc.text(parseFloat(l.prixUnit).toFixed(2) + ' E', ML + 8 + 95 + 12 + 8 + 28, y + 6, { align: 'right' });
+
+    // Total
+    doc.setFont('helvetica', 'bold');
+    doc.text(parseFloat(l.total).toFixed(2) + ' E', ML + CW - 2, y + 6, { align: 'right' });
+
+    y += lineH;
+  });
+
+  y += 5;
+
+  // TOTAUX
+  doc.setDrawColor(229, 229, 229);
+  doc.setLineWidth(0.3);
+  doc.line(ML + CW * 0.55, y, 198, y);
+  y += 4;
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(68, 68, 68);
+  doc.text('Total HT', 168, y, { align: 'right' });
+  doc.setTextColor(17, 17, 17);
+  doc.text(data.totalHT.toFixed(2) + ' EUR', 198, y, { align: 'right' });
+  y += 5;
+  doc.setFontSize(8);
+  doc.setTextColor(136, 136, 136);
+  doc.text('TVA non applicable (art. 293B CGI)', 198, y, { align: 'right' });
+  y += 5;
+
+  // NET À PAYER
+  doc.setFillColor(17, 17, 17);
+  doc.rect(ML, y, CW, 13, 'F');
+  doc.setFillColor(245, 166, 35);
+  doc.rect(ML, y + 13, CW, 1.5, 'F');
+  doc.setFontSize(13);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(255, 255, 255);
+  doc.text('NET A PAYER', ML + 5, y + 9);
+  doc.setTextColor(245, 166, 35);
+  doc.text(data.totalHT.toFixed(2) + ' EUR', 198, y + 9, { align: 'right' });
+
+  // TAMPON ACQUITTÉ
+  if (type === 'facture') {
+    doc.setDrawColor(204, 0, 0);
+    doc.setLineWidth(1.5);
+    doc.circle(155, y, 14, 'S');
+    doc.setLineWidth(0.5);
+    doc.circle(155, y, 13, 'S');
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(204, 0, 0);
+    doc.text('ACQUITTE', 155, y + 1, { align: 'center' });
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.text(data.date, 155, y + 5, { align: 'center' });
+  }
+
+  y += 20;
+
+  // CONDITIONS DEVIS
+  if (type === 'devis') {
+    doc.setDrawColor(229, 229, 229);
+    doc.setLineWidth(0.3);
+    doc.line(ML, y, 198, y);
+    y += 4;
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(17, 17, 17);
+    doc.text('CONDITIONS', ML, y);
+    y += 5;
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(68, 68, 68);
+    doc.text('Acompte 40% a la signature', ML, y);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(212, 137, 26);
+    doc.text((data.totalHT * 0.4).toFixed(2) + ' EUR', 198, y, { align: 'right' });
+    y += 5;
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(68, 68, 68);
+    doc.text('Reste a facturer fin des travaux', ML, y);
+    doc.setTextColor(17, 17, 17);
+    doc.text((data.totalHT * 0.6).toFixed(2) + ' EUR', 198, y, { align: 'right' });
+    y += 5;
+    doc.setFontSize(7);
+    doc.setTextColor(136, 136, 136);
+    doc.text('Devis valable 30 jours - Paiement : virement, especes, carte bancaire', ML, y);
+    y += 7;
+  }
+
+  // IBAN
+  doc.setFillColor(245, 245, 245);
+  doc.rect(ML, y, CW, 11, 'F');
+  doc.setFillColor(245, 166, 35);
+  doc.rect(ML, y, 1.5, 11, 'F');
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(136, 136, 136);
+  doc.text('IBAN', ML + 4, y + 4);
+  doc.setTextColor(17, 17, 17);
+  doc.text('FR76 1695 8000 0174 2540 5920 931', ML + 16, y + 4);
+  doc.setTextColor(136, 136, 136);
+  doc.text('BIC', 170, y + 4);
+  doc.setTextColor(17, 17, 17);
+  doc.text('QNTOFRP1XXX', 198, y + 4, { align: 'right' });
+  doc.setFontSize(6.5);
+  doc.setTextColor(136, 136, 136);
+  doc.text('TVA non applicable art. 293B CGI - Garantie decennale ORUS', ML + 4, y + 8.5);
+  y += 16;
+
+  // SIGNATURES DEVIS
+  if (type === 'devis') {
+    var sigW = (CW - 5) / 2;
+    doc.setDrawColor(229, 229, 229);
+    doc.setLineWidth(0.5);
+    doc.rect(ML, y, sigW, 18, 'S');
+    doc.setFillColor(245, 166, 35);
+    doc.rect(ML, y, 1.5, 18, 'F');
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(68, 68, 68);
+    doc.text('Bon pour accord - Signature client :', ML + 4, y + 5);
+    doc.text('Date : _______________', ML + 4, y + 14);
+    doc.setDrawColor(229, 229, 229);
+    doc.rect(ML + sigW + 5, y, sigW, 18, 'S');
+    doc.setFillColor(17, 17, 17);
+    doc.rect(ML + sigW + 5, y, 1.5, 18, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(17, 17, 17);
+    doc.text('Signature SINELEC Paris', ML + sigW + 9, y + 5);
+    doc.text('SINELEC PARIS', ML + sigW + 9, y + 14);
+  }
+
+  // FOOTER
+  doc.setFillColor(17, 17, 17);
+  doc.rect(0, 287, 210, 10, 'F');
+  doc.setFillColor(245, 166, 35);
+  doc.rect(0, 286, 210, 1, 'F');
+  doc.setFontSize(6);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(119, 119, 119);
+  doc.text('SINELEC EI - 128 Rue La Boetie 75008 Paris - SIRET : 91015824500019 - TVA non applicable art. 293B CGI - Garantie decennale ORUS', 105, 293, { align: 'center' });
+  doc.setTextColor(245, 166, 35);
+  doc.text(data.num + ' | Page 1 / 1', 198, 295, { align: 'right' });
+
+  return doc;
+}
+
+
+async function envoyerEmail(pdfBase64, data, type) {
+  if (!data.email && type === 'devis') return false;
+  const dest = data.email || 'sinelec.paris@gmail.com';
+  try {
+    const res = await fetch('/envoyer-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: dest,
+        client: data.client,
+        num: data.num,
+        totalHT: data.totalHT,
+        type: type,
+        pdfBase64: pdfBase64,
+      })
+    });
+    const result = await res.json();
+    return result.success === true;
+  } catch(e) {
+    console.log('Email error:', e);
+    return false;
+  }
+}
+
+async function generer(type) {
+  const p = type === 'devis' ? 'd' : 'f';
+  const client = document.getElementById(`${p}-client`).value.trim();
+  const adresse = document.getElementById(`${p}-adresse`).value.trim();
+  const email = document.getElementById(`${p}-email`).value.trim();
+  const panier = type === 'devis' ? panierD : panierF;
+
+  if (!client) { showStatus(p, 'error', '⚠ Nom du client obligatoire'); return; }
+  if (!adresse) { showStatus(p, 'error', '⚠ Adresse obligatoire'); return; }
+  if (panier.length === 0) { showStatus(p, 'error', '⚠ Ajoute au moins une prestation'); return; }
+
+  const btn = document.getElementById(`${p}-btn`);
+  btn.disabled = true;
+  btn.textContent = '⏳ Generation en cours...';
+  showStatus(p, 'loading', '⏳ Generation du PDF...');
+
+  try {
+    const now = new Date();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const yyyy = now.getFullYear();
+
+    let num, compteur;
+    if (type === 'devis') {
+      compteurDevis++;
+      localStorage.setItem('compteurDevis', compteurDevis);
+      num = `OS-${yyyy}${mm}-${String(compteurDevis).padStart(3, '0')}`;
+    } else {
+      compteurFacture++;
+      localStorage.setItem('compteurFacture', compteurFacture);
+      num = `FA-${yyyy}${mm}-${String(compteurFacture).padStart(3, '0')}`;
+    }
+
+    const date = now.toLocaleDateString('fr-FR');
+    const valide = new Date(new Date().setDate(now.getDate() + 30)).toLocaleDateString('fr-FR');
+    const totalHT = panier.reduce((s, l) => s + l.qte * l.prixUnit, 0);
+    const lignes = panier.map(l => ({ ...l, total: l.qte * l.prixUnit }));
+
+    const data = { num, date, valide, client, adresse, email, lignes, totalHT };
+    const doc = genererPDF(type, data);
+
+    // Téléchargement PDF
+    doc.save(`${num}_${client.replace(/\s+/g, '_').toUpperCase()}.pdf`);
+
+    // Envoi email si email fourni
+    if (email) {
+      showStatus(p, 'loading', '⏳ Envoi email au client...');
+      const pdfBase64 = doc.output('datauristring').split(',')[1];
+      const emailOk = await envoyerEmail(pdfBase64, data, type);
+      if (emailOk) {
+        showStatus(p, 'success', `✅ PDF telecharge + email envoye a ${email} !`);
+      } else {
+        showStatus(p, 'success', `✅ PDF telecharge ! (Email non envoye)`);
+      }
+    } else {
+      showStatus(p, 'success', '✅ PDF telecharge avec succes !');
+    }
+
+    // Reset panier
+    if (type === 'devis') panierD = [];
+    else panierF = [];
+    renderPanier(p);
+
+  } catch(e) {
+    showStatus(p, 'error', '❌ Erreur : ' + e.message);
+    console.error(e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = type === 'devis' ? '📄 Generer le devis PDF' : '💶 Generer la facture PDF';
+  }
+}
+
+function switchTab(tab, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById(`page-${tab}`).classList.add('active');
+}
+
+initCats('d');
+initCats('f');
+</script>
+</body>
+</html>

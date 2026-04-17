@@ -1,0 +1,30 @@
+{
+  "name": "sinelec-api",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sinelecparis-del/sinelec-api.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/sinelecparis-del/sinelec-api/issues"
+  },
+  "homepage": "https://github.com/sinelecparis-del/sinelec-api#readme",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.89.0",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "nodemailer": "^8.0.5",
+    "pdfkit": "^0.18.0",
+    "resend": "^6.12.0"
+  }
+}
