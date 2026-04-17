@@ -442,8 +442,13 @@ app.post('/envoyer-email', async (req, res) => {
   }
 });
 
+process.on('SIGTERM', () => {
+  console.log('SIGTERM recu - arret gracieux');
+  server.close(() => process.exit(0));
+});
+
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`✅ Serveur SINELEC démarré !`);
   console.log(`📱 Accessible sur : https://sinelec-api-production.up.railway.app/app.html`);
 });
