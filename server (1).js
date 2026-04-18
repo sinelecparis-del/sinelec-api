@@ -279,6 +279,59 @@ function genererPDFBuffer(data, type = 'devis') {
   });
 }
 
+// ── HISTORIQUE & BASE CLIENTS ────────────────────────────────
+function loadHistorique() {
+  try { return JSON.parse(fs.readFileSync('historique.json', 'utf8')); } catch(e) { return []; }
+}
+function saveHistorique(data) {
+  fs.writeFileSync('historique.json', JSON.stringify(data));
+}
+function loadClients() {
+  try { return JSON.parse(fs.readFileSync('clients.json', 'utf8')); } catch(e) { return []; }
+}
+function saveClients(clients) {
+  fs.writeFileSync('clients.json', JSON.stringify(clients));
+}
+function upsertClient(nom, adresse, email) {
+  const clients = loadClients();
+  const existing = clients.find(c => c.nom.toLowerCase() === nom.toLowerCase());
+  if (existing) {
+    existing.adresse = adresse || existing.adresse;
+    existing.email = email || existing.email;
+    existing.updatedAt = new Date().toISOString();
+  } else {
+    clients.unshift({ nom, adresse, email, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+  }
+  saveClients(clients);
+}
+function addToHistorique(entry) {
+  const hist = loadHistorique();
+  hist.unshift(entry);
+  if (hist.length > 500) hist.splice(500);
+  saveHistorique(hist);
+}
+
+// Route GET historique
+app.get('/api/historique', (req, res) => {
+  res.json(loadHistorique());
+});
+
+// Route GET clients
+app.get('/api/clients', (req, res) => {
+  const q = (req.query.q || '').toLowerCase();
+  const clients = loadClients();
+  if (q) res.json(clients.filter(c => c.nom.toLowerCase().includes(q) || (c.adresse || '').toLowerCase().includes(q)));
+  else res.json(clients);
+});
+
+// Route DELETE historique item
+app.delete('/api/historique/:num', (req, res) => {
+  const hist = loadHistorique();
+  const filtered = hist.filter(h => h.num !== req.params.num);
+  saveHistorique(filtered);
+  res.json({ success: true });
+});
+
 // ── ROUTES ──
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'app.html')));
 
@@ -328,17 +381,14 @@ app.post('/generer-devis', async (req, res) => {
       } catch(e) { console.log('Email error:', e.message); }
     }
 
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${num}.pdf"`);
-    res.send(pdfBuffer);
+    // Sauvegarder historique + client
+    upsertClient(client, adresse, email);
+    addToHistorique({
+      num, type: 'devis', client, adresse, email,
+      totalHT, date, createdAt: new Date().toISOString()
+    });
 
-  } catch(e) {
-    console.error(e);
-    res.status(500).json({ error: e.message });
-  }
-});
-
-app.post('/generer-facture', async (req, res) => {
+    res.setHeader('Content-Type', 'application/pdf');, async (req, res) => {
   try {
     const { client, adresse, email, lignes, description } = req.body;
     const totalHT = lignes.reduce((s, l) => s + (l.qte * l.prixUnit), 0);
@@ -384,12 +434,43 @@ app.post('/generer-facture', async (req, res) => {
       } catch(e) { console.log('Email error:', e.message); }
     }
 
+    // Sauvegarder historique + client
+    upsertClient(client, adresse, email);
+    addToHistorique({
+      num, type: 'facture', client, adresse, email,
+      totalHT, date, createdAt: new Date().toISOString()
+    });
+
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${num}.pdf"`);
     res.send(pdfBuffer);
 
+// ── ROUTE RÉDACTION RAPPORT ──
+app.post('/api/rapport', async (req, res) => {
+  try {
+    const { contexte } = req.body;
+    const msg = await anthropic.messages.create({
+      model: 'claude-opus-4-5',
+      max_tokens: 800,
+      messages: [{
+        role: 'user',
+        content: `Tu es SINELEC PARIS, électricien professionnel Paris et IDF, spécialisé dépannage et mise aux normes NF C 15-100.
+
+Le technicien décrit ce chantier en quelques mots : "${contexte}"
+
+Génère un rapport d'intervention professionnel avec :
+1. "travaux" : description complète et technique des travaux réalisés (8-12 lignes). Mentionne le matériel utilisé (marques Schneider/Legrand/Hager si tableau), les normes respectées (NF C 15-100), la garantie décennale ORUS. Ton professionnel BTP.
+2. "observations" : anomalies constatées et recommandations pour la suite (3-5 lignes). Si tout est conforme, mentionne-le.
+
+Réponds UNIQUEMENT en JSON valide (sans markdown) :
+{"travaux": "...", "observations": "..."}`
+      }]
+    });
+    const text = msg.content[0].text.trim().replace(/```json|```/g, '').trim();
+    const data = JSON.parse(text);
+    res.json(data);
   } catch(e) {
-    console.error(e);
+    console.error('Rapport error:', e.message);
     res.status(500).json({ error: e.message });
   }
 });

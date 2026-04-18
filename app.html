@@ -63,19 +63,24 @@ body { background:#0a0a0a; color:#fff; font-family:-apple-system,BlinkMacSystemF
   <span>Paris & IDF 24h/24</span>
 </div>
 
-<div class="tabs">
-  <div class="tab active" onclick="switchTab('devis', this)">📋 Devis</div>
-  <div class="tab" onclick="switchTab('facture', this)">💶 Facture</div>
-  <div class="tab" onclick="switchTab('chat', this)">🤖 Chat</div>
-  <div class="tab" onclick="switchTab('rapport', this)">📸 Rapport</div>
-  <div class="tab" onclick="switchTab('params', this)">⚙️</div>
+<div class="tabs" style="overflow-x:auto;white-space:nowrap;display:flex;">
+  <div class="tab active" onclick="switchTab('devis', this)" style="flex-shrink:0">Devis</div>
+  <div class="tab" onclick="switchTab('facture', this)" style="flex-shrink:0">Facture</div>
+  <div class="tab" onclick="switchTab('chat', this)" style="flex-shrink:0">Chat</div>
+  <div class="tab" onclick="switchTab('rapport', this)" style="flex-shrink:0">Rapport</div>
+  <div class="tab" onclick="switchTab('historique', this)" style="flex-shrink:0">Histo</div>
+  <div class="tab" onclick="switchTab('clients', this)" style="flex-shrink:0">Clients</div>
+  <div class="tab" onclick="switchTab('params', this)" style="flex-shrink:0">Params</div>
 </div>
 
 <div id="page-devis" class="page active">
 <div class="content">
   <div class="section">
     <div class="section-title">Informations client</div>
-    <div class="input-group"><label>Nom / Société</label><input type="text" id="d-client" placeholder="Ex: Dupont Marie"></div>
+    <div class="input-group"><label>Nom / Société</label>
+      <input type="text" id="d-client" placeholder="Ex: Dupont Marie" oninput="autocompleteClient('d', this.value)" autocomplete="off">
+      <div id="d-client-suggestions" style="display:none;background:#222;border:1px solid #F5A623;border-radius:8px;margin-top:4px;max-height:180px;overflow-y:auto;z-index:100;"></div>
+    </div>
     <div class="input-group"><label>Adresse</label><input type="text" id="d-adresse" placeholder="Ex: 12 rue de la Paix, 75001 Paris"></div>
     <div class="input-group"><label>Email client (pour envoi auto)</label><input type="email" id="d-email" placeholder="client@email.com"></div>
     <div class="input-group"><label>Description du chantier</label><textarea id="d-description" placeholder="Ex: Remplacement tableau + 3 prises"></textarea></div>
@@ -102,7 +107,10 @@ body { background:#0a0a0a; color:#fff; font-family:-apple-system,BlinkMacSystemF
 <div class="content">
   <div class="section">
     <div class="section-title">Informations client</div>
-    <div class="input-group"><label>Nom / Société</label><input type="text" id="f-client" placeholder="Ex: Dupont Marie"></div>
+    <div class="input-group"><label>Nom / Société</label>
+      <input type="text" id="f-client" placeholder="Ex: Dupont Marie" oninput="autocompleteClient('f', this.value)" autocomplete="off">
+      <div id="f-client-suggestions" style="display:none;background:#222;border:1px solid #F5A623;border-radius:8px;margin-top:4px;max-height:180px;overflow-y:auto;z-index:100;"></div>
+    </div>
     <div class="input-group"><label>Adresse</label><input type="text" id="f-adresse" placeholder="Ex: 12 rue de la Paix, 75001 Paris"></div>
     <div class="input-group"><label>Email client (pour envoi auto)</label><input type="email" id="f-email" placeholder="client@email.com"></div>
     <div class="input-group"><label>Description des travaux</label><textarea id="f-description" placeholder="Ex: Remplacement tableau réalisé"></textarea></div>
@@ -222,6 +230,35 @@ body { background:#0a0a0a; color:#fff; font-family:-apple-system,BlinkMacSystemF
 
   <button class="btn-gen" onclick="genererRapport()">📄 Générer le rapport PDF</button>
   <div class="status" id="r-status"></div>
+</div>
+</div>
+
+<!-- PAGE HISTORIQUE -->
+<div id="page-historique" class="page">
+<div class="content">
+  <div class="section">
+    <div class="section-title">Historique — Tous les documents</div>
+  </div>
+  <div style="display:flex;gap:8px;margin-bottom:12px;">
+    <button onclick="chargerHistorique('tous')" id="histo-btn-tous" style="flex:1;background:#F5A623;color:#000;border:none;border-radius:8px;padding:8px;font-size:12px;font-weight:700;cursor:pointer;">Tous</button>
+    <button onclick="chargerHistorique('devis')" id="histo-btn-devis" style="flex:1;background:#222;color:#ccc;border:1px solid #333;border-radius:8px;padding:8px;font-size:12px;cursor:pointer;">Devis</button>
+    <button onclick="chargerHistorique('facture')" id="histo-btn-facture" style="flex:1;background:#222;color:#ccc;border:1px solid #333;border-radius:8px;padding:8px;font-size:12px;cursor:pointer;">Factures</button>
+    <button onclick="chargerHistorique('rapport')" id="histo-btn-rapport" style="flex:1;background:#222;color:#ccc;border:1px solid #333;border-radius:8px;padding:8px;font-size:12px;cursor:pointer;">Rapports</button>
+  </div>
+  <div id="histo-list"><div class="panier-empty">Chargement...</div></div>
+</div>
+</div>
+
+<!-- PAGE CLIENTS -->
+<div id="page-clients" class="page">
+<div class="content">
+  <div class="section">
+    <div class="section-title">Base clients</div>
+    <div class="input-group">
+      <input type="text" id="client-search" placeholder="Rechercher un client..." oninput="rechercherClients()" style="background:#18181b;border:1px solid #333;border-radius:8px;padding:12px;color:#fff;font-size:15px;outline:none;width:100%;">
+    </div>
+  </div>
+  <div id="clients-list"><div class="panier-empty">Chargement...</div></div>
 </div>
 </div>
 
@@ -1368,13 +1405,157 @@ function reinitialiserPrix() {
   setTimeout(() => { el.className = 'status'; }, 3000);
 }
 
+// ── HISTORIQUE ─────────────────────────────────────────────────
+let histoFilter = 'tous';
+
+async function chargerHistorique(filter) {
+  histoFilter = filter || 'tous';
+  ['tous','devis','facture','rapport'].forEach(f => {
+    const btn = document.getElementById(`histo-btn-${f}`);
+    if (btn) {
+      btn.style.background = f === histoFilter ? '#F5A623' : '#222';
+      btn.style.color = f === histoFilter ? '#000' : '#ccc';
+    }
+  });
+  const container = document.getElementById('histo-list');
+  container.innerHTML = '<div class="panier-empty">Chargement...</div>';
+  try {
+    const res = await fetch('/api/historique');
+    let data = await res.json();
+    if (histoFilter !== 'tous') data = data.filter(h => h.type === histoFilter);
+    if (data.length === 0) { container.innerHTML = '<div class="panier-empty">Aucun document</div>'; return; }
+    container.innerHTML = '';
+    data.forEach(item => {
+      const div = document.createElement('div');
+      div.style.cssText = 'background:#18181b;border:1px solid #333;border-radius:8px;padding:12px;margin-bottom:8px;';
+      const badge = item.type === 'devis' ? '#2a4a2a' : item.type === 'facture' ? '#2a2a4a' : '#4a2a2a';
+      const badgeColor = item.type === 'devis' ? '#4ade80' : item.type === 'facture' ? '#60a5fa' : '#f87171';
+      div.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="background:${badge};color:${badgeColor};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;">${item.type.toUpperCase()}</span>
+          <span style="font-size:11px;color:#888;">${item.date || ''}</span>
+        </div>
+        <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:2px;">${item.client}</div>
+        <div style="font-size:12px;color:#888;margin-bottom:6px;">${item.num} — ${parseFloat(item.totalHT || 0).toFixed(2)} EUR HT</div>
+        <div style="display:flex;gap:6px;">
+          <button onclick="preRemplirClient('${encodeURIComponent(item.client)}','${encodeURIComponent(item.adresse||'')}','${encodeURIComponent(item.email||'')}')" 
+            style="background:#333;color:#F5A623;border:none;border-radius:6px;padding:6px 10px;font-size:11px;cursor:pointer;">
+            Reutiliser client
+          </button>
+          <button onclick="supprimerHistorique('${item.num}', this)" 
+            style="background:#3a1a1a;color:#f87171;border:none;border-radius:6px;padding:6px 10px;font-size:11px;cursor:pointer;">
+            Supprimer
+          </button>
+        </div>`;
+      container.appendChild(div);
+    });
+  } catch(e) {
+    container.innerHTML = '<div class="panier-empty">Erreur de chargement</div>';
+  }
+}
+
+async function supprimerHistorique(num, btn) {
+  if (!confirm('Supprimer ce document ?')) return;
+  await fetch('/api/historique/' + encodeURIComponent(num), { method: 'DELETE' });
+  chargerHistorique(histoFilter);
+}
+
+function preRemplirClient(nom, adresse, email) {
+  const n = decodeURIComponent(nom);
+  const a = decodeURIComponent(adresse);
+  const e = decodeURIComponent(email);
+  ['d','f'].forEach(p => {
+    const cn = document.getElementById(`${p}-client`);
+    const ca = document.getElementById(`${p}-adresse`);
+    const ce = document.getElementById(`${p}-email`);
+    if (cn) cn.value = n;
+    if (ca) ca.value = a;
+    if (ce) ce.value = e;
+  });
+  // Aller sur l'onglet devis
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab')[0].classList.add('active');
+  document.getElementById('page-devis').classList.add('active');
+}
+
+// ── BASE CLIENTS ───────────────────────────────────────────────
+async function chargerClients() {
+  const container = document.getElementById('clients-list');
+  container.innerHTML = '<div class="panier-empty">Chargement...</div>';
+  try {
+    const res = await fetch('/api/clients');
+    const clients = await res.json();
+    afficherClients(clients);
+  } catch(e) {
+    container.innerHTML = '<div class="panier-empty">Erreur</div>';
+  }
+}
+
+function afficherClients(clients) {
+  const container = document.getElementById('clients-list');
+  if (clients.length === 0) { container.innerHTML = '<div class="panier-empty">Aucun client</div>'; return; }
+  container.innerHTML = '';
+  clients.forEach(client => {
+    const div = document.createElement('div');
+    div.style.cssText = 'background:#18181b;border:1px solid #333;border-radius:8px;padding:12px;margin-bottom:8px;cursor:pointer;';
+    div.innerHTML = `
+      <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:4px;">${client.nom}</div>
+      <div style="font-size:12px;color:#888;">${client.adresse || ''}</div>
+      ${client.email ? `<div style="font-size:12px;color:#F5A623;">${client.email}</div>` : ''}
+    `;
+    div.onclick = () => preRemplirClient(
+      encodeURIComponent(client.nom),
+      encodeURIComponent(client.adresse || ''),
+      encodeURIComponent(client.email || '')
+    );
+    container.appendChild(div);
+  });
+}
+
+async function rechercherClients() {
+  const q = document.getElementById('client-search').value;
+  if (q.length < 2) { chargerClients(); return; }
+  const res = await fetch('/api/clients?q=' + encodeURIComponent(q));
+  const clients = await res.json();
+  afficherClients(clients);
+}
+
+async function autocompleteClient(prefix, val) {
+  const suggestions = document.getElementById(`${prefix}-client-suggestions`);
+  if (!suggestions || val.length < 2) { if(suggestions) suggestions.style.display = 'none'; return; }
+  try {
+    const res = await fetch('/api/clients?q=' + encodeURIComponent(val));
+    const clients = await res.json();
+    if (clients.length === 0) { suggestions.style.display = 'none'; return; }
+    suggestions.innerHTML = '';
+    suggestions.style.display = 'block';
+    clients.slice(0, 5).forEach(client => {
+      const item = document.createElement('div');
+      item.style.cssText = 'padding:10px 12px;cursor:pointer;border-bottom:1px solid #333;font-size:13px;color:#ddd;';
+      item.innerHTML = `<strong>${client.nom}</strong><br><span style="font-size:11px;color:#888;">${client.adresse || ''}</span>`;
+      item.onclick = () => {
+        document.getElementById(`${prefix}-client`).value = client.nom;
+        const addrEl = document.getElementById(`${prefix}-adresse`);
+        const emailEl = document.getElementById(`${prefix}-email`);
+        if (addrEl) addrEl.value = client.adresse || '';
+        if (emailEl) emailEl.value = client.email || '';
+        suggestions.style.display = 'none';
+      };
+      suggestions.appendChild(item);
+    });
+  } catch(e) { suggestions.style.display = 'none'; }
+}
+
 // Init
 chargerPrixSauvegardes();
 initCats('d');
 initCats('f');
 
 // Afficher params au clic sur l'onglet
-document.querySelectorAll('.tab')[4].addEventListener('click', () => afficherParams());
+document.querySelectorAll('.tab')[4].addEventListener('click', () => chargerHistorique('tous'));
+document.querySelectorAll('.tab')[5].addEventListener('click', () => chargerClients());
+document.querySelectorAll('.tab')[6].addEventListener('click', () => afficherParams());
 </script>
 </body>
 </html>
