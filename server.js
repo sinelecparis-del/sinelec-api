@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const Anthropic = require('@anthropic-ai/sdk');
 const PDFDocument = require('pdfkit');
+const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
 app.use((req, res, next) => {
@@ -18,8 +19,8 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(__dirname));
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-const JAUNE = '#F5A623';
+const supabase = createClient(process.env.SUPABASE_URL || '', process.env.SUPABASE_KEY || '');
+ = '#F5A623';
 const NOIR = '#111111';
 const GRIS_DARK = '#444444';
 const GRIS_MED = '#888888';
@@ -279,6 +280,52 @@ function genererPDFBuffer(data, type = 'devis') {
   });
 }
 
+// ── HISTORIQUE & BASE CLIENTS via SUPABASE ────────────────────
+async function addToHistorique(entry) {
+  try { await supabase.from('historique').insert([entry]); } 
+  catch(e) { console.log('Supabase historique error:', e.message); }
+}
+
+async function upsertClient(nom, adresse, email) {
+  try {
+    const { data } = await supabase.from('clients').select('id').ilike('nom', nom).limit(1);
+    if (data && data.length > 0) {
+      await supabase.from('clients').update({ adresse, email }).eq('id', data[0].id);
+    } else {
+      await supabase.from('clients').insert([{ nom, adresse, email }]);
+    }
+  } catch(e) { console.log('Supabase client error:', e.message); }
+}
+
+// Route GET historique
+app.get('/api/historique', async (req, res) => {
+  try {
+    const { data } = await supabase.from('historique').select('*').order('created_at', { ascending: false }).limit(200);
+    res.json(data || []);
+  } catch(e) { res.json([]); }
+});
+
+// Route GET clients
+app.get('/api/clients', async (req, res) => {
+  try {
+    const q = req.query.q || '';
+    let query = supabase.from('clients').select('*').order('updated_at', { ascending: false });
+    if (q) query = query.ilike('nom', `%${q}%`);
+    const { data } = await query.limit(50);
+    res.json(data || []);
+  } catch(e) { res.json([]); }
+});
+
+// Route DELETE historique item
+app.delete('/api/historique/:num', async (req, res) => {
+  try {
+    await supabase.from('historique').delete().eq('num', req.params.num);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+
+
 // ── ROUTES ──
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'app.html')));
 
@@ -328,17 +375,14 @@ app.post('/generer-devis', async (req, res) => {
       } catch(e) { console.log('Email error:', e.message); }
     }
 
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${num}.pdf"`);
-    res.send(pdfBuffer);
+    // Sauvegarder historique + client
+    upsertClient(client, adresse, email);
+    addToHistorique({
+      num, type: 'devis', client, adresse, email,
+      totalht: totalHT, date, created_at: new Date().toISOString()
+    });
 
-  } catch(e) {
-    console.error(e);
-    res.status(500).json({ error: e.message });
-  }
-});
-
-app.post('/generer-facture', async (req, res) => {
+    res.setHeader('Content-Type', 'application/pdf');, async (req, res) => {
   try {
     const { client, adresse, email, lignes, description } = req.body;
     const totalHT = lignes.reduce((s, l) => s + (l.qte * l.prixUnit), 0);
@@ -384,12 +428,43 @@ app.post('/generer-facture', async (req, res) => {
       } catch(e) { console.log('Email error:', e.message); }
     }
 
+    // Sauvegarder historique + client
+    upsertClient(client, adresse, email);
+    addToHistorique({
+      num, type: 'facture', client, adresse, email,
+      totalht: totalHT, date, created_at: new Date().toISOString()
+    });
+
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${num}.pdf"`);
     res.send(pdfBuffer);
 
+// ── ROUTE RÉDACTION RAPPORT ──
+app.post('/api/rapport', async (req, res) => {
+  try {
+    const { contexte } = req.body;
+    const msg = await anthropic.messages.create({
+      model: 'claude-opus-4-5',
+      max_tokens: 800,
+      messages: [{
+        role: 'user',
+        content: `Tu es SINELEC PARIS, électricien professionnel Paris et IDF, spécialisé dépannage et mise aux normes NF C 15-100.
+
+Le technicien décrit ce chantier en quelques mots : "${contexte}"
+
+Génère un rapport d'intervention professionnel avec :
+1. "travaux" : description complète et technique des travaux réalisés (8-12 lignes). Mentionne le matériel utilisé (marques Schneider/Legrand/Hager si tableau), les normes respectées (NF C 15-100), la garantie décennale ORUS. Ton professionnel BTP.
+2. "observations" : anomalies constatées et recommandations pour la suite (3-5 lignes). Si tout est conforme, mentionne-le.
+
+Réponds UNIQUEMENT en JSON valide (sans markdown) :
+{"travaux": "...", "observations": "..."}`
+      }]
+    });
+    const text = msg.content[0].text.trim().replace(/```json|```/g, '').trim();
+    const data = JSON.parse(text);
+    res.json(data);
   } catch(e) {
-    console.error(e);
+    console.error('Rapport error:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
