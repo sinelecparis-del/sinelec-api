@@ -66,6 +66,9 @@ body { background:#0a0a0a; color:#fff; font-family:-apple-system,BlinkMacSystemF
 <div class="tabs">
   <div class="tab active" onclick="switchTab('devis', this)">📋 Devis</div>
   <div class="tab" onclick="switchTab('facture', this)">💶 Facture</div>
+  <div class="tab" onclick="switchTab('chat', this)">🤖 Chat</div>
+  <div class="tab" onclick="switchTab('rapport', this)">📸 Rapport</div>
+  <div class="tab" onclick="switchTab('params', this)">⚙️</div>
 </div>
 
 <div id="page-devis" class="page active">
@@ -122,8 +125,120 @@ body { background:#0a0a0a; color:#fff; font-family:-apple-system,BlinkMacSystemF
 </div>
 </div>
 
+<!-- PAGE CHAT -->
+<div id="page-chat" class="page">
+<div class="content">
+  <div class="section">
+    <div class="section-title">🤖 Assistant SINELEC — Claude AI</div>
+    <div style="background:#18181b;border:1px solid #333;border-radius:10px;padding:12px;margin-bottom:12px;font-size:12px;color:#888;line-height:1.6">
+      Décris ton chantier en langage naturel et je remplis le devis automatiquement.<br>
+      <span style="color:#F5A623">Ex: "tableau 2 rangées urgence soir Paris + 3 prises + recherche panne"</span>
+    </div>
+  </div>
+
+  <div id="chat-messages" style="background:#18181b;border:1px solid #333;border-radius:10px;padding:12px;min-height:200px;max-height:400px;overflow-y:auto;margin-bottom:12px;display:flex;flex-direction:column;gap:10px;">
+    <div style="background:#222;border-radius:8px;padding:10px;font-size:13px;color:#ccc">
+      👋 Salut ! Décris ton chantier et je sélectionne les prestations au bon prix. Tu pourras ensuite générer le devis directement.
+    </div>
+  </div>
+
+  <div style="display:flex;gap:8px;margin-bottom:12px;">
+    <input type="text" id="chat-input" placeholder="Décris le chantier..." style="flex:1;background:#18181b;border:1px solid #333;border-radius:8px;padding:12px;color:#fff;font-size:15px;outline:none;">
+    <button onclick="envoyerMessage()" style="background:#F5A623;color:#000;border:none;border-radius:8px;padding:12px 16px;font-weight:900;cursor:pointer;font-size:18px;">→</button>
+  </div>
+
+  <div id="chat-panier" style="display:none">
+    <div class="section-title">Prestations détectées</div>
+    <div class="panier" style="margin-bottom:12px;">
+      <div class="panier-header"><span>🛒 Panier généré</span><span id="chat-count">0 prestation(s)</span></div>
+      <div id="chat-panier-items"></div>
+    </div>
+    <div class="total-bar">
+      <span class="total-label">TOTAL HT</span>
+      <span class="total-amount" id="chat-total">0,00 €</span>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;">
+      <button onclick="transfererVersDevis()" style="background:#F5A623;color:#000;border:none;border-radius:10px;padding:14px;font-weight:900;cursor:pointer;font-size:13px;">📋 → Devis</button>
+      <button onclick="transfererVersFacture()" style="background:#333;color:#fff;border:none;border-radius:10px;padding:14px;font-weight:900;cursor:pointer;font-size:13px;">💶 → Facture</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- PAGE RAPPORT D'INTERVENTION -->
+<div id="page-rapport" class="page">
+<div class="content">
+  <div class="section">
+    <div class="section-title">📸 Rapport d'intervention</div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Informations client</div>
+    <div class="input-group"><label>Nom / Société</label><input type="text" id="r-client" placeholder="Ex: Dupont Marie"></div>
+    <div class="input-group"><label>Adresse du chantier</label><input type="text" id="r-adresse" placeholder="Ex: 12 rue de la Paix, 75001 Paris"></div>
+    <div class="input-group"><label>Email client</label><input type="email" id="r-email" placeholder="client@email.com"></div>
+    <div class="input-group"><label>N° devis/facture lié (optionnel)</label><input type="text" id="r-ref" placeholder="Ex: OS-202604-001"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Travaux réalisés</div>
+    <div class="input-group"><label>Description des travaux</label><textarea id="r-travaux" style="height:100px" placeholder="Décris les travaux réalisés..."></textarea></div>
+    <div class="input-group"><label>Observations / Recommandations</label><textarea id="r-observations" style="height:70px" placeholder="Anomalies constatées, recommandations..."></textarea></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Photos AVANT / APRÈS</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+      <div>
+        <div style="font-size:11px;color:#F5A623;font-weight:700;margin-bottom:6px;">AVANT</div>
+        <label style="display:block;background:#18181b;border:2px dashed #333;border-radius:8px;padding:20px;text-align:center;cursor:pointer;">
+          <div style="font-size:24px;">📷</div>
+          <div style="font-size:11px;color:#666;margin-top:4px;">Ajouter photo</div>
+          <input type="file" id="r-photo-avant" accept="image/*" style="display:none" onchange="previewPhoto('avant', this)">
+        </label>
+        <div id="preview-avant" style="display:none;margin-top:6px;"><img style="width:100%;border-radius:8px;max-height:150px;object-fit:cover;"></div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:#F5A623;font-weight:700;margin-bottom:6px;">APRÈS</div>
+        <label style="display:block;background:#18181b;border:2px dashed #333;border-radius:8px;padding:20px;text-align:center;cursor:pointer;">
+          <div style="font-size:24px;">📷</div>
+          <div style="font-size:11px;color:#666;margin-top:4px;">Ajouter photo</div>
+          <input type="file" id="r-photo-apres" accept="image/*" style="display:none" onchange="previewPhoto('apres', this)">
+        </label>
+        <div id="preview-apres" style="display:none;margin-top:6px;"><img style="width:100%;border-radius:8px;max-height:150px;object-fit:cover;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Signature client</div>
+    <div style="background:#fff;border-radius:8px;overflow:hidden;margin-bottom:8px;">
+      <canvas id="r-signature" width="400" height="120" style="width:100%;height:120px;cursor:crosshair;display:block;touch-action:none;"></canvas>
+    </div>
+    <button onclick="effacerSignature()" style="background:#333;color:#888;border:none;border-radius:6px;padding:8px 16px;font-size:12px;cursor:pointer;">↺ Effacer</button>
+  </div>
+
+  <button class="btn-gen" onclick="genererRapport()">📄 Générer le rapport PDF</button>
+  <div class="status" id="r-status"></div>
+</div>
+</div>
+
+<!-- PAGE PARAMÈTRES -->
+<div id="page-params" class="page">
+<div class="content">
+  <div class="section">
+    <div class="section-title">⚙️ Grille tarifaire — Modifier les prix</div>
+    <div style="font-size:12px;color:#888;margin-bottom:12px;">Modifie un prix → Enregistrer → mis à jour partout</div>
+  </div>
+  <div id="params-grid"></div>
+  <button onclick="sauvegarderPrix()" style="width:100%;background:#F5A623;color:#000;border:none;border-radius:10px;padding:16px;font-size:15px;font-weight:900;cursor:pointer;margin-top:16px;">💾 Enregistrer les prix</button>
+  <button onclick="reinitialiserPrix()" style="width:100%;background:#333;color:#888;border:none;border-radius:8px;padding:12px;font-size:13px;cursor:pointer;margin-top:8px;">↺ Remettre les prix par défaut</button>
+  <div class="status" id="params-status"></div>
+</div>
+</div>
+
 <script>
-const BREVO_API_KEY = 'BREVO_KEY';
+const BREVO_API_KEY = 'REMPLACER_PAR_CLE_BREVO';
 
 const GRILLE = {
   'Deplacement & MO': {
@@ -750,8 +865,482 @@ function switchTab(tab, el) {
   document.getElementById(`page-${tab}`).classList.add('active');
 }
 
+// ── CHATBOT CLAUDE ────────────────────────────────────────────────
+let chatPanier = [];
+
+function ajouterMessageChat(texte, estUser) {
+  const container = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.style.cssText = `background:${estUser ? '#F5A623' : '#222'};color:${estUser ? '#000' : '#ccc'};border-radius:8px;padding:10px;font-size:13px;line-height:1.5;align-self:${estUser ? 'flex-end' : 'flex-start'};max-width:85%;`;
+  div.textContent = texte;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+async function envoyerMessage() {
+  const input = document.getElementById('chat-input');
+  const msg = input.value.trim();
+  if (!msg) return;
+  
+  input.value = '';
+  ajouterMessageChat(msg, true);
+  
+  const loading = document.createElement('div');
+  loading.style.cssText = 'background:#222;color:#F5A623;border-radius:8px;padding:10px;font-size:13px;';
+  loading.textContent = '⏳ Claude analyse...';
+  document.getElementById('chat-messages').appendChild(loading);
+
+  try {
+    const grille_str = JSON.stringify(GRILLE);
+    
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: msg,
+        grille: grille_str
+      })
+    });
+
+    const data = await res.json();
+    loading.remove();
+
+    if (data.prestations && data.prestations.length > 0) {
+      chatPanier = data.prestations;
+      ajouterMessageChat(`✅ J'ai détecté ${data.prestations.length} prestation(s) pour ${data.total.toFixed(2)} € HT. Vérifie le panier ci-dessous !`, false);
+      if (data.message) ajouterMessageChat(data.message, false);
+      afficherChatPanier();
+    } else {
+      ajouterMessageChat(data.message || 'Je n\'ai pas compris. Essaie de décrire autrement !', false);
+    }
+  } catch(e) {
+    loading.remove();
+    ajouterMessageChat('❌ Erreur de connexion. Réessaie !', false);
+  }
+}
+
+function afficherChatPanier() {
+  const container = document.getElementById('chat-panier-items');
+  const countEl = document.getElementById('chat-count');
+  const totalEl = document.getElementById('chat-total');
+  document.getElementById('chat-panier').style.display = 'block';
+  
+  container.innerHTML = '';
+  let total = 0;
+  chatPanier.forEach((item, idx) => {
+    const lineTotal = item.qte * item.prixUnit;
+    total += lineTotal;
+    const div = document.createElement('div');
+    div.className = 'panier-item';
+    div.innerHTML = `
+      <span class="panier-item-name">${item.designation}</span>
+      <div class="qte-ctrl">
+        <button class="qte-btn" onclick="changeChatQte(${idx},-1)">−</button>
+        <span class="qte-val">${item.qte}</span>
+        <button class="qte-btn" onclick="changeChatQte(${idx},1)">+</button>
+      </div>
+      <span class="panier-item-price">${lineTotal.toFixed(2)} €</span>
+      <button class="del-btn" onclick="suppChatItem(${idx})">🗑</button>
+    `;
+    container.appendChild(div);
+  });
+  countEl.textContent = `${chatPanier.length} prestation(s)`;
+  totalEl.textContent = total.toFixed(2).replace('.', ',') + ' €';
+}
+
+function changeChatQte(idx, delta) {
+  chatPanier[idx].qte = Math.max(1, chatPanier[idx].qte + delta);
+  afficherChatPanier();
+}
+
+function suppChatItem(idx) {
+  chatPanier.splice(idx, 1);
+  if (chatPanier.length === 0) document.getElementById('chat-panier').style.display = 'none';
+  else afficherChatPanier();
+}
+
+function transfererVersDevis() {
+  panierD = chatPanier.map(i => ({...i}));
+  renderPanier('d');
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab')[0].classList.add('active');
+  document.getElementById('page-devis').classList.add('active');
+}
+
+function transfererVersFacture() {
+  panierF = chatPanier.map(i => ({...i}));
+  renderPanier('f');
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab')[1].classList.add('active');
+  document.getElementById('page-facture').classList.add('active');
+}
+
+document.getElementById('chat-input').addEventListener('keypress', function(e) {
+  if (e.key === 'Enter') envoyerMessage();
+});
+
+
+// ── RAPPORT D'INTERVENTION ────────────────────────────────────
+let signatureCanvas, signatureCtx, isDrawing = false;
+let photoAvantBase64 = null, photoApresBase64 = null;
+
+function initSignature() {
+  signatureCanvas = document.getElementById('r-signature');
+  if (!signatureCanvas) return;
+  signatureCtx = signatureCanvas.getContext('2d');
+  signatureCtx.strokeStyle = '#111';
+  signatureCtx.lineWidth = 2;
+  signatureCtx.lineCap = 'round';
+
+  const getPos = (e) => {
+    const rect = signatureCanvas.getBoundingClientRect();
+    const scaleX = signatureCanvas.width / rect.width;
+    const scaleY = signatureCanvas.height / rect.height;
+    if (e.touches) return {
+      x: (e.touches[0].clientX - rect.left) * scaleX,
+      y: (e.touches[0].clientY - rect.top) * scaleY
+    };
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+  };
+
+  signatureCanvas.addEventListener('mousedown', e => { isDrawing = true; signatureCtx.beginPath(); const p = getPos(e); signatureCtx.moveTo(p.x, p.y); });
+  signatureCanvas.addEventListener('mousemove', e => { if (!isDrawing) return; const p = getPos(e); signatureCtx.lineTo(p.x, p.y); signatureCtx.stroke(); });
+  signatureCanvas.addEventListener('mouseup', () => isDrawing = false);
+  signatureCanvas.addEventListener('touchstart', e => { e.preventDefault(); isDrawing = true; signatureCtx.beginPath(); const p = getPos(e); signatureCtx.moveTo(p.x, p.y); }, { passive: false });
+  signatureCanvas.addEventListener('touchmove', e => { e.preventDefault(); if (!isDrawing) return; const p = getPos(e); signatureCtx.lineTo(p.x, p.y); signatureCtx.stroke(); }, { passive: false });
+  signatureCanvas.addEventListener('touchend', () => isDrawing = false);
+}
+
+function effacerSignature() {
+  if (signatureCtx) signatureCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+}
+
+function previewPhoto(type, input) {
+  if (!input.files || !input.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const preview = document.getElementById(`preview-${type}`);
+    preview.style.display = 'block';
+    preview.querySelector('img').src = e.target.result;
+    if (type === 'avant') photoAvantBase64 = e.target.result;
+    else photoApresBase64 = e.target.result;
+  };
+  reader.readAsDataURL(input.files[0]);
+}
+
+async function genererRapport() {
+  const client = document.getElementById('r-client').value.trim();
+  const adresse = document.getElementById('r-adresse').value.trim();
+  const email = document.getElementById('r-email').value.trim();
+  const ref = document.getElementById('r-ref').value.trim();
+  const travaux = document.getElementById('r-travaux').value.trim();
+  const observations = document.getElementById('r-observations').value.trim();
+
+  if (!client) { showRapportStatus('error', '⚠ Nom du client obligatoire'); return; }
+  if (!travaux) { showRapportStatus('error', '⚠ Description des travaux obligatoire'); return; }
+
+  const btn = document.querySelector('#page-rapport .btn-gen');
+  btn.disabled = true;
+  btn.textContent = '⏳ Génération...';
+  showRapportStatus('loading', '⏳ Génération du rapport...');
+
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('fr-FR');
+    const numRapport = `RAP-${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}-${String(Math.floor(Math.random()*900)+100)}`;
+
+    // BANDE JAUNE
+    doc.setFillColor(245, 166, 35);
+    doc.rect(0, 0, 5, 297, 'F');
+
+    // TITRE
+    doc.setFontSize(32);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(17, 17, 17);
+    doc.text("RAPPORT", 198, 18, { align: 'right' });
+    doc.setFontSize(14);
+    doc.setTextColor(245, 166, 35);
+    doc.text("D'INTERVENTION", 198, 26, { align: 'right' });
+
+    doc.setFillColor(245, 166, 35);
+    doc.rect(145, 29, 53, 1.5, 'F');
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(17, 17, 17);
+    doc.text('N ' + numRapport, 198, 34, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(136, 136, 136);
+    doc.text('Date : ' + dateStr, 198, 38, { align: 'right' });
+    if (ref) doc.text('Ref : ' + ref, 198, 42, { align: 'right' });
+
+    // INFOS SINELEC
+    doc.setFontSize(7);
+    ['128 Rue La Boetie, 75008 Paris', 'Tel : 07 87 38 86 22', 'sinelec.paris@gmail.com', 'SIRET : 91015824500019']
+      .forEach((line, i) => doc.text(line, 15, 22 + i * 4));
+
+    doc.setDrawColor(229, 229, 229);
+    doc.setLineWidth(0.3);
+    doc.line(15, 47, 198, 47);
+
+    // BLOC CLIENT
+    let y = 52;
+    doc.setFillColor(255, 251, 242);
+    doc.rect(15, y, 183, 26, 'F');
+    doc.setFillColor(245, 166, 35);
+    doc.rect(15, y, 1.5, 26, 'F');
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(245, 166, 35);
+    doc.text('CLIENT', 19, y + 4);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(17, 17, 17);
+    doc.text(client, 19, y + 10);
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(68, 68, 68);
+    doc.text(adresse, 19, y + 16);
+    if (email) doc.text(email, 19, y + 22);
+    y += 32;
+
+    // TRAVAUX RÉALISÉS
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(245, 166, 35);
+    doc.text('TRAVAUX REALISES', 15, y);
+    doc.setFillColor(245, 166, 35);
+    doc.rect(15, y + 1, 50, 0.8, 'F');
+    y += 6;
+
+    doc.setFillColor(17, 17, 17);
+    doc.rect(15, y, 1.5, 30, 'F');
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(68, 68, 68);
+    const travauxLines = doc.splitTextToSize(travaux, 175);
+    doc.text(travauxLines, 20, y + 5);
+    y += Math.max(30, travauxLines.length * 4 + 10);
+
+    // OBSERVATIONS
+    if (observations) {
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(245, 166, 35);
+      doc.text('OBSERVATIONS / RECOMMANDATIONS', 15, y);
+      doc.setFillColor(245, 166, 35);
+      doc.rect(15, y + 1, 80, 0.8, 'F');
+      y += 6;
+      doc.setFontSize(8.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(68, 68, 68);
+      const obsLines = doc.splitTextToSize(observations, 175);
+      doc.text(obsLines, 15, y + 4);
+      y += obsLines.length * 4 + 14;
+    }
+
+    // PHOTOS AVANT/APRÈS
+    if (photoAvantBase64 || photoApresBase64) {
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(245, 166, 35);
+      doc.text('PHOTOS AVANT / APRES', 15, y);
+      doc.setFillColor(245, 166, 35);
+      doc.rect(15, y + 1, 55, 0.8, 'F');
+      y += 7;
+
+      const photoW = 85, photoH = 60;
+      if (photoAvantBase64) {
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(136, 136, 136);
+        doc.text('AVANT', 15, y);
+        try { doc.addImage(photoAvantBase64, 'JPEG', 15, y + 2, photoW, photoH); } catch(e) {}
+      }
+      if (photoApresBase64) {
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(136, 136, 136);
+        doc.text('APRES', 110, y);
+        try { doc.addImage(photoApresBase64, 'JPEG', 110, y + 2, photoW, photoH); } catch(e) {}
+      }
+      y += photoH + 12;
+    }
+
+    // SIGNATURE
+    y = Math.max(y, 220);
+    doc.setDrawColor(229, 229, 229);
+    doc.setLineWidth(0.3);
+    doc.line(15, y, 198, y);
+    y += 6;
+
+    // Signature client
+    const sigW = 85;
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(68, 68, 68);
+    doc.text('Signature client :', 15, y);
+    doc.setDrawColor(229, 229, 229);
+    doc.rect(15, y + 2, sigW, 22, 'S');
+    doc.setFillColor(245, 166, 35);
+    doc.rect(15, y + 2, 1.5, 22, 'F');
+
+    // Ajouter signature si dessinée
+    if (signatureCanvas) {
+      const sigData = signatureCanvas.toDataURL('image/png');
+      try { doc.addImage(sigData, 'PNG', 17, y + 3, sigW - 4, 20); } catch(e) {}
+    }
+
+    doc.text('Date : ' + dateStr, 15, y + 26);
+
+    // Signature SINELEC
+    doc.text('Technicien SINELEC Paris :', 110, y);
+    doc.rect(110, y + 2, sigW, 22, 'S');
+    doc.setFillColor(17, 17, 17);
+    doc.rect(110, y + 2, 1.5, 22, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.text('SINELEC PARIS', 114, y + 13);
+
+    // FOOTER
+    doc.setFillColor(17, 17, 17);
+    doc.rect(0, 287, 210, 10, 'F');
+    doc.setFillColor(245, 166, 35);
+    doc.rect(0, 286, 210, 1, 'F');
+    doc.setFontSize(6);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(119, 119, 119);
+    doc.text('SINELEC EI - 128 Rue La Boetie 75008 Paris - SIRET : 91015824500019 - TVA non applicable art. 293B CGI - Garantie decennale ORUS', 105, 293, { align: 'center' });
+    doc.setTextColor(245, 166, 35);
+    doc.text(numRapport + ' | Page 1 / 1', 198, 295, { align: 'right' });
+
+    // TÉLÉCHARGEMENT
+    doc.save(`${numRapport}_${client.replace(/\s+/g,'_').toUpperCase()}.pdf`);
+
+    // EMAIL
+    if (email) {
+      showRapportStatus('loading', '⏳ Envoi email...');
+      const pdfBase64 = doc.output('datauristring').split(',')[1];
+      const res = await fetch('/envoyer-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email, client,
+          num: numRapport,
+          totalHT: 0,
+          type: 'rapport',
+          pdfBase64
+        })
+      });
+      const result = await res.json();
+      showRapportStatus('success', `✅ Rapport généré + email envoyé à ${email} !`);
+    } else {
+      showRapportStatus('success', '✅ Rapport généré et téléchargé !');
+    }
+
+  } catch(e) {
+    showRapportStatus('error', '❌ Erreur : ' + e.message);
+    console.error(e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '📄 Générer le rapport PDF';
+  }
+}
+
+function showRapportStatus(type, msg) {
+  const el = document.getElementById('r-status');
+  el.className = `status ${type}`;
+  el.textContent = msg;
+}
+
+// Init signature quand on clique sur l'onglet Rapport
+document.querySelectorAll('.tab')[3].addEventListener('click', () => {
+  setTimeout(initSignature, 100);
+});
+
+// ── PARAMÈTRES — MODIFIER LES PRIX ─────────────────────────────
+const GRILLE_DEFAULT = JSON.parse(JSON.stringify(GRILLE));
+
+function chargerPrixSauvegardes() {
+  try {
+    const saved = localStorage.getItem('sinelec_prix');
+    if (saved) {
+      const prix = JSON.parse(saved);
+      Object.keys(prix).forEach(cat => {
+        if (GRILLE[cat]) {
+          Object.keys(prix[cat]).forEach(prest => {
+            if (GRILLE[cat][prest] !== undefined) GRILLE[cat][prest] = prix[cat][prest];
+          });
+        }
+      });
+    }
+  } catch(e) {}
+}
+
+function afficherParams() {
+  const container = document.getElementById('params-grid');
+  container.innerHTML = '';
+  Object.entries(GRILLE).forEach(([cat, prestations]) => {
+    const section = document.createElement('div');
+    section.style.cssText = 'margin-bottom:20px;';
+    section.innerHTML = `<div style="font-size:11px;font-weight:700;color:#F5A623;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">${cat}</div>`;
+    Object.entries(prestations).forEach(([nom, prix]) => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;background:#18181b;border:1px solid #333;border-radius:8px;padding:10px 12px;margin-bottom:6px;gap:10px;';
+      row.innerHTML = `
+        <span style="font-size:12px;color:#ddd;flex:1;">${nom}</span>
+        <div style="display:flex;align-items:center;gap:4px;">
+          <input type="number" data-cat="${cat}" data-prest="${nom}" value="${prix}"
+            style="width:70px;background:#111;border:1px solid #F5A623;border-radius:6px;padding:6px;color:#F5A623;font-size:14px;font-weight:700;text-align:center;outline:none;">
+          <span style="font-size:12px;color:#888;">€</span>
+        </div>`;
+      section.appendChild(row);
+    });
+    container.appendChild(section);
+  });
+}
+
+function sauvegarderPrix() {
+  document.querySelectorAll('#params-grid input[data-cat]').forEach(input => {
+    const cat = input.getAttribute('data-cat');
+    const prest = input.getAttribute('data-prest');
+    const val = parseFloat(input.value);
+    if (!isNaN(val) && val > 0) GRILLE[cat][prest] = val;
+  });
+  localStorage.setItem('sinelec_prix', JSON.stringify(GRILLE));
+  renderPanier('d');
+  renderPanier('f');
+  const el = document.getElementById('params-status');
+  el.className = 'status success';
+  el.textContent = '✅ Prix sauvegardés !';
+  setTimeout(() => { el.className = 'status'; }, 3000);
+}
+
+function reinitialiserPrix() {
+  if (!confirm('Remettre tous les prix par défaut ?')) return;
+  localStorage.removeItem('sinelec_prix');
+  Object.keys(GRILLE_DEFAULT).forEach(cat => {
+    Object.keys(GRILLE_DEFAULT[cat]).forEach(prest => {
+      GRILLE[cat][prest] = GRILLE_DEFAULT[cat][prest];
+    });
+  });
+  afficherParams();
+  const el = document.getElementById('params-status');
+  el.className = 'status success';
+  el.textContent = '✅ Prix remis par défaut !';
+  setTimeout(() => { el.className = 'status'; }, 3000);
+}
+
+// Init
+chargerPrixSauvegardes();
 initCats('d');
 initCats('f');
+
+// Afficher params au clic sur l'onglet
+document.querySelectorAll('.tab')[4].addEventListener('click', () => afficherParams());
 </script>
 </body>
 </html>
