@@ -59,23 +59,23 @@ body { background:#0a0a0a; color:#fff; font-family:-apple-system,BlinkMacSystemF
 <body>
 
 <div class="header">
-  <h1>⚡ SINELEC</h1>
+  <h1>? SINELEC</h1>
   <span>Paris & IDF 24h/24</span>
 </div>
 
 <div class="tabs">
-  <div class="tab active" onclick="switchTab('devis', this)">📋 Devis</div>
-  <div class="tab" onclick="switchTab('facture', this)">💶 Facture</div>
-  <div class="tab" onclick="switchTab('chat', this)">🤖 Chat</div>
-  <div class="tab" onclick="switchTab('rapport', this)">📸 Rapport</div>
-  <div class="tab" onclick="switchTab('params', this)">⚙️</div>
+  <div class="tab active" onclick="switchTab('devis', this)"> Devis</div>
+  <div class="tab" onclick="switchTab('facture', this)"> Facture</div>
+  <div class="tab" onclick="switchTab('chat', this)"> Chat</div>
+  <div class="tab" onclick="switchTab('rapport', this)"> Rapport</div>
+  <div class="tab" onclick="switchTab('params', this)"></div>
 </div>
 
 <div id="page-devis" class="page active">
 <div class="content">
   <div class="section">
     <div class="section-title">Informations client</div>
-    <div class="input-group"><label>Nom / Société</label><input type="text" id="d-client" placeholder="Ex: Dupont Marie"></div>
+    <div class="input-group"><label>Nom / Societe</label><input type="text" id="d-client" placeholder="Ex: Dupont Marie"></div>
     <div class="input-group"><label>Adresse</label><input type="text" id="d-adresse" placeholder="Ex: 12 rue de la Paix, 75001 Paris"></div>
     <div class="input-group"><label>Email client (pour envoi auto)</label><input type="email" id="d-email" placeholder="client@email.com"></div>
     <div class="input-group"><label>Description du chantier</label><textarea id="d-description" placeholder="Ex: Remplacement tableau + 3 prises"></textarea></div>
@@ -86,14 +86,14 @@ body { background:#0a0a0a; color:#fff; font-family:-apple-system,BlinkMacSystemF
     <div class="prestations" id="d-prests"></div>
   </div>
   <div class="panier">
-    <div class="panier-header"><span>🛒 Panier</span><span id="d-count">0 prestation(s)</span></div>
-    <div id="d-panier-items"><div class="panier-empty">Aucune prestation ajoutée</div></div>
+    <div class="panier-header"><span> Panier</span><span id="d-count">0 prestation(s)</span></div>
+    <div id="d-panier-items"><div class="panier-empty">Aucune prestation ajoutee</div></div>
   </div>
   <div class="total-bar">
     <span class="total-label">TOTAL HT</span>
-    <span class="total-amount" id="d-total">0,00 €</span>
+    <span class="total-amount" id="d-total">0,00 ?</span>
   </div>
-  <button class="btn-gen" id="d-btn" onclick="generer('devis')">📄 Générer le devis PDF</button>
+  <button class="btn-gen" id="d-btn" onclick="generer('devis')">? Generer le devis PDF</button>
   <div class="status" id="d-status"></div>
 </div>
 </div>
@@ -102,25 +102,25 @@ body { background:#0a0a0a; color:#fff; font-family:-apple-system,BlinkMacSystemF
 <div class="content">
   <div class="section">
     <div class="section-title">Informations client</div>
-    <div class="input-group"><label>Nom / Société</label><input type="text" id="f-client" placeholder="Ex: Dupont Marie"></div>
+    <div class="input-group"><label>Nom / Societe</label><input type="text" id="f-client" placeholder="Ex: Dupont Marie"></div>
     <div class="input-group"><label>Adresse</label><input type="text" id="f-adresse" placeholder="Ex: 12 rue de la Paix, 75001 Paris"></div>
     <div class="input-group"><label>Email client (pour envoi auto)</label><input type="email" id="f-email" placeholder="client@email.com"></div>
-    <div class="input-group"><label>Description des travaux</label><textarea id="f-description" placeholder="Ex: Remplacement tableau réalisé"></textarea></div>
+    <div class="input-group"><label>Description des travaux</label><textarea id="f-description" placeholder="Ex: Remplacement tableau realise"></textarea></div>
   </div>
   <div class="section">
-    <div class="section-title">Prestations réalisées</div>
+    <div class="section-title">Prestations realisees</div>
     <div class="cat-grid" id="f-cats"></div>
     <div class="prestations" id="f-prests"></div>
   </div>
   <div class="panier">
-    <div class="panier-header"><span>🛒 Panier</span><span id="f-count">0 prestation(s)</span></div>
-    <div id="f-panier-items"><div class="panier-empty">Aucune prestation ajoutée</div></div>
+    <div class="panier-header"><span> Panier</span><span id="f-count">0 prestation(s)</span></div>
+    <div id="f-panier-items"><div class="panier-empty">Aucune prestation ajoutee</div></div>
   </div>
   <div class="total-bar">
     <span class="total-label">TOTAL HT</span>
-    <span class="total-amount" id="f-total">0,00 €</span>
+    <span class="total-amount" id="f-total">0,00 ?</span>
   </div>
-  <button class="btn-gen" id="f-btn" onclick="generer('facture')">💶 Générer la facture PDF</button>
+  <button class="btn-gen" id="f-btn" onclick="generer('facture')"> Generer la facture PDF</button>
   <div class="status" id="f-status"></div>
 </div>
 </div>
@@ -129,37 +129,37 @@ body { background:#0a0a0a; color:#fff; font-family:-apple-system,BlinkMacSystemF
 <div id="page-chat" class="page">
 <div class="content">
   <div class="section">
-    <div class="section-title">🤖 Assistant SINELEC — Claude AI</div>
+    <div class="section-title"> Assistant SINELEC ? Claude AI</div>
     <div style="background:#18181b;border:1px solid #333;border-radius:10px;padding:12px;margin-bottom:12px;font-size:12px;color:#888;line-height:1.6">
-      Décris ton chantier en langage naturel et je remplis le devis automatiquement.<br>
-      <span style="color:#F5A623">Ex: "tableau 2 rangées urgence soir Paris + 3 prises + recherche panne"</span>
+      Decris ton chantier en langage naturel et je remplis le devis automatiquement.<br>
+      <span style="color:#F5A623">Ex: "tableau 2 rangees urgence soir Paris + 3 prises + recherche panne"</span>
     </div>
   </div>
 
   <div id="chat-messages" style="background:#18181b;border:1px solid #333;border-radius:10px;padding:12px;min-height:200px;max-height:400px;overflow-y:auto;margin-bottom:12px;display:flex;flex-direction:column;gap:10px;">
     <div style="background:#222;border-radius:8px;padding:10px;font-size:13px;color:#ccc">
-      👋 Salut ! Décris ton chantier et je sélectionne les prestations au bon prix. Tu pourras ensuite générer le devis directement.
+      Hi Salut ! Decris ton chantier et je selectionne les prestations au bon prix. Tu pourras ensuite generer le devis directement.
     </div>
   </div>
 
   <div style="display:flex;gap:8px;margin-bottom:12px;">
-    <input type="text" id="chat-input" placeholder="Décris le chantier..." style="flex:1;background:#18181b;border:1px solid #333;border-radius:8px;padding:12px;color:#fff;font-size:15px;outline:none;">
-    <button onclick="envoyerMessage()" style="background:#F5A623;color:#000;border:none;border-radius:8px;padding:12px 16px;font-weight:900;cursor:pointer;font-size:18px;">→</button>
+    <input type="text" id="chat-input" placeholder="Decris le chantier..." style="flex:1;background:#18181b;border:1px solid #333;border-radius:8px;padding:12px;color:#fff;font-size:15px;outline:none;">
+    <button onclick="envoyerMessage()" style="background:#F5A623;color:#000;border:none;border-radius:8px;padding:12px 16px;font-weight:900;cursor:pointer;font-size:18px;">-></button>
   </div>
 
   <div id="chat-panier" style="display:none">
-    <div class="section-title">Prestations détectées</div>
+    <div class="section-title">Prestations detectees</div>
     <div class="panier" style="margin-bottom:12px;">
-      <div class="panier-header"><span>🛒 Panier généré</span><span id="chat-count">0 prestation(s)</span></div>
+      <div class="panier-header"><span> Panier genere</span><span id="chat-count">0 prestation(s)</span></div>
       <div id="chat-panier-items"></div>
     </div>
     <div class="total-bar">
       <span class="total-label">TOTAL HT</span>
-      <span class="total-amount" id="chat-total">0,00 €</span>
+      <span class="total-amount" id="chat-total">0,00 ?</span>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;">
-      <button onclick="transfererVersDevis()" style="background:#F5A623;color:#000;border:none;border-radius:10px;padding:14px;font-weight:900;cursor:pointer;font-size:13px;">📋 → Devis</button>
-      <button onclick="transfererVersFacture()" style="background:#333;color:#fff;border:none;border-radius:10px;padding:14px;font-weight:900;cursor:pointer;font-size:13px;">💶 → Facture</button>
+      <button onclick="transfererVersDevis()" style="background:#F5A623;color:#000;border:none;border-radius:10px;padding:14px;font-weight:900;cursor:pointer;font-size:13px;"> -> Devis</button>
+      <button onclick="transfererVersFacture()" style="background:#333;color:#fff;border:none;border-radius:10px;padding:14px;font-weight:900;cursor:pointer;font-size:13px;"> -> Facture</button>
     </div>
   </div>
 </div>
@@ -169,41 +169,41 @@ body { background:#0a0a0a; color:#fff; font-family:-apple-system,BlinkMacSystemF
 <div id="page-rapport" class="page">
 <div class="content">
   <div class="section">
-    <div class="section-title">📸 Rapport d'intervention</div>
+    <div class="section-title"> Rapport d'intervention</div>
   </div>
 
   <div class="section">
     <div class="section-title">Informations client</div>
-    <div class="input-group"><label>Nom / Société</label><input type="text" id="r-client" placeholder="Ex: Dupont Marie"></div>
+    <div class="input-group"><label>Nom / Societe</label><input type="text" id="r-client" placeholder="Ex: Dupont Marie"></div>
     <div class="input-group"><label>Adresse du chantier</label><input type="text" id="r-adresse" placeholder="Ex: 12 rue de la Paix, 75001 Paris"></div>
     <div class="input-group"><label>Email client</label><input type="email" id="r-email" placeholder="client@email.com"></div>
-    <div class="input-group"><label>N° devis/facture lié (optionnel)</label><input type="text" id="r-ref" placeholder="Ex: OS-202604-001"></div>
+    <div class="input-group"><label>N? devis/facture lie (optionnel)</label><input type="text" id="r-ref" placeholder="Ex: OS-202604-001"></div>
   </div>
 
   <div class="section">
-    <div class="section-title">Travaux réalisés</div>
-    <div class="input-group"><label>Contexte chantier (pour Claude)</label><textarea id="r-contexte" style="height:60px" placeholder="Ex: tableau 2 rangées Hager rouillé, pas aux normes, tout refait propre, maison Paris 15e"></textarea></div>
-    <button onclick="redigerAvecClaude()" style="width:100%;background:#333;color:#F5A623;border:1px solid #F5A623;border-radius:8px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:12px;">✨ Rédiger avec Claude</button>
-    <div class="input-group"><label>Description des travaux</label><textarea id="r-travaux" style="height:100px" placeholder="Décris les travaux réalisés..."></textarea></div>
-    <div class="input-group"><label>Observations / Recommandations</label><textarea id="r-observations" style="height:70px" placeholder="Anomalies constatées, recommandations..."></textarea></div>
+    <div class="section-title">Travaux realises</div>
+    <div class="input-group"><label>Contexte chantier (pour Claude)</label><textarea id="r-contexte" style="height:60px" placeholder="Ex: tableau 2 rangees Hager rouille, pas aux normes, tout refait propre, maison Paris 15e"></textarea></div>
+    <button onclick="redigerAvecClaude()" style="width:100%;background:#333;color:#F5A623;border:1px solid #F5A623;border-radius:8px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:12px;">* Rediger avec Claude</button>
+    <div class="input-group"><label>Description des travaux</label><textarea id="r-travaux" style="height:100px" placeholder="Decris les travaux realises..."></textarea></div>
+    <div class="input-group"><label>Observations / Recommandations</label><textarea id="r-observations" style="height:70px" placeholder="Anomalies constatees, recommandations..."></textarea></div>
   </div>
 
   <div class="section">
-    <div class="section-title">Photos AVANT / APRÈS</div>
+    <div class="section-title">Photos AVANT / APRES</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
       <div>
         <div style="font-size:11px;color:#F5A623;font-weight:700;margin-bottom:6px;">AVANT</div>
         <label style="display:block;background:#18181b;border:2px dashed #333;border-radius:8px;padding:20px;text-align:center;cursor:pointer;">
-          <div style="font-size:24px;">📷</div>
+          <div style="font-size:24px;">?</div>
           <div style="font-size:11px;color:#666;margin-top:4px;">Ajouter photo</div>
           <input type="file" id="r-photo-avant" accept="image/*" style="display:none" onchange="previewPhoto('avant', this)">
         </label>
         <div id="preview-avant" style="display:none;margin-top:6px;"><img style="width:100%;border-radius:8px;max-height:150px;object-fit:cover;"></div>
       </div>
       <div>
-        <div style="font-size:11px;color:#F5A623;font-weight:700;margin-bottom:6px;">APRÈS</div>
+        <div style="font-size:11px;color:#F5A623;font-weight:700;margin-bottom:6px;">APRES</div>
         <label style="display:block;background:#18181b;border:2px dashed #333;border-radius:8px;padding:20px;text-align:center;cursor:pointer;">
-          <div style="font-size:24px;">📷</div>
+          <div style="font-size:24px;">?</div>
           <div style="font-size:11px;color:#666;margin-top:4px;">Ajouter photo</div>
           <input type="file" id="r-photo-apres" accept="image/*" style="display:none" onchange="previewPhoto('apres', this)">
         </label>
@@ -217,24 +217,24 @@ body { background:#0a0a0a; color:#fff; font-family:-apple-system,BlinkMacSystemF
     <div style="background:#fff;border-radius:8px;overflow:hidden;margin-bottom:8px;">
       <canvas id="r-signature" width="400" height="120" style="width:100%;height:120px;cursor:crosshair;display:block;touch-action:none;"></canvas>
     </div>
-    <button onclick="effacerSignature()" style="background:#333;color:#888;border:none;border-radius:6px;padding:8px 16px;font-size:12px;cursor:pointer;">↺ Effacer</button>
+    <button onclick="effacerSignature()" style="background:#333;color:#888;border:none;border-radius:6px;padding:8px 16px;font-size:12px;cursor:pointer;">reset Effacer</button>
   </div>
 
-  <button class="btn-gen" onclick="genererRapport()">📄 Générer le rapport PDF</button>
+  <button class="btn-gen" onclick="genererRapport()">? Generer le rapport PDF</button>
   <div class="status" id="r-status"></div>
 </div>
 </div>
 
-<!-- PAGE PARAMÈTRES -->
+<!-- PAGE PARAMETRES -->
 <div id="page-params" class="page">
 <div class="content">
   <div class="section">
-    <div class="section-title">⚙️ Grille tarifaire — Modifier les prix</div>
-    <div style="font-size:12px;color:#888;margin-bottom:12px;">Modifie un prix → Enregistrer → mis à jour partout</div>
+    <div class="section-title"> Grille tarifaire ? Modifier les prix</div>
+    <div style="font-size:12px;color:#888;margin-bottom:12px;">Modifie un prix -> Enregistrer -> mis a jour partout</div>
   </div>
   <div id="params-grid"></div>
-  <button onclick="sauvegarderPrix()" style="width:100%;background:#F5A623;color:#000;border:none;border-radius:10px;padding:16px;font-size:15px;font-weight:900;cursor:pointer;margin-top:16px;">💾 Enregistrer les prix</button>
-  <button onclick="reinitialiserPrix()" style="width:100%;background:#333;color:#888;border:none;border-radius:8px;padding:12px;font-size:13px;cursor:pointer;margin-top:8px;">↺ Remettre les prix par défaut</button>
+  <button onclick="sauvegarderPrix()" style="width:100%;background:#F5A623;color:#000;border:none;border-radius:10px;padding:16px;font-size:15px;font-weight:900;cursor:pointer;margin-top:16px;">Save Enregistrer les prix</button>
+  <button onclick="reinitialiserPrix()" style="width:100%;background:#333;color:#888;border:none;border-radius:8px;padding:12px;font-size:13px;cursor:pointer;margin-top:8px;">reset Remettre les prix par defaut</button>
   <div class="status" id="params-status"></div>
 </div>
 </div>
@@ -318,7 +318,7 @@ const DETAILS = {
   'Deplacement >20km (78/91/95)': 'Deplacement technicien SINELEC en grande couronne (78, 91, 95) au-dela de 20km. Vehicule professionnel equipe.',
   'MO heure supplementaire': 'Main d\'oeuvre technicien qualifie SINELEC, heure supplementaire. Travaux realises conformement NF C 15-100.',
   'Urgence jour': 'Intervention urgente en journee (8h-18h). Deplacement prioritaire, technicien disponible immediatement. Forfait tout compris.',
-  'Urgence soir 18h-22h': 'Intervention urgente en soiree (18h-22h). Astreinte activee, technicien depêche en priorite. Disponibilite 7j/7.',
+  'Urgence soir 18h-22h': 'Intervention urgente en soiree (18h-22h). Astreinte activee, technicien depeche en priorite. Disponibilite 7j/7.',
   'Urgence nuit WE ferie': 'Intervention urgente de nuit (22h-8h), week-end ou jour ferie. Service 24h/24 7j/7. Technicien disponible immediatement.',
   'Prise standard': 'Fourniture et pose prise 2P+T 16A. Comprend: depose ancienne, fourniture prise pro, pose, raccordement, test conformite NF C 15-100.',
   'Prise cuisiniere 32A': 'Fourniture et pose prise 32A 2P+T pour cuisiniere/plaque. Comprend: depose ancienne, fourniture prise 32A, raccordement circuit dedie 6mm2, test NF C 15-100.',
@@ -393,7 +393,7 @@ function showPrests(prefix, cat) {
   Object.entries(GRILLE[cat]).forEach(([nom, prix]) => {
     const div = document.createElement('div');
     div.className = 'prest-btn';
-    div.innerHTML = `<span class="prest-name">${nom}</span><span class="prest-price">${prix} €</span>`;
+    div.innerHTML = `<span class="prest-name">${nom}</span><span class="prest-price">${prix} ?</span>`;
     div.onclick = () => {
       addToCart(prefix, nom, prix);
       div.style.borderColor = '#F5A623';
@@ -431,7 +431,7 @@ function renderPanier(prefix) {
   if (panier.length === 0) {
     container.innerHTML = '<div class="panier-empty">Aucune prestation ajoutee</div>';
     countEl.textContent = '0 prestation(s)';
-    totalEl.textContent = '0,00 €';
+    totalEl.textContent = '0,00 ?';
     return;
   }
   container.innerHTML = '';
@@ -444,17 +444,17 @@ function renderPanier(prefix) {
     div.innerHTML = `
       <span class="panier-item-name">${item.designation}</span>
       <div class="qte-ctrl">
-        <button class="qte-btn" onclick="changeQte('${prefix}',${idx},-1)">−</button>
+        <button class="qte-btn" onclick="changeQte('${prefix}',${idx},-1)">?</button>
         <span class="qte-val">${item.qte}</span>
         <button class="qte-btn" onclick="changeQte('${prefix}',${idx},1)">+</button>
       </div>
-      <span class="panier-item-price">${lineTotal.toFixed(2)} €</span>
-      <button class="del-btn" onclick="removeItem('${prefix}',${idx})">🗑</button>
+      <span class="panier-item-price">${lineTotal.toFixed(2)} ?</span>
+      <button class="del-btn" onclick="removeItem('${prefix}',${idx})">X</button>
     `;
     container.appendChild(div);
   });
   countEl.textContent = `${panier.length} prestation(s)`;
-  totalEl.textContent = total.toFixed(2).replace('.', ',') + ' €';
+  totalEl.textContent = total.toFixed(2).replace('.', ',') + ' ?';
 }
 
 function showStatus(prefix, type, msg) {
@@ -491,7 +491,7 @@ function genererPDF(type, data) {
   doc.setFillColor(245, 166, 35);
   doc.rect(145, 21, 53, 1.5, 'F');
 
-  // NUMÉRO DATE
+  // NUMERO DATE
   doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(17, 17, 17);
@@ -508,7 +508,7 @@ function genererPDF(type, data) {
   var infos = ['128 Rue La Boetie, 75008 Paris', 'Tel : 07 87 38 86 22', 'sinelec.paris@gmail.com', 'SIRET : 91015824500019'];
   infos.forEach(function(line, i) { doc.text(line, ML, 22 + i * 4); });
 
-  // LIGNE SÉPARATRICE
+  // LIGNE SEPARATRICE
   doc.setDrawColor(229, 229, 229);
   doc.setLineWidth(0.3);
   doc.line(ML, 43, 198, 43);
@@ -553,7 +553,7 @@ function genererPDF(type, data) {
 
   var y = MT + 33;
 
-  // EN-TÊTE TABLEAU
+  // EN-TETE TABLEAU
   var rowH = 8;
   doc.setFillColor(17, 17, 17);
   doc.rect(ML, y, CW, rowH, 'F');
@@ -579,7 +579,7 @@ function genererPDF(type, data) {
     var detailLines = doc.splitTextToSize(detail, 91);
     var lineH = Math.max(14, 8 + detailLines.length * 3.5);
 
-    // Fond alterné
+    // Fond alterne
     if (idx % 2 === 1) {
       doc.setFillColor(250, 250, 250);
       doc.rect(ML, y, CW, lineH, 'F');
@@ -588,31 +588,31 @@ function genererPDF(type, data) {
     doc.setLineWidth(0.1);
     doc.line(ML, y + lineH, ML + CW, y + lineH);
 
-    // Numéro
+    // Numero
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(136, 136, 136);
     doc.text(String(idx + 1), ML + 4, y + 6, { align: 'center' });
 
-    // Désignation bold
+    // Designation bold
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(17, 17, 17);
     doc.setFontSize(8);
     doc.text(l.designation, ML + 10, y + 5.5);
 
-    // Détail en gris
+    // Detail en gris
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100, 100, 100);
     doc.setFontSize(6.5);
     doc.text(detailLines, ML + 10, y + 9.5);
 
-    // Qté
+    // Qte
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(17, 17, 17);
     doc.setFontSize(8);
     doc.text(String(l.qte), ML + 8 + 95 + 6, y + 6, { align: 'center' });
 
-    // Unité
+    // Unite
     doc.setTextColor(136, 136, 136);
     doc.text('u', ML + 8 + 95 + 12 + 4, y + 6, { align: 'center' });
 
@@ -646,7 +646,7 @@ function genererPDF(type, data) {
   doc.text('TVA non applicable (art. 293B CGI)', 198, y, { align: 'right' });
   y += 5;
 
-  // NET À PAYER
+  // NET A PAYER
   doc.setFillColor(17, 17, 17);
   doc.rect(ML, y, CW, 13, 'F');
   doc.setFillColor(245, 166, 35);
@@ -658,7 +658,7 @@ function genererPDF(type, data) {
   doc.setTextColor(245, 166, 35);
   doc.text(data.totalHT.toFixed(2) + ' EUR', 198, y + 9, { align: 'right' });
 
-  // TAMPON ACQUITTÉ
+  // TAMPON ACQUITTE
   if (type === 'facture') {
     doc.setDrawColor(204, 0, 0);
     doc.setLineWidth(1.5);
@@ -796,14 +796,14 @@ async function generer(type) {
   const email = document.getElementById(`${p}-email`).value.trim();
   const panier = type === 'devis' ? panierD : panierF;
 
-  if (!client) { showStatus(p, 'error', '⚠ Nom du client obligatoire'); return; }
-  if (!adresse) { showStatus(p, 'error', '⚠ Adresse obligatoire'); return; }
-  if (panier.length === 0) { showStatus(p, 'error', '⚠ Ajoute au moins une prestation'); return; }
+  if (!client) { showStatus(p, 'error', '! Nom du client obligatoire'); return; }
+  if (!adresse) { showStatus(p, 'error', '! Adresse obligatoire'); return; }
+  if (panier.length === 0) { showStatus(p, 'error', '! Ajoute au moins une prestation'); return; }
 
   const btn = document.getElementById(`${p}-btn`);
   btn.disabled = true;
-  btn.textContent = '⏳ Generation en cours...';
-  showStatus(p, 'loading', '⏳ Generation du PDF...');
+  btn.textContent = '... Generation en cours...';
+  showStatus(p, 'loading', '... Generation du PDF...');
 
   try {
     const now = new Date();
@@ -829,21 +829,21 @@ async function generer(type) {
     const data = { num, date, valide, client, adresse, email, lignes, totalHT };
     const doc = genererPDF(type, data);
 
-    // Téléchargement PDF
+    // Telechargement PDF
     doc.save(`${num}_${client.replace(/\s+/g, '_').toUpperCase()}.pdf`);
 
     // Envoi email si email fourni
     if (email) {
-      showStatus(p, 'loading', '⏳ Envoi email au client...');
+      showStatus(p, 'loading', '... Envoi email au client...');
       const pdfBase64 = doc.output('datauristring').split(',')[1];
       const emailOk = await envoyerEmail(pdfBase64, data, type);
       if (emailOk) {
-        showStatus(p, 'success', `✅ PDF telecharge + email envoye a ${email} !`);
+        showStatus(p, 'success', `OK PDF telecharge + email envoye a ${email} !`);
       } else {
-        showStatus(p, 'success', `✅ PDF telecharge ! (Email non envoye)`);
+        showStatus(p, 'success', `OK PDF telecharge ! (Email non envoye)`);
       }
     } else {
-      showStatus(p, 'success', '✅ PDF telecharge avec succes !');
+      showStatus(p, 'success', 'OK PDF telecharge avec succes !');
     }
 
     // Reset panier
@@ -852,11 +852,11 @@ async function generer(type) {
     renderPanier(p);
 
   } catch(e) {
-    showStatus(p, 'error', '❌ Erreur : ' + e.message);
+    showStatus(p, 'error', 'X Erreur : ' + e.message);
     console.error(e);
   } finally {
     btn.disabled = false;
-    btn.textContent = type === 'devis' ? '📄 Generer le devis PDF' : '💶 Generer la facture PDF';
+    btn.textContent = type === 'devis' ? '? Generer le devis PDF' : ' Generer la facture PDF';
   }
 }
 
@@ -867,7 +867,7 @@ function switchTab(tab, el) {
   document.getElementById(`page-${tab}`).classList.add('active');
 }
 
-// ── CHATBOT CLAUDE ────────────────────────────────────────────────
+// ?? CHATBOT CLAUDE ????????????????????????????????????????????????
 let chatPanier = [];
 
 function ajouterMessageChat(texte, estUser) {
@@ -889,7 +889,7 @@ async function envoyerMessage() {
   
   const loading = document.createElement('div');
   loading.style.cssText = 'background:#222;color:#F5A623;border-radius:8px;padding:10px;font-size:13px;';
-  loading.textContent = '⏳ Claude analyse...';
+  loading.textContent = '... Claude analyse...';
   document.getElementById('chat-messages').appendChild(loading);
 
   try {
@@ -909,15 +909,15 @@ async function envoyerMessage() {
 
     if (data.prestations && data.prestations.length > 0) {
       chatPanier = data.prestations;
-      ajouterMessageChat(`✅ J'ai détecté ${data.prestations.length} prestation(s) pour ${data.total.toFixed(2)} € HT. Vérifie le panier ci-dessous !`, false);
+      ajouterMessageChat(`OK J'ai detecte ${data.prestations.length} prestation(s) pour ${data.total.toFixed(2)} ? HT. Verifie le panier ci-dessous !`, false);
       if (data.message) ajouterMessageChat(data.message, false);
       afficherChatPanier();
     } else {
-      ajouterMessageChat(data.message || 'Je n\'ai pas compris. Essaie de décrire autrement !', false);
+      ajouterMessageChat(data.message || 'Je n\'ai pas compris. Essaie de decrire autrement !', false);
     }
   } catch(e) {
     loading.remove();
-    ajouterMessageChat('❌ Erreur de connexion. Réessaie !', false);
+    ajouterMessageChat('X Erreur de connexion. Reessaie !', false);
   }
 }
 
@@ -937,17 +937,17 @@ function afficherChatPanier() {
     div.innerHTML = `
       <span class="panier-item-name">${item.designation}</span>
       <div class="qte-ctrl">
-        <button class="qte-btn" onclick="changeChatQte(${idx},-1)">−</button>
+        <button class="qte-btn" onclick="changeChatQte(${idx},-1)">?</button>
         <span class="qte-val">${item.qte}</span>
         <button class="qte-btn" onclick="changeChatQte(${idx},1)">+</button>
       </div>
-      <span class="panier-item-price">${lineTotal.toFixed(2)} €</span>
-      <button class="del-btn" onclick="suppChatItem(${idx})">🗑</button>
+      <span class="panier-item-price">${lineTotal.toFixed(2)} ?</span>
+      <button class="del-btn" onclick="suppChatItem(${idx})">X</button>
     `;
     container.appendChild(div);
   });
   countEl.textContent = `${chatPanier.length} prestation(s)`;
-  totalEl.textContent = total.toFixed(2).replace('.', ',') + ' €';
+  totalEl.textContent = total.toFixed(2).replace('.', ',') + ' ?';
 }
 
 function changeChatQte(idx, delta) {
@@ -984,7 +984,7 @@ document.getElementById('chat-input').addEventListener('keypress', function(e) {
 });
 
 
-// ── RAPPORT D'INTERVENTION ────────────────────────────────────
+// ?? RAPPORT D'INTERVENTION ????????????????????????????????????
 let signatureCanvas, signatureCtx, isDrawing = false;
 let photoAvantBase64 = null, photoApresBase64 = null;
 
@@ -1040,13 +1040,13 @@ async function genererRapport() {
   const travaux = document.getElementById('r-travaux').value.trim();
   const observations = document.getElementById('r-observations').value.trim();
 
-  if (!client) { showRapportStatus('error', '⚠ Nom du client obligatoire'); return; }
-  if (!travaux) { showRapportStatus('error', '⚠ Description des travaux obligatoire'); return; }
+  if (!client) { showRapportStatus('error', '! Nom du client obligatoire'); return; }
+  if (!travaux) { showRapportStatus('error', '! Description des travaux obligatoire'); return; }
 
   const btn = document.querySelector('#page-rapport .btn-gen');
   btn.disabled = true;
-  btn.textContent = '⏳ Génération...';
-  showRapportStatus('loading', '⏳ Génération du rapport...');
+  btn.textContent = '... Generation...';
+  showRapportStatus('loading', '... Generation du rapport...');
 
   try {
     const { jsPDF } = window.jspdf;
@@ -1110,7 +1110,7 @@ async function genererRapport() {
     if (email) doc.text(email, 19, y + 22);
     y += 32;
 
-    // TRAVAUX RÉALISÉS
+    // TRAVAUX REALISES
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(245, 166, 35);
@@ -1145,7 +1145,7 @@ async function genererRapport() {
       y += obsLines.length * 4 + 14;
     }
 
-    // PHOTOS AVANT/APRÈS
+    // PHOTOS AVANT/APRES
     if (photoAvantBase64 || photoApresBase64) {
       doc.setFontSize(9);
       doc.setFont('helvetica', 'bold');
@@ -1191,7 +1191,7 @@ async function genererRapport() {
     doc.setFillColor(245, 166, 35);
     doc.rect(15, y + 2, 1.5, 22, 'F');
 
-    // Ajouter signature si dessinée
+    // Ajouter signature si dessinee
     if (signatureCanvas) {
       const sigData = signatureCanvas.toDataURL('image/png');
       try { doc.addImage(sigData, 'PNG', 17, y + 3, sigW - 4, 20); } catch(e) {}
@@ -1219,12 +1219,12 @@ async function genererRapport() {
     doc.setTextColor(245, 166, 35);
     doc.text(numRapport + ' | Page 1 / 1', 198, 295, { align: 'right' });
 
-    // TÉLÉCHARGEMENT
+    // TELECHARGEMENT
     doc.save(`${numRapport}_${client.replace(/\s+/g,'_').toUpperCase()}.pdf`);
 
     // EMAIL
     if (email) {
-      showRapportStatus('loading', '⏳ Envoi email...');
+      showRapportStatus('loading', '... Envoi email...');
       const pdfBase64 = doc.output('datauristring').split(',')[1];
       const res = await fetch('/envoyer-email', {
         method: 'POST',
@@ -1238,28 +1238,28 @@ async function genererRapport() {
         })
       });
       const result = await res.json();
-      showRapportStatus('success', `✅ Rapport généré + email envoyé à ${email} !`);
+      showRapportStatus('success', `OK Rapport genere + email envoye a ${email} !`);
     } else {
-      showRapportStatus('success', '✅ Rapport généré et téléchargé !');
+      showRapportStatus('success', 'OK Rapport genere et telecharge !');
     }
 
   } catch(e) {
-    showRapportStatus('error', '❌ Erreur : ' + e.message);
+    showRapportStatus('error', 'X Erreur : ' + e.message);
     console.error(e);
   } finally {
     btn.disabled = false;
-    btn.textContent = '📄 Générer le rapport PDF';
+    btn.textContent = '? Generer le rapport PDF';
   }
 }
 
 async function redigerAvecClaude() {
   const contexte = document.getElementById('r-contexte').value.trim();
-  if (!contexte) { showRapportStatus('error', '⚠ Décris le contexte du chantier d\'abord !'); return; }
+  if (!contexte) { showRapportStatus('error', '! Decris le contexte du chantier d\'abord !'); return; }
 
   const btn = document.querySelector('#page-rapport button[onclick="redigerAvecClaude()"]');
-  btn.textContent = '⏳ Claude rédige...';
+  btn.textContent = '... Claude redige...';
   btn.disabled = true;
-  showRapportStatus('loading', '⏳ Claude rédige le rapport...');
+  showRapportStatus('loading', '... Claude redige le rapport...');
 
   try {
     const res = await fetch('/api/rapport', {
@@ -1271,14 +1271,14 @@ async function redigerAvecClaude() {
     if (data.travaux) {
       document.getElementById('r-travaux').value = data.travaux;
       document.getElementById('r-observations').value = data.observations || '';
-      showRapportStatus('success', '✅ Claude a rédigé le rapport !');
+      showRapportStatus('success', 'OK Claude a redige le rapport !');
     } else {
-      showRapportStatus('error', '❌ Erreur de rédaction');
+      showRapportStatus('error', 'X Erreur de redaction');
     }
   } catch(e) {
-    showRapportStatus('error', '❌ Erreur : ' + e.message);
+    showRapportStatus('error', 'X Erreur : ' + e.message);
   } finally {
-    btn.textContent = '✨ Rédiger avec Claude';
+    btn.textContent = '* Rediger avec Claude';
     btn.disabled = false;
   }
 }
@@ -1294,7 +1294,7 @@ document.querySelectorAll('.tab')[3].addEventListener('click', () => {
   setTimeout(initSignature, 100);
 });
 
-// ── PARAMÈTRES — MODIFIER LES PRIX ─────────────────────────────
+// ?? PARAMETRES ? MODIFIER LES PRIX ?????????????????????????????
 const GRILLE_DEFAULT = JSON.parse(JSON.stringify(GRILLE));
 
 function chargerPrixSauvegardes() {
@@ -1328,7 +1328,7 @@ function afficherParams() {
         <div style="display:flex;align-items:center;gap:4px;">
           <input type="number" data-cat="${cat}" data-prest="${nom}" value="${prix}"
             style="width:70px;background:#111;border:1px solid #F5A623;border-radius:6px;padding:6px;color:#F5A623;font-size:14px;font-weight:700;text-align:center;outline:none;">
-          <span style="font-size:12px;color:#888;">€</span>
+          <span style="font-size:12px;color:#888;">?</span>
         </div>`;
       section.appendChild(row);
     });
@@ -1348,12 +1348,12 @@ function sauvegarderPrix() {
   renderPanier('f');
   const el = document.getElementById('params-status');
   el.className = 'status success';
-  el.textContent = '✅ Prix sauvegardés !';
+  el.textContent = 'OK Prix sauvegardes !';
   setTimeout(() => { el.className = 'status'; }, 3000);
 }
 
 function reinitialiserPrix() {
-  if (!confirm('Remettre tous les prix par défaut ?')) return;
+  if (!confirm('Remettre tous les prix par defaut ?')) return;
   localStorage.removeItem('sinelec_prix');
   Object.keys(GRILLE_DEFAULT).forEach(cat => {
     Object.keys(GRILLE_DEFAULT[cat]).forEach(prest => {
@@ -1363,7 +1363,7 @@ function reinitialiserPrix() {
   afficherParams();
   const el = document.getElementById('params-status');
   el.className = 'status success';
-  el.textContent = '✅ Prix remis par défaut !';
+  el.textContent = 'OK Prix remis par defaut !';
   setTimeout(() => { el.className = 'status'; }, 3000);
 }
 
