@@ -394,6 +394,36 @@ app.post('/generer-facture', async (req, res) => {
   }
 });
 
+// ── ROUTE RÉDACTION RAPPORT ──
+app.post('/api/rapport', async (req, res) => {
+  try {
+    const { contexte } = req.body;
+    const msg = await anthropic.messages.create({
+      model: 'claude-opus-4-5',
+      max_tokens: 800,
+      messages: [{
+        role: 'user',
+        content: `Tu es SINELEC PARIS, électricien professionnel Paris et IDF, spécialisé dépannage et mise aux normes NF C 15-100.
+
+Le technicien décrit ce chantier en quelques mots : "${contexte}"
+
+Génère un rapport d'intervention professionnel avec :
+1. "travaux" : description complète et technique des travaux réalisés (8-12 lignes). Mentionne le matériel utilisé (marques Schneider/Legrand/Hager si tableau), les normes respectées (NF C 15-100), la garantie décennale ORUS. Ton professionnel BTP.
+2. "observations" : anomalies constatées et recommandations pour la suite (3-5 lignes). Si tout est conforme, mentionne-le.
+
+Réponds UNIQUEMENT en JSON valide (sans markdown) :
+{"travaux": "...", "observations": "..."}`
+      }]
+    });
+    const text = msg.content[0].text.trim().replace(/```json|```/g, '').trim();
+    const data = JSON.parse(text);
+    res.json(data);
+  } catch(e) {
+    console.error('Rapport error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── ROUTE CHATBOT ──
 app.post('/api/chat', async (req, res) => {
   try {

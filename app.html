@@ -182,6 +182,8 @@ body { background:#0a0a0a; color:#fff; font-family:-apple-system,BlinkMacSystemF
 
   <div class="section">
     <div class="section-title">Travaux réalisés</div>
+    <div class="input-group"><label>Contexte chantier (pour Claude)</label><textarea id="r-contexte" style="height:60px" placeholder="Ex: tableau 2 rangées Hager rouillé, pas aux normes, tout refait propre, maison Paris 15e"></textarea></div>
+    <button onclick="redigerAvecClaude()" style="width:100%;background:#333;color:#F5A623;border:1px solid #F5A623;border-radius:8px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:12px;">✨ Rédiger avec Claude</button>
     <div class="input-group"><label>Description des travaux</label><textarea id="r-travaux" style="height:100px" placeholder="Décris les travaux réalisés..."></textarea></div>
     <div class="input-group"><label>Observations / Recommandations</label><textarea id="r-observations" style="height:70px" placeholder="Anomalies constatées, recommandations..."></textarea></div>
   </div>
@@ -1250,7 +1252,38 @@ async function genererRapport() {
   }
 }
 
-function showRapportStatus(type, msg) {
+async function redigerAvecClaude() {
+  const contexte = document.getElementById('r-contexte').value.trim();
+  if (!contexte) { showRapportStatus('error', '⚠ Décris le contexte du chantier d\'abord !'); return; }
+
+  const btn = document.querySelector('#page-rapport button[onclick="redigerAvecClaude()"]');
+  btn.textContent = '⏳ Claude rédige...';
+  btn.disabled = true;
+  showRapportStatus('loading', '⏳ Claude rédige le rapport...');
+
+  try {
+    const res = await fetch('/api/rapport', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contexte })
+    });
+    const data = await res.json();
+    if (data.travaux) {
+      document.getElementById('r-travaux').value = data.travaux;
+      document.getElementById('r-observations').value = data.observations || '';
+      showRapportStatus('success', '✅ Claude a rédigé le rapport !');
+    } else {
+      showRapportStatus('error', '❌ Erreur de rédaction');
+    }
+  } catch(e) {
+    showRapportStatus('error', '❌ Erreur : ' + e.message);
+  } finally {
+    btn.textContent = '✨ Rédiger avec Claude';
+    btn.disabled = false;
+  }
+}
+
+
   const el = document.getElementById('r-status');
   el.className = `status ${type}`;
   el.textContent = msg;
