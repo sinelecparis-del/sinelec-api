@@ -1519,22 +1519,53 @@ function fermerPopupSig() {
 async function validerPopupSig() {
   const canvas = document.getElementById('popup-sig-canvas');
   const sigData = canvas.toDataURL('image/png');
-  document.getElementById('popup-sig-status').textContent = '⏳ Intégration signature...';
+  document.getElementById('popup-sig-status').textContent = '⏳ Finalisation...';
 
   if (popupDocRef && popupDataRef) {
-    // Ajouter signature dans le PDF
     const doc = popupDocRef;
+    const data = popupDataRef;
+
+    // Ajouter signature dans le PDF
     const totalPages = doc.internal.getNumberOfPages();
     doc.setPage(totalPages);
     try { doc.addImage(sigData, 'PNG', 15, 230, 80, 25); } catch(e) {}
     doc.setFontSize(7);
     doc.setTextColor(136,136,136);
     doc.text('Signature client - ' + new Date().toLocaleDateString('fr-FR'), 15, 258);
-    doc.save(`${popupDataRef.num}_${popupDataRef.client.replace(/\s+/g,'_').toUpperCase()}.pdf`);
+
+    // Télécharger sur le tel
+    doc.save(`${data.num}_${data.client.replace(/\s+/g,'_').toUpperCase()}.pdf`);
+
+    // Envoyer email si email disponible
+    if (data.email) {
+      document.getElementById('popup-sig-status').textContent = '⏳ Envoi email...';
+      try {
+        const pdfBase64 = doc.output('datauristring').split(',')[1];
+        await fetch('/envoyer-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: data.email,
+            client: data.client,
+            num: data.num,
+            totalHT: data.totalHT,
+            type: 'devis_signe',
+            pdfBase64
+          })
+        });
+        document.getElementById('popup-sig-status').textContent = '✅ PDF signé envoyé à ' + data.email;
+      } catch(e) {
+        document.getElementById('popup-sig-status').textContent = '⚠ PDF téléchargé (email non envoyé)';
+      }
+    } else {
+      document.getElementById('popup-sig-status').textContent = '✅ PDF signé téléchargé !';
+    }
   }
 
-  document.getElementById('popup-signature').classList.remove('active');
-  document.getElementById('popup-sig-status').textContent = '';
+  setTimeout(() => {
+    document.getElementById('popup-signature').classList.remove('active');
+    document.getElementById('popup-sig-status').textContent = '';
+  }, 2000);
 }
 
 // ── SIGNATURE À DISTANCE ──────────────────────────────────────

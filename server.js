@@ -658,6 +658,8 @@ app.post('/envoyer-email', async (req, res) => {
       ? `Votre facture SINELEC Paris - ${num}`
       : type === 'rapport'
       ? `Rapport d'intervention SINELEC Paris - ${num}`
+      : type === 'devis_signe'
+      ? `Votre devis signé SINELEC Paris - ${num}`
       : `Votre devis SINELEC Paris - ${num}`;
 
     const response = await fetch('https://api.brevo.com/v3/smtp/email', {
