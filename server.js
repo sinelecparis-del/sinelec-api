@@ -20,7 +20,8 @@ app.use(express.static(__dirname));
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const supabase = createClient(process.env.SUPABASE_URL || '', process.env.SUPABASE_KEY || '');
- = '#F5A623';
+
+const JAUNE = '#F5A623';
 const NOIR = '#111111';
 const GRIS_DARK = '#444444';
 const GRIS_MED = '#888888';
@@ -282,7 +283,12 @@ function genererPDFBuffer(data, type = 'devis') {
 
 // ── HISTORIQUE & BASE CLIENTS via SUPABASE ────────────────────
 async function addToHistorique(entry) {
-  try { await supabase.from('historique').insert([entry]); } 
+  try { 
+    console.log('Supabase insert:', entry.num, entry.type);
+    const result = await supabase.from('historique').insert([entry]);
+    console.log('Supabase result:', JSON.stringify(result.error || 'OK'));
+    return result;
+  } 
   catch(e) { console.log('Supabase historique error:', e.message); }
 }
 
@@ -325,6 +331,23 @@ app.delete('/api/historique/:num', async (req, res) => {
 });
 
 
+
+// ── ROUTE SAUVEGARDE HISTORIQUE (depuis client) ──
+app.post('/api/sauvegarder', async (req, res) => {
+  try {
+    const { num, type, client, adresse, email, totalHT, date } = req.body;
+    console.log('Sauvegarde historique:', num, type, client);
+    await upsertClient(client, adresse, email);
+    await addToHistorique({
+      num, type, client, adresse, email,
+      totalht: totalHT, date, created_at: new Date().toISOString()
+    });
+    res.json({ success: true });
+  } catch(e) {
+    console.error('Sauvegarder error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
 
 // ── ROUTES ──
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'app.html')));
@@ -376,13 +399,23 @@ app.post('/generer-devis', async (req, res) => {
     }
 
     // Sauvegarder historique + client
-    upsertClient(client, adresse, email);
-    addToHistorique({
+    await upsertClient(client, adresse, email);
+    await addToHistorique({
       num, type: 'devis', client, adresse, email,
       totalht: totalHT, date, created_at: new Date().toISOString()
     });
 
-    res.setHeader('Content-Type', 'application/pdf');, async (req, res) => {
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${num}.pdf"`);
+    res.send(pdfBuffer);
+
+  } catch(e) {
+    console.error(e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/generer-facture', async (req, res) => {
   try {
     const { client, adresse, email, lignes, description } = req.body;
     const totalHT = lignes.reduce((s, l) => s + (l.qte * l.prixUnit), 0);
@@ -429,8 +462,8 @@ app.post('/generer-devis', async (req, res) => {
     }
 
     // Sauvegarder historique + client
-    upsertClient(client, adresse, email);
-    addToHistorique({
+    await upsertClient(client, adresse, email);
+    await addToHistorique({
       num, type: 'facture', client, adresse, email,
       totalht: totalHT, date, created_at: new Date().toISOString()
     });
@@ -438,6 +471,12 @@ app.post('/generer-devis', async (req, res) => {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${num}.pdf"`);
     res.send(pdfBuffer);
+
+  } catch(e) {
+    console.error(e);
+    res.status(500).json({ error: e.message });
+  }
+});
 
 // ── ROUTE RÉDACTION RAPPORT ──
 app.post('/api/rapport', async (req, res) => {

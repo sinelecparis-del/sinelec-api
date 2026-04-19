@@ -869,6 +869,15 @@ async function generer(type) {
     // Téléchargement PDF
     doc.save(`${num}_${client.replace(/\s+/g, '_').toUpperCase()}.pdf`);
 
+    // Sauvegarder dans historique
+    try {
+      await fetch('/api/sauvegarder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ num, type, client, adresse, email, totalHT, date })
+      });
+    } catch(e) { console.log('Histo error:', e); }
+
     // Envoi email si email fourni
     if (email) {
       showStatus(p, 'loading', '⏳ Envoi email au client...');
