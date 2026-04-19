@@ -530,41 +530,47 @@ function genererPDF(type, data) {
 
   // TITRE
   const titre = type === 'facture' ? 'FACTURE' : 'DEVIS';
-  doc.setFontSize(36);
+  doc.setFontSize(32);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(17, 17, 17);
-  doc.text(titre, 198, 18, { align: 'right' });
+  doc.text(titre, 198, 16, { align: 'right' });
 
   // BARRE JAUNE sous titre
   doc.setFillColor(245, 166, 35);
-  doc.rect(145, 21, 53, 1.5, 'F');
+  doc.rect(145, 18, 53, 1.5, 'F');
 
   // NUMÉRO DATE
   doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(17, 17, 17);
-  doc.text('N ' + data.num, 198, 27, { align: 'right' });
+  doc.text('N ' + data.num, 198, 22, { align: 'right' });
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(136, 136, 136);
-  doc.text('Date : ' + data.date, 198, 31, { align: 'right' });
-  if (type === 'devis') doc.text('Valable jusqu au : ' + data.valide, 198, 35, { align: 'right' });
+  doc.text('Date : ' + data.date, 198, 26, { align: 'right' });
+  if (type === 'devis') doc.text('Valable jusqu au : ' + data.valide, 198, 30, { align: 'right' });
 
   // LOGO SINELEC - haut gauche
   if (typeof LOGO_B64 !== 'undefined' && LOGO_B64) {
-    try { doc.addImage(LOGO_B64, 'JPEG', ML, 8, 20, 20); } catch(e) {}
+    try { doc.addImage(LOGO_B64, 'JPEG', ML, 7, 18, 18); } catch(e) {}
   }
 
-  // INFOS SINELEC - juste sous le logo
-  doc.setFontSize(7);
-  doc.setTextColor(136, 136, 136);
+  // INFOS SINELEC - à droite du logo, alignées verticalement
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(17, 17, 17);
+  doc.text('SINELEC PARIS', ML + 21, 11);
+  doc.setFontSize(6.5);
   doc.setFont('helvetica', 'normal');
-  var infos = ['128 Rue La Boetie, 75008 Paris', 'Tel : 07 87 38 86 22', 'sinelec.paris@gmail.com', 'SIRET : 91015824500019'];
-  infos.forEach(function(line, i) { doc.text(line, ML, 31 + i * 4); });
+  doc.setTextColor(136, 136, 136);
+  doc.text('128 Rue La Boetie, 75008 Paris', ML + 21, 15);
+  doc.text('Tel : 07 87 38 86 22', ML + 21, 19);
+  doc.text('sinelec.paris@gmail.com', ML + 21, 23);
+  doc.text('SIRET : 91015824500019', ML + 21, 27);
 
   // LIGNE SÉPARATRICE
   doc.setDrawColor(229, 229, 229);
   doc.setLineWidth(0.3);
-  doc.line(ML, 43, 198, 43);
+  doc.line(ML, 34, 198, 34);
 
   // BLOC DE
   doc.setFontSize(7);
