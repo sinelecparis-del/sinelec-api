@@ -54,7 +54,29 @@ body { background:#0a0a0a; color:#fff; font-family:-apple-system,BlinkMacSystemF
 .status.loading { background:#1a2a3a; color:#60a5fa; border:1px solid #2d4a6a; display:block; }
 .page { display:none; }
 .page.active { display:block; }
+.popup-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:1000; justify-content:center; align-items:flex-end; }
+.popup-overlay.active { display:flex; }
+.popup-box { background:#18181b; border:1px solid #333; border-radius:16px 16px 0 0; padding:20px; width:100%; max-width:500px; }
+.popup-box h3 { color:#F5A623; font-size:16px; margin-bottom:12px; }
+.popup-sig-canvas { width:100%; height:140px; background:#fff; border-radius:8px; display:block; cursor:crosshair; touch-action:none; }
+.popup-btns { display:flex; gap:8px; margin-top:12px; }
+.popup-btns button { flex:1; padding:12px; border:none; border-radius:8px; font-size:14px; font-weight:700; cursor:pointer; }
 </style>
+
+<!-- POPUP SIGNATURE SUR PLACE -->
+<div class="popup-overlay" id="popup-signature">
+  <div class="popup-box">
+    <h3>✍️ Signature client sur place</h3>
+    <p style="font-size:12px;color:#888;margin-bottom:10px;">Le client signe avec le doigt :</p>
+    <canvas id="popup-sig-canvas" width="500" height="140" class="popup-sig-canvas"></canvas>
+    <div class="popup-btns">
+      <button onclick="effacerPopupSig()" style="background:#333;color:#888;">↺ Effacer</button>
+      <button onclick="fermerPopupSig()" style="background:#333;color:#888;">Passer</button>
+      <button onclick="validerPopupSig()" style="background:#F5A623;color:#111;">✅ Valider</button>
+    </div>
+    <div id="popup-sig-status" style="margin-top:8px;font-size:12px;text-align:center;color:#888;"></div>
+  </div>
+</div>
 </head>
 <body>
 
@@ -104,6 +126,8 @@ body { background:#0a0a0a; color:#fff; font-family:-apple-system,BlinkMacSystemF
     <span class="total-amount" id="d-total">0,00 €</span>
   </div>
   <button class="btn-gen" id="d-btn" onclick="generer('devis')">📄 Générer le devis PDF</button>
+  <button onclick="envoyerPourSignature()" style="width:100%;background:#18181b;color:#F5A623;border:1px solid #F5A623;border-radius:10px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;margin-top:8px;">✍️ Envoyer pour signature</button>
+  <div class="status" id="d-sig-status"></div>
   <div class="status" id="d-status"></div>
 </div>
 </div>
@@ -900,9 +924,6 @@ async function generer(type) {
     const tel = document.getElementById(`${p}-tel`)?.value?.trim() || '';
     const doc = genererPDF(type, data);
 
-    // Téléchargement PDF
-    doc.save(`${num}_${client.replace(/\s+/g, '_').toUpperCase()}.pdf`);
-
     // Sauvegarder dans historique
     try {
       await fetch('/api/sauvegarder', {
@@ -918,12 +939,19 @@ async function generer(type) {
       const pdfBase64 = doc.output('datauristring').split(',')[1];
       const emailOk = await envoyerEmail(pdfBase64, data, type);
       if (emailOk) {
-        showStatus(p, 'success', `✅ PDF telecharge + email envoye a ${email} !`);
+        showStatus(p, 'success', `✅ PDF + email envoye a ${email} !`);
       } else {
-        showStatus(p, 'success', `✅ PDF telecharge ! (Email non envoye)`);
+        showStatus(p, 'success', `✅ Email non envoye`);
       }
     } else {
-      showStatus(p, 'success', '✅ PDF telecharge avec succes !');
+      showStatus(p, 'success', '✅ Devis genere !');
+    }
+
+    // Ouvrir popup signature si c'est un devis
+    if (type === 'devis') {
+      ouvrirPopupSig(doc, data);
+    } else {
+      doc.save(`${num}_${client.replace(/\s+/g, '_').toUpperCase()}.pdf`);
     }
 
     // Reset panier
@@ -1446,6 +1474,147 @@ function reinitialiserPrix() {
   el.className = 'status success';
   el.textContent = '✅ Prix remis par défaut !';
   setTimeout(() => { el.className = 'status'; }, 3000);
+}
+
+// ── POPUP SIGNATURE SUR PLACE ─────────────────────────────────
+let popupSigCtx = null, popupDrawing = false, popupDocRef = null, popupDataRef = null;
+
+function ouvrirPopupSig(doc, data) {
+  popupDocRef = doc;
+  popupDataRef = data;
+  const canvas = document.getElementById('popup-sig-canvas');
+  popupSigCtx = canvas.getContext('2d');
+  popupSigCtx.strokeStyle = '#111';
+  popupSigCtx.lineWidth = 2;
+  popupSigCtx.lineCap = 'round';
+  popupSigCtx.clearRect(0, 0, canvas.width, canvas.height);
+  document.getElementById('popup-signature').classList.add('active');
+
+  function getPos(e) {
+    const r = canvas.getBoundingClientRect();
+    const sx = canvas.width / r.width, sy = canvas.height / r.height;
+    if (e.touches) return { x:(e.touches[0].clientX-r.left)*sx, y:(e.touches[0].clientY-r.top)*sy };
+    return { x:(e.clientX-r.left)*sx, y:(e.clientY-r.top)*sy };
+  }
+  canvas.onmousedown = e => { popupDrawing=true; popupSigCtx.beginPath(); const p=getPos(e); popupSigCtx.moveTo(p.x,p.y); };
+  canvas.onmousemove = e => { if(!popupDrawing) return; const p=getPos(e); popupSigCtx.lineTo(p.x,p.y); popupSigCtx.stroke(); };
+  canvas.onmouseup = () => popupDrawing=false;
+  canvas.ontouchstart = e => { e.preventDefault(); popupDrawing=true; popupSigCtx.beginPath(); const p=getPos(e); popupSigCtx.moveTo(p.x,p.y); };
+  canvas.ontouchmove = e => { e.preventDefault(); if(!popupDrawing) return; const p=getPos(e); popupSigCtx.lineTo(p.x,p.y); popupSigCtx.stroke(); };
+  canvas.ontouchend = () => popupDrawing=false;
+}
+
+function effacerPopupSig() {
+  if (popupSigCtx) popupSigCtx.clearRect(0, 0, document.getElementById('popup-sig-canvas').width, document.getElementById('popup-sig-canvas').height);
+}
+
+function fermerPopupSig() {
+  document.getElementById('popup-signature').classList.remove('active');
+  // Télécharger sans signature
+  if (popupDocRef && popupDataRef) {
+    popupDocRef.save(`${popupDataRef.num}_${popupDataRef.client.replace(/\s+/g,'_').toUpperCase()}.pdf`);
+  }
+}
+
+async function validerPopupSig() {
+  const canvas = document.getElementById('popup-sig-canvas');
+  const sigData = canvas.toDataURL('image/png');
+  document.getElementById('popup-sig-status').textContent = '⏳ Intégration signature...';
+
+  if (popupDocRef && popupDataRef) {
+    // Ajouter signature dans le PDF
+    const doc = popupDocRef;
+    const totalPages = doc.internal.getNumberOfPages();
+    doc.setPage(totalPages);
+    try { doc.addImage(sigData, 'PNG', 15, 230, 80, 25); } catch(e) {}
+    doc.setFontSize(7);
+    doc.setTextColor(136,136,136);
+    doc.text('Signature client - ' + new Date().toLocaleDateString('fr-FR'), 15, 258);
+    doc.save(`${popupDataRef.num}_${popupDataRef.client.replace(/\s+/g,'_').toUpperCase()}.pdf`);
+  }
+
+  document.getElementById('popup-signature').classList.remove('active');
+  document.getElementById('popup-sig-status').textContent = '';
+}
+
+// ── SIGNATURE À DISTANCE ──────────────────────────────────────
+async function envoyerPourSignature() {
+  const client = document.getElementById('d-client').value.trim();
+  const adresse = document.getElementById('d-adresse').value.trim();
+  const email = document.getElementById('d-email').value.trim();
+  const p = 'd';
+  const panier = panierD;
+
+  if (!client) { showSigStatus('error', '⚠ Nom client obligatoire'); return; }
+  if (!email) { showSigStatus('error', '⚠ Email client obligatoire pour la signature'); return; }
+  if (panier.length === 0) { showSigStatus('error', '⚠ Panier vide'); return; }
+
+  const btn = document.querySelector('#page-devis button[onclick="envoyerPourSignature()"]');
+  btn.disabled = true;
+  btn.textContent = '⏳ Génération...';
+  showSigStatus('loading', '⏳ Génération du devis...');
+
+  try {
+    const now = new Date();
+    const mm = String(now.getMonth()+1).padStart(2,'0');
+    const yyyy = now.getFullYear();
+    
+    // Obtenir numéro
+    let num;
+    try {
+      const compRes = await fetch('/api/compteur/devis', { method: 'POST' });
+      const compData = await compRes.json();
+      num = `OS-${yyyy}${mm}-${String(compData.num).padStart(3,'0')}`;
+    } catch(e) {
+      compteurDevis++;
+      localStorage.setItem('compteurDevis', compteurDevis);
+      num = `OS-${yyyy}${mm}-${String(compteurDevis).padStart(3,'0')}`;
+    }
+
+    const date = now.toLocaleDateString('fr-FR');
+    const valide = new Date(new Date().setDate(now.getDate()+30)).toLocaleDateString('fr-FR');
+    const totalHT = panier.reduce((s,l) => s + l.qte * l.prixUnit, 0);
+    const lignes = panier.map(l => ({...l, total: l.qte * l.prixUnit}));
+    const data = { num, date, valide, client, adresse, email, lignes, totalHT };
+    const doc = genererPDF('devis', data);
+    const pdfBase64 = doc.output('datauristring').split(',')[1];
+
+    showSigStatus('loading', '⏳ Envoi du lien de signature...');
+
+    const res = await fetch('/api/signature/creer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ num, client, email, pdfBase64, totalHT })
+    });
+    const result = await res.json();
+
+    if (result.success) {
+      // Sauvegarder historique
+      const tel = document.getElementById('d-tel')?.value?.trim() || '';
+      await fetch('/api/sauvegarder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ num, type: 'devis', client, adresse, email, telephone: tel, totalHT, date })
+      });
+      showSigStatus('success', `✅ Lien envoyé à ${email} ! Le client peut signer depuis son téléphone.`);
+      panierD = [];
+      renderPanier('d');
+    } else {
+      showSigStatus('error', '❌ Erreur : ' + result.error);
+    }
+  } catch(e) {
+    showSigStatus('error', '❌ Erreur : ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '✍️ Envoyer pour signature';
+  }
+}
+
+function showSigStatus(type, msg) {
+  const el = document.getElementById('d-sig-status');
+  if (!el) return;
+  el.className = `status ${type}`;
+  el.textContent = msg;
 }
 
 // ── HISTORIQUE ─────────────────────────────────────────────────

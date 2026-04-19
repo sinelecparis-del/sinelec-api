@@ -579,6 +579,76 @@ RÈGLES IMPORTANTES :
 });
 
 // ── ROUTE EMAIL VIA BREVO ──
+// ── SIGNATURE ÉLECTRONIQUE À DISTANCE ──────────────────────────
+
+// Créer un lien de signature
+app.post('/api/signature/creer', async (req, res) => {
+  try {
+    const { num, client, email, pdfBase64, totalHT } = req.body;
+    const token = require('crypto').randomBytes(32).toString('hex');
+    await supabase.from('signatures').insert([{
+      token, num, client, email,
+      pdf_base64: pdfBase64,
+      statut: 'en_attente',
+      created_at: new Date().toISOString()
+    }]);
+    const lien = `https://sinelec-api-production.up.railway.app/signer/${token}`;
+    await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: { 'api-key': process.env.BREVO_API_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sender: { name: 'SINELEC Paris', email: 'sinelec.paris@gmail.com' },
+        to: [{ email }],
+        subject: `Devis ${num} a signer - SINELEC Paris`,
+        htmlContent: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto"><div style="background:#111;padding:20px;text-align:center"><h1 style="color:#F5A623;margin:0">SINELEC PARIS</h1><p style="color:#fff;margin:5px 0">Electricien 24h/24 - Paris & Ile-de-France</p></div><div style="padding:30px"><p>Bonjour <strong>${client}</strong>,</p><p>Votre devis <strong>${num}</strong> est pret. Montant : <strong>${parseFloat(totalHT).toFixed(2)} EUR HT</strong></p><div style="text-align:center;margin:30px 0"><a href="${lien}" style="background:#F5A623;color:#111;padding:15px 30px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:16px;">Voir et signer le devis</a></div><p style="font-size:12px;color:#888">Ce lien est valable 30 jours.</p><p>Cordialement,<br><strong>SINELEC Paris</strong><br>07 87 38 86 22</p></div></div>`
+      })
+    });
+    console.log(`Lien signature cree pour ${client} - ${num}`);
+    res.json({ success: true, lien });
+  } catch(e) {
+    console.error('Signature creer error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Page de signature (côté client)
+app.get('/signer/:token', async (req, res) => {
+  try {
+    const { data } = await supabase.from('signatures').select('*').eq('token', req.params.token).single();
+    if (!data) return res.status(404).send('<h1>Lien invalide ou expire</h1>');
+    if (data.statut === 'signe') return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Devis signe</title></head><body style="font-family:Arial;text-align:center;padding:40px;background:#f5f5f5"><div style="background:#fff;border-radius:12px;padding:40px;max-width:400px;margin:0 auto"><div style="font-size:60px">✅</div><h2>Devis deja signe</h2><p style="color:#666">Le devis ${data.num} a deja ete signe.</p></div></body></html>`);
+    const tok = req.params.token;
+    res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"><title>Signer le devis ${data.num}</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0a0a;color:#fff;min-height:100vh}.header{background:#111;padding:16px 20px;border-bottom:2px solid #F5A623}.header h1{color:#F5A623;font-size:18px}.header p{color:#888;font-size:12px;margin-top:2px}.content{padding:20px;max-width:500px;margin:0 auto}.card{background:#18181b;border:1px solid #333;border-radius:12px;padding:16px;margin-bottom:16px}.card h3{font-size:14px;color:#F5A623;margin-bottom:8px}.card p{font-size:13px;color:#ccc;margin-bottom:4px}.pdf-btn{display:block;background:#222;border:1px solid #444;color:#ccc;padding:12px;border-radius:8px;text-align:center;text-decoration:none;margin-bottom:16px;font-size:14px}canvas{width:100%;height:150px;background:#fff;border-radius:8px;display:block;cursor:crosshair;touch-action:none}.btn-clear{background:#333;color:#888;border:none;border-radius:6px;padding:8px 16px;font-size:12px;cursor:pointer;margin-top:8px}.btn-sign{width:100%;background:#F5A623;color:#111;border:none;border-radius:10px;padding:16px;font-size:16px;font-weight:700;cursor:pointer;margin-top:16px}.btn-sign:disabled{background:#555;color:#888}.status{margin-top:12px;padding:12px;border-radius:8px;text-align:center;font-size:13px;display:none}.status.success{background:#1a3a1a;color:#4ade80;display:block}.status.error{background:#3a1a1a;color:#f87171;display:block}</style></head><body><div class="header"><h1>SINELEC PARIS</h1><p>Signature electronique du devis</p></div><div class="content"><div class="card"><h3>Details du devis</h3><p><strong>Reference :</strong> ${data.num}</p><p><strong>Client :</strong> ${data.client}</p></div><a href="data:application/pdf;base64,${data.pdf_base64}" download="${data.num}.pdf" class="pdf-btn">Telecharger le devis PDF</a><div class="card"><h3>Votre signature</h3><p style="font-size:13px;color:#888;margin-bottom:8px">Signez dans le cadre blanc avec votre doigt :</p><canvas id="sig-canvas" width="500" height="150"></canvas><button class="btn-clear" onclick="clearSig()">Effacer</button></div><button class="btn-sign" id="btn-sign" onclick="validerSignature()">Valider et signer le devis</button><div class="status" id="status"></div></div><script>const canvas=document.getElementById('sig-canvas');const ctx=canvas.getContext('2d');ctx.strokeStyle='#111';ctx.lineWidth=2;ctx.lineCap='round';let drawing=false;function getPos(e){const r=canvas.getBoundingClientRect();const sx=canvas.width/r.width;const sy=canvas.height/r.height;if(e.touches)return{x:(e.touches[0].clientX-r.left)*sx,y:(e.touches[0].clientY-r.top)*sy};return{x:(e.clientX-r.left)*sx,y:(e.clientY-r.top)*sy};}canvas.addEventListener('mousedown',e=>{drawing=true;ctx.beginPath();const p=getPos(e);ctx.moveTo(p.x,p.y);});canvas.addEventListener('mousemove',e=>{if(!drawing)return;const p=getPos(e);ctx.lineTo(p.x,p.y);ctx.stroke();});canvas.addEventListener('mouseup',()=>drawing=false);canvas.addEventListener('touchstart',e=>{e.preventDefault();drawing=true;ctx.beginPath();const p=getPos(e);ctx.moveTo(p.x,p.y);},{passive:false});canvas.addEventListener('touchmove',e=>{e.preventDefault();if(!drawing)return;const p=getPos(e);ctx.lineTo(p.x,p.y);ctx.stroke();},{passive:false});canvas.addEventListener('touchend',()=>drawing=false);function clearSig(){ctx.clearRect(0,0,canvas.width,canvas.height);}async function validerSignature(){const sigData=canvas.toDataURL('image/png');const btn=document.getElementById('btn-sign');const status=document.getElementById('status');btn.disabled=true;btn.textContent='Envoi en cours...';try{const res=await fetch('/api/signature/valider',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:'${tok}',signatureData:sigData})});const data=await res.json();if(data.success){btn.textContent='Devis signe !';status.className='status success';status.textContent='Votre devis a ete signe avec succes. SINELEC Paris a ete notifie.';}else{throw new Error(data.error);}}catch(e){btn.disabled=false;btn.textContent='Valider et signer le devis';status.className='status error';status.textContent='Erreur : '+e.message;}}</script></body></html>`);
+  } catch(e) {
+    res.status(500).send('<h1>Erreur serveur</h1>');
+  }
+});
+
+// Valider une signature
+app.post('/api/signature/valider', async (req, res) => {
+  try {
+    const { token, signatureData } = req.body;
+    const { data } = await supabase.from('signatures').select('*').eq('token', token).single();
+    if (!data) return res.status(404).json({ error: 'Token invalide' });
+    await supabase.from('signatures').update({ statut: 'signe', signature_data: signatureData, signed_at: new Date().toISOString() }).eq('token', token);
+    await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: { 'api-key': process.env.BREVO_API_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sender: { name: 'SINELEC Paris', email: 'sinelec.paris@gmail.com' },
+        to: [{ email: 'sinelec.paris@gmail.com' }],
+        subject: `Devis ${data.num} signe par ${data.client}`,
+        htmlContent: `<div style="font-family:Arial;padding:30px"><h2 style="color:#F5A623">Devis signe !</h2><p><strong>${data.client}</strong> vient de signer le devis <strong>${data.num}</strong>.</p><p>Date : ${new Date().toLocaleDateString('fr-FR')} a ${new Date().toLocaleTimeString('fr-FR')}</p></div>`
+      })
+    });
+    console.log(`Devis ${data.num} signe par ${data.client}`);
+    res.json({ success: true });
+  } catch(e) {
+    console.error('Signature valider error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post('/envoyer-email', async (req, res) => {
   try {
     const { email, client, num, totalHT, type, pdfBase64 } = req.body;
