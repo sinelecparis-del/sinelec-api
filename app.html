@@ -678,11 +678,11 @@ function genererPDF(type, data) {
 
     // Prix U
     doc.setTextColor(17, 17, 17);
-    doc.text(parseFloat(l.prixUnit).toFixed(2) + ' E', ML + 8 + 95 + 12 + 8 + 28, y + 6, { align: 'right' });
+    doc.text(parseFloat(l.prixUnit).toFixed(2) + ' EUR', ML + 8 + 95 + 12 + 8 + 28, y + 6, { align: 'right' });
 
     // Total
     doc.setFont('helvetica', 'bold');
-    doc.text(parseFloat(l.total).toFixed(2) + ' E', ML + CW - 2, y + 6, { align: 'right' });
+    doc.text(parseFloat(l.total).toFixed(2) + ' EUR', ML + CW - 2, y + 6, { align: 'right' });
 
     y += lineH;
   });
