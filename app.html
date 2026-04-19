@@ -549,17 +549,17 @@ function genererPDF(type, data) {
   doc.text('Date : ' + data.date, 198, 31, { align: 'right' });
   if (type === 'devis') doc.text('Valable jusqu au : ' + data.valide, 198, 35, { align: 'right' });
 
-  // LOGO SINELEC
+  // LOGO SINELEC - haut gauche
   if (typeof LOGO_B64 !== 'undefined' && LOGO_B64) {
-    try { doc.addImage(LOGO_B64, 'JPEG', ML, 8, 22, 22); } catch(e) { console.log('Logo err:', e); }
+    try { doc.addImage(LOGO_B64, 'JPEG', ML, 8, 20, 20); } catch(e) {}
   }
 
-  // INFOS SINELEC
+  // INFOS SINELEC - juste sous le logo
   doc.setFontSize(7);
   doc.setTextColor(136, 136, 136);
   doc.setFont('helvetica', 'normal');
   var infos = ['128 Rue La Boetie, 75008 Paris', 'Tel : 07 87 38 86 22', 'sinelec.paris@gmail.com', 'SIRET : 91015824500019'];
-  infos.forEach(function(line, i) { doc.text(line, ML, 22 + i * 4); });
+  infos.forEach(function(line, i) { doc.text(line, ML, 31 + i * 4); });
 
   // LIGNE SÉPARATRICE
   doc.setDrawColor(229, 229, 229);
