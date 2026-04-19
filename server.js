@@ -292,13 +292,13 @@ async function addToHistorique(entry) {
   catch(e) { console.log('Supabase historique error:', e.message); }
 }
 
-async function upsertClient(nom, adresse, email) {
+async function upsertClient(nom, adresse, email, telephone) {
   try {
     const { data } = await supabase.from('clients').select('id').ilike('nom', nom).limit(1);
     if (data && data.length > 0) {
-      await supabase.from('clients').update({ adresse, email }).eq('id', data[0].id);
+      await supabase.from('clients').update({ adresse, email, telephone }).eq('id', data[0].id);
     } else {
-      await supabase.from('clients').insert([{ nom, adresse, email }]);
+      await supabase.from('clients').insert([{ nom, adresse, email, telephone }]);
     }
   } catch(e) { console.log('Supabase client error:', e.message); }
 }
@@ -316,7 +316,9 @@ app.get('/api/clients', async (req, res) => {
   try {
     const q = req.query.q || '';
     let query = supabase.from('clients').select('*').order('updated_at', { ascending: false });
-    if (q) query = query.ilike('nom', `%${q}%`);
+    if (q) {
+      query = query.or(`nom.ilike.%${q}%,adresse.ilike.%${q}%,telephone.ilike.%${q}%,email.ilike.%${q}%`);
+    }
     const { data } = await query.limit(50);
     res.json(data || []);
   } catch(e) { res.json([]); }
@@ -332,12 +334,33 @@ app.delete('/api/historique/:num', async (req, res) => {
 
 
 
+// ── ROUTE COMPTEUR SYNC ──
+app.post('/api/compteur/:type', async (req, res) => {
+  try {
+    const type = req.params.type; // 'devis' ou 'facture'
+    const { data } = await supabase.rpc('incrementer_compteur', { type_doc: type });
+    if (data !== null) {
+      res.json({ num: data });
+    } else {
+      // Fallback manuel
+      const { data: current } = await supabase.from('compteurs').select('valeur').eq('id', type).single();
+      const newVal = (current?.valeur || 0) + 1;
+      await supabase.from('compteurs').update({ valeur: newVal }).eq('id', type);
+      res.json({ num: newVal });
+    }
+  } catch(e) {
+    console.error('Compteur error:', e.message);
+    // Fallback localStorage si Supabase fail
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── ROUTE SAUVEGARDE HISTORIQUE (depuis client) ──
 app.post('/api/sauvegarder', async (req, res) => {
   try {
-    const { num, type, client, adresse, email, totalHT, date } = req.body;
+    const { num, type, client, adresse, email, telephone, totalHT, date } = req.body;
     console.log('Sauvegarde historique:', num, type, client);
-    await upsertClient(client, adresse, email);
+    await upsertClient(client, adresse, email, telephone);
     await addToHistorique({
       num, type, client, adresse, email,
       totalht: totalHT, date, created_at: new Date().toISOString()

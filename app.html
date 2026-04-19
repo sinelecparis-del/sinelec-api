@@ -81,7 +81,11 @@ body { background:#0a0a0a; color:#fff; font-family:-apple-system,BlinkMacSystemF
       <input type="text" id="d-client" placeholder="Ex: Dupont Marie" oninput="autocompleteClient('d', this.value)" autocomplete="off">
       <div id="d-client-suggestions" style="display:none;background:#222;border:1px solid #F5A623;border-radius:8px;margin-top:4px;max-height:180px;overflow-y:auto;z-index:100;"></div>
     </div>
-    <div class="input-group"><label>Adresse</label><input type="text" id="d-adresse" placeholder="Ex: 12 rue de la Paix, 75001 Paris"></div>
+    <div class="input-group"><label>Adresse</label>
+      <input type="text" id="d-adresse" placeholder="Ex: 12 rue de la Paix, 75001 Paris" oninput="autocompleteAdresse('d-adresse', this.value)" autocomplete="off">
+      <div id="d-adresse-suggestions" style="display:none;background:#222;border:1px solid #333;border-radius:8px;margin-top:4px;max-height:200px;overflow-y:auto;z-index:100;position:relative;"></div>
+    </div>
+    <div class="input-group"><label>Téléphone client (non visible sur le PDF)</label><input type="tel" id="d-tel" placeholder="Ex: 06 12 34 56 78"></div>
     <div class="input-group"><label>Email client (pour envoi auto)</label><input type="email" id="d-email" placeholder="client@email.com"></div>
     <div class="input-group"><label>Description du chantier</label><textarea id="d-description" placeholder="Ex: Remplacement tableau + 3 prises"></textarea></div>
   </div>
@@ -111,7 +115,11 @@ body { background:#0a0a0a; color:#fff; font-family:-apple-system,BlinkMacSystemF
       <input type="text" id="f-client" placeholder="Ex: Dupont Marie" oninput="autocompleteClient('f', this.value)" autocomplete="off">
       <div id="f-client-suggestions" style="display:none;background:#222;border:1px solid #F5A623;border-radius:8px;margin-top:4px;max-height:180px;overflow-y:auto;z-index:100;"></div>
     </div>
-    <div class="input-group"><label>Adresse</label><input type="text" id="f-adresse" placeholder="Ex: 12 rue de la Paix, 75001 Paris"></div>
+    <div class="input-group"><label>Adresse</label>
+      <input type="text" id="f-adresse" placeholder="Ex: 12 rue de la Paix, 75001 Paris" oninput="autocompleteAdresse('f-adresse', this.value)" autocomplete="off">
+      <div id="f-adresse-suggestions" style="display:none;background:#222;border:1px solid #333;border-radius:8px;margin-top:4px;max-height:200px;overflow-y:auto;z-index:100;position:relative;"></div>
+    </div>
+    <div class="input-group"><label>Téléphone client (non visible sur le PDF)</label><input type="tel" id="f-tel" placeholder="Ex: 06 12 34 56 78"></div>
     <div class="input-group"><label>Email client (pour envoi auto)</label><input type="email" id="f-email" placeholder="client@email.com"></div>
     <div class="input-group"><label>Description des travaux</label><textarea id="f-description" placeholder="Ex: Remplacement tableau réalisé"></textarea></div>
   </div>
@@ -848,14 +856,24 @@ async function generer(type) {
     const yyyy = now.getFullYear();
 
     let num, compteur;
-    if (type === 'devis') {
-      compteurDevis++;
-      localStorage.setItem('compteurDevis', compteurDevis);
-      num = `OS-${yyyy}${mm}-${String(compteurDevis).padStart(3, '0')}`;
-    } else {
-      compteurFacture++;
-      localStorage.setItem('compteurFacture', compteurFacture);
-      num = `FA-${yyyy}${mm}-${String(compteurFacture).padStart(3, '0')}`;
+    try {
+      const compRes = await fetch(`/api/compteur/${type}`, { method: 'POST' });
+      const compData = await compRes.json();
+      const n = compData.num;
+      num = type === 'devis'
+        ? `OS-${yyyy}${mm}-${String(n).padStart(3, '0')}`
+        : `FA-${yyyy}${mm}-${String(n).padStart(3, '0')}`;
+    } catch(e) {
+      // Fallback localStorage
+      if (type === 'devis') {
+        compteurDevis++;
+        localStorage.setItem('compteurDevis', compteurDevis);
+        num = `OS-${yyyy}${mm}-${String(compteurDevis).padStart(3, '0')}`;
+      } else {
+        compteurFacture++;
+        localStorage.setItem('compteurFacture', compteurFacture);
+        num = `FA-${yyyy}${mm}-${String(compteurFacture).padStart(3, '0')}`;
+      }
     }
 
     const date = now.toLocaleDateString('fr-FR');
@@ -864,6 +882,7 @@ async function generer(type) {
     const lignes = panier.map(l => ({ ...l, total: l.qte * l.prixUnit }));
 
     const data = { num, date, valide, client, adresse, email, lignes, totalHT };
+    const tel = document.getElementById(`${p}-tel`)?.value?.trim() || '';
     const doc = genererPDF(type, data);
 
     // Téléchargement PDF
@@ -874,7 +893,7 @@ async function generer(type) {
       await fetch('/api/sauvegarder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ num, type, client, adresse, email, totalHT, date })
+        body: JSON.stringify({ num, type, client, adresse, email, telephone: tel, totalHT, date })
       });
     } catch(e) { console.log('Histo error:', e); }
 
@@ -1488,6 +1507,39 @@ function preRemplirClient(nom, adresse, email) {
   document.getElementById('page-devis').classList.add('active');
 }
 
+// ── AUTOCOMPLÉTION ADRESSE (OpenStreetMap) ────────────────────
+let adresseTimer = null;
+async function autocompleteAdresse(inputId, val) {
+  const suggestions = document.getElementById(inputId + '-suggestions');
+  if (!suggestions || val.length < 4) { 
+    if (suggestions) suggestions.style.display = 'none'; 
+    return; 
+  }
+  clearTimeout(adresseTimer);
+  adresseTimer = setTimeout(async () => {
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(val)}&countrycodes=fr&limit=5`,
+        { headers: { 'Accept-Language': 'fr' } }
+      );
+      const data = await res.json();
+      if (!data || data.length === 0) { suggestions.style.display = 'none'; return; }
+      suggestions.innerHTML = '';
+      suggestions.style.display = 'block';
+      data.forEach(item => {
+        const div = document.createElement('div');
+        div.style.cssText = 'padding:10px 12px;cursor:pointer;border-bottom:1px solid #333;font-size:12px;color:#ddd;line-height:1.4;';
+        div.textContent = item.display_name;
+        div.onclick = () => {
+          document.getElementById(inputId).value = item.display_name;
+          suggestions.style.display = 'none';
+        };
+        suggestions.appendChild(div);
+      });
+    } catch(e) { if (suggestions) suggestions.style.display = 'none'; }
+  }, 500);
+}
+
 // ── BASE CLIENTS ───────────────────────────────────────────────
 async function chargerClients() {
   const container = document.getElementById('clients-list');
@@ -1511,6 +1563,7 @@ function afficherClients(clients) {
     div.innerHTML = `
       <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:4px;">${client.nom}</div>
       <div style="font-size:12px;color:#888;">${client.adresse || ''}</div>
+      ${client.telephone ? `<div style="font-size:12px;color:#60a5fa;">📞 ${client.telephone}</div>` : ''}
       ${client.email ? `<div style="font-size:12px;color:#F5A623;">${client.email}</div>` : ''}
     `;
     div.onclick = () => preRemplirClient(
@@ -1547,8 +1600,10 @@ async function autocompleteClient(prefix, val) {
         document.getElementById(`${prefix}-client`).value = client.nom;
         const addrEl = document.getElementById(`${prefix}-adresse`);
         const emailEl = document.getElementById(`${prefix}-email`);
+        const telEl = document.getElementById(`${prefix}-tel`);
         if (addrEl) addrEl.value = client.adresse || '';
         if (emailEl) emailEl.value = client.email || '';
+        if (telEl) telEl.value = client.telephone || '';
         suggestions.style.display = 'none';
       };
       suggestions.appendChild(item);
