@@ -92,6 +92,7 @@ body { background:#0a0a0a; color:#fff; font-family:-apple-system,BlinkMacSystemF
   <div class="tab" onclick="switchTab('rapport', this)" style="flex-shrink:0">Rapport</div>
   <div class="tab" onclick="switchTab('historique', this)" style="flex-shrink:0">Histo</div>
   <div class="tab" onclick="switchTab('clients', this)" style="flex-shrink:0">Clients</div>
+  <div class="tab" onclick="switchTab('dashboard', this)" style="flex-shrink:0">CA</div>
   <div class="tab" onclick="switchTab('params', this)" style="flex-shrink:0">Params</div>
 </div>
 
@@ -293,6 +294,63 @@ body { background:#0a0a0a; color:#fff; font-family:-apple-system,BlinkMacSystemF
     </div>
   </div>
   <div id="clients-list"><div class="panier-empty">Chargement...</div></div>
+</div>
+</div>
+
+<!-- PAGE DASHBOARD CA -->
+<div id="page-dashboard" class="page">
+<div class="content">
+  <div class="section">
+    <div class="section-title">📊 Tableau de bord SINELEC</div>
+  </div>
+
+  <!-- KPIs du mois -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+    <div style="background:#18181b;border:1px solid #333;border-radius:12px;padding:14px;text-align:center;">
+      <div style="font-size:11px;color:#888;margin-bottom:4px;">CE MOIS</div>
+      <div id="dash-mois-ca" style="font-size:22px;font-weight:900;color:#F5A623;">-</div>
+      <div style="font-size:10px;color:#666;">EUR HT</div>
+    </div>
+    <div style="background:#18181b;border:1px solid #333;border-radius:12px;padding:14px;text-align:center;">
+      <div style="font-size:11px;color:#888;margin-bottom:4px;">FACTURES MOIS</div>
+      <div id="dash-mois-nb" style="font-size:22px;font-weight:900;color:#fff;">-</div>
+      <div style="font-size:10px;color:#666;">interventions</div>
+    </div>
+    <div style="background:#18181b;border:1px solid #333;border-radius:12px;padding:14px;text-align:center;">
+      <div style="font-size:11px;color:#888;margin-bottom:4px;">CETTE ANNÉE</div>
+      <div id="dash-annee-ca" style="font-size:22px;font-weight:900;color:#F5A623;">-</div>
+      <div style="font-size:10px;color:#666;">EUR HT</div>
+    </div>
+    <div style="background:#18181b;border:1px solid #333;border-radius:12px;padding:14px;text-align:center;">
+      <div style="font-size:11px;color:#888;margin-bottom:4px;">DEVIS EN ATTENTE</div>
+      <div id="dash-devis-attente" style="font-size:22px;font-weight:900;color:#60a5fa;">-</div>
+      <div style="font-size:10px;color:#666;">EUR HT</div>
+    </div>
+  </div>
+
+  <!-- Moyenne par intervention -->
+  <div style="background:#18181b;border:1px solid #F5A623;border-radius:12px;padding:14px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;">
+    <div>
+      <div style="font-size:11px;color:#888;">PANIER MOYEN</div>
+      <div id="dash-panier-moyen" style="font-size:24px;font-weight:900;color:#F5A623;">-</div>
+      <div style="font-size:10px;color:#666;">EUR HT par intervention</div>
+    </div>
+    <div style="font-size:40px;">💰</div>
+  </div>
+
+  <!-- Derniers mois -->
+  <div class="section">
+    <div class="section-title">Les 6 derniers mois</div>
+  </div>
+  <div id="dash-mois-list" style="margin-bottom:16px;"></div>
+
+  <!-- Top clients -->
+  <div class="section">
+    <div class="section-title">Top clients</div>
+  </div>
+  <div id="dash-top-clients"></div>
+
+  <button onclick="chargerDashboard()" style="width:100%;background:#222;color:#888;border:1px solid #333;border-radius:8px;padding:10px;font-size:12px;cursor:pointer;margin-top:8px;">↺ Actualiser</button>
 </div>
 </div>
 
@@ -1403,6 +1461,90 @@ document.querySelectorAll('.tab')[3].addEventListener('click', () => {
   setTimeout(initSignature, 100);
 });
 
+// ── DASHBOARD CA ───────────────────────────────────────────────
+async function chargerDashboard() {
+  try {
+    const res = await fetch('/api/historique');
+    const data = await res.json();
+
+    const now = new Date();
+    const moisCourant = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    const annee = now.getFullYear();
+
+    // Filtrer factures uniquement pour le CA
+    const factures = data.filter(d => d.type === 'facture');
+    const devis = data.filter(d => d.type === 'devis');
+
+    // CA ce mois
+    const facMois = factures.filter(f => (f.date || '').includes(`/${String(now.getMonth()+1).padStart(2,'0')}/${annee}`) || (f.created_at || '').startsWith(moisCourant));
+    const caMois = facMois.reduce((s, f) => s + parseFloat(f.totalht || 0), 0);
+    document.getElementById('dash-mois-ca').textContent = caMois.toFixed(0);
+    document.getElementById('dash-mois-nb').textContent = facMois.length;
+
+    // CA année
+    const facAnnee = factures.filter(f => (f.created_at || '').startsWith(annee.toString()));
+    const caAnnee = facAnnee.reduce((s, f) => s + parseFloat(f.totalht || 0), 0);
+    document.getElementById('dash-annee-ca').textContent = caAnnee.toFixed(0);
+
+    // Devis en attente (montant total des devis non encore facturés)
+    const caDevisAttente = devis.reduce((s, d) => s + parseFloat(d.totalht || 0), 0);
+    document.getElementById('dash-devis-attente').textContent = caDevisAttente.toFixed(0);
+
+    // Panier moyen
+    const panierMoyen = factures.length > 0 ? (facAnnee.reduce((s,f) => s + parseFloat(f.totalht||0),0) / facAnnee.length) : 0;
+    document.getElementById('dash-panier-moyen').textContent = panierMoyen.toFixed(0);
+
+    // 6 derniers mois
+    const moisList = document.getElementById('dash-mois-list');
+    moisList.innerHTML = '';
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const mKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      const mLabel = d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+      const mFac = factures.filter(f => (f.created_at || '').startsWith(mKey));
+      const mCA = mFac.reduce((s,f) => s + parseFloat(f.totalht||0), 0);
+      const maxCA = 5000;
+      const pct = Math.min((mCA / maxCA) * 100, 100);
+      const isCurrentMonth = i === 0;
+      moisList.innerHTML += `
+        <div style="margin-bottom:10px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+            <span style="font-size:12px;color:${isCurrentMonth ? '#F5A623' : '#ccc'};font-weight:${isCurrentMonth ? '700' : '400'};">${mLabel}</span>
+            <span style="font-size:12px;color:#F5A623;font-weight:700;">${mCA.toFixed(0)} EUR</span>
+          </div>
+          <div style="background:#222;border-radius:4px;height:8px;overflow:hidden;">
+            <div style="background:${isCurrentMonth ? '#F5A623' : '#444'};height:100%;width:${pct}%;border-radius:4px;transition:width 0.5s;"></div>
+          </div>
+        </div>`;
+    }
+
+    // Top clients
+    const clientMap = {};
+    factures.forEach(f => {
+      if (!f.client) return;
+      clientMap[f.client] = (clientMap[f.client] || 0) + parseFloat(f.totalht || 0);
+    });
+    const topClients = Object.entries(clientMap).sort((a,b) => b[1]-a[1]).slice(0,5);
+    const topEl = document.getElementById('dash-top-clients');
+    topEl.innerHTML = '';
+    topClients.forEach(([nom, ca], i) => {
+      topEl.innerHTML += `
+        <div style="background:#18181b;border:1px solid #333;border-radius:8px;padding:10px 12px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="background:#F5A623;color:#000;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;">${i+1}</span>
+            <span style="font-size:13px;color:#fff;">${nom}</span>
+          </div>
+          <span style="font-size:13px;font-weight:700;color:#F5A623;">${ca.toFixed(0)} EUR</span>
+        </div>`;
+    });
+
+    if (topClients.length === 0) topEl.innerHTML = '<div class="panier-empty">Aucune facture encore</div>';
+
+  } catch(e) {
+    console.error('Dashboard error:', e);
+  }
+}
+
 // ── PARAMÈTRES — MODIFIER LES PRIX ─────────────────────────────
 const GRILLE_DEFAULT = JSON.parse(JSON.stringify(GRILLE));
 
@@ -1834,7 +1976,8 @@ initCats('f');
 // Afficher params au clic sur l'onglet
 document.querySelectorAll('.tab')[4].addEventListener('click', () => chargerHistorique('tous'));
 document.querySelectorAll('.tab')[5].addEventListener('click', () => chargerClients());
-document.querySelectorAll('.tab')[6].addEventListener('click', () => afficherParams());
+document.querySelectorAll('.tab')[6].addEventListener('click', () => chargerDashboard());
+document.querySelectorAll('.tab')[7].addEventListener('click', () => afficherParams());
 </script>
 </body>
 </html>
