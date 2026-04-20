@@ -28,6 +28,10 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(__dirname));
 
+// ═════════════════ HEALTHCHECK ═════════════════
+app.get('/', (req, res) => res.send('✅ SINELEC API OK'));
+app.get('/health', (req, res) => res.json({ status: 'ok', service: 'SINELEC API' }));
+
 // ═════════════════ HELPER: ENVOI EMAIL BREVO ═════════════════
 async function envoyerEmail(to, subject, htmlContent, attachment = null) {
   const payload = {
