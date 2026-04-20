@@ -1108,7 +1108,12 @@ async function generer(type) {
   showStatus(prefix, 'loading', '⏳ Génération du PDF en cours...');
   
   try {
-    const totalht = panier.reduce((sum, item) => sum + (item.prixUnit * item.qte), 0);
+    // Formatter les prestations pour le backend
+    const prestationsFormatted = panier.map(item => ({
+      nom: item.nom,
+      prix: item.prixUnit,
+      quantite: item.qte
+    }));
     
     // Appel API backend pour génération PDF
     const res = await fetch('/api/generer', {
@@ -1117,13 +1122,10 @@ async function generer(type) {
       body: JSON.stringify({
         type,
         client,
-        adresse,
-        tel: document.getElementById(`${prefix}-tel`).value,
-        cp: document.getElementById(`${prefix}-cp`).value,
         email,
-        description,
-        prestations: panier,
-        totalht
+        telephone: document.getElementById(`${prefix}-tel`).value,
+        adresse,
+        prestations: prestationsFormatted
       })
     });
     
