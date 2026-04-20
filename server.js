@@ -1,56 +1,108 @@
-require('dotenv').config();
+// ═══════════════════════════════════════════════════════════════
+// SINELEC OS v2.0 - BACKEND COMPLET
+// ═══════════════════════════════════════════════════════════════
+// Date: 20 Avril 2026
+// Description: API complète + Cron jobs + Veille tarifaire
+// ═══════════════════════════════════════════════════════════════
+
 const express = require('express');
-const path = require('path');
-const Anthropic = require('@anthropic-ai/sdk');
+const cors = require('cors');
+const cron = require('node-cron');
 const { createClient } = require('@supabase/supabase-js');
+const Anthropic = require('@anthropic-ai/sdk');
+
+// Charger config
+const CONFIG = require('./config-v2.js');
+
+// ═══════════════════════════════════════════════════════════════
+// INITIALISATION
+// ═══════════════════════════════════════════════════════════════
 
 const app = express();
+const PORT = process.env.PORT || 3000;
 
-// ═════════════════ CONFIGURATION ═════════════════
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const supabase = createClient(
-  process.env.SUPABASE_URL || '',
-  process.env.SUPABASE_KEY || ''
-);
-
-const BREVO_API_KEY = process.env.BREVO_API_KEY || '';
-
-// ═════════════════ MIDDLEWARE ═════════════════
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Headers', '*');
-  res.header('Access-Control-Allow-Methods', '*');
-  if (req.method === 'OPTIONS') return res.sendStatus(200);
-  next();
-});
-
+// Middleware
+app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(__dirname));
 
-// ═════════════════ HEALTHCHECK ═════════════════
-app.get('/', (req, res) => res.send('✅ SINELEC API OK'));
-app.get('/health', (req, res) => res.json({ status: 'ok', service: 'SINELEC API' }));
+// Clients
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_KEY
+);
 
-// ═════════════════ HELPER: ENVOI EMAIL BREVO ═════════════════
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY
+});
+
+const BREVO_API_KEY = process.env.BREVO_API_KEY;
+
+// ═══════════════════════════════════════════════════════════════
+// HEALTHCHECK
+// ═══════════════════════════════════════════════════════════════
+
+app.get('/', (req, res) => res.send('✅ SINELEC OS v2.0 API OK'));
+app.get('/health', (req, res) => res.json({ 
+  status: 'ok', 
+  service: 'SINELEC OS v2.0',
+  version: CONFIG.meta.version,
+  features: Object.entries(CONFIG.features)
+    .filter(([k, v]) => v === true)
+    .map(([k]) => k)
+}));
+
+// ═══════════════════════════════════════════════════════════════
+// HELPER: LOGS SYSTÈME
+// ═══════════════════════════════════════════════════════════════
+
+async function logSystem(type, message, data = null, success = true, error = null) {
+  try {
+    await supabase.from('logs_system').insert({
+      type,
+      message,
+      data,
+      success,
+      error_details: error ? error.toString() : null
+    });
+    
+    if (CONFIG.dev.debug_mode) {
+      console.log(`[${type}] ${message}`, data);
+    }
+  } catch (err) {
+    console.error('Erreur log:', err);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// HELPER: ENVOI EMAIL BREVO
+// ═══════════════════════════════════════════════════════════════
+
 async function envoyerEmail(to, subject, htmlContent, attachment = null) {
+  if (CONFIG.dev.skip_email) {
+    console.log('📧 [DEV] Email skippé:', to, subject);
+    return { skipped: true };
+  }
+
   console.log('📧 Tentative envoi email à:', to);
   console.log('📧 Sujet:', subject);
   
   const payload = {
-    sender: { name: 'SINELEC Paris', email: 'contact@sinelecparis.fr' },
+    sender: { 
+      name: CONFIG.email.sender_name, 
+      email: CONFIG.email.sender_email 
+    },
     to: [{ email: to }],
     subject,
     htmlContent,
   };
 
   if (attachment) {
-    payload.attachment = [
-      {
-        content: attachment.content,
-        name: attachment.name,
-      },
-    ];
+    payload.attachment = [{
+      content: attachment.content,
+      name: attachment.name,
+    }];
   }
 
   try {
@@ -67,371 +119,638 @@ async function envoyerEmail(to, subject, htmlContent, attachment = null) {
     if (!res.ok) {
       const err = await res.text();
       console.error('❌ Erreur Brevo:', err);
+      await logSystem('email', `Échec envoi à ${to}`, { error: err }, false, err);
       throw new Error(`Brevo error: ${err}`);
     }
 
     const result = await res.json();
     console.log('✅ Email envoyé avec succès !', result);
+    await logSystem('email', `Email envoyé à ${to}`, { subject, messageId: result.messageId }, true);
     return result;
   } catch (error) {
     console.error('❌ Erreur lors de l\'envoi email:', error);
+    await logSystem('email', `Erreur envoi à ${to}`, { error: error.message }, false, error);
     throw error;
   }
 }
 
-// ═════════════════ ENDPOINT: GENERER DEVIS/FACTURE ═════════════════
-app.post('/api/generer', async (req, res) => {
-  try {
-    const { type, client, adresse, tel, cp, email, description, prestations, totalht } = req.body;
+// ═══════════════════════════════════════════════════════════════
+// HELPER: INCRÉMENTER COMPTEUR
+// ═══════════════════════════════════════════════════════════════
 
-    // Récupérer compteur
-    const { data: compteurs, error: errComp } = await supabase
-      .from('compteurs')
-      .select('*')
-      .eq('type', type)
-      .single();
+async function incrementerCompteur(type) {
+  const { data, error } = await supabase
+    .from('compteurs')
+    .select('valeur')
+    .eq('type', type)
+    .single();
 
-    let num;
-    if (errComp || !compteurs) {
-      const initNum = 1;
-      await supabase.from('compteurs').insert({ type, counter: initNum });
-      num = `${type === 'devis' ? 'OS' : 'FA'}-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(initNum).padStart(3, '0')}`;
-    } else {
-      const newCounter = compteurs.counter + 1;
-      await supabase.from('compteurs').update({ counter: newCounter }).eq('type', type);
-      num = `${type === 'devis' ? 'OS' : 'FA'}-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(newCounter).padStart(3, '0')}`;
+  if (error || !data) {
+    await supabase.from('compteurs').insert({ type, valeur: 1 });
+    return 1;
+  }
+
+  const nouvelle_valeur = data.valeur + 1;
+  await supabase
+    .from('compteurs')
+    .update({ valeur: nouvelle_valeur })
+    .eq('type', type);
+
+  return nouvelle_valeur;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// HELPER: CHARGER GRILLE TARIFAIRE
+// ═══════════════════════════════════════════════════════════════
+
+async function chargerGrilleTarifaire() {
+  const { data, error } = await supabase
+    .from('grille_tarifaire')
+    .select('*')
+    .eq('actif', true)
+    .order('categorie, nom');
+
+  if (error) {
+    console.error('Erreur chargement grille:', error);
+    return null;
+  }
+
+  // Grouper par catégorie
+  const grille = {};
+  data.forEach(item => {
+    if (!grille[item.categorie]) {
+      grille[item.categorie] = [];
     }
+    grille[item.categorie].push({
+      code: item.code,
+      nom: item.nom,
+      prix: item.prix_ht,
+      unite: item.unite
+    });
+  });
 
-    // Enregistrer dans historique
-    await supabase.from('historique').insert({
+  return grille;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// API: GÉNÉRATION DEVIS/FACTURE
+// ═══════════════════════════════════════════════════════════════
+
+app.post('/api/generer', async (req, res) => {
+  if (!CONFIG.features.devis_factures) {
+    return res.status(403).json({ error: 'Feature désactivée' });
+  }
+
+  try {
+    const { type, client, email, telephone, adresse, prestations } = req.body;
+    const startTime = Date.now();
+
+    // Générer numéro
+    const compteur = await incrementerCompteur(type);
+    const annee = new Date().getFullYear();
+    const mois = String(new Date().getMonth() + 1).padStart(2, '0');
+    const num = type === 'devis' 
+      ? `OS-${annee}${mois}-${String(compteur).padStart(3, '0')}`
+      : `${annee}${mois}-${String(compteur).padStart(3, '0')}`;
+
+    // Calculer total
+    const total_ht = prestations.reduce((sum, p) => sum + (p.prix * p.quantite), 0);
+
+    // Sauvegarder
+    const { error: dbError } = await supabase.from('historique').insert({
       num,
       type,
       client,
-      adresse,
-      tel,
-      cp,
       email,
-      description,
-      prestations: JSON.stringify(prestations),
-      totalht,
-      statut: type === 'devis' ? 'envoyé' : 'payée',
-      date: new Date().toLocaleDateString('fr-FR'),
+      telephone,
+      adresse,
+      prestations,
+      total_ht,
+      statut: 'envoyé',
+      date_envoi: new Date().toISOString(),
+      source: 'app',
+      temps_generation: Math.round((Date.now() - startTime) / 1000)
     });
 
-    // Email
-    if (email) {
+    if (dbError) throw dbError;
+
+    // Email si activé et adresse fournie
+    if (CONFIG.features.email_auto && email) {
       console.log('📧 Préparation email pour:', email);
       const typeLabel = type === 'devis' ? 'Devis' : 'Facture';
       const subject = `${typeLabel} SINELEC ${num}`;
-      const html = `
-        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
-          <div style="background:linear-gradient(135deg,#F5A623,#d4a574);padding:30px;text-align:center;border-radius:12px 12px 0 0;">
-            <h1 style="color:#fff;margin:0;font-size:28px;">⚡ SINELEC Paris</h1>
-            <p style="color:rgba(255,255,255,0.9);margin:8px 0 0;font-size:14px;">Électricité 24h/24 - Île-de-France</p>
-          </div>
-          <div style="background:#fff;padding:30px;border:1px solid #eee;border-top:none;">
-            <h2 style="color:#333;margin:0 0 20px;">Bonjour ${client},</h2>
-            <p style="color:#666;line-height:1.6;">Veuillez trouver ci-joint votre ${typeLabel.toLowerCase()} <strong>${num}</strong> d'un montant de <strong>${totalht.toFixed(2)} € HT</strong>.</p>
-            ${type === 'devis' ? '<p style="color:#666;line-height:1.6;">Ce devis est valable 30 jours. Pour toute question, n\'hésitez pas à nous contacter.</p>' : ''}
-            <div style="background:#f9f9f9;border-left:4px solid #F5A623;padding:16px;margin:20px 0;border-radius:8px;">
-              <p style="margin:0;color:#666;font-size:14px;"><strong>Montant total HT :</strong> ${totalht.toFixed(2)} €</p>
-            </div>
-            <p style="color:#666;line-height:1.6;">Cordialement,<br><strong>L'équipe SINELEC Paris</strong></p>
-          </div>
-          <div style="background:#f5f5f5;padding:20px;text-align:center;font-size:12px;color:#888;border-radius:0 0 12px 12px;">
-            <p style="margin:0;">SINELEC Paris - 128 rue La Boétie, 75008 Paris</p>
-            <p style="margin:8px 0 0;">SIRET 91015824500019 - TVA non applicable art. 293B CGI</p>
-          </div>
-        </div>
-      `;
+      const html = type === 'devis' ? CONFIG.email.template_devis : CONFIG.email.template_facture;
 
-      await envoyerEmail(email, subject, html);
+      await envoyerEmail(email, subject, html.replace('{num}', num));
     }
 
-    res.json({ success: true, num });
-  } catch (err) {
-    console.error('Erreur /api/generer:', err);
-    res.status(500).json({ success: false, error: err.message });
+    await logSystem('generer', `${type} ${num} créé`, { client, total_ht }, true);
+
+    res.json({ success: true, num, total_ht });
+  } catch (error) {
+    console.error('Erreur génération:', error);
+    await logSystem('generer', 'Erreur génération', { error: error.message }, false, error);
+    res.status(500).json({ error: error.message });
   }
 });
 
-// ═════════════════ ENDPOINT: CHAT CLAUDE ═════════════════
+// ═══════════════════════════════════════════════════════════════
+// API: CHATBOT CLAUDE (parsing chantier)
+// ═══════════════════════════════════════════════════════════════
+
 app.post('/api/chat', async (req, res) => {
+  if (!CONFIG.features.chatbot_claude) {
+    return res.status(403).json({ error: 'Feature désactivée' });
+  }
+
   try {
-    const { message, grille } = req.body;
-    const grilleObj = JSON.parse(grille);
+    const { message } = req.body;
 
-    const prompt = `Tu es l'assistant SINELEC. L'utilisateur décrit un chantier électrique.
+    const grille = await chargerGrilleTarifaire();
+    if (!grille) throw new Error('Impossible de charger la grille tarifaire');
 
-GRILLE TARIFAIRE SINELEC (HT, sans TVA):
-${JSON.stringify(grilleObj, null, 2)}
+    const prompt = `Tu es un assistant pour SINELEC Paris, électricien. Le client décrit son chantier. Analyse et génère un panier.
 
-MESSAGE UTILISATEUR: "${message}"
+GRILLE TARIFAIRE:
+${JSON.stringify(grille, null, 2)}
 
-INSTRUCTIONS:
-1. Analyse le message et identifie les prestations nécessaires
-2. Trouve chaque prestation dans la grille tarifaire
-3. Donne une quantité réaliste
-4. Réponds UNIQUEMENT en JSON valide:
+MESSAGE CLIENT: "${message}"
 
+RÉPONDS EN JSON:
 {
   "prestations": [
-    {"designation": "nom exact de la grille", "prixUnit": prix, "qte": quantité, "categorie": "nom catégorie"}
+    { "code": "prise", "nom": "Prise électrique", "quantite": 2, "prix": 90 }
   ],
-  "message": "explication courte et pro"
-}
+  "explication": "J'ai détecté..."
+}`;
 
-Réponds UNIQUEMENT avec du JSON valide, rien d'autre.`;
-
-    const resp = await anthropic.messages.create({
+    const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 2000,
-      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 1000,
+      messages: [{ role: 'user', content: prompt }]
     });
 
-    const text = resp.content[0].text.trim();
+    const text = response.content[0].text;
     const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('Pas de JSON dans la réponse Claude');
+    const result = jsonMatch ? JSON.parse(jsonMatch[0]) : { prestations: [], explication: text };
 
-    const parsed = JSON.parse(jsonMatch[0]);
-    const total = parsed.prestations.reduce((sum, p) => sum + p.prixUnit * p.qte, 0);
+    await logSystem('chatbot', 'Parsing chantier réussi', { message, result }, true);
 
-    res.json({
-      prestations: parsed.prestations,
-      message: parsed.message,
-      total,
-    });
-  } catch (err) {
-    console.error('Erreur /api/chat:', err);
-    res.status(500).json({ error: err.message });
+    res.json(result);
+  } catch (error) {
+    console.error('Erreur chatbot:', error);
+    await logSystem('chatbot', 'Erreur parsing', { error: error.message }, false, error);
+    res.status(500).json({ error: error.message });
   }
 });
 
-// ═════════════════ ENDPOINT: RAPPORT INTERVENTION ═════════════════
-app.post('/api/rapport', async (req, res) => {
-  try {
-    const { contexte, client, adresse, travaux, observations, photoAvant, photoApres, signature, email, pdfBase64 } = req.body;
+// ═══════════════════════════════════════════════════════════════
+// API: SIGNATURE CLIENT
+// ═══════════════════════════════════════════════════════════════
 
-    // Si contexte fourni → rédaction par Claude
-    if (contexte && !travaux) {
-      const prompt = `Tu es l'assistant SINELEC. Rédige un rapport d'intervention professionnel en 2 paragraphes max basé sur: "${contexte}"
-
-Format:
-- Travaux réalisés: [description technique pro]
-- Observations: [remarques complémentaires si nécessaire]
-
-Reste factuel, technique, NF C 15-100.`;
-
-      const resp = await anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 800,
-        messages: [{ role: 'user', content: prompt }],
-      });
-
-      const text = resp.content[0].text.trim();
-      const parts = text.split('Observations:');
-      const travauxText = parts[0].replace('Travaux réalisés:', '').trim();
-      const observationsText = parts[1] ? parts[1].trim() : '';
-
-      return res.json({ travaux: travauxText, observations: observationsText });
-    }
-
-    // Sinon → Génération du rapport + envoi email
-    const { data: compteurs, error: errComp } = await supabase
-      .from('compteurs')
-      .select('*')
-      .eq('type', 'rapport')
-      .single();
-
-    let numRapport;
-    if (errComp || !compteurs) {
-      await supabase.from('compteurs').insert({ type: 'rapport', counter: 1 });
-      numRapport = `RAPP-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}-001`;
-    } else {
-      const newCounter = compteurs.counter + 1;
-      await supabase.from('compteurs').update({ counter: newCounter }).eq('type', 'rapport');
-      numRapport = `RAPP-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(newCounter).padStart(3, '0')}`;
-    }
-
-    // Enregistrer dans Supabase
-    await supabase.from('rapports').insert({
-      num: numRapport,
-      client,
-      adresse,
-      travaux,
-      observations,
-      photo_avant: photoAvant || null,
-      photo_apres: photoApres || null,
-      signature: signature || null,
-      date: new Date().toISOString(),
-    });
-
-    // Envoi email avec PDF
-    if (email && pdfBase64) {
-      const subject = `Rapport d'intervention SINELEC ${numRapport}`;
-      const html = `
-        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
-          <div style="background:linear-gradient(135deg,#F5A623,#d4a574);padding:30px;text-align:center;border-radius:12px 12px 0 0;">
-            <h1 style="color:#fff;margin:0;font-size:28px;">⚡ SINELEC Paris</h1>
-            <p style="color:rgba(255,255,255,0.9);margin:8px 0 0;font-size:14px;">Rapport d'intervention</p>
-          </div>
-          <div style="background:#fff;padding:30px;border:1px solid #eee;border-top:none;">
-            <h2 style="color:#333;margin:0 0 20px;">Bonjour ${client},</h2>
-            <p style="color:#666;line-height:1.6;">Veuillez trouver ci-joint le rapport d'intervention <strong>${numRapport}</strong> pour les travaux réalisés à votre domicile.</p>
-            <div style="background:#f9f9f9;border-left:4px solid #F5A623;padding:16px;margin:20px 0;border-radius:8px;">
-              <p style="margin:0;color:#666;font-size:14px;"><strong>Adresse :</strong> ${adresse}</p>
-              <p style="margin:8px 0 0;color:#666;font-size:14px;"><strong>Date :</strong> ${new Date().toLocaleDateString('fr-FR')}</p>
-            </div>
-            <p style="color:#666;line-height:1.6;">L'installation a été réalisée selon les normes NF C 15-100 en vigueur.</p>
-            <p style="color:#666;line-height:1.6;">Cordialement,<br><strong>L'équipe SINELEC Paris</strong></p>
-          </div>
-          <div style="background:#f5f5f5;padding:20px;text-align:center;font-size:12px;color:#888;border-radius:0 0 12px 12px;">
-            <p style="margin:0;">SINELEC Paris - 128 rue La Boétie, 75008 Paris</p>
-            <p style="margin:8px 0 0;">SIRET 91015824500019 - Assurance décennale ORUS</p>
-          </div>
-        </div>
-      `;
-
-      await envoyerEmail(email, subject, html, {
-        content: pdfBase64.replace(/^data:application\/pdf;base64,/, ''),
-        name: `Rapport_${numRapport}.pdf`,
-      });
-    }
-
-    res.json({ success: true, num: numRapport, message: email ? 'Rapport envoyé par email !' : 'Rapport enregistré' });
-  } catch (err) {
-    console.error('Erreur /api/rapport:', err);
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-// ═════════════════ ENDPOINT: HISTORIQUE ═════════════════
-app.get('/api/historique', async (req, res) => {
-  try {
-    const { data, error } = await supabase
-      .from('historique')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-    res.json(data || []);
-  } catch (err) {
-    console.error('Erreur /api/historique:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ═════════════════ ENDPOINT: SIGNATURE ═════════════════
 app.post('/api/signature', async (req, res) => {
+  if (!CONFIG.features.signature_client) {
+    return res.status(403).json({ error: 'Feature désactivée' });
+  }
+
   try {
     const { num, signature } = req.body;
 
-    await supabase.from('signatures').insert({
-      num_devis: num,
-      signature_base64: signature,
-      date: new Date().toISOString(),
-    });
+    // Sauvegarder signature
+    await supabase.from('signatures').insert({ num, signature });
 
-    await supabase
-      .from('historique')
-      .update({ statut: 'signé' })
+    // Mettre à jour devis
+    await supabase.from('historique')
+      .update({ 
+        signature, 
+        statut: 'signé',
+        date_signature: new Date().toISOString()
+      })
       .eq('num', num);
 
+    await logSystem('signature', `Devis ${num} signé`, { num }, true);
+
     res.json({ success: true });
-  } catch (err) {
-    console.error('Erreur /api/signature:', err);
-    res.status(500).json({ success: false, error: err.message });
+  } catch (error) {
+    console.error('Erreur signature:', error);
+    await logSystem('signature', 'Erreur signature', { error: error.message }, false, error);
+    res.status(500).json({ error: error.message });
   }
 });
 
-// ═════════════════ ENDPOINT: CLIENTS ═════════════════
+// ═══════════════════════════════════════════════════════════════
+// API: HISTORIQUE
+// ═══════════════════════════════════════════════════════════════
+
+app.get('/api/historique', async (req, res) => {
+  if (!CONFIG.features.historique) {
+    return res.status(403).json({ error: 'Feature désactivée' });
+  }
+
+  try {
+    const { type } = req.query;
+    
+    let query = supabase.from('historique').select('*').order('created_at', { ascending: false });
+    
+    if (type && type !== 'tous') {
+      query = query.eq('type', type);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    res.json(data || []);
+  } catch (error) {
+    console.error('Erreur historique:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// API: CLIENTS (agrégés)
+// ═══════════════════════════════════════════════════════════════
+
 app.get('/api/clients', async (req, res) => {
   try {
     const { data, error } = await supabase
-      .from('historique')
-      .select('client, adresse, totalht');
+      .from('clients')
+      .select('*')
+      .order('ca_total', { ascending: false });
 
     if (error) throw error;
-
-    const clientsMap = {};
-    data.forEach((row) => {
-      if (!clientsMap[row.client]) {
-        clientsMap[row.client] = {
-          nom: row.client,
-          adresse: row.adresse,
-          ca_total: 0,
-          nb_interventions: 0,
-        };
-      }
-      clientsMap[row.client].ca_total += parseFloat(row.totalht || 0);
-      clientsMap[row.client].nb_interventions++;
-    });
-
-    const clientsList = Object.values(clientsMap).sort((a, b) => b.ca_total - a.ca_total);
-    res.json(clientsList);
-  } catch (err) {
-    console.error('Erreur /api/clients:', err);
-    res.status(500).json({ error: err.message });
+    res.json(data || []);
+  } catch (error) {
+    console.error('Erreur clients:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
-// ═════════════════ ENDPOINT: RELANCE AUTO 48H ═════════════════
-app.get('/check-relances', async (req, res) => {
-  try {
-    const now = new Date();
-    const h48ago = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+// ═══════════════════════════════════════════════════════════════
+// API: RAPPORT INTERVENTION
+// ═══════════════════════════════════════════════════════════════
 
-    const { data, error } = await supabase
+app.post('/api/rapport', async (req, res) => {
+  if (!CONFIG.features.rapports_intervention) {
+    return res.status(403).json({ error: 'Feature désactivée' });
+  }
+
+  try {
+    const { client, adresse, chantier, photo_avant, photo_apres, signature } = req.body;
+
+    // Générer numéro rapport
+    const compteur = await incrementerCompteur('rapport');
+    const num = `R-${new Date().getFullYear()}-${String(compteur).padStart(3, '0')}`;
+
+    // Claude génère description travaux
+    const prompt = `Rédige une description professionnelle des travaux pour ce rapport d'intervention:
+Chantier: ${chantier}
+Client: ${client}
+Adresse: ${adresse}
+
+Décris les travaux réalisés de manière claire et professionnelle (2-3 phrases max).`;
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 200,
+      messages: [{ role: 'user', content: prompt }]
+    });
+
+    const travaux = response.content[0].text;
+
+    // Sauvegarder
+    await supabase.from('rapports').insert({
+      num,
+      client,
+      adresse,
+      travaux,
+      photo_avant,
+      photo_apres,
+      signature
+    });
+
+    await logSystem('rapport', `Rapport ${num} créé`, { client }, true);
+
+    res.json({ success: true, num, travaux });
+  } catch (error) {
+    console.error('Erreur rapport:', error);
+    await logSystem('rapport', 'Erreur création', { error: error.message }, false, error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// API: GRILLE TARIFAIRE
+// ═══════════════════════════════════════════════════════════════
+
+app.get('/api/grille', async (req, res) => {
+  try {
+    const grille = await chargerGrilleTarifaire();
+    res.json(grille || {});
+  } catch (error) {
+    console.error('Erreur grille:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// CRON: VEILLE TARIFAIRE AUTOMATIQUE
+// ═══════════════════════════════════════════════════════════════
+
+async function veilTarifaire() {
+  if (!CONFIG.features.veille_tarifaire || !CONFIG.veille.enabled) {
+    console.log('⏭️ Veille tarifaire désactivée');
+    return;
+  }
+
+  console.log('🔍 Démarrage veille tarifaire...');
+  
+  try {
+    // Charger toutes les prestations
+    const { data: prestations, error } = await supabase
+      .from('grille_tarifaire')
+      .select('*')
+      .eq('actif', true)
+      .eq('ajustement_auto', true);
+
+    if (error) throw error;
+
+    const ajustements = [];
+
+    for (const prestation of prestations) {
+      try {
+        // Claude analyse le marché pour cette prestation
+        const prompt = `Analyse le marché Île-de-France pour cette prestation électrique:
+
+PRESTATION: ${prestation.nom}
+PRIX ACTUEL SINELEC: ${prestation.prix_ht}€ HT
+
+SOURCES À CONSULTER:
+${CONFIG.veille.sources.join(', ')}
+
+RÉPONDS EN JSON:
+{
+  "prix_min": 80,
+  "prix_max": 120,
+  "prix_moyen": 95,
+  "recommandation": 90,
+  "sources": ["source1.fr", "source2.fr"],
+  "explication": "Le marché IDF se situe entre..."
+}
+
+Recommande un prix COMPÉTITIF (stratégie: ${CONFIG.veille.strategie}).`;
+
+        const response = await anthropic.messages.create({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 500,
+          messages: [{ role: 'user', content: prompt }],
+          tools: [{ type: 'web_search_20250305', name: 'web_search' }]
+        });
+
+        const text = response.content.find(c => c.type === 'text')?.text || '';
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        
+        if (!jsonMatch) continue;
+
+        const analyse = JSON.parse(jsonMatch[0]);
+        
+        // Calculer ajustement
+        const ecart_pct = ((analyse.recommandation - prestation.prix_ht) / prestation.prix_ht) * 100;
+        
+        // Appliquer seuil validation
+        const auto_apply = Math.abs(ecart_pct) < CONFIG.veille.seuil_validation;
+
+        if (auto_apply && CONFIG.veille.ajustement_auto) {
+          // Mettre à jour automatiquement
+          await supabase.from('grille_tarifaire')
+            .update({
+              prix_ht: analyse.recommandation,
+              marche_min: analyse.prix_min,
+              marche_max: analyse.prix_max,
+              marche_moyen: analyse.prix_moyen,
+              derniere_analyse: new Date().toISOString(),
+              sources_analyse: analyse.sources
+            })
+            .eq('code', prestation.code);
+
+          // Historique
+          await supabase.from('historique_prix').insert({
+            prestation_code: prestation.code,
+            prix_ht: analyse.recommandation,
+            marche_min: analyse.prix_min,
+            marche_max: analyse.prix_max,
+            raison_changement: 'Analyse marché automatique',
+            changed_by: 'system'
+          });
+
+          ajustements.push({
+            prestation: prestation.nom,
+            ancien: prestation.prix_ht,
+            nouveau: analyse.recommandation,
+            ecart_pct: ecart_pct.toFixed(1),
+            auto: true
+          });
+        } else {
+          ajustements.push({
+            prestation: prestation.nom,
+            ancien: prestation.prix_ht,
+            recommandation: analyse.recommandation,
+            ecart_pct: ecart_pct.toFixed(1),
+            auto: false,
+            raison: 'Nécessite validation (écart > ' + CONFIG.veille.seuil_validation + '%)'
+          });
+        }
+
+        // Rate limiting
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+      } catch (err) {
+        console.error(`Erreur analyse ${prestation.nom}:`, err);
+      }
+    }
+
+    // Email rapport si activé
+    if (CONFIG.veille.email_rapport && ajustements.length > 0) {
+      const html = `
+        <h2>📊 Rapport Veille Tarifaire</h2>
+        <p>Date: ${new Date().toLocaleDateString('fr-FR')}</p>
+        <h3>Ajustements effectués automatiquement:</h3>
+        <ul>
+          ${ajustements.filter(a => a.auto).map(a => 
+            `<li><strong>${a.prestation}</strong>: ${a.ancien}€ → ${a.nouveau}€ (${a.ecart_pct > 0 ? '+' : ''}${a.ecart_pct}%)</li>`
+          ).join('')}
+        </ul>
+        <h3>Ajustements nécessitant validation:</h3>
+        <ul>
+          ${ajustements.filter(a => !a.auto).map(a => 
+            `<li><strong>${a.prestation}</strong>: ${a.ancien}€ → ${a.recommandation}€ (${a.ecart_pct > 0 ? '+' : ''}${a.ecart_pct}%) - ${a.raison}</li>`
+          ).join('')}
+        </ul>
+      `;
+
+      await envoyerEmail(
+        CONFIG.veille.destinataire,
+        '📊 Rapport Veille Tarifaire SINELEC',
+        html
+      );
+    }
+
+    await logSystem('veille', 'Veille tarifaire terminée', { nb_ajustements: ajustements.length }, true);
+    console.log('✅ Veille tarifaire terminée:', ajustements.length, 'ajustements');
+
+  } catch (error) {
+    console.error('❌ Erreur veille tarifaire:', error);
+    await logSystem('veille', 'Erreur veille', { error: error.message }, false, error);
+  }
+}
+
+// Cron veille tarifaire (selon config)
+if (CONFIG.veille.enabled) {
+  const cronExpression = CONFIG.veille.frequence === 'quotidien'
+    ? `0 ${CONFIG.veille.heure.split(':')[0]} * * *`
+    : `0 ${CONFIG.veille.heure.split(':')[0]} * * ${CONFIG.veille.jour_semaine}`;
+
+  cron.schedule(cronExpression, veilTarifaire);
+  console.log(`📅 Veille tarifaire programmée: ${CONFIG.veille.frequence} à ${CONFIG.veille.heure}`);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CRON: RELANCES AUTOMATIQUES
+// ═══════════════════════════════════════════════════════════════
+
+async function relancesAuto() {
+  if (!CONFIG.features.relances_auto || !CONFIG.relances.enabled) {
+    console.log('⏭️ Relances auto désactivées');
+    return;
+  }
+
+  console.log('📧 Démarrage relances automatiques...');
+
+  try {
+    // Chercher devis non signés
+    const { data: devis, error } = await supabase
       .from('historique')
       .select('*')
       .eq('type', 'devis')
-      .neq('statut', 'signé')
-      .lt('created_at', h48ago.toISOString());
+      .eq('statut', 'envoyé')
+      .lt('nb_relances', CONFIG.relances.nb_relances_max);
 
     if (error) throw error;
 
-    let relancesEnvoyees = 0;
+    const maintenant = new Date();
+    let nb_relances = 0;
 
-    for (const devis of data || []) {
-      if (!devis.email) continue;
+    for (const d of devis) {
+      const date_envoi = new Date(d.date_envoi);
+      const date_derniere_relance = d.date_derniere_relance ? new Date(d.date_derniere_relance) : null;
+      
+      const heures_depuis_envoi = (maintenant - date_envoi) / (1000 * 60 * 60);
+      const heures_depuis_relance = date_derniere_relance 
+        ? (maintenant - date_derniere_relance) / (1000 * 60 * 60)
+        : Infinity;
 
-      const subject = `Relance - Devis SINELEC ${devis.num}`;
-      const html = `
-        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
-          <div style="background:linear-gradient(135deg,#F5A623,#d4a574);padding:30px;text-align:center;border-radius:12px 12px 0 0;">
-            <h1 style="color:#fff;margin:0;font-size:28px;">⚡ SINELEC Paris</h1>
-          </div>
-          <div style="background:#fff;padding:30px;border:1px solid #eee;border-top:none;">
-            <h2 style="color:#333;margin:0 0 20px;">Bonjour ${devis.client},</h2>
-            <p style="color:#666;line-height:1.6;">Nous vous avions transmis le devis <strong>${devis.num}</strong> il y a quelques jours.</p>
-            <p style="color:#666;line-height:1.6;">Avez-vous eu l'occasion d'en prendre connaissance ?</p>
-            <p style="color:#666;line-height:1.6;">Je reste à votre disposition pour toute question ou ajustement éventuel.</p>
-            <p style="color:#666;line-height:1.6;">Cordialement,<br><strong>L'équipe SINELEC Paris</strong></p>
-          </div>
-        </div>
-      `;
+      let doit_relancer = false;
 
-      await envoyerEmail(devis.email, subject, html);
+      if (d.nb_relances === 0 && heures_depuis_envoi >= CONFIG.relances.delai_premiere_relance) {
+        doit_relancer = true;
+      } else if (d.nb_relances === 1 && heures_depuis_relance >= CONFIG.relances.delai_deuxieme_relance) {
+        doit_relancer = true;
+      }
 
-      await supabase
-        .from('historique')
-        .update({ statut: 'relancé' })
-        .eq('num', devis.num);
+      if (doit_relancer && d.email) {
+        const template = d.nb_relances === 0 ? CONFIG.relances.template_1 : CONFIG.relances.template_2;
+        const message = template.replace('{num}', d.num);
 
-      relancesEnvoyees++;
+        await envoyerEmail(
+          d.email,
+          `Relance - Devis SINELEC ${d.num}`,
+          `<p>${message}</p>`
+        );
+
+        await supabase.from('historique')
+          .update({
+            nb_relances: d.nb_relances + 1,
+            date_derniere_relance: maintenant.toISOString(),
+            statut: 'relancé'
+          })
+          .eq('num', d.num);
+
+        nb_relances++;
+      }
     }
 
-    res.json({ success: true, relances: relancesEnvoyees });
-  } catch (err) {
-    console.error('Erreur /check-relances:', err);
-    res.status(500).json({ success: false, error: err.message });
+    await logSystem('relances', 'Relances terminées', { nb_relances }, true);
+    console.log(`✅ ${nb_relances} relance(s) envoyée(s)`);
+
+  } catch (error) {
+    console.error('❌ Erreur relances:', error);
+    await logSystem('relances', 'Erreur relances', { error: error.message }, false, error);
+  }
+}
+
+// Cron relances (quotidien)
+if (CONFIG.relances.enabled) {
+  cron.schedule('0 10 * * *', relancesAuto); // Tous les jours à 10h
+  console.log('📅 Relances auto programmées: quotidien à 10h');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ENDPOINT MANUEL: LANCER VEILLE MAINTENANT
+// ═══════════════════════════════════════════════════════════════
+
+app.post('/api/veille/lancer', async (req, res) => {
+  if (!CONFIG.features.veille_tarifaire) {
+    return res.status(403).json({ error: 'Feature désactivée' });
+  }
+
+  try {
+    await veilTarifaire();
+    res.json({ success: true, message: 'Veille tarifaire lancée' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
-// ═════════════════ DÉMARRAGE SERVEUR ═════════════════
-const PORT = process.env.PORT || 3000;
+// ═══════════════════════════════════════════════════════════════
+// ENDPOINT MANUEL: LANCER RELANCES MAINTENANT
+// ═══════════════════════════════════════════════════════════════
+
+app.post('/api/relances/lancer', async (req, res) => {
+  if (!CONFIG.features.relances_auto) {
+    return res.status(403).json({ error: 'Feature désactivée' });
+  }
+
+  try {
+    await relancesAuto();
+    res.json({ success: true, message: 'Relances lancées' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// DÉMARRAGE SERVEUR
+// ═══════════════════════════════════════════════════════════════
+
 app.listen(PORT, () => {
-  console.log('✅ Serveur SINELEC démarré !');
-  console.log(`📍 Accessible sur : http://localhost:${PORT}/app.html`);
-  console.log('🔄 Relance auto : /check-relances');
+  console.log('');
+  console.log('═══════════════════════════════════════════════════════════════');
+  console.log('  ⚡ SINELEC OS v' + CONFIG.meta.version + ' - Serveur démarré !');
+  console.log('═══════════════════════════════════════════════════════════════');
+  console.log('  📍 URL: http://localhost:' + PORT);
+  console.log('  🔧 Mode: ' + (CONFIG.dev.debug_mode ? 'DEBUG' : 'PRODUCTION'));
+  console.log('');
+  console.log('  ✅ Features actives:');
+  Object.entries(CONFIG.features)
+    .filter(([k, v]) => v === true)
+    .forEach(([k]) => console.log('     • ' + k));
+  console.log('');
+  console.log('  🤖 Crons programmés:');
+  if (CONFIG.veille.enabled) {
+    console.log('     • Veille tarifaire: ' + CONFIG.veille.frequence + ' à ' + CONFIG.veille.heure);
+  }
+  if (CONFIG.relances.enabled) {
+    console.log('     • Relances auto: quotidien à 10h');
+  }
+  console.log('═══════════════════════════════════════════════════════════════');
+  console.log('');
 });
