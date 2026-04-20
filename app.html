@@ -4,10 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<title>SINELEC Paris — Pro Edition</title>
+<title>SINELEC OS v2.0</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+<script src="config-v2.js"></script>
 
 <style>
 :root {
@@ -1253,7 +1254,60 @@ async function autocompleteClient(prefix, value) {
 }
 
 async function autocompleteAdresse(id, value) {
-  // À implémenter avec OpenStreetMap
+  if (!value || value.length < 3) {
+    document.getElementById(`${id}-suggestions`).style.display = 'none';
+    return;
+  }
+  
+  try {
+    // OpenStreetMap Nominatim API - Limité à Île-de-France
+    // Départements IDF : 75, 77, 78, 91, 92, 93, 94, 95
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(value)}&countrycodes=fr&limit=5&addressdetails=1`;
+    
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'SINELEC-Paris-App'
+      }
+    });
+    
+    const data = await res.json();
+    
+    // Filtrer uniquement Île-de-France (codes postaux 75xxx, 77xxx, 78xxx, 91xxx, 92xxx, 93xxx, 94xxx, 95xxx)
+    const idfResults = data.filter(item => {
+      const postcode = item.address?.postcode || '';
+      const firstTwo = postcode.substring(0, 2);
+      return ['75', '77', '78', '91', '92', '93', '94', '95'].includes(firstTwo);
+    });
+    
+    const suggestionsDiv = document.getElementById(`${id}-suggestions`);
+    
+    if (idfResults.length === 0) {
+      suggestionsDiv.style.display = 'none';
+      return;
+    }
+    
+    suggestionsDiv.innerHTML = '';
+    suggestionsDiv.style.display = 'block';
+    
+    idfResults.forEach(item => {
+      const div = document.createElement('div');
+      div.style.cssText = 'padding:12px 16px;cursor:pointer;transition:background 0.2s;font-size:14px;color:var(--text);border-bottom:1px solid var(--border);';
+      div.textContent = item.display_name;
+      
+      div.onmouseover = () => div.style.background = 'rgba(212,165,116,0.1)';
+      div.onmouseout = () => div.style.background = '';
+      
+      div.onclick = () => {
+        document.getElementById(id).value = item.display_name;
+        suggestionsDiv.style.display = 'none';
+      };
+      
+      suggestionsDiv.appendChild(div);
+    });
+    
+  } catch (err) {
+    console.error('Erreur autocomplete:', err);
+  }
 }
 
 
