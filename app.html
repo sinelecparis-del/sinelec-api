@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<title>SINELEC Paris — Équipe</title>
+<title>SINELEC Paris — Pro Edition</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
@@ -25,7 +25,7 @@
 body {
   font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,sans-serif;
   background:var(--bg); color:var(--text); min-height:100vh; transition:background 0.3s;
-  padding-bottom:80px; /* Space for mobile tabs */
+  padding-bottom:80px;
 }
 body::before {
   content:''; position:fixed; top:-50%; right:-50%; width:200%; height:200%;
@@ -52,7 +52,6 @@ body::before {
   border-radius:12px; display:flex; align-items:center; justify-content:center;
   font-size:22px; animation:float 4s ease-in-out infinite;
 }
-@keyframes float { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-4px); } }
 .sidebar-logo-text h1 {
   font-size:19px; font-weight:900; letter-spacing:-0.5px;
   background:linear-gradient(135deg,var(--text),var(--text-2));
@@ -83,13 +82,6 @@ body::before {
   padding:16px 20px; border-top:1px solid var(--border);
   display:flex; align-items:center; justify-content:space-between;
 }
-.theme-toggle {
-  width:38px; height:38px; background:rgba(255,255,255,0.5);
-  border:1.5px solid var(--border); border-radius:50%;
-  display:flex; align-items:center; justify-content:center;
-  cursor:pointer; transition:all 0.25s; font-size:18px;
-}
-.theme-toggle:hover { transform:rotate(180deg) scale(1.1); border-color:var(--accent); }
 
 /* ════════════ MOBILE TABS BOTTOM ════════════ */
 .mobile-tabs {
@@ -112,26 +104,9 @@ body::before {
 .mobile-tab.active .mobile-tab-icon { transform:scale(1.15); }
 .mobile-tab.active .mobile-tab-label { color:var(--accent); }
 
-/* ════════════ MAIN CONTENT ════════════ */
+/* ════════════ MAIN CONTENT AVEC SIDEBAR ════════════ */
 .main-content {
   margin-left:var(--sidebar-width); min-height:100vh; position:relative; z-index:1;
-}
-.content { padding:26px 22px; max-width:680px; margin:0 auto; }
-.section {
-  background:var(--glass); backdrop-filter:blur(24px) saturate(180%);
-  -webkit-backdrop-filter:blur(24px) saturate(180%);
-  border:1px solid var(--border); border-radius:20px; padding:24px; margin-bottom:20px;
-  box-shadow:0 4px 16px rgba(26,20,16,0.06); transition:all 0.35s;
-}
-.section:hover { box-shadow:0 8px 32px rgba(26,20,16,0.08); transform:translateY(-3px); }
-.section-title {
-  font-size:12px; font-weight:800; color:var(--accent);
-  text-transform:uppercase; letter-spacing:1.2px; margin-bottom:20px;
-  padding-left:16px; position:relative;
-}
-.section-title::before {
-  content:''; position:absolute; left:0; width:4px; height:20px;
-  background:linear-gradient(180deg,var(--accent),var(--gold)); border-radius:4px;
 }
 
 /* ════════════ RESPONSIVE ════════════ */
@@ -142,224 +117,51 @@ body::before {
   .mobile-tabs { display:block; }
 }
 
-/* ════════════ RESTE DU CSS (inputs, panier, etc.) ════════════ */
-.input-group { margin-bottom:18px; }
-.input-group label {
-  display:block; font-size:13px; font-weight:600;
-  color:var(--text-2); margin-bottom:8px;
+.header {display:none;}
+  position:sticky; top:0; z-index:100; background:var(--glass);
+  backdrop-filter:blur(24px) saturate(180%); -webkit-backdrop-filter:blur(24px) saturate(180%);
+  border-bottom:1px solid var(--border); padding:18px 24px;
+  display:flex; align-items:center; justify-content:space-between;
+  box-shadow:0 2px 8px rgba(26,20,16,0.04);
 }
-.input-group input, .input-group textarea {
-  width:100%; background:rgba(255,255,255,0.65);
-  border:1.5px solid rgba(218,165,32,0.15); border-radius:12px;
-  padding:15px 18px; font-size:15px; font-weight:500; color:var(--text);
-  outline:none; transition:all 0.25s; font-family:'Plus Jakarta Sans',sans-serif;
+.logo-area { display:flex; align-items:center; gap:14px; }
+.logo-icon {
+  width:46px; height:46px; background:linear-gradient(135deg,var(--accent),var(--gold));
+  border-radius:14px; display:flex; align-items:center; justify-content:center;
+  font-size:24px; box-shadow:0 4px 16px rgba(26,20,16,0.06);
+  animation:float 4s ease-in-out infinite;
 }
-.input-group input:focus, .input-group textarea:focus {
-  border-color:var(--accent); background:rgba(255,255,255,0.95);
-  box-shadow:0 0 0 4px rgba(212,165,116,0.12);
+@keyframes float { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-5px); } }
+.logo-text h1 {
+  font-size:22px; font-weight:900; letter-spacing:-0.6px;
+  background:linear-gradient(135deg,var(--text),var(--text-2));
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
 }
-.input-group textarea { resize:none; min-height:95px; }
-.cat-grid {
-  display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-bottom:20px;
+.logo-text span {
+  font-size:11px; font-weight:600; color:var(--text-3);
+  letter-spacing:0.6px; text-transform:uppercase;
 }
-@media(min-width:640px) { .cat-grid { grid-template-columns:repeat(3,1fr); } }
-.cat-btn {
-  background:rgba(255,255,255,0.55); border:1.5px solid rgba(218,165,32,0.15);
-  border-radius:12px; padding:16px 14px; font-size:13px; font-weight:700;
-  color:var(--text-2); cursor:pointer; transition:all 0.25s; text-align:center;
+.theme-toggle {
+  width:38px; height:38px; background:rgba(255,255,255,0.5);
+  border:1.5px solid var(--border); border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; transition:all 0.25s; backdrop-filter:blur(10px); font-size:18px;
 }
-.cat-btn:hover { background:rgba(255,255,255,0.85); transform:translateY(-4px); }
-.cat-btn.selected {
-  background:linear-gradient(135deg,var(--accent),var(--gold));
-  color:#fff; border-color:transparent;
+.theme-toggle:hover { transform:rotate(180deg) scale(1.1); border-color:var(--accent); }
+.tabs {display:none;}
+.tabs::-webkit-scrollbar { display:none; }
+.tab {
+  flex-shrink:0; padding:15px 22px; text-align:center; font-size:13px; font-weight:700;
+  color:var(--text-3); cursor:pointer; border-bottom:3px solid transparent;
+  transition:all 0.25s; text-transform:uppercase; letter-spacing:0.5px; user-select:none;
 }
-.prestations { display:none; flex-direction:column; gap:10px; margin-bottom:20px; }
-.prestations.show { display:flex; }
-.prest-btn {
-  background:rgba(255,255,255,0.55); border:1.5px solid rgba(218,165,32,0.12);
-  border-radius:12px; padding:16px 18px; display:flex;
-  justify-content:space-between; align-items:center; cursor:pointer; transition:all 0.25s;
-}
-.prest-btn:hover { background:rgba(255,255,255,0.9); transform:translateX(8px); }
-.prest-name { font-size:14px; font-weight:600; flex:1; }
-.prest-price { font-size:15px; font-weight:800; color:var(--accent); }
-.panier {
+.tab:hover { color:var(--text-2); }
+.tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+.content { padding:26px 22px; max-width:680px; margin:0 auto; position:relative; z-index:1; }
+.section {
   background:var(--glass); backdrop-filter:blur(24px) saturate(180%);
-  border:1px solid var(--border); border-radius:20px; overflow:hidden;
-  margin-bottom:20px; box-shadow:0 4px 16px rgba(26,20,16,0.06);
-}
-.panier-header {
-  padding:18px 20px; background:linear-gradient(135deg,rgba(212,165,116,0.16),rgba(218,165,32,0.12));
-  font-size:14px; font-weight:800; color:var(--accent);
-  display:flex; justify-content:space-between; border-bottom:1px solid var(--border);
-}
-.panier-empty { padding:60px 24px; text-align:center; color:var(--text-3); font-size:14px; }
-.panier-item {
-  padding:16px 20px; border-top:1px solid rgba(218,165,32,0.08);
-  display:flex; align-items:center; gap:14px; transition:background 0.25s;
-}
-.panier-item:hover { background:rgba(255,255,255,0.55); }
-.panier-item-name { flex:1; font-size:14px; font-weight:600; }
-.panier-item-price { font-size:15px; font-weight:800; color:var(--accent); min-width:90px; text-align:right; }
-.qte-ctrl { display:flex; align-items:center; gap:10px; }
-.qte-btn {
-  width:32px; height:32px; background:rgba(212,165,116,0.15);
-  border:none; border-radius:10px; color:var(--accent); font-size:18px; font-weight:700;
-  cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.15s;
-}
-.qte-btn:hover { background:var(--accent); color:#fff; transform:scale(1.15); }
-.qte-val { font-size:16px; font-weight:800; color:var(--accent); min-width:28px; text-align:center; }
-.del-btn {
-  background:none; border:none; color:var(--text-3);
-  font-size:22px; cursor:pointer; padding:6px; transition:all 0.25s;
-}
-.del-btn:hover { color:#ef4444; transform:rotate(90deg) scale(1.4); }
-.total-bar {
-  background:linear-gradient(135deg,var(--accent),var(--gold));
-  border-radius:20px; padding:22px 24px; display:flex;
-  justify-content:space-between; align-items:center; margin-bottom:20px;
-  box-shadow:0 8px 32px rgba(26,20,16,0.08);
-}
-.total-label { font-size:14px; font-weight:800; color:rgba(255,255,255,0.95); letter-spacing:1.3px; }
-.total-amount { font-size:32px; font-weight:900; color:#fff; letter-spacing:-1px; }
-.btn-gen {
-  width:100%; background:linear-gradient(135deg,var(--accent),var(--gold));
-  color:#fff; border:none; border-radius:16px; padding:18px 28px;
-  font-size:16px; font-weight:900; cursor:pointer; transition:all 0.25s;
-  box-shadow:0 4px 16px rgba(26,20,16,0.06); margin-top:8px;
-}
-.btn-gen:hover { transform:translateY(-3px) scale(1.02); box-shadow:0 12px 48px rgba(26,20,16,0.12); }
-.btn-gen:disabled { opacity:0.6; cursor:not-allowed; }
-.page { display:none; }
-.page.active { display:block; animation:enter 0.4s; }
-@keyframes enter { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
-.toast {
-  position:fixed; top:20px; left:50%; transform:translateX(-50%) translateY(-120px);
-  background:var(--glass); backdrop-filter:blur(24px) saturate(180%);
-  border:1px solid var(--border); border-radius:16px; padding:16px 24px;
-  font-size:14px; font-weight:600; box-shadow:0 20px 60px rgba(26,20,16,0.15);
-  z-index:9999; opacity:0; transition:all 0.5s;
-  display:flex; align-items:center; gap:12px; max-width:90%;
-}
-.toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
-.stat-card {
-  background:var(--glass); backdrop-filter:blur(20px);
-  border:1px solid var(--border); border-radius:20px;
-  padding:24px; text-align:center; transition:all 0.25s;
-}
-.stat-card:hover { transform:translateY(-4px); box-shadow:0 8px 32px rgba(26,20,16,0.08); }
-.stat-value { font-size:36px; font-weight:900; color:var(--accent); margin-bottom:8px; }
-.stat-label { font-size:12px; font-weight:600; color:var(--text-2); text-transform:uppercase; }
-.stat-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:16px; margin-bottom:24px; }
-@media(min-width:768px) { .stat-grid { grid-template-columns:repeat(4,1fr); } }
-.badge {
-  display:inline-flex; align-items:center; gap:6px; padding:6px 12px;
-  border-radius:8px; font-size:11px; font-weight:700; text-transform:uppercase;
-}
-.badge-success { background:rgba(16,185,129,0.15); color:var(--success); border:1px solid rgba(16,185,129,0.3); }
-.badge-info { background:rgba(59,130,246,0.15); color:#3b82f6; border:1px solid rgba(59,130,246,0.3); }
-.badge-warning { background:rgba(245,158,11,0.15); color:var(--warning); border:1px solid rgba(245,158,11,0.3); }
-.btn-small {
-  background:rgba(212,165,116,0.15); color:var(--accent);
-  border:1px solid rgba(212,165,116,0.3); border-radius:8px;
-  padding:8px 16px; font-size:12px; font-weight:700;
-  cursor:pointer; transition:all 0.15s; display:inline-flex; align-items:center; gap:6px;
-}
-.btn-small:hover { background:var(--accent); color:#fff; }
-.data-table { width:100%; border-collapse:collapse; font-size:13px; }
-.data-table th {
-  background:linear-gradient(135deg,rgba(212,165,116,0.16),rgba(218,165,32,0.12));
-  color:var(--accent); font-weight:800; padding:14px 16px; text-align:left;
-  border-bottom:2px solid var(--border); font-size:11px;
-}
-.data-table td { padding:16px; border-bottom:1px solid rgba(218,165,32,0.08); }
-.data-table tr:hover { background:rgba(255,255,255,0.4); }
-</style>
-</head>
-<body data-theme="light">
-
-
-<!-- ════════════ SIDEBAR DESKTOP ════════════ -->
-<div class="sidebar">
-  <div class="sidebar-logo">
-    <div class="sidebar-logo-icon">⚡</div>
-    <div class="sidebar-logo-text">
-      <h1>SINELEC</h1>
-      <span>Paris & IDF</span>
-    </div>
-  </div>
-  
-  <div class="sidebar-nav">
-    <div class="sidebar-item active" onclick="switchPage('devis', this)">
-      <span class="sidebar-item-icon">📋</span>
-      <span>Devis</span>
-    </div>
-    <div class="sidebar-item" onclick="switchPage('facture', this)">
-      <span class="sidebar-item-icon">💶</span>
-      <span>Facture</span>
-    </div>
-    <div class="sidebar-item" onclick="switchPage('dashboard', this)">
-      <span class="sidebar-item-icon">📊</span>
-      <span>CA & Stats</span>
-    </div>
-    <div class="sidebar-item" onclick="switchPage('historique', this)">
-      <span class="sidebar-item-icon">📋</span>
-      <span>Historique</span>
-    </div>
-    <div class="sidebar-item" onclick="switchPage('chat', this)">
-      <span class="sidebar-item-icon">🤖</span>
-      <span>Chat AI</span>
-    </div>
-    <div class="sidebar-item" onclick="switchPage('rapport', this)">
-      <span class="sidebar-item-icon">📸</span>
-      <span>Rapport</span>
-    </div>
-    <div class="sidebar-item" onclick="switchPage('clients', this)">
-      <span class="sidebar-item-icon">👥</span>
-      <span>Clients</span>
-    </div>
-    <div class="sidebar-item" onclick="switchPage('params', this)">
-      <span class="sidebar-item-icon">⚙️</span>
-      <span>Paramètres</span>
-    </div>
-  </div>
-  
-  <div class="sidebar-footer">
-    <div style="font-size:11px;color:var(--text-3);font-weight:600;">Mode :</div>
-    <div class="theme-toggle" onclick="toggleTheme()" title="Changer le thème">
-      <span id="theme-icon">🌙</span>
-    </div>
-  </div>
-</div>
-
-<!-- ════════════ MOBILE TABS BOTTOM ════════════ -->
-<div class="mobile-tabs">
-  <div class="mobile-tabs-grid">
-    <div class="mobile-tab active" onclick="switchPage('devis', this)">
-      <div class="mobile-tab-icon">📋</div>
-      <div class="mobile-tab-label">Devis</div>
-    </div>
-    <div class="mobile-tab" onclick="switchPage('facture', this)">
-      <div class="mobile-tab-icon">💶</div>
-      <div class="mobile-tab-label">Facture</div>
-    </div>
-    <div class="mobile-tab" onclick="switchPage('dashboard', this)">
-      <div class="mobile-tab-icon">📊</div>
-      <div class="mobile-tab-label">CA</div>
-    </div>
-    <div class="mobile-tab" onclick="switchPage('historique', this)">
-      <div class="mobile-tab-icon">📋</div>
-      <div class="mobile-tab-label">Histo</div>
-    </div>
-    <div class="mobile-tab" onclick="switchPageMenu()">
-      <div class="mobile-tab-icon">⋮</div>
-      <div class="mobile-tab-label">Plus</div>
-    </div>
-  </div>
-</div>
-
-<div class="main-content">
-
+  -webkit-backdrop-filter:blur(24px) saturate(180%);
+  border:1px solid var(--border); border-radius:20px; padding:24px; margin-bottom:20px;
   box-shadow:0 4px 16px rgba(26,20,16,0.06); transition:all 0.35s;
 }
 .section:hover { box-shadow:0 8px 32px rgba(26,20,16,0.08); transform:translateY(-3px); }
@@ -581,6 +383,87 @@ body::before {
 </style>
 </head>
 <body data-theme="light">
+
+<!-- ════════════ SIDEBAR DESKTOP ════════════ -->
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <div class="sidebar-logo-icon">⚡</div>
+    <div class="sidebar-logo-text">
+      <h1>SINELEC</h1>
+      <span>Paris & IDF</span>
+    </div>
+  </div>
+  
+  <div class="sidebar-nav">
+    <div class="sidebar-item active" onclick="switchPage('devis', this)">
+      <span class="sidebar-item-icon">📋</span>
+      <span>Devis</span>
+    </div>
+    <div class="sidebar-item" onclick="switchPage('facture', this)">
+      <span class="sidebar-item-icon">💶</span>
+      <span>Facture</span>
+    </div>
+    <div class="sidebar-item" onclick="switchPage('dashboard', this)">
+      <span class="sidebar-item-icon">📊</span>
+      <span>CA & Stats</span>
+    </div>
+    <div class="sidebar-item" onclick="switchPage('historique', this)">
+      <span class="sidebar-item-icon">📋</span>
+      <span>Historique</span>
+    </div>
+    <div class="sidebar-item" onclick="switchPage('chat', this)">
+      <span class="sidebar-item-icon">🤖</span>
+      <span>Chat AI</span>
+    </div>
+    <div class="sidebar-item" onclick="switchPage('rapport', this)">
+      <span class="sidebar-item-icon">📸</span>
+      <span>Rapport</span>
+    </div>
+    <div class="sidebar-item" onclick="switchPage('clients', this)">
+      <span class="sidebar-item-icon">👥</span>
+      <span>Clients</span>
+    </div>
+    <div class="sidebar-item" onclick="switchPage('params', this)">
+      <span class="sidebar-item-icon">⚙️</span>
+      <span>Paramètres</span>
+    </div>
+  </div>
+  
+  <div class="sidebar-footer">
+    <div style="font-size:11px;color:var(--text-3);font-weight:600;">Mode :</div>
+    <div class="theme-toggle" onclick="toggleTheme()" title="Changer le thème">
+      <span id="theme-icon">🌙</span>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════ MOBILE TABS BOTTOM ════════════ -->
+<div class="mobile-tabs">
+  <div class="mobile-tabs-grid">
+    <div class="mobile-tab active" onclick="switchPage('devis', this)">
+      <div class="mobile-tab-icon">📋</div>
+      <div class="mobile-tab-label">Devis</div>
+    </div>
+    <div class="mobile-tab" onclick="switchPage('facture', this)">
+      <div class="mobile-tab-icon">💶</div>
+      <div class="mobile-tab-label">Facture</div>
+    </div>
+    <div class="mobile-tab" onclick="switchPage('dashboard', this)">
+      <div class="mobile-tab-icon">📊</div>
+      <div class="mobile-tab-label">CA</div>
+    </div>
+    <div class="mobile-tab" onclick="switchPage('historique', this)">
+      <div class="mobile-tab-icon">📋</div>
+      <div class="mobile-tab-label">Histo</div>
+    </div>
+    <div class="mobile-tab" onclick="switchPageMenu()">
+      <div class="mobile-tab-icon">⋮</div>
+      <div class="mobile-tab-label">Plus</div>
+    </div>
+  </div>
+</div>
+
+<div class="main-content">
 
 <div class="header">
   <div class="logo-area">
@@ -1887,14 +1770,8 @@ initCategories('d');
 initCategories('f');
 
 console.log('🔥 SINELEC Pro Edition loaded!');
-</script>
 
-</body>
-</html>
-
-<!-- Fix pour navigation -->
-<script>
-// Override switchTab pour switchPage
+// ═══════════ SWITCH PAGE POUR SIDEBAR/MOBILE ═══════════
 function switchPage(page, el) {
   // Desktop sidebar
   document.querySelectorAll('.sidebar-item').forEach(item => item.classList.remove('active'));
@@ -1922,20 +1799,20 @@ function switchPageMenu() {
   menuPlusOpen = true;
   
   const menu = document.createElement('div');
-  menu.style.cssText = 'position:fixed;bottom:70px;right:10px;background:var(--glass);backdrop-filter:blur(24px);border:1px solid var(--border);border-radius:16px;padding:12px;z-index:999;box-shadow:0 8px 32px rgba(26,20,16,0.15);animation:slideUp 0.2s;';
+  menu.style.cssText = 'position:fixed;bottom:70px;right:10px;background:var(--glass);backdrop-filter:blur(24px);border:1px solid var(--border);border-radius:16px;padding:12px;z-index:999;box-shadow:0 8px 32px rgba(26,20,16,0.15);';
   menu.innerHTML = `
     <div style="display:flex;flex-direction:column;gap:8px;">
-      <div onclick="switchPage('chat', this);document.body.removeChild(document.querySelector('[style*=bottom]'));menuPlusOpen=false;" style="padding:12px 20px;border-radius:10px;background:rgba(255,255,255,0.5);cursor:pointer;font-size:14px;font-weight:600;display:flex;align-items:center;gap:10px;">
-        <span style="font-size:20px;">🤖</span> Chat AI
+      <div onclick="switchPage('chat', this);document.body.querySelectorAll('[style*=bottom]')[1].remove();menuPlusOpen=false;" style="padding:12px 20px;border-radius:10px;background:rgba(255,255,255,0.5);cursor:pointer;font-size:14px;font-weight:600;display:flex;align-items:center;gap:10px;">
+        <span>🤖</span> Chat AI
       </div>
-      <div onclick="switchPage('rapport', this);document.body.removeChild(document.querySelector('[style*=bottom]'));menuPlusOpen=false;" style="padding:12px 20px;border-radius:10px;background:rgba(255,255,255,0.5);cursor:pointer;font-size:14px;font-weight:600;display:flex;align-items:center;gap:10px;">
-        <span style="font-size:20px;">📸</span> Rapport
+      <div onclick="switchPage('rapport', this);document.body.querySelectorAll('[style*=bottom]')[1].remove();menuPlusOpen=false;" style="padding:12px 20px;border-radius:10px;background:rgba(255,255,255,0.5);cursor:pointer;font-size:14px;font-weight:600;display:flex;align-items:center;gap:10px;">
+        <span>📸</span> Rapport
       </div>
-      <div onclick="switchPage('clients', this);document.body.removeChild(document.querySelector('[style*=bottom]'));menuPlusOpen=false;" style="padding:12px 20px;border-radius:10px;background:rgba(255,255,255,0.5);cursor:pointer;font-size:14px;font-weight:600;display:flex;align-items:center;gap:10px;">
-        <span style="font-size:20px;">👥</span> Clients
+      <div onclick="switchPage('clients', this);document.body.querySelectorAll('[style*=bottom]')[1].remove();menuPlusOpen=false;" style="padding:12px 20px;border-radius:10px;background:rgba(255,255,255,0.5);cursor:pointer;font-size:14px;font-weight:600;display:flex;align-items:center;gap:10px;">
+        <span>👥</span> Clients
       </div>
-      <div onclick="switchPage('params', this);document.body.removeChild(document.querySelector('[style*=bottom]'));menuPlusOpen=false;" style="padding:12px 20px;border-radius:10px;background:rgba(255,255,255,0.5);cursor:pointer;font-size:14px;font-weight:600;display:flex;align-items:center;gap:10px;">
-        <span style="font-size:20px;">⚙️</span> Paramètres
+      <div onclick="switchPage('params', this);document.body.querySelectorAll('[style*=bottom]')[1].remove();menuPlusOpen=false;" style="padding:12px 20px;border-radius:10px;background:rgba(255,255,255,0.5);cursor:pointer;font-size:14px;font-weight:600;display:flex;align-items:center;gap:10px;">
+        <span>⚙️</span> Paramètres
       </div>
     </div>
   `;
@@ -1952,10 +1829,8 @@ function switchPageMenu() {
     document.addEventListener('click', close);
   }, 100);
 }
-
-console.log('🚀 SINELEC Équipe Edition loaded!');
 </script>
 
-</div>
+</div><!-- fin main-content -->
 </body>
 </html>
