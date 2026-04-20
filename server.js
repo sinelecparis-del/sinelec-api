@@ -708,8 +708,195 @@ app.post('/envoyer-email', async (req, res) => {
   }
 });
 
+// ── RELANCE AUTOMATIQUE DEVIS NON SIGNÉS ──────────────────────────────────
+app.get('/check-relances', async (req, res) => {
+  try {
+    console.log('🔍 Vérification relances auto...');
+    
+    // Query devis > 48h, non signés, jamais relancés
+    const { data: devisARelancer, error } = await supabase
+      .from('historique')
+      .select('*')
+      .eq('type', 'devis')
+      .eq('statut', 'envoyé')
+      .eq('nb_relances', 0)
+      .lt('created_at', new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString());
+
+    if (error) {
+      console.error('❌ Erreur Supabase:', error);
+      return res.status(500).json({ error: error.message });
+    }
+
+    if (!devisARelancer || devisARelancer.length === 0) {
+      console.log('✅ Aucun devis à relancer');
+      return res.json({ message: 'Aucun devis à relancer', count: 0 });
+    }
+
+    console.log(`📧 ${devisARelancer.length} devis à relancer`);
+    const resultats = [];
+
+    for (const devis of devisARelancer) {
+      try {
+        // Générer email de relance (variante commerciale neutre)
+        const sujet = `Votre devis SINELEC Paris - ${devis.num}`;
+        const htmlContent = `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+          <div style="background:#111;padding:20px;text-align:center">
+            <h1 style="color:#F5A623;margin:0">SINELEC PARIS</h1>
+            <p style="color:#fff;margin:5px 0">Électricien 24h/24 - Paris & Île-de-France</p>
+          </div>
+          <div style="padding:30px">
+            <p>Bonjour <strong>${devis.client}</strong>,</p>
+            
+            <p>Nous revenons vers vous concernant le devis <strong>${devis.num}</strong> que nous vous avons transmis il y a quelques jours.</p>
+            
+            <div style="background:#F5F5F5;padding:15px;border-left:4px solid #F5A623;margin:20px 0">
+              <p style="margin:0"><strong>Total HT : ${parseFloat(devis.totalht || 0).toFixed(2)} EUR</strong></p>
+              <p style="margin:4px 0;font-size:12px;color:#666">TVA non applicable - Art. 293B CGI</p>
+            </div>
+
+            <p>Avez-vous eu l'occasion d'examiner notre proposition ?</p>
+            
+            <p style="background:#FFF9F0;padding:12px;border-radius:6px;font-size:13px;line-height:1.6;color:#333;margin:16px 0">
+              💡 <strong>Nous restons à votre disposition</strong> pour adapter notre offre à vos contraintes (délais, budget, prestations). 
+              N'hésitez pas à nous faire part de vos besoins spécifiques — nous sommes flexibles.
+            </p>
+
+            <p>Pour toute question ou si vous souhaitez échanger sur les détails, vous pouvez nous joindre directement au <strong>07 87 38 86 22</strong>.</p>
+
+            <p style="margin-top:24px">Cordialement,<br><strong>Diahe</strong><br>SINELEC Paris<br>07 87 38 86 22</p>
+          </div>
+        </div>`;
+
+        // Envoyer via Brevo
+        const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+          method: 'POST',
+          headers: {
+            'api-key': process.env.BREVO_API_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            sender: { name: 'SINELEC Paris', email: 'sinelec.paris@gmail.com' },
+            to: [{ email: devis.email }],
+            subject: sujet,
+            htmlContent: htmlContent
+          })
+        });
+
+        if (response.ok) {
+          // Mettre à jour dans Supabase
+          const { error: updateError } = await supabase
+            .from('historique')
+            .update({ 
+              nb_relances: 1, 
+              date_relance: new Date().toISOString() 
+            })
+            .eq('id', devis.id);
+
+          if (updateError) {
+            console.error(`❌ Update error pour ${devis.num}:`, updateError);
+          } else {
+            console.log(`✅ Relance envoyée : ${devis.num} → ${devis.email}`);
+            resultats.push({ num: devis.num, status: 'envoyé' });
+          }
+        } else {
+          const err = await response.json();
+          console.error(`❌ Brevo error pour ${devis.num}:`, err);
+          resultats.push({ num: devis.num, status: 'erreur', error: err.message });
+        }
+      } catch (err) {
+        console.error(`❌ Erreur relance ${devis.num}:`, err.message);
+        resultats.push({ num: devis.num, status: 'erreur', error: err.message });
+      }
+    }
+
+    res.json({ 
+      message: `Relances traitées`, 
+      total: devisARelancer.length,
+      resultats: resultats
+    });
+
+  } catch (e) {
+    console.error('❌ Erreur check-relances:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Test manuel d'une relance (utile pour debug)
+app.post('/test-relance', async (req, res) => {
+  try {
+    const { num } = req.body;
+    if (!num) return res.status(400).json({ error: 'Numéro devis manquant' });
+
+    const { data: devis, error } = await supabase
+      .from('historique')
+      .select('*')
+      .eq('num', num)
+      .single();
+
+    if (error || !devis) {
+      return res.status(404).json({ error: 'Devis introuvable' });
+    }
+
+    console.log(`🧪 Test relance pour ${num}`);
+    
+    const sujet = `[TEST] Votre devis SINELEC Paris - ${devis.num}`;
+    const htmlContent = `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+      <div style="background:#111;padding:20px;text-align:center">
+        <h1 style="color:#F5A623;margin:0">SINELEC PARIS</h1>
+        <p style="color:#fff;margin:5px 0">Électricien 24h/24 - Paris & Île-de-France</p>
+      </div>
+      <div style="padding:30px">
+        <p style="background:#FF6B6B;color:#fff;padding:10px;border-radius:6px;text-align:center;font-weight:bold">
+          ⚠️ CECI EST UN EMAIL DE TEST
+        </p>
+        <p>Bonjour <strong>${devis.client}</strong>,</p>
+        <p>Nous revenons vers vous concernant le devis <strong>${devis.num}</strong> que nous vous avons transmis il y a quelques jours.</p>
+        <div style="background:#F5F5F5;padding:15px;border-left:4px solid #F5A623;margin:20px 0">
+          <p style="margin:0"><strong>Total HT : ${parseFloat(devis.totalht || 0).toFixed(2)} EUR</strong></p>
+          <p style="margin:4px 0;font-size:12px;color:#666">TVA non applicable - Art. 293B CGI</p>
+        </div>
+        <p>Avez-vous eu l'occasion d'examiner notre proposition ?</p>
+        <p style="background:#FFF9F0;padding:12px;border-radius:6px;font-size:13px;line-height:1.6;color:#333;margin:16px 0">
+          💡 <strong>Nous restons à votre disposition</strong> pour adapter notre offre à vos contraintes (délais, budget, prestations). 
+          N'hésitez pas à nous faire part de vos besoins spécifiques — nous sommes flexibles.
+        </p>
+        <p>Pour toute question ou si vous souhaitez échanger sur les détails, vous pouvez nous joindre directement au <strong>07 87 38 86 22</strong>.</p>
+        <p style="margin-top:24px">Cordialement,<br><strong>Diahe</strong><br>SINELEC Paris<br>07 87 38 86 22</p>
+      </div>
+    </div>`;
+
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'api-key': process.env.BREVO_API_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        sender: { name: 'SINELEC Paris', email: 'sinelec.paris@gmail.com' },
+        to: [{ email: devis.email }],
+        subject: sujet,
+        htmlContent: htmlContent
+      })
+    });
+
+    if (response.ok) {
+      console.log(`✅ Email test envoyé à ${devis.email}`);
+      res.json({ success: true, message: `Email test envoyé à ${devis.email}` });
+    } else {
+      const err = await response.json();
+      console.error('❌ Brevo error:', err);
+      res.status(400).json({ error: err.message });
+    }
+
+  } catch (e) {
+    console.error('❌ Test relance error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`✅ Serveur SINELEC démarré !`);
   console.log(`📱 Accessible sur : https://sinelec-api-production.up.railway.app/app.html`);
+  console.log(`🔄 Relance auto : /check-relances`);
 });
