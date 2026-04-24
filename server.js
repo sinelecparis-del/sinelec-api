@@ -250,43 +250,111 @@ app.post('/api/generer', async (req, res) => {
   const html = type === 'devis' ? CONFIG.email.template_devis : CONFIG.email.template_facture;
 
   // Générer PDF avec pdfkit
-  const PDFDocument = require('pdfkit');
-  const pdfBuffer = await new Promise((resolve) => {
-    const doc = new PDFDocument({ margin: 50 });
-    const chunks = [];
-    doc.on('data', chunk => chunks.push(chunk));
-    doc.on('end', () => resolve(Buffer.concat(chunks)));
+ const PDFDocument = require('pdfkit');
+const pdfBuffer = await new Promise((resolve) => {
+  const doc = new PDFDocument({ margin: 40, size: 'A4' });
+  const chunks = [];
+  doc.on('data', chunk => chunks.push(chunk));
+  doc.on('end', () => resolve(Buffer.concat(chunks)));
 
-    // Header
-    doc.fontSize(20).fillColor('#DAA520').text('SINELEC PARIS', { align: 'center' });
-    doc.fontSize(10).fillColor('#666').text('128 Rue La Boétie, 75008 Paris | 07 87 38 86 22', { align: 'center' });
-    doc.moveDown();
+  const W = 595, gold = '#DAA520', black = '#1a1a1a', gray = '#666';
 
-    // Infos devis
-    doc.fontSize(14).fillColor('#000').text(`${typeLabel} N° ${num}`);
-    doc.fontSize(11).text(`Client : ${client}`);
-    doc.text(`Adresse : ${adresse}`);
-    doc.moveDown();
+  // Barre gauche dorée
+  doc.rect(0, 0, 6, 842).fill(gold);
 
-    // Prestations
-    doc.fontSize(12).fillColor('#DAA520').text('Prestations');
-    doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke('#DAA520');
-    doc.moveDown(0.5);
-    prestations.forEach(p => {
-      doc.fontSize(10).fillColor('#000')
-        .text(`${p.nom} x${p.quantite}`, { continued: true })
-        .text(`${(p.prix * p.quantite).toFixed(2)} €`, { align: 'right' });
-    });
-    doc.moveDown();
-    doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke('#DAA520');
-    doc.fontSize(13).fillColor('#000').text(`TOTAL : ${total_ht.toFixed(2)} €`, { align: 'right' });
-    doc.moveDown();
-    doc.fontSize(9).fillColor('#666').text('TVA non applicable, art. 293B du CGI');
+  // Logo texte
+  doc.fontSize(22).font('Helvetica-Bold').fillColor(gold).text('SINELEC', 48, 40);
+  doc.fontSize(8).fillColor(gray)
+    .text('128 Rue La Boétie, 75008 Paris', 48, 65)
+    .text('Tél : 07 87 38 86 22', 48, 75)
+    .text('sinelec.paris@gmail.com', 48, 85)
+    .text('SIRET : 91015824500019', 48, 95);
 
-    doc.end();
+  // Titre DEVIS ou FACTURE
+  const titre = type === 'devis' ? 'DEVIS' : 'FACTURE';
+  doc.fontSize(32).font('Helvetica-Bold').fillColor(black).text(titre, 350, 40, { width: 200, align: 'right' });
+  doc.moveTo(350, 78).lineTo(555, 78).lineWidth(2).strokeColor(gold).stroke();
+  doc.fontSize(9).font('Helvetica').fillColor(gray)
+    .text(`N° ${num}`, 350, 83, { width: 200, align: 'right' })
+    .text(`Date : ${new Date().toLocaleDateString('fr-FR')}`, 350, 95, { width: 200, align: 'right' });
+
+  // Séparateur
+  doc.moveTo(40, 115).lineTo(555, 115).lineWidth(0.5).strokeColor(gold).stroke();
+
+  // Bloc DE / CLIENT
+  doc.fontSize(7).font('Helvetica-Bold').fillColor(gold).text('DE', 40, 125);
+  doc.fontSize(10).font('Helvetica-Bold').fillColor(black).text('SINELEC PARIS', 40, 135);
+  doc.fontSize(8).font('Helvetica').fillColor(gray)
+    .text('128 Rue La Boétie, 75008 Paris', 40, 147)
+    .text('07 87 38 86 22 | sinelec.paris@gmail.com', 40, 157);
+
+  doc.rect(300, 120, 255, 55).lineWidth(1).strokeColor(gold).stroke();
+  doc.fontSize(7).font('Helvetica-Bold').fillColor(gold).text('CLIENT', 308, 125);
+  doc.fontSize(10).font('Helvetica-Bold').fillColor(black).text(client, 308, 135);
+  doc.fontSize(8).font('Helvetica').fillColor(gray).text(adresse, 308, 147, { width: 240 });
+
+  // Objet
+  doc.moveTo(40, 185).lineTo(555, 185).lineWidth(0.5).strokeColor(gold).stroke();
+  doc.fontSize(8).font('Helvetica-Bold').fillColor(gold).text('OBJET DES TRAVAUX', 40, 192);
+  doc.fontSize(9).font('Helvetica').fillColor(black).text(titre === 'DEVIS' ? 'Travaux électriques' : 'Travaux électriques', 40, 203);
+
+  // Tableau header
+  const tableTop = 225;
+  doc.rect(40, tableTop, 515, 18).fill(black);
+  doc.fontSize(7).font('Helvetica-Bold').fillColor('#fff')
+    .text('#', 48, tableTop + 5)
+    .text('DESIGNATION / DETAIL', 65, tableTop + 5)
+    .text('QTE', 360, tableTop + 5)
+    .text('U.', 395, tableTop + 5)
+    .text('PRIX U. HT', 415, tableTop + 5)
+    .text('TOTAL HT', 480, tableTop + 5);
+
+  // Lignes prestations
+  let y = tableTop + 22;
+  prestations.forEach((p, i) => {
+    const subtotal = p.prix * p.quantite;
+    doc.fontSize(9).font('Helvetica-Bold').fillColor(black)
+      .text(`${i + 1}`, 48, y)
+      .text(p.nom, 65, y, { width: 285 });
+    doc.fontSize(8).font('Helvetica').fillColor(gray)
+      .text(`${p.quantite}`, 360, y)
+      .text('u.', 395, y)
+      .text(`${p.prix.toFixed(2)} EUR`, 415, y)
+      .text(`${subtotal.toFixed(2)} EUR`, 480, y);
+    y += 30;
+    doc.moveTo(40, y - 5).lineTo(555, y - 5).lineWidth(0.3).strokeColor('#ddd').stroke();
   });
 
-  const pdf_base64 = pdfBuffer.toString('base64');
+  // Totaux
+  y += 5;
+  doc.fontSize(9).font('Helvetica').fillColor(gray)
+    .text('Total HT', 400, y)
+    .text(`${total_ht.toFixed(2)} EUR`, 480, y);
+  y += 15;
+  doc.text('TVA', 400, y).text('Non applicable (art. 293B)', 450, y);
+
+  // NET A PAYER
+  y += 20;
+  doc.rect(40, y, 515, 22).fill(black);
+  doc.fontSize(11).font('Helvetica-Bold').fillColor('#fff').text('NET A PAYER', 48, y + 6);
+  doc.fillColor(gold).text(`${total_ht.toFixed(2)} EUR`, 400, y + 6, { width: 150, align: 'right' });
+
+  // IBAN
+  y += 32;
+  doc.rect(40, y, 515, 20).lineWidth(0.5).strokeColor(gold).stroke();
+  doc.fontSize(7).font('Helvetica-Bold').fillColor(gold).text('IBAN', 48, y + 7);
+  doc.fontSize(7).font('Helvetica').fillColor(black).text('FR76 1695 8000 0174 2540 5920 931', 80, y + 7);
+  doc.fontSize(7).font('Helvetica-Bold').fillColor(gold).text('BIC', 400, y + 7);
+  doc.fontSize(7).font('Helvetica').fillColor(black).text('QNTOFRP1XXX', 420, y + 7);
+
+  // Footer
+  doc.fontSize(6).fillColor(gray)
+    .text('SINELEC EI · 128 Rue La Boétie, 75008 Paris · SIRET : 91015824500019 · TVA non applicable art. 293B CGI · Garantie décennale ORUS', 40, 800, { align: 'center', width: 515 });
+  doc.text(`${num} | Page 1/1`, 40, 810, { align: 'right', width: 515 });
+
+  doc.end();
+});
+const pdf_base64 = pdfBuffer.toString('base64');
   await envoyerEmail(
     email, subject,
     html.replace('{num}', num),
