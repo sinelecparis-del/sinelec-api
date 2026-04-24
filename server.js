@@ -434,6 +434,7 @@ try {
   catch(e) { execSync(`python ${pyPath}`, { cwd: __dirname, stdio: 'pipe' }); }
 } catch(pyErr) {
   console.error('❌ Erreur Python:', pyErr.stderr?.toString());
+  console.error('❌ Erreur Python stdout:', pyErr.stdout?.toString());
 }
 
 const pdf_base64 = fs.readFileSync(pdfPath).toString('base64');
