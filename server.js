@@ -430,11 +430,13 @@ print('OK')
 fs.writeFileSync(pyPath, py, 'utf8');
 
 try {
-  try { execSync(`python3 ${pyPath}`, { cwd: __dirname, stdio: 'pipe' }); }
-  catch(e) { execSync(`python ${pyPath}`, { cwd: __dirname, stdio: 'pipe' }); }
-} catch(pyErr) {
-  console.error('❌ Erreur Python:', pyErr.stderr?.toString());
-  console.error('❌ Erreur Python stdout:', pyErr.stdout?.toString());
+  execSync(`python3 ${pyPath}`, { cwd: __dirname, stdio: 'inherit' });
+} catch(e) {
+  try {
+    execSync(`python ${pyPath}`, { cwd: __dirname, stdio: 'inherit' });
+  } catch(pyErr) {
+    throw new Error('Python PDF failed: ' + pyErr.message);
+  }
 }
 
 const pdf_base64 = fs.readFileSync(pdfPath).toString('base64');
