@@ -250,111 +250,197 @@ app.post('/api/generer', async (req, res) => {
   const html = type === 'devis' ? CONFIG.email.template_devis : CONFIG.email.template_facture;
 
   // Générer PDF avec pdfkit
- const PDFDocument = require('pdfkit');
-const pdfBuffer = await new Promise((resolve) => {
-  const doc = new PDFDocument({ margin: 40, size: 'A4' });
-  const chunks = [];
-  doc.on('data', chunk => chunks.push(chunk));
-  doc.on('end', () => resolve(Buffer.concat(chunks)));
+ // Générer PDF avec Python ReportLab (design premium)
+const { execSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 
-  const W = 595, gold = '#DAA520', black = '#1a1a1a', gray = '#666';
+// Écrire les données pour Python
+const detailsPath = path.join(__dirname, `_details_${num}.json`);
+const pyPath = path.join(__dirname, `_devis_${num}.py`);
+const pdfPath = path.join(__dirname, `${num}.pdf`);
 
-  // Barre gauche dorée
-  doc.rect(0, 0, 6, 842).fill(gold);
+fs.writeFileSync(detailsPath, JSON.stringify(prestations.map((p, i) => ({
+  designation: p.nom,
+  qte: p.quantite,
+  prixUnit: p.prix,
+  total: p.prix * p.quantite,
+  details: []
+}))));
 
-  // Logo texte
-  doc.fontSize(22).font('Helvetica-Bold').fillColor(gold).text('SINELEC', 48, 40);
-  doc.fontSize(8).fillColor(gray)
-    .text('128 Rue La Boétie, 75008 Paris', 48, 65)
-    .text('Tél : 07 87 38 86 22', 48, 75)
-    .text('sinelec.paris@gmail.com', 48, 85)
-    .text('SIRET : 91015824500019', 48, 95);
+const dateStr = new Date().toLocaleDateString('fr-FR');
+const dateValide = new Date(Date.now() + 30*24*60*60*1000).toLocaleDateString('fr-FR');
+const typeLabel = type === 'devis' ? 'DEVIS' : 'FACTURE';
 
-  // Titre DEVIS ou FACTURE
-  const titre = type === 'devis' ? 'DEVIS' : 'FACTURE';
-  doc.fontSize(32).font('Helvetica-Bold').fillColor(black).text(titre, 350, 40, { width: 200, align: 'right' });
-  doc.moveTo(350, 78).lineTo(555, 78).lineWidth(2).strokeColor(gold).stroke();
-  doc.fontSize(9).font('Helvetica').fillColor(gray)
-    .text(`N° ${num}`, 350, 83, { width: 200, align: 'right' })
-    .text(`Date : ${new Date().toLocaleDateString('fr-FR')}`, 350, 95, { width: 200, align: 'right' });
+const py = `
+# -*- coding: utf-8 -*-
+import json, base64, io
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.units import cm
+from reportlab.platypus import *
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.enums import TA_LEFT,TA_CENTER,TA_RIGHT
+from reportlab.pdfgen import canvas as pdfcanvas
+from reportlab.platypus.doctemplate import PageTemplate, BaseDocTemplate, Frame
 
-  // Séparateur
-  doc.moveTo(40, 115).lineTo(555, 115).lineWidth(0.5).strokeColor(gold).stroke();
+W,H=A4
+NOIR=colors.HexColor('#0a0a0a')
+JAUNE=colors.HexColor('#C9A84C')
+JAUNE_PALE=colors.HexColor('#FDF8EC')
+JAUNE_DARK=colors.HexColor('#A07830')
+BLANC=colors.white
+GRIS_DARK=colors.HexColor('#555555')
+GRIS_MED=colors.HexColor('#888888')
+GRIS_LIGHT=colors.HexColor('#F5F3EE')
+GRIS_BG=colors.HexColor('#FAFAF8')
+GRIS_LINE=colors.HexColor('#E0DDD8')
+CREME=colors.HexColor('#FDFBF5')
 
-  // Bloc DE / CLIENT
-  doc.fontSize(7).font('Helvetica-Bold').fillColor(gold).text('DE', 40, 125);
-  doc.fontSize(10).font('Helvetica-Bold').fillColor(black).text('SINELEC PARIS', 40, 135);
-  doc.fontSize(8).font('Helvetica').fillColor(gray)
-    .text('128 Rue La Boétie, 75008 Paris', 40, 147)
-    .text('07 87 38 86 22 | sinelec.paris@gmail.com', 40, 157);
+def p(txt,sz=9,font='Helvetica',color=NOIR,align=TA_LEFT,sb=0,sa=0,leading=None):
+    if leading is None: leading=sz*1.3
+    return Paragraph(txt,ParagraphStyle('x',fontName=font,fontSize=sz,textColor=color,
+        alignment=align,spaceBefore=sb,spaceAfter=sa,leading=leading,wordWrap='CJK'))
 
-  doc.rect(300, 120, 255, 55).lineWidth(1).strokeColor(gold).stroke();
-  doc.fontSize(7).font('Helvetica-Bold').fillColor(gold).text('CLIENT', 308, 125);
-  doc.fontSize(10).font('Helvetica-Bold').fillColor(black).text(client, 308, 135);
-  doc.fontSize(8).font('Helvetica').fillColor(gray).text(adresse, 308, 147, { width: 240 });
+def escPy(s): return str(s).replace("'","\\'")
 
-  // Objet
-  doc.moveTo(40, 185).lineTo(555, 185).lineWidth(0.5).strokeColor(gold).stroke();
-  doc.fontSize(8).font('Helvetica-Bold').fillColor(gold).text('OBJET DES TRAVAUX', 40, 192);
-  doc.fontSize(9).font('Helvetica').fillColor(black).text(titre === 'DEVIS' ? 'Travaux électriques' : 'Travaux électriques', 40, 203);
+data=json.loads(open('${detailsPath.replace(/\\/g,'/')}',encoding='utf-8').read())
+totalHT=sum(l['total'] for l in data)
 
-  // Tableau header
-  const tableTop = 225;
-  doc.rect(40, tableTop, 515, 18).fill(black);
-  doc.fontSize(7).font('Helvetica-Bold').fillColor('#fff')
-    .text('#', 48, tableTop + 5)
-    .text('DESIGNATION / DETAIL', 65, tableTop + 5)
-    .text('QTE', 360, tableTop + 5)
-    .text('U.', 395, tableTop + 5)
-    .text('PRIX U. HT', 415, tableTop + 5)
-    .text('TOTAL HT', 480, tableTop + 5);
+logo_b64=open('${path.join(__dirname,'logo_b64.txt').replace(/\\/g,'/')}').read().strip()
+logo_bytes=base64.b64decode(logo_b64)
+logo_img=io.BytesIO(logo_bytes)
 
-  // Lignes prestations
-  let y = tableTop + 22;
-  prestations.forEach((p, i) => {
-    const subtotal = p.prix * p.quantite;
-    doc.fontSize(9).font('Helvetica-Bold').fillColor(black)
-      .text(`${i + 1}`, 48, y)
-      .text(p.nom, 65, y, { width: 285 });
-    doc.fontSize(8).font('Helvetica').fillColor(gray)
-      .text(`${p.quantite}`, 360, y)
-      .text('u.', 395, y)
-      .text(`${p.prix.toFixed(2)} EUR`, 415, y)
-      .text(`${subtotal.toFixed(2)} EUR`, 480, y);
-    y += 30;
-    doc.moveTo(40, y - 5).lineTo(555, y - 5).lineWidth(0.3).strokeColor('#ddd').stroke();
-  });
+class SC(pdfcanvas.Canvas):
+    def __init__(self,fn,**kw):
+        pdfcanvas.Canvas.__init__(self,fn,**kw)
+        self.saveState()
+    def showPage(self):
+        self._draw_bg()
+        pdfcanvas.Canvas.showPage(self)
+        self.saveState()
+    def save(self):
+        self._draw_last()
+        pdfcanvas.Canvas.save(self)
+    def _draw_bg(self):
+        self.saveState()
+        # Fond crème
+        self.setFillColor(CREME)
+        self.rect(0,0,W,H,fill=1,stroke=0)
+        # Bande or haut
+        self.setFillColor(JAUNE)
+        self.rect(0,H-0.22*cm,W,0.22*cm,fill=1,stroke=0)
+        # Bande or bas
+        self.rect(0,0,W,0.22*cm,fill=1,stroke=0)
+        # Ligne gauche fine
+        self.rect(0,0,0.1*cm,H,fill=1,stroke=0)
+        # Header blanc
+        self.setFillColor(BLANC)
+        self.rect(0.1*cm,H-3.6*cm,W-0.1*cm,3.38*cm,fill=1,stroke=0)
+        # Logo
+        self.drawImage(logo_img,0.9*cm,H-3.2*cm,width=2.5*cm,height=2.5*cm,preserveAspectRatio=True,mask='auto')
+        # SINELEC texte
+        self.setFont('Helvetica-Bold',22)
+        self.setFillColor(JAUNE)
+        self.drawString(3.6*cm,H-1.5*cm,'SINELEC')
+        self.setFont('Helvetica',7)
+        self.setFillColor(GRIS_DARK)
+        self.drawString(3.6*cm,H-1.95*cm,'128 Rue La Boetie, 75008 Paris')
+        self.drawString(3.6*cm,H-2.25*cm,'Tel : 07 87 38 86 22')
+        self.drawString(3.6*cm,H-2.55*cm,'sinelec.paris@gmail.com')
+        self.drawString(3.6*cm,H-2.85*cm,'SIRET : 91015824500019')
+        # Type document
+        self.setFont('Helvetica-Bold',34)
+        self.setFillColor(NOIR)
+        self.drawRightString(W-1.0*cm,H-1.5*cm,'${typeLabel}')
+        # Ligne or sous titre
+        self.setStrokeColor(JAUNE)
+        self.setLineWidth(1.5)
+        self.line(10.5*cm,H-2.0*cm,W-1.0*cm,H-2.0*cm)
+        # N° et date
+        self.setFont('Helvetica',8.5)
+        self.setFillColor(GRIS_DARK)
+        self.drawRightString(W-1.0*cm,H-2.35*cm,'N\\u00b0 ${num}')
+        self.drawRightString(W-1.0*cm,H-2.65*cm,'Date : ${dateStr}')
+        ${type === 'devis' ? `self.drawRightString(W-1.0*cm,H-2.95*cm,'Validite : 30 jours')` : ''}
+        # Footer
+        self.setFont('Helvetica',6)
+        self.setFillColor(colors.HexColor('#777777'))
+        self.drawCentredString(W/2,0.38*cm,'SINELEC EI  -  128 Rue La Boetie 75008 Paris  -  SIRET : 91015824500019  -  TVA non applicable art. 293B CGI  -  Garantie decennale ORUS')
+        self.restoreState()
+    def _draw_last(self):
+        self._draw_bg()
 
-  // Totaux
-  y += 5;
-  doc.fontSize(9).font('Helvetica').fillColor(gray)
-    .text('Total HT', 400, y)
-    .text(`${total_ht.toFixed(2)} EUR`, 480, y);
-  y += 15;
-  doc.text('TVA', 400, y).text('Non applicable (art. 293B)', 450, y);
+doc=SimpleDocTemplate('${pdfPath.replace(/\\/g,'/')}',pagesize=A4,
+    leftMargin=1.0*cm,rightMargin=1.0*cm,topMargin=3.8*cm,bottomMargin=1.0*cm)
+story=[]
 
-  // NET A PAYER
-  y += 20;
-  doc.rect(40, y, 515, 22).fill(black);
-  doc.fontSize(11).font('Helvetica-Bold').fillColor('#fff').text('NET A PAYER', 48, y + 6);
-  doc.fillColor(gold).text(`${total_ht.toFixed(2)} EUR`, 400, y + 6, { width: 150, align: 'right' });
+# Blocs DE / CLIENT
+de_b=Table([[p('DE',7,'Helvetica-Bold',JAUNE,sa=2)],[p('SINELEC PARIS',10,'Helvetica-Bold')],[p('128 Rue La Boetie, 75008 Paris',8.5,color=GRIS_DARK)],[p('07 87 38 86 22  |  sinelec.paris@gmail.com',8.5,color=GRIS_DARK)]],colWidths=[8.5*cm])
+de_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),2),('BOTTOMPADDING',(0,0),(-1,-1),2),('LEFTPADDING',(0,0),(-1,-1),0),('LINEABOVE',(0,0),(0,0),2.5,JAUNE),('TOPPADDING',(0,0),(0,0),8)]))
+pour_b=Table([[p('CLIENT',7,'Helvetica-Bold',JAUNE,sa=2)],[p('${client.replace(/'/g,"\\'")}',10,'Helvetica-Bold')],[p('${adresse.replace(/'/g,"\\'")}',8.5,color=GRIS_DARK)]],colWidths=[8.5*cm])
+pour_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),2),('BOTTOMPADDING',(0,0),(-1,-1),2),('LEFTPADDING',(0,0),(-1,-1),12),('BACKGROUND',(0,0),(-1,-1),JAUNE_PALE),('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#EDD898')),('LINEBEFORE',(0,0),(0,-1),3,JAUNE),('TOPPADDING',(0,0),(0,0),8)]))
+story.append(Table([[de_b,pour_b]],colWidths=[9.1*cm,9.1*cm],style=TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)])))
+story.append(Spacer(1,0.5*cm))
 
-  // IBAN
-  y += 32;
-  doc.rect(40, y, 515, 20).lineWidth(0.5).strokeColor(gold).stroke();
-  doc.fontSize(7).font('Helvetica-Bold').fillColor(gold).text('IBAN', 48, y + 7);
-  doc.fontSize(7).font('Helvetica').fillColor(black).text('FR76 1695 8000 0174 2540 5920 931', 80, y + 7);
-  doc.fontSize(7).font('Helvetica-Bold').fillColor(gold).text('BIC', 400, y + 7);
-  doc.fontSize(7).font('Helvetica').fillColor(black).text('QNTOFRP1XXX', 420, y + 7);
+# Tableau prestations
+cw=[0.8*cm,9.5*cm,1.6*cm,1.0*cm,2.3*cm,3.0*cm]
+rows=[[p('#',7,'Helvetica-Bold',BLANC,TA_CENTER),p('DESIGNATION / DETAIL',7,'Helvetica-Bold',BLANC),p('QTE',7,'Helvetica-Bold',BLANC,TA_CENTER),p('U.',7,'Helvetica-Bold',BLANC,TA_CENTER),p('PRIX U. HT',7,'Helvetica-Bold',BLANC,TA_RIGHT),p('TOTAL HT',7,'Helvetica-Bold',BLANC,TA_RIGHT)]]
+for i,l in enumerate(data):
+    q=int(l['qte']) if l['qte']==int(l['qte']) else l['qte']
+    rows.append([p(str(i+1),9,color=GRIS_MED,align=TA_CENTER),p('<b>'+l['designation']+'</b>',9),p(str(q),9,align=TA_CENTER),p('u',9,align=TA_CENTER,color=GRIS_MED),p('%.2f EUR'%l['prixUnit'],9,align=TA_RIGHT),p('%.2f EUR'%l['total'],9,'Helvetica-Bold',NOIR,TA_RIGHT)])
+n=len(rows)-1
+t=Table(rows,colWidths=cw)
+ts=[('BACKGROUND',(0,0),(-1,0),NOIR),('LINEBELOW',(0,0),(-1,0),3,JAUNE),('VALIGN',(0,0),(-1,-1),'TOP'),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4),('LEFTPADDING',(0,0),(-1,-1),8),('RIGHTPADDING',(0,0),(-1,-1),8),('BOX',(0,0),(-1,-1),0.3,GRIS_LINE)]
+row_idx=1; bg_toggle=True
+for i,l in enumerate(data):
+    bg=BLANC if bg_toggle else GRIS_BG
+    ts.append(('BACKGROUND',(0,row_idx),(-1,row_idx),bg))
+    ts.append(('LINEBELOW',(0,row_idx),(-1,row_idx),0.3,GRIS_LINE))
+    row_idx+=1; bg_toggle=not bg_toggle
+t.setStyle(TableStyle(ts))
+story.append(t); story.append(Spacer(1,0.1*cm))
 
-  // Footer
-  doc.fontSize(6).fillColor(gray)
-    .text('SINELEC EI · 128 Rue La Boétie, 75008 Paris · SIRET : 91015824500019 · TVA non applicable art. 293B CGI · Garantie décennale ORUS', 40, 800, { align: 'center', width: 515 });
-  doc.text(`${num} | Page 1/1`, 40, 810, { align: 'right', width: 515 });
+# Totaux
+tt=Table([['',p('Total HT',9,color=GRIS_DARK,align=TA_RIGHT),p('%.2f EUR'%totalHT,9,align=TA_RIGHT)],['',p('TVA',9,color=GRIS_DARK,align=TA_RIGHT),p('Non applicable (art. 293B)',8,color=GRIS_MED,align=TA_RIGHT)]],colWidths=[9.1*cm,4.5*cm,4.6*cm])
+tt.setStyle(TableStyle([('LINEABOVE',(1,0),(-1,0),0.5,GRIS_LINE),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4),('LEFTPADDING',(0,0),(-1,-1),6),('RIGHTPADDING',(0,0),(-1,-1),6)]))
+story.append(tt); story.append(Spacer(1,0.08*cm))
 
-  doc.end();
-});
-const pdf_base64 = pdfBuffer.toString('base64');
+net=Table([[p('NET A PAYER',11,'Helvetica-Bold',BLANC),p('%.2f EUR'%totalHT,13,'Helvetica-Bold',JAUNE,TA_RIGHT)]],colWidths=[9.1*cm,9.1*cm])
+net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),NOIR),('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('LINEBELOW',(0,0),(-1,-1),3.5,JAUNE),('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
+story.append(net); story.append(Spacer(1,0.15*cm))
+
+# Conditions
+story.append(HRFlowable(width='100%',thickness=0.3,color=GRIS_LINE,spaceAfter=8))
+story.append(p('CONDITIONS',8,'Helvetica-Bold',NOIR,sa=6))
+cond=Table([[p('Acompte de 40% a la signature',9,color=GRIS_DARK),p('%.2f EUR'%(totalHT*0.4),9,'Helvetica-Bold',JAUNE_DARK,TA_RIGHT)],[p('Reste a facturer a la fin des travaux',9,color=GRIS_DARK),p('%.2f EUR'%(totalHT*0.6),9,align=TA_RIGHT)],[p('Devis valable 30 jours - Paiement : virement, especes, carte bancaire',8,color=GRIS_MED),'']],colWidths=[14*cm,4.2*cm])
+cond.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,1),0.3,GRIS_LINE),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),('SPAN',(0,2),(1,2))]))
+story.append(cond); story.append(Spacer(1,0.1*cm))
+
+# IBAN
+iban=Table([[p('IBAN',7,'Helvetica-Bold',GRIS_MED),p('FR76 1695 8000 0174 2540 5920 931',9,'Helvetica-Bold',NOIR),p('BIC',7,'Helvetica-Bold',GRIS_MED,align=TA_RIGHT),p('QNTOFRP1XXX',9,'Helvetica-Bold',NOIR,TA_RIGHT)]],colWidths=[1.5*cm,9.5*cm,1.8*cm,5.4*cm])
+iban.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GRIS_LIGHT),('BOX',(0,0),(-1,-1),0.3,GRIS_LINE),('LINEBEFORE',(0,0),(0,-1),3,JAUNE),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
+story.append(iban)
+
+doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw))
+print('OK')
+`;
+
+fs.writeFileSync(pyPath, py, 'utf8');
+
+try {
+  try { execSync(`python3 ${pyPath}`, { cwd: __dirname, stdio: 'pipe' }); }
+  catch(e) { execSync(`python ${pyPath}`, { cwd: __dirname, stdio: 'pipe' }); }
+} catch(pyErr) {
+  console.error('❌ Erreur Python:', pyErr.stderr?.toString());
+}
+
+const pdf_base64 = fs.readFileSync(pdfPath).toString('base64');
+
+// Nettoyage
+try { fs.unlinkSync(pyPath); } catch(e) {}
+try { fs.unlinkSync(detailsPath); } catch(e) {}
+try { fs.unlinkSync(pdfPath); } catch(e) {}
   await envoyerEmail(
     email, subject,
     html.replace('{num}', num),
