@@ -252,9 +252,7 @@ app.post('/api/generer', async (req, res) => {
 
   // Générer PDF avec pdfkit
  // Générer PDF avec Python ReportLab (design premium)
-const { execSync } = require('child_process');
-const fs = require('fs');
-const path = require('path');
+
 
 // Écrire les données pour Python
 const detailsPath = path.join(__dirname, `_details_${num}.json`);
