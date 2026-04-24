@@ -39,11 +39,11 @@ const CONFIG = {
     // ─────────────── INTELLIGENCE (À activer progressivement) ───────────────
     chatbot_claude: false,             // 🔒 Chatbot parsing chantier
     autocomplete_adresse: true,        // ✅ Autocomplete OpenStreetMap IDF
-    autocomplete_client: false,        // 🔒 Autocomplete clients Supabase
+    autocomplete_client: true,        // 🔒 Autocomplete clients Supabase
     
     // ─────────────── AUTOMATISATION (À activer) ───────────────
     veille_tarifaire: false,           // 🔒 Analyse marché automatique
-    relances_auto: false,              // 🔒 Relances 48h automatiques
+    relances_auto: true,              // 🔒 Relances 48h automatiques
     rapports_intervention: false,      // 🔒 Rapports avec photos
     
     // ─────────────── ANALYTICS AVANCÉS (À activer) ───────────────
@@ -98,7 +98,7 @@ const CONFIG = {
   // ═══════════════════════════════════════════════════════════════
   
   relances: {
-    enabled: false,                    // Master switch
+    enabled: true,                    // Master switch
     
     // Timing
     delai_premiere_relance: 48,        // Heures après envoi
