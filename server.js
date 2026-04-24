@@ -271,7 +271,7 @@ fs.writeFileSync(detailsPath, JSON.stringify(prestations.map((p, i) => ({
 
 const dateStr = new Date().toLocaleDateString('fr-FR');
 const dateValide = new Date(Date.now() + 30*24*60*60*1000).toLocaleDateString('fr-FR');
-const typeLabel = type === 'devis' ? 'DEVIS' : 'FACTURE';
+
 
 const py = `
 # -*- coding: utf-8 -*-
