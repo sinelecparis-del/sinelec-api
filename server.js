@@ -39,6 +39,9 @@ const anthropic = new Anthropic({
 });
 
 const BREVO_API_KEY = process.env.BREVO_API_KEY;
+const { execSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 
 // ═══════════════════════════════════════════════════════════════
 // HEALTHCHECK
