@@ -1,4 +1,4 @@
-// ═══════════════════════════════════════════════════════════════
+b// ═══════════════════════════════════════════════════════════════
 // SINELEC OS v2.0 - BACKEND COMPLET
 // ═══════════════════════════════════════════════════════════════
 // Date: 20 Avril 2026
@@ -201,8 +201,17 @@ app.post('/api/generer', async (req, res) => {
     return res.status(403).json({ error: 'Feature désactivée' });
   }
 
-  try {
-    const { type, client, email, telephone, adresse, prestations } = req.body;
+  try {const { type, client, email, telephone, adresse, prestations, pdf_base64 } = req.body;
+
+// Upload PDF dans Supabase Storage
+let pdf_url = null;
+if (pdf_base64) {
+  const buffer = Buffer.from(pdf_base64, 'base64');
+  const { error: storageError } = await supabase.storage
+    .from('devis-factures')
+    .upload(`${num}.pdf`, buffer, { contentType: 'application/pdf' });
+  if (!storageError) pdf_url = `${num}.pdf uploadé ✅`;
+} } = req.body;
     const startTime = Date.now();
 
     // Générer numéro
