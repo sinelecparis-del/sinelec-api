@@ -339,7 +339,9 @@ class SC(pdfcanvas.Canvas):
         self.setFillColor(BLANC)
         self.rect(0.1*cm,H-3.6*cm,W-0.1*cm,3.38*cm,fill=1,stroke=0)
         # Logo
-        self.drawImage(logo_img,0.9*cm,H-3.2*cm,width=2.5*cm,height=2.5*cm,preserveAspectRatio=True,mask='auto')
+        from reportlab.lib.utils import ImageReader
+self.drawImage(ImageReader(logo_img),0.9*cm,H-3.2*cm,width=2.5*cm,height=2.5*cm,preserveAspectRatio=True,mask='auto')
+from reportlab.lib.utils import ImageReader
         # SINELEC texte
         self.setFont('Helvetica-Bold',22)
         self.setFillColor(JAUNE)
