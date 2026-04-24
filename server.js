@@ -197,21 +197,12 @@ async function chargerGrilleTarifaire() {
 // ═══════════════════════════════════════════════════════════════
 
 app.post('/api/generer', async (req, res) => {
-  if (!CONFIG.features.devis_factures) {
+  if if (!CONFIG.features.devis_factures) {
     return res.status(403).json({ error: 'Feature désactivée' });
   }
 
-  try {const { type, client, email, telephone, adresse, prestations, pdf_base64 } = req.body;
-
-// Upload PDF dans Supabase Storage
-let pdf_url = null;
-if (pdf_base64) {
-  const buffer = Buffer.from(pdf_base64, 'base64');
-  const { error: storageError } = await supabase.storage
-    .from('devis-factures')
-    .upload(`${num}.pdf`, buffer, { contentType: 'application/pdf' });
-  if (!storageError) pdf_url = `${num}.pdf uploadé ✅`;
-} } = req.body;
+  try {
+    const { type, client, email, telephone, adresse, prestations, pdf_base64 } = req.body;
     const startTime = Date.now();
 
     // Générer numéro
@@ -224,6 +215,14 @@ if (pdf_base64) {
 
     // Calculer total
     const total_ht = prestations.reduce((sum, p) => sum + (p.prix * p.quantite), 0);
+
+    // Upload PDF Supabase Storage
+    if (pdf_base64) {
+      const buffer = Buffer.from(pdf_base64, 'base64');
+      await supabase.storage
+        .from('devis-factures')
+        .upload(`${num}.pdf`, buffer, { contentType: 'application/pdf' });
+    }((sum, p) => sum + (p.prix * p.quantite), 0);
 
     // Sauvegarder
     const { error: dbError } = await supabase.from('historique').insert({
