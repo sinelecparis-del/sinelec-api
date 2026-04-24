@@ -250,7 +250,11 @@ if (pdf_base64) {
       const subject = `${typeLabel} SINELEC ${num}`;
       const html = type === 'devis' ? CONFIG.email.template_devis : CONFIG.email.template_facture;
 
-      await envoyerEmail(email, subject, html.replace('{num}', num));
+      await envoyerEmail(
+  email, subject, 
+  html.replace('{num}', num),
+  pdf_base64 ? { content: pdf_base64, name: `${num}.pdf` } : null
+);
     }
 
     await logSystem('generer', `${type} ${num} créé`, { client, total_ht }, true);
