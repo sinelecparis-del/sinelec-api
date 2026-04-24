@@ -433,7 +433,7 @@ try {
   execSync(`python3 ${pyPath}`, { cwd: __dirname, stdio: 'inherit' });
 } catch(e) {
   try {
-    execSync(`python ${pyPath}`, { cwd: __dirname, stdio: 'inherit' });
+ execSync(`python3 ${pyPath}`, { cwd: __dirname, stdio: 'inherit' });
   } catch(pyErr) {
     throw new Error('Python PDF failed: ' + pyErr.message);
   }
