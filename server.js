@@ -265,6 +265,7 @@ const pyPath = path.join(__dirname, `_devis_${num}.py`);
 const pdfPath = path.join(__dirname, `${num}.pdf`);
 
 fs.writeFileSync(detailsPath, JSON.stringify(prestations.map((p, i) => ({
+  console.log('📄 JSON écrit:', fs.readFileSync(detailsPath, 'utf8'));
   designation: p.nom,
   qte: p.quantite,
   prixUnit: p.prix,
