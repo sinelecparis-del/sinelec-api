@@ -259,19 +259,19 @@ app.post('/api/generer', async (req, res) => {
 
 // Écrire les données pour Python
 const detailsPath = path.join(__dirname, `_details_${num}.json`);
-console.log('📄 Details path:', detailsPath);
-console.log('📄 Details content:', JSON.stringify(prestations));
 const pyPath = path.join(__dirname, `_devis_${num}.py`);
 const pdfPath = path.join(__dirname, `${num}.pdf`);
 
-fs.writeFileSync(detailsPath, JSON.stringify(prestations.map((p, i) => ({
-  console.log('📄 JSON écrit:', fs.readFileSync(detailsPath, 'utf8'));
+const detailsData = prestations.map((p, i) => ({
   designation: p.nom,
   qte: p.quantite,
   prixUnit: p.prix,
   total: p.prix * p.quantite,
   details: []
-}))));
+}));
+
+console.log('📄 Details:', JSON.stringify(detailsData));
+fs.writeFileSync(detailsPath, JSON.stringify(detailsData));
 
 const dateStr = new Date().toLocaleDateString('fr-FR');
 const dateValide = new Date(Date.now() + 30*24*60*60*1000).toLocaleDateString('fr-FR');
