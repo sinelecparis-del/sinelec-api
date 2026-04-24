@@ -1128,21 +1128,24 @@ const res = await fetch('/api/generer', {
     prestations: prestationsFormatted
   })
 });
-      if (type === 'devis') {
-        panierD = [];
-        renderPanier('d');
-      } else {
-        panierF = [];
-        renderPanier('f');
-      }
-      
-      showToast(`🎉 ${type === 'devis' ? 'Devis' : 'Facture'} généré !`, '✨');
-      
-      // Ouvrir popup signature pour devis
-      if (type === 'devis') {
-        setTimeout(() => ouvrirPopupSig(data.num), 1000);
-      }
-    } else {
+
+const data = await res.json();
+
+if (data.success) {
+  if (type === 'devis') {
+    panierD = [];
+    renderPanier('d');
+  } else {
+    panierF = [];
+    renderPanier('f');
+  }
+
+  showToast(`🎉 ${type === 'devis' ? 'Devis' : 'Facture'} généré !`, '✨');
+
+  if (type === 'devis') {
+    setTimeout(() => ouvrirPopupSig(data.num), 1000);
+  }
+} else {
       showStatus(prefix, 'error', '❌ Erreur : ' + (data.error || 'Erreur inconnue'));
     }
     
