@@ -309,7 +309,8 @@ def p(txt,sz=9,font='Helvetica',color=NOIR,align=TA_LEFT,sb=0,sa=0,leading=None)
 
 def escPy(s): return str(s).replace("'","\\'")
 
-data=json.loads(open('${detailsPath.replace(/\\/g,'/')}',encoding='utf-8').read())
+import sys
+data=json.loads(open(sys.argv[1],encoding='utf-8').read())
 totalHT=sum(l['total'] for l in data)
 
 logo_b64=open('${path.join(__dirname,'logo_b64.txt').replace(/\\/g,'/')}').read().strip()
