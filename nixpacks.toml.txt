@@ -1,8 +1,8 @@
 [phases.setup]
-nixPkgs = ["python312", "python312Packages.reportlab", "python312Packages.pillow"]
+nixPkgs = ["python3", "python3Packages.pip"]
 
 [phases.install]
-cmds = ["npm install"]
+cmds = ["npm install", "pip install reportlab pillow --break-system-packages"]
 
 [start]
 cmd = "node server.js"
