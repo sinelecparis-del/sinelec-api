@@ -243,27 +243,64 @@ app.post('/api/generer', async (req, res) => {
     if (dbError) throw dbError;
 
     // Email si activé et adresse fournie
-    if (CONFIG.features.email_auto && email) {
-      console.log('📧 Préparation email pour:', email);
-      const typeLabel = type === 'devis' ? 'Devis' : 'Facture';
-      const subject = `${typeLabel} SINELEC ${num}`;
-      const html = type === 'devis' ? CONFIG.email.template_devis : CONFIG.email.template_facture;
+   if (CONFIG.features.email_auto && email) {
+  console.log('📧 Préparation email pour:', email);
+  const typeLabel = type === 'devis' ? 'Devis' : 'Facture';
+  const subject = `${typeLabel} SINELEC ${num}`;
+  const html = type === 'devis' ? CONFIG.email.template_devis : CONFIG.email.template_facture;
 
-      await envoyerEmail(
-  email, subject, 
-  html.replace('{num}', num),
-  pdf_base64 ? { content: pdf_base64, name: `${num}.pdf` } : null
-);
-    }
+  // Générer PDF avec pdfkit
+  const PDFDocument = require('pdfkit');
+  const pdfBuffer = await new Promise((resolve) => {
+    const doc = new PDFDocument({ margin: 50 });
+    const chunks = [];
+    doc.on('data', chunk => chunks.push(chunk));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
 
-    await logSystem('generer', `${type} ${num} créé`, { client, total_ht }, true);
+    // Header
+    doc.fontSize(20).fillColor('#DAA520').text('SINELEC PARIS', { align: 'center' });
+    doc.fontSize(10).fillColor('#666').text('128 Rue La Boétie, 75008 Paris | 07 87 38 86 22', { align: 'center' });
+    doc.moveDown();
 
-    res.json({ success: true, num, total_ht });
-  } catch (error) {
-    console.error('Erreur génération:', error);
-    await logSystem('generer', 'Erreur génération', { error: error.message }, false, error);
-    res.status(500).json({ error: error.message });
-  }
+    // Infos devis
+    doc.fontSize(14).fillColor('#000').text(`${typeLabel} N° ${num}`);
+    doc.fontSize(11).text(`Client : ${client}`);
+    doc.text(`Adresse : ${adresse}`);
+    doc.moveDown();
+
+    // Prestations
+    doc.fontSize(12).fillColor('#DAA520').text('Prestations');
+    doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke('#DAA520');
+    doc.moveDown(0.5);
+    prestations.forEach(p => {
+      doc.fontSize(10).fillColor('#000')
+        .text(`${p.nom} x${p.quantite}`, { continued: true })
+        .text(`${(p.prix * p.quantite).toFixed(2)} €`, { align: 'right' });
+    });
+    doc.moveDown();
+    doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke('#DAA520');
+    doc.fontSize(13).fillColor('#000').text(`TOTAL : ${total_ht.toFixed(2)} €`, { align: 'right' });
+    doc.moveDown();
+    doc.fontSize(9).fillColor('#666').text('TVA non applicable, art. 293B du CGI');
+
+    doc.end();
+  });
+
+  const pdf_base64 = pdfBuffer.toString('base64');
+  await envoyerEmail(
+    email, subject,
+    html.replace('{num}', num),
+    { content: pdf_base64, name: `${num}.pdf` }
+  );
+}
+
+await logSystem('generer', `${type} ${num} créé`, { client, total_ht }, true);
+res.json({ success: true, num, total_ht });
+} catch (error) {
+  console.error('Erreur génération:', error);
+  await logSystem('generer', 'Erreur génération', { error: error.message }, false, error);
+  res.status(500).json({ error: error.message });
+}
 });
 
 // ═══════════════════════════════════════════════════════════════
