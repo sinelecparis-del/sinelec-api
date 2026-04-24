@@ -258,6 +258,8 @@ const path = require('path');
 
 // Écrire les données pour Python
 const detailsPath = path.join(__dirname, `_details_${num}.json`);
+console.log('📄 Details path:', detailsPath);
+console.log('📄 Details content:', JSON.stringify(prestations));
 const pyPath = path.join(__dirname, `_devis_${num}.py`);
 const pdfPath = path.join(__dirname, `${num}.pdf`);
 
