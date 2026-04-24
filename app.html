@@ -1109,8 +1109,8 @@ async function generer(type) {
   
   try {
     // Formatter les prestations pour le backend
-    const prestationsFormatted = panier.map(item => ({
-      nom: item.nom,
+   const prestationsFormatted = panier.map(item => ({
+      nom: item.designation,
       prix: item.prixUnit,
       quantite: item.qte
     }));
