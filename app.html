@@ -1116,25 +1116,18 @@ async function generer(type) {
     }));
     
     // Appel API backend pour génération PDF
-    const res = await fetch('/api/generer', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type,
-        client,
-        email,
-        telephone: document.getElementById(`${prefix}-tel`).value,
-        adresse,
-        prestations: prestationsFormatted
-      })
-    });
-    
-    const data = await res.json();
-    
-    if (data.success) {
-      shootConfetti();
-      showStatus(prefix, 'success', `✅ ${type === 'devis' ? 'Devis' : 'Facture'} ${data.num} généré avec succès !`);
-      
+const res = await fetch('/api/generer', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    type,
+    client,
+    email,
+    telephone: document.getElementById(`${prefix}-tel`).value,
+    adresse,
+    prestations: prestationsFormatted
+  })
+});
       if (type === 'devis') {
         panierD = [];
         renderPanier('d');
