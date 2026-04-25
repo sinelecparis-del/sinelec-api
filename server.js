@@ -306,7 +306,6 @@ ${prestations.map(p => p.nom).join('\n')}`;
     const clientNomComplet = clientEsc;
     const clientComplement = String(complement || '').replace(/'/g, ' ').trim();
     const clientTel = String(telephone || '').replace(/'/g, ' ').trim();
-    const clientCPVille = String(clientVille || '').trim();
       const adresseEsc = String(adresse || '').replace(/'/g, ' ');
       // Nettoyer adresse GPS
       const adresseRaw = String(adresse || '').replace(/'/g, ' ').trim();
@@ -329,6 +328,7 @@ ${prestations.map(p => p.nom).join('\n')}`;
         !p.toLowerCase().includes('quartier')
       ) || '';
       const clientVille = [clientCP, villeManuelle || villeGPS].filter(Boolean).join(' ');
+      const clientCPVille = clientVille;
 
       const descObjet = (description || 'Travaux d\'electricite generale').replace(/'/g, ' ');
       const py = `# -*- coding: utf-8 -*-
@@ -912,7 +912,6 @@ app.get('/api/pdf/:num', async (req, res) => {
     const clientNomComplet = clientEsc;
     const clientComplement = String(complement || '').replace(/'/g, ' ').trim();
     const clientTel = String(telephone || '').replace(/'/g, ' ').trim();
-    const clientCPVille = String(clientVille || '').trim();
     const adresseEsc = String(adresse || '').replace(/'/g, ' ');
     const clientParts = (adresse || '').split(',');
     const clientRue = String(clientParts[0] || '').trim().replace(/'/g, ' ');
