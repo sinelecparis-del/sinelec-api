@@ -276,11 +276,11 @@ ${prestations.map(p => p.nom).join('\n')}`;
 
       fs.writeFileSync(detailsPath, JSON.stringify(detailsData));
 
-      const clientEsc = (client || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-      const adresseEsc = (adresse || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      const clientEsc = String(client || '').replace(/'/g, ' ');
+      const adresseEsc = String(adresse || '').replace(/'/g, ' ');
       const clientParts = (adresse || '').split(',');
-      const clientRue = (clientParts[0] || '').trim().replace(/'/g, "\\'");
-      const clientVille = clientParts.slice(1).join(',').trim().replace(/'/g, "\\'");
+      const clientRue = String(clientParts[0] || '').trim().replace(/'/g, ' ');
+      const clientVille = clientParts.slice(1).join(',').trim().replace(/'/g, ' ');
 
       const py = `# -*- coding: utf-8 -*-
 import json, base64, io, sys
@@ -858,11 +858,11 @@ app.get('/api/pdf/:num', async (req, res) => {
 
     fs.writeFileSync(detailsPath, JSON.stringify(detailsData));
 
-    const clientEsc = (client || '').replace(/\/g, '\\').replace(/'/g, "\'");
-    const adresseEsc = (adresse || '').replace(/\/g, '\\').replace(/'/g, "\'");
+    const clientEsc = String(client || '').replace(/'/g, ' ');
+    const adresseEsc = String(adresse || '').replace(/'/g, ' ');
     const clientParts = (adresse || '').split(',');
-    const clientRue = (clientParts[0] || '').trim().replace(/'/g, "\'");
-    const clientVille = clientParts.slice(1).join(',').trim().replace(/'/g, "\'");
+    const clientRue = String(clientParts[0] || '').trim().replace(/'/g, ' ');
+    const clientVille = clientParts.slice(1).join(',').trim().replace(/'/g, ' ');
 
     // Utiliser le même script Python que pour la génération
     const py = `# -*- coding: utf-8 -*-
