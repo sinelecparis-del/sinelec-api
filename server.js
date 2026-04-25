@@ -201,42 +201,28 @@ async function chargerGrilleTarifaire() {
 // ═══════════════════════════════════════════════════════════════
 
 app.post('/api/generer', async (req, res) => {
- if (!CONFIG.features.devis_factures) {
+  if (!CONFIG.features.devis_factures) {
     return res.status(403).json({ error: 'Feature désactivée' });
   }
 
   try {
-    const { type, client, email, telephone, adresse, prestations, pdf_base64 } = req.body;
+    const { type, client, email, telephone, adresse, prestations } = req.body;
     const startTime = Date.now();
 
     // Générer numéro
     const compteur = await incrementerCompteur(type);
     const annee = new Date().getFullYear();
     const mois = String(new Date().getMonth() + 1).padStart(2, '0');
-    const num = type === 'devis' 
+    const num = type === 'devis'
       ? `OS-${annee}${mois}-${String(compteur).padStart(3, '0')}`
       : `${annee}${mois}-${String(compteur).padStart(3, '0')}`;
 
     // Calculer total
     const total_ht = prestations.reduce((sum, p) => sum + (p.prix * p.quantite), 0);
 
-    // Upload PDF Supabase Storage
-    if (pdf_base64) {
-      const buffer = Buffer.from(pdf_base64, 'base64');
-      await supabase.storage
-        .from('devis-factures')
-        .upload(`${num}.pdf`, buffer, { contentType: 'application/pdf' });
-
-    // Sauvegarder
+    // Sauvegarder en base
     const { error: dbError } = await supabase.from('historique').insert({
-      num,
-      type,
-      client,
-      email,
-      telephone,
-      adresse,
-      prestations,
-      total_ht,
+      num, type, client, email, telephone, adresse, prestations, total_ht,
       statut: 'envoyé',
       date_envoi: new Date().toISOString(),
       source: 'app',
@@ -244,42 +230,37 @@ app.post('/api/generer', async (req, res) => {
     });
 
     if (dbError) throw dbError;
-      console.log('📌 DB saved, email check:', CONFIG.features.email_auto, email);
 
-    // Email si activé et adresse fournie
-   if (CONFIG.features.email_auto && email) {
-  console.log('📧 Préparation email pour:', email);
-  const typeLabel = type === 'devis' ? 'Devis' : 'Facture';
-  const subject = `${typeLabel} SINELEC ${num}`;
-  const html = type === 'devis' ? CONFIG.email.template_devis : CONFIG.email.template_facture;
+    // Générer et envoyer email avec PDF
+    if (CONFIG.features.email_auto && email) {
+      console.log('📧 Préparation email pour:', email);
 
-  // Générer PDF avec pdfkit
- // Générer PDF avec Python ReportLab (design premium)
+      const typeLabel = type === 'devis' ? 'Devis' : 'Facture';
+      const typeLabelUpper = type === 'devis' ? 'DEVIS' : 'FACTURE';
+      const subject = `${typeLabel} SINELEC ${num}`;
+      const htmlEmail = type === 'devis' ? CONFIG.email.template_devis : CONFIG.email.template_facture;
+      const dateStr = new Date().toLocaleDateString('fr-FR');
 
+      // Préparer données pour Python
+      const detailsPath = path.join(__dirname, `_details_${num}.json`);
+      const pyPath = path.join(__dirname, `_devis_${num}.py`);
+      const pdfPath = path.join(__dirname, `${num}.pdf`);
 
-// Écrire les données pour Python
-const detailsPath = path.join(__dirname, `_details_${num}.json`);
-const pyPath = path.join(__dirname, `_devis_${num}.py`);
-const pdfPath = path.join(__dirname, `${num}.pdf`);
+      const detailsData = prestations.map(p => ({
+        designation: p.nom,
+        qte: p.quantite,
+        prixUnit: p.prix,
+        total: p.prix * p.quantite,
+        details: []
+      }));
 
-const detailsData = prestations.map((p, i) => ({
-  designation: p.nom,
-  qte: p.quantite,
-  prixUnit: p.prix,
-  total: p.prix * p.quantite,
-  details: []
-}));
+      fs.writeFileSync(detailsPath, JSON.stringify(detailsData));
 
-console.log('📄 Details:', JSON.stringify(detailsData));
-fs.writeFileSync(detailsPath, JSON.stringify(detailsData));
+      const clientEsc = client.replace(/'/g, "\\'");
+      const adresseEsc = adresse.replace(/'/g, "\\'");
 
-const dateStr = new Date().toLocaleDateString('fr-FR');
-const dateValide = new Date(Date.now() + 30*24*60*60*1000).toLocaleDateString('fr-FR');
-
-
-const py = `
-# -*- coding: utf-8 -*-
-import json, base64, io
+      const py = `# -*- coding: utf-8 -*-
+import json, base64, io, sys
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.units import cm
@@ -287,7 +268,7 @@ from reportlab.platypus import *
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.enums import TA_LEFT,TA_CENTER,TA_RIGHT
 from reportlab.pdfgen import canvas as pdfcanvas
-from reportlab.platypus.doctemplate import PageTemplate, BaseDocTemplate, Frame
+from reportlab.lib.utils import ImageReader
 
 W,H=A4
 NOIR=colors.HexColor('#0a0a0a')
@@ -304,18 +285,14 @@ CREME=colors.HexColor('#FDFBF5')
 
 def p(txt,sz=9,font='Helvetica',color=NOIR,align=TA_LEFT,sb=0,sa=0,leading=None):
     if leading is None: leading=sz*1.3
-    return Paragraph(txt,ParagraphStyle('x',fontName=font,fontSize=sz,textColor=color,
+    return Paragraph(str(txt),ParagraphStyle('x',fontName=font,fontSize=sz,textColor=color,
         alignment=align,spaceBefore=sb,spaceAfter=sa,leading=leading,wordWrap='CJK'))
 
-def escPy(s): return str(s).replace("'","\\'")
-
-import sys
 data=json.loads(open(sys.argv[1],encoding='utf-8').read())
 totalHT=sum(l['total'] for l in data)
-
-logo_b64=open('${path.join(__dirname,'logo_b64.txt').replace(/\\/g,'/')}').read().strip()
+logo_path='/app/logo_b64.txt'
+logo_b64=open(logo_path).read().strip()
 logo_bytes=base64.b64decode(logo_b64)
-logo_img=io.BytesIO(logo_bytes)
 
 class SC(pdfcanvas.Canvas):
     def __init__(self,fn,**kw):
@@ -330,24 +307,16 @@ class SC(pdfcanvas.Canvas):
         pdfcanvas.Canvas.save(self)
     def _draw_bg(self):
         self.saveState()
-        # Fond crème
         self.setFillColor(CREME)
         self.rect(0,0,W,H,fill=1,stroke=0)
-        # Bande or haut
         self.setFillColor(JAUNE)
         self.rect(0,H-0.22*cm,W,0.22*cm,fill=1,stroke=0)
-        # Bande or bas
         self.rect(0,0,W,0.22*cm,fill=1,stroke=0)
-        # Ligne gauche fine
         self.rect(0,0,0.1*cm,H,fill=1,stroke=0)
-        # Header blanc
         self.setFillColor(BLANC)
         self.rect(0.1*cm,H-3.6*cm,W-0.1*cm,3.38*cm,fill=1,stroke=0)
-        # Logo
-        from reportlab.lib.utils import ImageReader
-        logo_img.seek(0)
+        logo_img=io.BytesIO(logo_bytes)
         self.drawImage(ImageReader(logo_img),0.9*cm,H-3.2*cm,width=2.5*cm,height=2.5*cm,preserveAspectRatio=True,mask='auto')
-        # SINELEC texte
         self.setFont('Helvetica-Bold',22)
         self.setFillColor(JAUNE)
         self.drawString(3.6*cm,H-1.5*cm,'SINELEC')
@@ -357,117 +326,103 @@ class SC(pdfcanvas.Canvas):
         self.drawString(3.6*cm,H-2.25*cm,'Tel : 07 87 38 86 22')
         self.drawString(3.6*cm,H-2.55*cm,'sinelec.paris@gmail.com')
         self.drawString(3.6*cm,H-2.85*cm,'SIRET : 91015824500019')
-        # Type document
         self.setFont('Helvetica-Bold',34)
         self.setFillColor(NOIR)
-        self.drawRightString(W-1.0*cm,H-1.5*cm,'${typeLabel}')
-        # Ligne or sous titre
+        self.drawRightString(W-1.0*cm,H-1.5*cm,'${typeLabelUpper}')
         self.setStrokeColor(JAUNE)
         self.setLineWidth(1.5)
         self.line(10.5*cm,H-2.0*cm,W-1.0*cm,H-2.0*cm)
-        # N° et date
         self.setFont('Helvetica',8.5)
         self.setFillColor(GRIS_DARK)
-        self.drawRightString(W-1.0*cm,H-2.35*cm,'N\\u00b0 ${num}')
+        self.drawRightString(W-1.0*cm,H-2.35*cm,'N ${num}')
         self.drawRightString(W-1.0*cm,H-2.65*cm,'Date : ${dateStr}')
-        ${type === 'devis' ? `self.drawRightString(W-1.0*cm,H-2.95*cm,'Validite : 30 jours')` : ''}
-        # Footer
+        ${type === 'devis' ? "self.drawRightString(W-1.0*cm,H-2.95*cm,'Validite : 30 jours')" : ''}
         self.setFont('Helvetica',6)
         self.setFillColor(colors.HexColor('#777777'))
-        self.drawCentredString(W/2,0.38*cm,'SINELEC EI  -  128 Rue La Boetie 75008 Paris  -  SIRET : 91015824500019  -  TVA non applicable art. 293B CGI  -  Garantie decennale ORUS')
+        self.drawCentredString(W/2,0.38*cm,'SINELEC EI - 128 Rue La Boetie 75008 Paris - SIRET : 91015824500019 - TVA non applicable art. 293B CGI - Garantie decennale ORUS')
         self.restoreState()
-    def _draw_last(self):
-        self._draw_bg()
 
-doc=SimpleDocTemplate(sys.argv[2],pagesize=A4,
-    leftMargin=1.0*cm,rightMargin=1.0*cm,topMargin=3.8*cm,bottomMargin=1.0*cm)
+doc=SimpleDocTemplate(sys.argv[2],pagesize=A4,leftMargin=1.0*cm,rightMargin=1.0*cm,topMargin=3.8*cm,bottomMargin=1.0*cm)
 story=[]
 
-# Blocs DE / CLIENT
 de_b=Table([[p('DE',7,'Helvetica-Bold',JAUNE,sa=2)],[p('SINELEC PARIS',10,'Helvetica-Bold')],[p('128 Rue La Boetie, 75008 Paris',8.5,color=GRIS_DARK)],[p('07 87 38 86 22  |  sinelec.paris@gmail.com',8.5,color=GRIS_DARK)]],colWidths=[8.5*cm])
 de_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),2),('BOTTOMPADDING',(0,0),(-1,-1),2),('LEFTPADDING',(0,0),(-1,-1),0),('LINEABOVE',(0,0),(0,0),2.5,JAUNE),('TOPPADDING',(0,0),(0,0),8)]))
-pour_b=Table([[p('CLIENT',7,'Helvetica-Bold',JAUNE,sa=2)],[p('${client.replace(/'/g,"\\'")}',10,'Helvetica-Bold')],[p('${adresse.replace(/'/g,"\\'")}',8.5,color=GRIS_DARK)]],colWidths=[8.5*cm])
+pour_b=Table([[p('CLIENT',7,'Helvetica-Bold',JAUNE,sa=2)],[p('${clientEsc}',10,'Helvetica-Bold')],[p('${adresseEsc}',8.5,color=GRIS_DARK)]],colWidths=[8.5*cm])
 pour_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),2),('BOTTOMPADDING',(0,0),(-1,-1),2),('LEFTPADDING',(0,0),(-1,-1),12),('BACKGROUND',(0,0),(-1,-1),JAUNE_PALE),('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#EDD898')),('LINEBEFORE',(0,0),(0,-1),3,JAUNE),('TOPPADDING',(0,0),(0,0),8)]))
 story.append(Table([[de_b,pour_b]],colWidths=[9.1*cm,9.1*cm],style=TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)])))
 story.append(Spacer(1,0.5*cm))
 
-# Tableau prestations
 cw=[0.8*cm,9.5*cm,1.6*cm,1.0*cm,2.3*cm,3.0*cm]
 rows=[[p('#',7,'Helvetica-Bold',BLANC,TA_CENTER),p('DESIGNATION / DETAIL',7,'Helvetica-Bold',BLANC),p('QTE',7,'Helvetica-Bold',BLANC,TA_CENTER),p('U.',7,'Helvetica-Bold',BLANC,TA_CENTER),p('PRIX U. HT',7,'Helvetica-Bold',BLANC,TA_RIGHT),p('TOTAL HT',7,'Helvetica-Bold',BLANC,TA_RIGHT)]]
 for i,l in enumerate(data):
     q=int(l['qte']) if l['qte']==int(l['qte']) else l['qte']
     rows.append([p(str(i+1),9,color=GRIS_MED,align=TA_CENTER),p('<b>'+l['designation']+'</b>',9),p(str(q),9,align=TA_CENTER),p('u',9,align=TA_CENTER,color=GRIS_MED),p('%.2f EUR'%l['prixUnit'],9,align=TA_RIGHT),p('%.2f EUR'%l['total'],9,'Helvetica-Bold',NOIR,TA_RIGHT)])
-n=len(rows)-1
 t=Table(rows,colWidths=cw)
 ts=[('BACKGROUND',(0,0),(-1,0),NOIR),('LINEBELOW',(0,0),(-1,0),3,JAUNE),('VALIGN',(0,0),(-1,-1),'TOP'),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4),('LEFTPADDING',(0,0),(-1,-1),8),('RIGHTPADDING',(0,0),(-1,-1),8),('BOX',(0,0),(-1,-1),0.3,GRIS_LINE)]
-row_idx=1; bg_toggle=True
+row_idx=1;bg_toggle=True
 for i,l in enumerate(data):
     bg=BLANC if bg_toggle else GRIS_BG
     ts.append(('BACKGROUND',(0,row_idx),(-1,row_idx),bg))
     ts.append(('LINEBELOW',(0,row_idx),(-1,row_idx),0.3,GRIS_LINE))
-    row_idx+=1; bg_toggle=not bg_toggle
+    row_idx+=1;bg_toggle=not bg_toggle
 t.setStyle(TableStyle(ts))
-story.append(t); story.append(Spacer(1,0.1*cm))
+story.append(t);story.append(Spacer(1,0.1*cm))
 
-# Totaux
 tt=Table([['',p('Total HT',9,color=GRIS_DARK,align=TA_RIGHT),p('%.2f EUR'%totalHT,9,align=TA_RIGHT)],['',p('TVA',9,color=GRIS_DARK,align=TA_RIGHT),p('Non applicable (art. 293B)',8,color=GRIS_MED,align=TA_RIGHT)]],colWidths=[9.1*cm,4.5*cm,4.6*cm])
 tt.setStyle(TableStyle([('LINEABOVE',(1,0),(-1,0),0.5,GRIS_LINE),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4),('LEFTPADDING',(0,0),(-1,-1),6),('RIGHTPADDING',(0,0),(-1,-1),6)]))
-story.append(tt); story.append(Spacer(1,0.08*cm))
+story.append(tt);story.append(Spacer(1,0.08*cm))
 
 net=Table([[p('NET A PAYER',11,'Helvetica-Bold',BLANC),p('%.2f EUR'%totalHT,13,'Helvetica-Bold',JAUNE,TA_RIGHT)]],colWidths=[9.1*cm,9.1*cm])
 net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),NOIR),('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('LINEBELOW',(0,0),(-1,-1),3.5,JAUNE),('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
-story.append(net); story.append(Spacer(1,0.15*cm))
+story.append(net);story.append(Spacer(1,0.15*cm))
 
-# Conditions
 story.append(HRFlowable(width='100%',thickness=0.3,color=GRIS_LINE,spaceAfter=8))
 story.append(p('CONDITIONS',8,'Helvetica-Bold',NOIR,sa=6))
 cond=Table([[p('Acompte de 40% a la signature',9,color=GRIS_DARK),p('%.2f EUR'%(totalHT*0.4),9,'Helvetica-Bold',JAUNE_DARK,TA_RIGHT)],[p('Reste a facturer a la fin des travaux',9,color=GRIS_DARK),p('%.2f EUR'%(totalHT*0.6),9,align=TA_RIGHT)],[p('Devis valable 30 jours - Paiement : virement, especes, carte bancaire',8,color=GRIS_MED),'']],colWidths=[14*cm,4.2*cm])
 cond.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,1),0.3,GRIS_LINE),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),('SPAN',(0,2),(1,2))]))
-story.append(cond); story.append(Spacer(1,0.1*cm))
+story.append(cond);story.append(Spacer(1,0.1*cm))
 
-# IBAN
 iban=Table([[p('IBAN',7,'Helvetica-Bold',GRIS_MED),p('FR76 1695 8000 0174 2540 5920 931',9,'Helvetica-Bold',NOIR),p('BIC',7,'Helvetica-Bold',GRIS_MED,align=TA_RIGHT),p('QNTOFRP1XXX',9,'Helvetica-Bold',NOIR,TA_RIGHT)]],colWidths=[1.5*cm,9.5*cm,1.8*cm,5.4*cm])
 iban.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GRIS_LIGHT),('BOX',(0,0),(-1,-1),0.3,GRIS_LINE),('LINEBEFORE',(0,0),(0,-1),3,JAUNE),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
 story.append(iban)
 
 doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw))
-print('OK')
+print('PDF_OK')
 `;
 
-fs.writeFileSync(pyPath, py, 'utf8');
+      fs.writeFileSync(pyPath, py, 'utf8');
 
-try {
- execSync(`python3 ${pyPath} ${detailsPath} ${pdfPath}`, { cwd: __dirname, stdio: 'inherit' });
-} catch(e) {
-  try {
- execSync(`python3 ${pyPath} ${detailsPath} ${pdfPath}`, { cwd: __dirname, stdio: 'inherit' });
-  } catch(pyErr) {
-    throw new Error('Python PDF failed: ' + pyErr.message);
+      try {
+        execSync(`python3 ${pyPath} ${detailsPath} ${pdfPath}`, { cwd: __dirname, stdio: 'inherit' });
+      } catch(pyErr) {
+        console.error('❌ Python error:', pyErr.message);
+        throw new Error('PDF generation failed');
+      }
+
+      const pdfBuffer = fs.readFileSync(pdfPath);
+      const pdfB64 = pdfBuffer.toString('base64');
+      console.log('📄 PDF size:', pdfB64.length, 'chars');
+
+      await envoyerEmail(
+        email, subject,
+        htmlEmail.replace('{num}', num),
+        { content: pdfB64, name: `${num}.pdf` }
+      );
+
+      // Nettoyage
+      try { fs.unlinkSync(pyPath); } catch(e) {}
+      try { fs.unlinkSync(detailsPath); } catch(e) {}
+      try { fs.unlinkSync(pdfPath); } catch(e) {}
+    }
+
+    await logSystem('generer', `${type} ${num} créé`, { client, total_ht }, true);
+    res.json({ success: true, num, total_ht });
+
+  } catch (error) {
+    console.error('Erreur génération:', error);
+    await logSystem('generer', 'Erreur génération', { error: error.message }, false, error);
+    res.status(500).json({ error: error.message });
   }
-}
-
-const pdf_base64 = fs.readFileSync(pdfPath).toString('base64');
-console.log('📄 PDF size:', pdf_base64.length, 'chars');
-// Nettoyage
-await envoyerEmail(
-    email, subject,
-    html.replace('{num}', num),
-    { content: pdf_base64, name: `${num}.pdf` }
-  );
-
-try { fs.unlinkSync(pyPath); } catch(e) {}
-try { fs.unlinkSync(detailsPath); } catch(e) {}
-try { fs.unlinkSync(pdfPath); } catch(e) {}
-  }
-  }
-
-  await logSystem('generer', `${type} ${num} créé`, { client, total_ht }, true);
-res.json({ success: true, num, total_ht });
-} catch (error) {
-  console.error('Erreur génération:', error);
-  await logSystem('generer', 'Erreur génération', { error: error.message }, false, error);
-  res.status(500).json({ error: error.message });
-}
 });
 
 // ═══════════════════════════════════════════════════════════════
