@@ -256,14 +256,19 @@ app.post('/api/generer', async (req, res) => {
       const adresseEsc = (adresse || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
       const telEsc = (telephone || '').replace(/'/g, "\\'");
 
+      // Séparer nom et adresse client
+      const clientParts = adresseEsc.split(',');
+      const clientRue = clientParts[0] ? clientParts[0].trim() : adresseEsc;
+      const clientVille = clientParts.slice(1).join(',').trim();
+
       const py = `# -*- coding: utf-8 -*-
 import json, base64, io, sys
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.units import cm
 from reportlab.platypus import *
-from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT, TA_JUSTIFY
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
 from reportlab.pdfgen import canvas as pdfcanvas
 from reportlab.lib.utils import ImageReader
 from reportlab.platypus.flowables import HRFlowable
@@ -271,17 +276,18 @@ from reportlab.platypus.flowables import HRFlowable
 W, H = A4
 NOIR = colors.HexColor('#0D0D0D')
 OR = colors.HexColor('#C9A84C')
-OR_PALE = colors.HexColor('#FDF8EC')
+OR_PALE = colors.HexColor('#FDFAF0')
 OR_FONCE = colors.HexColor('#A07830')
+CREME = colors.HexColor('#FDFCF8')
 BLANC = colors.white
-GRIS_TRES_CLAIR = colors.HexColor('#F8F8F6')
-GRIS_CLAIR = colors.HexColor('#F0EDE6')
+GRIS_DARK = colors.HexColor('#444444')
 GRIS_MED = colors.HexColor('#888888')
-GRIS_FONCE = colors.HexColor('#444444')
-GRIS_LIGNE = colors.HexColor('#E2DDD6')
-BLEU_CLAIR = colors.HexColor('#EBF3FB')
+GRIS_LIGHT = colors.HexColor('#F0EDE6')
+GRIS_BG = colors.HexColor('#F7F5F0')
+GRIS_LINE = colors.HexColor('#DDD9D0')
+FOOTER_BG = colors.HexColor('#111111')
 
-def par(txt, sz=9, font='Helvetica', color=NOIR, align=TA_LEFT, sb=0, sa=2, leading=None):
+def p(txt, sz=9, font='Helvetica', color=NOIR, align=TA_LEFT, sb=0, sa=2, leading=None):
     if leading is None: leading = sz * 1.35
     return Paragraph(str(txt), ParagraphStyle('s', fontName=font, fontSize=sz,
         textColor=color, alignment=align, spaceBefore=sb, spaceAfter=sa,
@@ -289,382 +295,261 @@ def par(txt, sz=9, font='Helvetica', color=NOIR, align=TA_LEFT, sb=0, sa=2, lead
 
 data = json.loads(open(sys.argv[1], encoding='utf-8').read())
 totalHT = sum(l['total'] for l in data)
-acompte = totalHT * 0.4
-solde = totalHT * 0.6
-
 logo_bytes = base64.b64decode(open('/app/logo_b64.txt').read().strip())
 
-class SinelecCanvas(pdfcanvas.Canvas):
+class SC(pdfcanvas.Canvas):
     def __init__(self, fn, **kw):
         pdfcanvas.Canvas.__init__(self, fn, **kw)
-        self._page_num = 0
+        self._pg = 0
         self.saveState()
-        self._draw_header()
+        self._draw_page()
     def showPage(self):
         self._draw_footer()
         pdfcanvas.Canvas.showPage(self)
-        self._page_num += 1
+        self._pg += 1
         self.saveState()
-        if self._page_num > 0:
-            self._draw_header_simple()
+        self._draw_page()
     def save(self):
         self._draw_footer()
         pdfcanvas.Canvas.save(self)
-    def _draw_header(self):
+    def _draw_page(self):
         self.saveState()
-        # Bande or haut
+        # Fond crème
+        self.setFillColor(CREME)
+        self.rect(0, 0, W, H, fill=1, stroke=0)
+        # Bordures or
         self.setFillColor(OR)
-        self.rect(0, H - 0.35*cm, W, 0.35*cm, fill=1, stroke=0)
-        # Fond header blanc
+        self.rect(0, 0.9*cm, 0.35*cm, H-1.8*cm, fill=1, stroke=0)
+        self.rect(W-0.35*cm, 0.9*cm, 0.35*cm, H-1.8*cm, fill=1, stroke=0)
+        if self._pg == 0:
+            self._draw_header()
+        else:
+            self._draw_header_small()
+        self.restoreState()
+    def _draw_header(self):
+        # Fond blanc header
         self.setFillColor(BLANC)
-        self.rect(0, H - 4.2*cm, W, 3.85*cm, fill=1, stroke=0)
+        self.rect(0.35*cm, H-4.8*cm, W-0.7*cm, 4.45*cm, fill=1, stroke=0)
         # Logo
         logo_img = io.BytesIO(logo_bytes)
-        self.drawImage(ImageReader(logo_img), 1.0*cm, H-3.9*cm, width=2.8*cm, height=2.8*cm, preserveAspectRatio=True, mask='auto')
-        # SINELEC
-        self.setFont('Helvetica-Bold', 20)
-        self.setFillColor(OR)
-        self.drawString(4.1*cm, H-1.6*cm, 'SINELEC')
+        self.drawImage(ImageReader(logo_img), 1.0*cm, H-4.3*cm,
+            width=3.0*cm, height=3.0*cm, preserveAspectRatio=True, mask='auto')
+        # Infos société
         self.setFont('Helvetica', 7.5)
-        self.setFillColor(GRIS_FONCE)
-        self.drawString(4.1*cm, H-2.1*cm, '128 Rue La Boetie, 75008 Paris')
-        self.drawString(4.1*cm, H-2.5*cm, 'Tel : 07 87 38 86 22')
-        self.drawString(4.1*cm, H-2.9*cm, 'sinelec.paris@gmail.com')
-        self.drawString(4.1*cm, H-3.3*cm, 'SIRET : 91015824500019')
-        # Type document
-        self.setFont('Helvetica-Bold', 38)
+        self.setFillColor(GRIS_DARK)
+        self.drawString(1.0*cm, H-4.55*cm, '128 Rue La Boetie, 75008 Paris')
+        self.drawString(1.0*cm, H-4.82*cm, 'Tel : 07 87 38 86 22  |  sinelec.paris@gmail.com')
+        self.drawString(1.0*cm, H-5.09*cm, 'SIRET : 91015824500019')
+        # DEVIS / FACTURE
+        self.setFont('Helvetica-Bold', 42)
         self.setFillColor(NOIR)
-        self.drawRightString(W - 1.0*cm, H-1.7*cm, '${typeLabelUpper}')
+        self.drawRightString(W-1.0*cm, H-1.9*cm, '${typeLabelUpper}')
         # Ligne or
         self.setStrokeColor(OR)
         self.setLineWidth(2)
-        self.line(11.5*cm, H-2.2*cm, W-1.0*cm, H-2.2*cm)
-        # N° date
-        self.setFont('Helvetica-Bold', 8.5)
-        self.setFillColor(GRIS_FONCE)
-        self.drawRightString(W-1.0*cm, H-2.55*cm, 'N\\u00b0 ${num}')
-        self.setFont('Helvetica', 8)
-        self.drawRightString(W-1.0*cm, H-2.9*cm, 'En date du : ${dateStr}')
-        self.drawRightString(W-1.0*cm, H-3.2*cm, 'Valable jusqu\\u2019au : ${dateValide}')
-        self.restoreState()
-    def _draw_header_simple(self):
-        self.saveState()
-        self.setFillColor(OR)
-        self.rect(0, H - 0.35*cm, W, 0.35*cm, fill=1, stroke=0)
+        self.line(9.5*cm, H-2.35*cm, W-1.0*cm, H-2.35*cm)
+        # N° et dates
+        self.setFont('Helvetica-Bold', 9)
+        self.setFillColor(GRIS_DARK)
+        self.drawRightString(W-1.0*cm, H-2.75*cm, 'N\\u00b0 ${num}')
+        self.setFont('Helvetica', 8.5)
+        self.drawRightString(W-1.0*cm, H-3.1*cm, 'Date : ${dateStr}')
+        self.drawRightString(W-1.0*cm, H-3.45*cm, 'Valide jusqu\\u2019au : ${dateValide}')
+        # Séparateur or
+        self.setStrokeColor(OR)
+        self.setLineWidth(0.8)
+        self.line(0.9*cm, H-5.3*cm, W-0.9*cm, H-5.3*cm)
+    def _draw_header_small(self):
         self.setFillColor(BLANC)
-        self.rect(0, H - 1.5*cm, W, 1.15*cm, fill=1, stroke=0)
-        self.setFont('Helvetica-Bold', 11)
+        self.rect(0.35*cm, H-1.6*cm, W-0.7*cm, 1.25*cm, fill=1, stroke=0)
+        self.setFont('Helvetica-Bold', 10)
         self.setFillColor(OR)
         self.drawString(1.0*cm, H-1.1*cm, 'SINELEC')
         self.setFont('Helvetica', 8)
-        self.setFillColor(GRIS_FONCE)
+        self.setFillColor(GRIS_DARK)
         self.drawRightString(W-1.0*cm, H-1.1*cm, '${typeLabelUpper} N\\u00b0 ${num}')
-        self.restoreState()
     def _draw_footer(self):
         self.saveState()
+        self.setFillColor(FOOTER_BG)
+        self.rect(0, 0, W, 0.9*cm, fill=1, stroke=0)
+        self.setFont('Helvetica', 6)
+        self.setFillColor(colors.HexColor('#999999'))
+        self.drawCentredString(W/2, 0.44*cm,
+            'SINELEC EI  -  128 Rue La Boetie, 75008 Paris  -  SIRET : 91015824500019  -  TVA non applicable art. 293B CGI  -  Garantie decennale ORUS')
+        self.setFont('Helvetica', 7)
         self.setFillColor(OR)
-        self.rect(0, 0, W, 0.35*cm, fill=1, stroke=0)
-        self.setFont('Helvetica', 6.5)
-        self.setFillColor(GRIS_MED)
-        self.drawCentredString(W/2, 0.55*cm, 'SINELEC EI  -  128 Rue La Boetie, 75008 Paris  -  SIRET : 91015824500019  -  TVA non applicable art. 293B CGI  -  Garantie decennale ORUS')
+        self.drawRightString(W-1.0*cm, 0.2*cm, '${num}  |  Page 1 / 1')
         self.restoreState()
 
 doc = SimpleDocTemplate(sys.argv[2], pagesize=A4,
-    leftMargin=1.0*cm, rightMargin=1.0*cm,
-    topMargin=4.5*cm, bottomMargin=1.5*cm)
+    leftMargin=0.9*cm, rightMargin=0.9*cm,
+    topMargin=5.7*cm, bottomMargin=1.5*cm)
 
 story = []
 
-# ── BLOC DE / CLIENT ─────────────────────────────────────
-de_style = TableStyle([
+# ── LAYOUT : OBJET gauche / CLIENT droite ────────────────
+objet_b = Table([
+    [p('OBJET DES TRAVAUX', 7.5, 'Helvetica-Bold', OR, sa=3)],
+    [p('Travaux d\\u2019electricite generale', 9, 'Helvetica-Bold', NOIR)],
+    [p('Conformes NF C 15-100', 8, color=GRIS_DARK)],
+    [p('Garantie decennale ORUS', 8, color=GRIS_DARK)],
+], colWidths=[8.5*cm])
+objet_b.setStyle(TableStyle([
     ('TOPPADDING', (0,0), (-1,-1), 3),
     ('BOTTOMPADDING', (0,0), (-1,-1), 3),
     ('LEFTPADDING', (0,0), (-1,-1), 0),
-    ('RIGHTPADDING', (0,0), (-1,-1), 0),
     ('LINEABOVE', (0,0), (0,0), 2, OR),
-    ('TOPPADDING', (0,0), (0,0), 8),
-])
-de_b = Table([
-    [par('DE', 7, 'Helvetica-Bold', OR, sa=3)],
-    [par('SINELEC PARIS', 10, 'Helvetica-Bold', NOIR)],
-    [par('128 Rue La Boetie, 75008 Paris', 8, color=GRIS_FONCE)],
-    [par('07 87 38 86 22  |  sinelec.paris@gmail.com', 8, color=GRIS_FONCE)],
-], colWidths=[8.5*cm])
-de_b.setStyle(de_style)
+    ('TOPPADDING', (0,0), (0,0), 10),
+]))
 
-client_style = TableStyle([
+client_b = Table([
+    [p('CLIENT', 7, 'Helvetica-Bold', OR, sa=4)],
+    [p('${clientEsc}', 11, 'Helvetica-Bold', NOIR, sb=2)],
+    [p('${clientRue}', 8.5, color=GRIS_DARK)],
+    [p('${clientVille}', 8.5, color=GRIS_DARK)],
+], colWidths=[8.5*cm])
+client_b.setStyle(TableStyle([
     ('TOPPADDING', (0,0), (-1,-1), 3),
     ('BOTTOMPADDING', (0,0), (-1,-1), 3),
-    ('LEFTPADDING', (0,0), (-1,-1), 12),
-    ('RIGHTPADDING', (0,0), (-1,-1), 12),
+    ('LEFTPADDING', (0,0), (-1,-1), 14),
+    ('RIGHTPADDING', (0,0), (-1,-1), 14),
     ('BACKGROUND', (0,0), (-1,-1), OR_PALE),
-    ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor('#EDD898')),
-    ('LINEBEFORE', (0,0), (0,-1), 3, OR),
-    ('TOPPADDING', (0,0), (0,0), 8),
-])
-client_b = Table([
-    [par('CLIENT', 7, 'Helvetica-Bold', OR, sa=3)],
-    [par('${clientEsc}', 10, 'Helvetica-Bold', NOIR)],
-    [par('${adresseEsc}', 8, color=GRIS_FONCE)],
-], colWidths=[8.5*cm])
-client_b.setStyle(client_style)
+    ('BOX', (0,0), (-1,-1), 0.8, OR),
+    ('LINEBEFORE', (0,0), (0,-1), 4, OR),
+    ('TOPPADDING', (0,0), (0,0), 10),
+    ('BOTTOMPADDING', (0,-1), (-1,-1), 10),
+]))
 
-header_row = Table([[de_b, client_b]], colWidths=[9.1*cm, 9.1*cm],
+story.append(Table([[objet_b, client_b]], colWidths=[9.1*cm, 9.1*cm],
     style=TableStyle([
         ('VALIGN', (0,0), (-1,-1), 'TOP'),
         ('TOPPADDING', (0,0), (-1,-1), 0),
         ('BOTTOMPADDING', (0,0), (-1,-1), 0),
         ('LEFTPADDING', (0,0), (-1,-1), 0),
         ('RIGHTPADDING', (0,0), (-1,-1), 0),
-    ]))
-story.append(header_row)
+    ])))
 story.append(Spacer(1, 0.5*cm))
 
 # ── TABLEAU PRESTATIONS ───────────────────────────────────
-col_w = [0.8*cm, 9.2*cm, 1.6*cm, 1.0*cm, 2.5*cm, 3.1*cm]
+cw = [0.7*cm, 9.6*cm, 1.5*cm, 0.9*cm, 2.4*cm, 3.1*cm]
 rows = [[
-    par('#', 7.5, 'Helvetica-Bold', BLANC, TA_CENTER),
-    par('DESIGNATION / DETAIL', 7.5, 'Helvetica-Bold', BLANC),
-    par('QTE', 7.5, 'Helvetica-Bold', BLANC, TA_CENTER),
-    par('U.', 7.5, 'Helvetica-Bold', BLANC, TA_CENTER),
-    par('PRIX U. HT', 7.5, 'Helvetica-Bold', BLANC, TA_RIGHT),
-    par('TOTAL HT', 7.5, 'Helvetica-Bold', BLANC, TA_RIGHT),
+    p('#', 7.5, 'Helvetica-Bold', BLANC, TA_CENTER),
+    p('DESIGNATION / DETAIL', 7.5, 'Helvetica-Bold', BLANC),
+    p('QTE', 7.5, 'Helvetica-Bold', BLANC, TA_CENTER),
+    p('U.', 7.5, 'Helvetica-Bold', BLANC, TA_CENTER),
+    p('PRIX U. HT', 7.5, 'Helvetica-Bold', BLANC, TA_RIGHT),
+    p('TOTAL HT', 7.5, 'Helvetica-Bold', BLANC, TA_RIGHT),
 ]]
-
 for i, l in enumerate(data):
     q = int(l['qte']) if l['qte'] == int(l['qte']) else l['qte']
     rows.append([
-        par(str(i+1), 9, color=GRIS_MED, align=TA_CENTER),
-        par('<b>' + l['designation'] + '</b>', 9),
-        par(str(q), 9, align=TA_CENTER),
-        par('u.', 9, align=TA_CENTER, color=GRIS_MED),
-        par('%.2f \\u20ac' % l['prixUnit'], 9, align=TA_RIGHT),
-        par('<b>%.2f \\u20ac</b>' % l['total'], 9, 'Helvetica-Bold', NOIR, TA_RIGHT),
+        p(str(i+1), 9, color=GRIS_MED, align=TA_CENTER),
+        p('<b>' + l['designation'] + '</b>', 9),
+        p(str(q), 9, align=TA_CENTER),
+        p('u.', 9, align=TA_CENTER, color=GRIS_MED),
+        p('%.2f \\u20ac' % l['prixUnit'], 9, align=TA_RIGHT),
+        p('<b>%.2f \\u20ac</b>' % l['total'], 9, 'Helvetica-Bold', NOIR, TA_RIGHT),
     ])
+    for det in l.get('details', []):
+        rows.append(['', p('   \\u2022 ' + det, 7.5, color=GRIS_DARK), '', '', '', ''])
 
-t = Table(rows, colWidths=col_w)
+t = Table(rows, colWidths=cw)
 ts = [
     ('BACKGROUND', (0,0), (-1,0), NOIR),
-    ('LINEBELOW', (0,0), (-1,0), 2.5, OR),
+    ('LINEBELOW', (0,0), (-1,0), 3, OR),
     ('VALIGN', (0,0), (-1,-1), 'TOP'),
     ('TOPPADDING', (0,0), (-1,-1), 5),
     ('BOTTOMPADDING', (0,0), (-1,-1), 5),
-    ('LEFTPADDING', (0,0), (-1,-1), 8),
-    ('RIGHTPADDING', (0,0), (-1,-1), 8),
-    ('BOX', (0,0), (-1,-1), 0.3, GRIS_LIGNE),
-    ('GRID', (0,1), (-1,-1), 0.3, GRIS_LIGNE),
+    ('LEFTPADDING', (0,0), (-1,-1), 7),
+    ('RIGHTPADDING', (0,0), (-1,-1), 7),
+    ('BOX', (0,0), (-1,-1), 0.3, GRIS_LINE),
 ]
-for i in range(len(data)):
-    bg = BLANC if i % 2 == 0 else GRIS_TRES_CLAIR
-    ts.append(('BACKGROUND', (0, i+1), (-1, i+1), bg))
+row_idx = 1; bg = True
+for l in data:
+    nb = 1 + len(l.get('details', []))
+    c = BLANC if bg else GRIS_BG
+    ts.append(('BACKGROUND', (0,row_idx), (-1,row_idx+nb-1), c))
+    ts.append(('LINEBELOW', (0,row_idx+nb-1), (-1,row_idx+nb-1), 0.3, GRIS_LINE))
+    row_idx += nb; bg = not bg
 t.setStyle(TableStyle(ts))
 story.append(t)
-story.append(Spacer(1, 0.3*cm))
+story.append(Spacer(1, 0.15*cm))
 
-# ── TOTAUX + CONDITIONS ───────────────────────────────────
-totaux = Table([
-    ['', par('Total HT', 9, color=GRIS_FONCE, align=TA_RIGHT), par('%.2f \\u20ac' % totalHT, 9, align=TA_RIGHT)],
-    ['', par('TVA', 9, color=GRIS_FONCE, align=TA_RIGHT), par('Non applicable (art. 293B)', 8, color=GRIS_MED, align=TA_RIGHT)],
+# ── TOTAUX ────────────────────────────────────────────────
+tt = Table([
+    ['', p('Total HT', 9, color=GRIS_DARK, align=TA_RIGHT),
+     p('%.2f \\u20ac' % totalHT, 9, align=TA_RIGHT)],
+    ['', p('TVA', 9, color=GRIS_DARK, align=TA_RIGHT),
+     p('Non applicable (art. 293B)', 8, color=GRIS_MED, align=TA_RIGHT)],
 ], colWidths=[9.1*cm, 4.5*cm, 4.6*cm])
-totaux.setStyle(TableStyle([
-    ('LINEABOVE', (1,0), (-1,0), 0.5, GRIS_LIGNE),
-    ('TOPPADDING', (0,0), (-1,-1), 4),
-    ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+tt.setStyle(TableStyle([
+    ('LINEABOVE', (1,0), (-1,0), 0.5, GRIS_LINE),
+    ('TOPPADDING', (0,0), (-1,-1), 5),
+    ('BOTTOMPADDING', (0,0), (-1,-1), 5),
     ('LEFTPADDING', (0,0), (-1,-1), 6),
     ('RIGHTPADDING', (0,0), (-1,-1), 6),
 ]))
-story.append(totaux)
-story.append(Spacer(1, 0.15*cm))
+story.append(tt)
+story.append(Spacer(1, 0.12*cm))
 
+# ── NET A PAYER ───────────────────────────────────────────
 net = Table([[
-    par('NET A PAYER', 12, 'Helvetica-Bold', BLANC),
-    par('%.2f \\u20ac' % totalHT, 13, 'Helvetica-Bold', OR, TA_RIGHT),
+    p('NET A PAYER', 12, 'Helvetica-Bold', BLANC),
+    p('%.2f \\u20ac' % totalHT, 13, 'Helvetica-Bold', OR, TA_RIGHT),
 ]], colWidths=[9.1*cm, 9.1*cm])
 net.setStyle(TableStyle([
     ('BACKGROUND', (0,0), (-1,-1), NOIR),
-    ('TOPPADDING', (0,0), (-1,-1), 8),
-    ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+    ('TOPPADDING', (0,0), (-1,-1), 9),
+    ('BOTTOMPADDING', (0,0), (-1,-1), 9),
     ('LEFTPADDING', (0,0), (-1,-1), 14),
     ('RIGHTPADDING', (0,0), (-1,-1), 14),
     ('LINEBELOW', (0,0), (-1,-1), 3, OR),
     ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
 ]))
 story.append(net)
-story.append(Spacer(1, 0.4*cm))
+story.append(Spacer(1, 0.3*cm))
 
-# ── CONDITIONS DE PAIEMENT ────────────────────────────────
-story.append(HRFlowable(width='100%', thickness=0.4, color=GRIS_LIGNE, spaceAfter=6))
-story.append(par('CONDITIONS DE PAIEMENT', 8, 'Helvetica-Bold', NOIR, sa=6))
-
-cond_data = [
-    [par('Acompte de 40 % a la signature', 9, color=GRIS_FONCE),
-     par('%.2f \\u20ac' % acompte, 9, 'Helvetica-Bold', OR_FONCE, TA_RIGHT)],
-    [par('Reste a facturer a la fin des travaux', 9, color=GRIS_FONCE),
-     par('%.2f \\u20ac' % solde, 9, align=TA_RIGHT)],
-    [par('Paiement : virement bancaire, especes, carte bancaire', 8, color=GRIS_MED), ''],
-]
-cond = Table(cond_data, colWidths=[14*cm, 4.2*cm])
+# ── CONDITIONS ────────────────────────────────────────────
+story.append(HRFlowable(width='100%', thickness=0.3, color=GRIS_LINE, spaceAfter=8))
+story.append(p('CONDITIONS', 8, 'Helvetica-Bold', NOIR, sa=6))
+cond = Table([
+    [p('Acompte 40% a la signature', 9, color=GRIS_DARK),
+     p('%.2f \\u20ac' % (totalHT*0.4), 9, 'Helvetica-Bold', OR_FONCE, TA_RIGHT)],
+    [p('Solde a la fin des travaux', 9, color=GRIS_DARK),
+     p('%.2f \\u20ac' % (totalHT*0.6), 9, align=TA_RIGHT)],
+    [p('Paiement : virement, especes, carte bancaire  -  Validite devis 30 jours', 8, color=GRIS_MED), ''],
+], colWidths=[14*cm, 4.2*cm])
 cond.setStyle(TableStyle([
-    ('LINEBELOW', (0,0), (-1,1), 0.3, GRIS_LIGNE),
-    ('TOPPADDING', (0,0), (-1,-1), 4),
-    ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+    ('LINEBELOW', (0,0), (-1,1), 0.3, GRIS_LINE),
+    ('TOPPADDING', (0,0), (-1,-1), 5),
+    ('BOTTOMPADDING', (0,0), (-1,-1), 5),
     ('LEFTPADDING', (0,0), (-1,-1), 0),
     ('RIGHTPADDING', (0,0), (-1,-1), 0),
     ('SPAN', (0,2), (1,2)),
 ]))
 story.append(cond)
-story.append(Spacer(1, 0.3*cm))
+story.append(Spacer(1, 0.15*cm))
 
 # ── IBAN ──────────────────────────────────────────────────
 iban = Table([[
-    par('IBAN', 7, 'Helvetica-Bold', GRIS_MED),
-    par('FR76 1695 8000 0174 2540 5920 931', 9, 'Helvetica-Bold', NOIR),
-    par('BIC', 7, 'Helvetica-Bold', GRIS_MED, TA_RIGHT),
-    par('QNTOFRP1XXX', 9, 'Helvetica-Bold', NOIR, TA_RIGHT),
+    p('IBAN', 7, 'Helvetica-Bold', GRIS_MED),
+    p('FR76 1695 8000 0174 2540 5920 931', 9, 'Helvetica-Bold', NOIR),
+    p('BIC', 7, 'Helvetica-Bold', GRIS_MED, TA_RIGHT),
+    p('QNTOFRP1XXX', 9, 'Helvetica-Bold', NOIR, TA_RIGHT),
 ]], colWidths=[1.5*cm, 9.5*cm, 1.8*cm, 5.4*cm])
 iban.setStyle(TableStyle([
-    ('BACKGROUND', (0,0), (-1,-1), GRIS_CLAIR),
-    ('BOX', (0,0), (-1,-1), 0.3, GRIS_LIGNE),
+    ('BACKGROUND', (0,0), (-1,-1), GRIS_LIGHT),
+    ('BOX', (0,0), (-1,-1), 0.3, GRIS_LINE),
     ('LINEBEFORE', (0,0), (0,-1), 3, OR),
-    ('TOPPADDING', (0,0), (-1,-1), 8),
-    ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+    ('TOPPADDING', (0,0), (-1,-1), 9),
+    ('BOTTOMPADDING', (0,0), (-1,-1), 9),
     ('LEFTPADDING', (0,0), (-1,-1), 10),
     ('RIGHTPADDING', (0,0), (-1,-1), 10),
     ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
 ]))
 story.append(iban)
-story.append(Spacer(1, 0.4*cm))
 
-# ── SIGNATURE ─────────────────────────────────────────────
-sig_client = Table([
-    [par('Bon pour accord - Signature client :', 9, color=GRIS_FONCE)],
-    [par(' ', 20)],
-    [par('Date : _______________', 8.5, color=GRIS_FONCE)],
-], colWidths=[8.5*cm])
-sig_client.setStyle(TableStyle([
-    ('TOPPADDING', (0,0), (-1,-1), 3),
-    ('BOTTOMPADDING', (0,0), (-1,-1), 3),
-    ('LEFTPADDING', (0,0), (-1,-1), 12),
-    ('BOX', (0,0), (-1,-1), 0.5, GRIS_LIGNE),
-    ('LINEBEFORE', (0,0), (0,-1), 3, OR),
-    ('TOPPADDING', (0,0), (0,0), 10),
-]))
-
-sig_sinelec = Table([
-    [par('Signature SINELEC Paris', 9, 'Helvetica-Bold', sa=4)],
-    [par(' ', 20)],
-    [par('SINELEC PARIS', 9, 'Helvetica-Bold')],
-], colWidths=[8.5*cm])
-sig_sinelec.setStyle(TableStyle([
-    ('TOPPADDING', (0,0), (-1,-1), 3),
-    ('BOTTOMPADDING', (0,0), (-1,-1), 3),
-    ('LEFTPADDING', (0,0), (-1,-1), 12),
-    ('BOX', (0,0), (-1,-1), 0.5, GRIS_LIGNE),
-    ('LINEBEFORE', (0,0), (0,-1), 3, NOIR),
-    ('TOPPADDING', (0,0), (0,0), 10),
-]))
-
-sig_table = Table([[sig_client, sig_sinelec]], colWidths=[9.1*cm, 9.1*cm],
-    style=TableStyle([
-        ('VALIGN', (0,0), (-1,-1), 'TOP'),
-        ('TOPPADDING', (0,0), (-1,-1), 0),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 0),
-        ('LEFTPADDING', (0,0), (-1,-1), 0),
-        ('RIGHTPADDING', (0,0), (-1,-1), 0),
-    ]))
-story.append(sig_table)
-
-# ── PAGE 2 : CONDITIONS GÉNÉRALES ─────────────────────────
-story.append(PageBreak())
-
-def section(titre, items):
-    out = [par(titre, 8.5, 'Helvetica-Bold', OR_FONCE, sa=3)]
-    for sous_titre, texte in items:
-        if sous_titre:
-            out.append(par(sous_titre, 8.5, 'Helvetica-Bold', NOIR, sb=3, sa=1))
-        out.append(par(texte, 8, color=GRIS_FONCE, sa=3, leading=11))
-    return out
-
-story.append(par('CONDITIONS GENERALES DE TRAVAUX', 14, 'Helvetica-Bold', NOIR, TA_CENTER, sa=10))
-story.append(HRFlowable(width='100%', thickness=0.4, color=GRIS_LIGNE, spaceAfter=12))
-
-cg_gauche, cg_droite = [], []
-
-cg_gauche += section('COMMENT CA MARCHE ?', [
-    ('Valeur', "Conditions contractuelles. Toute commande implique l'acceptation sans reserve."),
-    ('Duree', "Le devis est valable 30 jours."),
-    ("Prise d'effet", "Contrat forme a la signature + versement de l'acompte."),
-])
-cg_gauche.append(Spacer(1, 0.2*cm))
-cg_gauche += section('PRESTATIONS INCLUSES', [
-    ('Devis', "Toutes les prestations sont listees. Le prestataire peut sous-traiter."),
-    ('Mise a disposition', "Le client fournit eau, electricite et aires de stockage gratuitement."),
-])
-cg_gauche.append(Spacer(1, 0.2*cm))
-cg_gauche += section('DELAI', [
-    ('Demarrage', "Les delais sont indicatifs."),
-    ('Suspension', "Suspendus en cas de force majeure ou imprevisible."),
-    ('Retard', "Penalites plafonnees a 5% du montant HT."),
-])
-cg_gauche.append(Spacer(1, 0.2*cm))
-cg_gauche += section('RECEPTION', [
-    ('Achevement', "Reception dans les 7 jours suivant l'achevement."),
-    ('Reserves', "Reserves a noter sur le PV. Aucune reclamation ulterieure sinon."),
-])
-cg_gauche.append(Spacer(1, 0.2*cm))
-cg_gauche += section('DONNEES PERSONNELLES', [
-    ('Acces', "Donnees traitees pour l'execution. Contact : sinelec.paris@gmail.com"),
-])
-
-cg_droite += section('PRIX', [
-    ('Contenu', "Prix tout compris : fourniture materiel, main d oeuvre, deplacement, test et mise en service."),
-    ('Supplement', "Toute modification entraine un supplement de prix."),
-    ('Paiement', "40% a la signature, solde fin des travaux."),
-    ('Defaut', "Retard = exigibilite immediate + interets 3x taux legal + 40 EUR."),
-])
-cg_droite.append(Spacer(1, 0.2*cm))
-cg_droite += section('GARANTIES', [
-    ('Travaux', "Garanties legales + garantie decennale ORUS. Travaux conformes NF C 15-100."),
-    ('Exclusions', "Exclue si usure normale ou negligence du client."),
-])
-cg_droite.append(Spacer(1, 0.2*cm))
-cg_droite += section('RESILIATION', [
-    (None, "Acomptes conserves en cas de resiliation avant demarrage."),
-])
-cg_droite.append(Spacer(1, 0.2*cm))
-cg_droite += section('RETRACTATION', [
-    ('Principe', "14 jours de retractation pour les particuliers."),
-])
-cg_droite.append(Spacer(1, 0.2*cm))
-cg_droite += section('EN CAS DE PROBLEME', [
-    ('Amiable', "Resolution amiable en priorite."),
-    ('Mediateur', "cm2c@cm2c.net"),
-    ('Tribunal', "Tribunal judiciaire de Paris. Droit francais."),
-])
-
-def col(items, w):
-    t = Table([[i] for i in items], colWidths=[w])
-    t.setStyle(TableStyle([
-        ('TOPPADDING', (0,0), (-1,-1), 0),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 0),
-        ('LEFTPADDING', (0,0), (-1,-1), 0),
-    ]))
-    return t
-
-cgt = Table([[col(cg_gauche, 8.7*cm), col(cg_droite, 8.7*cm)]], colWidths=[9.2*cm, 9.2*cm])
-cgt.setStyle(TableStyle([
-    ('VALIGN', (0,0), (-1,-1), 'TOP'),
-    ('TOPPADDING', (0,0), (-1,-1), 0),
-    ('BOTTOMPADDING', (0,0), (-1,-1), 0),
-    ('LEFTPADDING', (0,0), (-1,-1), 0),
-    ('RIGHTPADDING', (0,0), (-1,-1), 0),
-    ('LINEAFTER', (0,0), (0,-1), 0.3, GRIS_LIGNE),
-    ('RIGHTPADDING', (0,0), (0,-1), 12),
-    ('LEFTPADDING', (1,0), (1,-1), 12),
-]))
-story.append(cgt)
-
-doc.build(story, canvasmaker=lambda fn, **kw: SinelecCanvas(fn, **kw))
+doc.build(story, canvasmaker=lambda fn, **kw: SC(fn, **kw))
 print('PDF_OK')
 `;
 
