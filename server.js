@@ -206,7 +206,7 @@ app.post('/api/generer', async (req, res) => {
   }
 
   try {
-    const { type, client, email, telephone, adresse, codePostal, ville, prenom, siret, tvaNum, description, prestations } = req.body;
+    const { type, client, email, telephone, adresse, complement, codePostal, ville, prenom, siret, tvaNum, description, prestations } = req.body;
 
     // Nettoyer le nom (supprimer espaces entre lettres si espacé)
     const clientClean = String(client || '').replace(/\s+/g, ' ').trim();
@@ -304,6 +304,9 @@ ${prestations.map(p => p.nom).join('\n')}`;
       const clientEsc = String(client || '').replace(/'/g, ' ');
     // client contient déjà prénom+nom fusionnés par getClientComplet
     const clientNomComplet = clientEsc;
+    const clientComplement = String(complement || '').replace(/'/g, ' ').trim();
+    const clientTel = String(telephone || '').replace(/'/g, ' ').trim();
+    const clientCPVille = String(clientVille || '').trim();
       const adresseEsc = String(adresse || '').replace(/'/g, ' ');
       // Nettoyer adresse GPS
       const adresseRaw = String(adresse || '').replace(/'/g, ' ').trim();
@@ -480,12 +483,15 @@ objet_b.setStyle(TableStyle([
     ('TOPPADDING', (0,0), (0,0), 10),
 ]))
 
-client_b = Table([
+client_rows = [
     [p('CLIENT', 7, 'Helvetica-Bold', OR, sa=4)],
     [p('${clientNomComplet}', 10, 'Helvetica-Bold', MARINE)],
-    [p('${clientRue}', 8.5, color=GRIS_TEXTE)],
-    [p('${clientVille}', 8.5, color=GRIS_TEXTE)],
-], colWidths=[9.0*cm])
+]
+if '${clientRue}': client_rows.append([p('${clientRue}', 8.5, color=GRIS_TEXTE)])
+if '${clientComplement}': client_rows.append([p('${clientComplement}', 8.5, color=GRIS_TEXTE)])
+if '${clientCPVille}': client_rows.append([p('${clientCPVille}', 8.5, color=GRIS_TEXTE)])
+if '${clientTel}': client_rows.append([p('Tel : ${clientTel}', 8.5, color=GRIS_SOFT)])
+client_b = Table(client_rows, colWidths=[9.0*cm])
 client_b.setStyle(TableStyle([
     ('TOPPADDING', (0,0), (-1,-1), 3),
     ('BOTTOMPADDING', (0,0), (-1,-1), 3),
@@ -904,6 +910,9 @@ app.get('/api/pdf/:num', async (req, res) => {
     const clientEsc = String(client || '').replace(/'/g, ' ');
     // client contient déjà prénom+nom fusionnés par getClientComplet
     const clientNomComplet = clientEsc;
+    const clientComplement = String(complement || '').replace(/'/g, ' ').trim();
+    const clientTel = String(telephone || '').replace(/'/g, ' ').trim();
+    const clientCPVille = String(clientVille || '').trim();
     const adresseEsc = String(adresse || '').replace(/'/g, ' ');
     const clientParts = (adresse || '').split(',');
     const clientRue = String(clientParts[0] || '').trim().replace(/'/g, ' ');
