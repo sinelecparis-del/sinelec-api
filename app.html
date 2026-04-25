@@ -2271,7 +2271,7 @@ function afficherHistorique() {
         <td style="padding:16px;text-align:right;font-weight:800;color:var(--accent);">${parseFloat(item.total_ht || item.totalht || 0).toFixed(0)} €</td>
         <td style="padding:16px;text-align:center;">
           <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
-            ${item.type === 'devis' && (statut === 'signé' || statut === 'signe') ? `
+            ${item.type === 'devis' ? `
               <button onclick="convertirEnFacture('${item.num}')" class="btn-small" style="background:rgba(16,185,129,0.15);color:var(--success);border:1px solid rgba(16,185,129,0.3);">→ Facture</button>
             ` : ''}
             <button onclick="telechargerPDF('${item.num}')" class="btn-small">⬇️ PDF</button>
