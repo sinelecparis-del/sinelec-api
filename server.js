@@ -303,6 +303,7 @@ ${prestations.map(p => p.nom).join('\n')}`;
       const clientRue = String(clientParts[0] || '').trim().replace(/'/g, ' ');
       const clientVille = clientParts.slice(1).join(',').trim().replace(/'/g, ' ');
 
+      const descObjet = (description || 'Travaux d\'electricite generale').replace(/'/g, ' ');
       const py = `# -*- coding: utf-8 -*-
 import json, base64, io, sys
 from reportlab.lib.pagesizes import A4
@@ -444,7 +445,7 @@ story = []
 # ── OBJET + CLIENT ────────────────────────────────────────
 objet_b = Table([
     [p('OBJET DES TRAVAUX', 7.5, 'Helvetica-Bold', OR, sa=4)],
-    [p('${description or 'Travaux d\u2019electricite generale'}', 10, 'Helvetica-Bold', MARINE)],
+    [p('${descObjet}', 10, 'Helvetica-Bold', MARINE)],
     [p('Conformes NF C 15-100  \u2022  Garantie decennale ORUS', 7.5, color=GRIS_SOFT)],
 ], colWidths=[8.2*cm])
 objet_b.setStyle(TableStyle([
