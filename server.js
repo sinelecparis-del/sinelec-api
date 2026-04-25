@@ -254,12 +254,9 @@ app.post('/api/generer', async (req, res) => {
 
       const clientEsc = (client || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
       const adresseEsc = (adresse || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-      const telEsc = (telephone || '').replace(/'/g, "\\'");
-
-      // Séparer nom et adresse client
-      const clientParts = adresseEsc.split(',');
-      const clientRue = clientParts[0] ? clientParts[0].trim() : adresseEsc;
-      const clientVille = clientParts.slice(1).join(',').trim();
+      const clientParts = (adresse || '').split(',');
+      const clientRue = (clientParts[0] || '').trim().replace(/'/g, "\\'");
+      const clientVille = clientParts.slice(1).join(',').trim().replace(/'/g, "\\'");
 
       const py = `# -*- coding: utf-8 -*-
 import json, base64, io, sys
@@ -274,20 +271,21 @@ from reportlab.lib.utils import ImageReader
 from reportlab.platypus.flowables import HRFlowable
 
 W, H = A4
-NOIR = colors.HexColor('#0D0D0D')
-OR = colors.HexColor('#C9A84C')
-OR_PALE = colors.HexColor('#FDFAF0')
-OR_FONCE = colors.HexColor('#A07830')
-CREME = colors.HexColor('#FDFCF8')
-BLANC = colors.white
-GRIS_DARK = colors.HexColor('#444444')
-GRIS_MED = colors.HexColor('#888888')
-GRIS_LIGHT = colors.HexColor('#F0EDE6')
-GRIS_BG = colors.HexColor('#F7F5F0')
-GRIS_LINE = colors.HexColor('#DDD9D0')
-FOOTER_BG = colors.HexColor('#111111')
 
-def p(txt, sz=9, font='Helvetica', color=NOIR, align=TA_LEFT, sb=0, sa=2, leading=None):
+# Palette bleu marine + or
+MARINE       = colors.HexColor('#1B2A4A')
+MARINE_LIGHT = colors.HexColor('#243660')
+OR           = colors.HexColor('#C9A84C')
+OR_PALE      = colors.HexColor('#FBF7EC')
+OR_FONCE     = colors.HexColor('#A07830')
+BLANC        = colors.white
+CREME        = colors.HexColor('#FDFCF9')
+GRIS_TEXTE   = colors.HexColor('#3A3A3A')
+GRIS_SOFT    = colors.HexColor('#777777')
+GRIS_LIGNE   = colors.HexColor('#E0DDD6')
+GRIS_BG      = colors.HexColor('#F5F4F0')
+
+def p(txt, sz=9, font='Helvetica', color=GRIS_TEXTE, align=TA_LEFT, sb=0, sa=2, leading=None):
     if leading is None: leading = sz * 1.35
     return Paragraph(str(txt), ParagraphStyle('s', fontName=font, fontSize=sz,
         textColor=color, alignment=align, spaceBefore=sb, spaceAfter=sa,
@@ -312,115 +310,128 @@ class SC(pdfcanvas.Canvas):
     def save(self):
         self._draw_footer()
         pdfcanvas.Canvas.save(self)
+
     def _draw_page(self):
         self.saveState()
         # Fond crème
         self.setFillColor(CREME)
         self.rect(0, 0, W, H, fill=1, stroke=0)
-        # Bordures or
+        # Bande marine gauche épaisse
+        self.setFillColor(MARINE)
+        self.rect(0, 0, 0.7*cm, H, fill=1, stroke=0)
+        # Liseré or sur la bande marine
         self.setFillColor(OR)
-        self.rect(0, 0.9*cm, 0.35*cm, H-1.8*cm, fill=1, stroke=0)
-        self.rect(W-0.35*cm, 0.9*cm, 0.35*cm, H-1.8*cm, fill=1, stroke=0)
+        self.rect(0.7*cm, 0, 0.08*cm, H, fill=1, stroke=0)
         if self._pg == 0:
             self._draw_header()
         else:
             self._draw_header_small()
         self.restoreState()
+
     def _draw_header(self):
-        # Fond blanc header
-        self.setFillColor(BLANC)
-        self.rect(0.35*cm, H-4.8*cm, W-0.7*cm, 4.45*cm, fill=1, stroke=0)
+        # Header marine pleine largeur
+        self.setFillColor(MARINE)
+        self.rect(0.78*cm, H-5.2*cm, W-0.78*cm, 5.2*cm, fill=1, stroke=0)
+        # Liseré or bas header
+        self.setFillColor(OR)
+        self.rect(0.78*cm, H-5.2*cm, W-0.78*cm, 0.1*cm, fill=1, stroke=0)
         # Logo
         logo_img = io.BytesIO(logo_bytes)
-        self.drawImage(ImageReader(logo_img), 1.0*cm, H-4.3*cm,
+        self.drawImage(ImageReader(logo_img), 1.3*cm, H-4.6*cm,
             width=3.0*cm, height=3.0*cm, preserveAspectRatio=True, mask='auto')
         # Infos société
         self.setFont('Helvetica', 7.5)
-        self.setFillColor(GRIS_DARK)
-        self.drawString(1.0*cm, H-4.55*cm, '128 Rue La Boetie, 75008 Paris')
-        self.drawString(1.0*cm, H-4.82*cm, 'Tel : 07 87 38 86 22  |  sinelec.paris@gmail.com')
-        self.drawString(1.0*cm, H-5.09*cm, 'SIRET : 91015824500019')
+        self.setFillColor(colors.HexColor('#BFC8D6'))
+        self.drawString(1.3*cm, H-4.85*cm, '128 Rue La Boetie, 75008 Paris')
+        self.drawString(1.3*cm, H-5.1*cm, '07 87 38 86 22  |  sinelec.paris@gmail.com  |  SIRET : 91015824500019')
         # DEVIS / FACTURE
-        self.setFont('Helvetica-Bold', 42)
-        self.setFillColor(NOIR)
-        self.drawRightString(W-1.0*cm, H-1.9*cm, '${typeLabelUpper}')
-        # Ligne or
-        self.setStrokeColor(OR)
-        self.setLineWidth(2)
-        self.line(9.5*cm, H-2.35*cm, W-1.0*cm, H-2.35*cm)
-        # N° et dates
-        self.setFont('Helvetica-Bold', 9)
-        self.setFillColor(GRIS_DARK)
-        self.drawRightString(W-1.0*cm, H-2.75*cm, 'N\\u00b0 ${num}')
-        self.setFont('Helvetica', 8.5)
-        self.drawRightString(W-1.0*cm, H-3.1*cm, 'Date : ${dateStr}')
-        self.drawRightString(W-1.0*cm, H-3.45*cm, 'Valide jusqu\\u2019au : ${dateValide}')
-        # Séparateur or
-        self.setStrokeColor(OR)
-        self.setLineWidth(0.8)
-        self.line(0.9*cm, H-5.3*cm, W-0.9*cm, H-5.3*cm)
-    def _draw_header_small(self):
+        self.setFont('Helvetica-Bold', 44)
         self.setFillColor(BLANC)
-        self.rect(0.35*cm, H-1.6*cm, W-0.7*cm, 1.25*cm, fill=1, stroke=0)
-        self.setFont('Helvetica-Bold', 10)
+        self.drawRightString(W-1.2*cm, H-2.2*cm, '${typeLabelUpper}')
+        # Liseré or sous le titre
+        self.setStrokeColor(OR)
+        self.setLineWidth(1.5)
+        self.line(10*cm, H-2.65*cm, W-1.2*cm, H-2.65*cm)
+        # Badge numéro
         self.setFillColor(OR)
-        self.drawString(1.0*cm, H-1.1*cm, 'SINELEC')
+        self.roundRect(W-6.5*cm, H-3.55*cm, 5.3*cm, 0.65*cm, 0.15*cm, fill=1, stroke=0)
+        self.setFont('Helvetica-Bold', 9)
+        self.setFillColor(MARINE)
+        self.drawCentredString(W-3.85*cm, H-3.22*cm, 'N\\u00b0 ${num}')
+        # Date
         self.setFont('Helvetica', 8)
-        self.setFillColor(GRIS_DARK)
-        self.drawRightString(W-1.0*cm, H-1.1*cm, '${typeLabelUpper} N\\u00b0 ${num}')
+        self.setFillColor(colors.HexColor('#BFC8D6'))
+        self.drawRightString(W-1.2*cm, H-3.9*cm, 'Date : ${dateStr}   |   Valable jusqu\\u2019au : ${dateValide}')
+
+    def _draw_header_small(self):
+        self.setFillColor(MARINE)
+        self.rect(0.78*cm, H-1.5*cm, W-0.78*cm, 1.5*cm, fill=1, stroke=0)
+        self.setFillColor(OR)
+        self.rect(0.78*cm, H-1.5*cm, W-0.78*cm, 0.08*cm, fill=1, stroke=0)
+        self.setFont('Helvetica-Bold', 10)
+        self.setFillColor(BLANC)
+        self.drawString(1.4*cm, H-1.0*cm, 'SINELEC')
+        self.setFont('Helvetica', 8)
+        self.setFillColor(OR)
+        self.drawRightString(W-1.2*cm, H-1.0*cm, '${typeLabelUpper} N\\u00b0 ${num}')
+
     def _draw_footer(self):
         self.saveState()
-        self.setFillColor(FOOTER_BG)
-        self.rect(0, 0, W, 0.9*cm, fill=1, stroke=0)
-        self.setFont('Helvetica', 6)
-        self.setFillColor(colors.HexColor('#999999'))
-        self.drawCentredString(W/2, 0.44*cm,
-            'SINELEC EI  -  128 Rue La Boetie, 75008 Paris  -  SIRET : 91015824500019  -  TVA non applicable art. 293B CGI  -  Garantie decennale ORUS')
-        self.setFont('Helvetica', 7)
+        self.setFillColor(MARINE)
+        self.rect(0, 0, W, 1.0*cm, fill=1, stroke=0)
         self.setFillColor(OR)
-        self.drawRightString(W-1.0*cm, 0.2*cm, '${num}  |  Page 1 / 1')
+        self.rect(0, 1.0*cm, W, 0.08*cm, fill=1, stroke=0)
+        self.setFont('Helvetica', 6.5)
+        self.setFillColor(colors.HexColor('#8899BB'))
+        self.drawCentredString(W/2, 0.5*cm,
+            'SINELEC EI  \\u2022  128 Rue La Boetie, 75008 Paris  \\u2022  SIRET : 91015824500019  \\u2022  TVA non applicable art. 293B CGI  \\u2022  Garantie decennale ORUS')
+        self.setFont('Helvetica-Bold', 7)
+        self.setFillColor(OR)
+        self.drawRightString(W-1.2*cm, 0.28*cm, '${num}')
         self.restoreState()
 
 doc = SimpleDocTemplate(sys.argv[2], pagesize=A4,
-    leftMargin=0.9*cm, rightMargin=0.9*cm,
-    topMargin=5.7*cm, bottomMargin=1.5*cm)
+    leftMargin=1.2*cm, rightMargin=1.0*cm,
+    topMargin=5.6*cm, bottomMargin=1.6*cm)
 
 story = []
 
-# ── LAYOUT : OBJET gauche / CLIENT droite ────────────────
+# ── OBJET + CLIENT ────────────────────────────────────────
 objet_b = Table([
-    [p('OBJET DES TRAVAUX', 7.5, 'Helvetica-Bold', OR, sa=3)],
-    [p('Travaux d\\u2019electricite generale', 9, 'Helvetica-Bold', NOIR)],
-    [p('Conformes NF C 15-100', 8, color=GRIS_DARK)],
-    [p('Garantie decennale ORUS', 8, color=GRIS_DARK)],
-], colWidths=[8.5*cm])
+    [p('OBJET DES TRAVAUX', 7.5, 'Helvetica-Bold', OR, sa=4)],
+    [p('Travaux d\\u2019electricite generale', 10, 'Helvetica-Bold', MARINE)],
+    [p('Conformes NF C 15-100  \\u2022  Garantie decennale ORUS', 7.5, color=GRIS_SOFT)],
+], colWidths=[8.2*cm])
 objet_b.setStyle(TableStyle([
     ('TOPPADDING', (0,0), (-1,-1), 3),
     ('BOTTOMPADDING', (0,0), (-1,-1), 3),
     ('LEFTPADDING', (0,0), (-1,-1), 0),
-    ('LINEABOVE', (0,0), (0,0), 2, OR),
+    ('LINEABOVE', (0,0), (0,0), 2.5, MARINE),
     ('TOPPADDING', (0,0), (0,0), 10),
 ]))
 
+# Nom client en lettres espacées
+nom_espace = '  '.join(list('${clientEsc}'.upper()))
+
 client_b = Table([
     [p('CLIENT', 7, 'Helvetica-Bold', OR, sa=4)],
-    [p('${clientEsc}', 11, 'Helvetica-Bold', NOIR, sb=2)],
-    [p('${clientRue}', 8.5, color=GRIS_DARK)],
-    [p('${clientVille}', 8.5, color=GRIS_DARK)],
-], colWidths=[8.5*cm])
+    [p(nom_espace[:40], 9, 'Helvetica-Bold', MARINE)],
+    [p('${clientRue}', 8.5, color=GRIS_TEXTE)],
+    [p('${clientVille}', 8.5, color=GRIS_TEXTE)],
+], colWidths=[9.0*cm])
 client_b.setStyle(TableStyle([
     ('TOPPADDING', (0,0), (-1,-1), 3),
     ('BOTTOMPADDING', (0,0), (-1,-1), 3),
     ('LEFTPADDING', (0,0), (-1,-1), 14),
     ('RIGHTPADDING', (0,0), (-1,-1), 14),
     ('BACKGROUND', (0,0), (-1,-1), OR_PALE),
-    ('BOX', (0,0), (-1,-1), 0.8, OR),
-    ('LINEBEFORE', (0,0), (0,-1), 4, OR),
+    ('BOX', (0,0), (-1,-1), 1, OR),
+    ('LINEBEFORE', (0,0), (0,-1), 4, MARINE),
     ('TOPPADDING', (0,0), (0,0), 10),
     ('BOTTOMPADDING', (0,-1), (-1,-1), 10),
 ]))
 
-story.append(Table([[objet_b, client_b]], colWidths=[9.1*cm, 9.1*cm],
+story.append(Table([[objet_b, client_b]], colWidths=[8.7*cm, 9.5*cm],
     style=TableStyle([
         ('VALIGN', (0,0), (-1,-1), 'TOP'),
         ('TOPPADDING', (0,0), (-1,-1), 0),
@@ -428,10 +439,10 @@ story.append(Table([[objet_b, client_b]], colWidths=[9.1*cm, 9.1*cm],
         ('LEFTPADDING', (0,0), (-1,-1), 0),
         ('RIGHTPADDING', (0,0), (-1,-1), 0),
     ])))
-story.append(Spacer(1, 0.5*cm))
+story.append(Spacer(1, 0.6*cm))
 
-# ── TABLEAU PRESTATIONS ───────────────────────────────────
-cw = [0.7*cm, 9.6*cm, 1.5*cm, 0.9*cm, 2.4*cm, 3.1*cm]
+# ── TABLEAU ───────────────────────────────────────────────
+cw = [0.7*cm, 9.5*cm, 1.5*cm, 0.9*cm, 2.4*cm, 3.2*cm]
 rows = [[
     p('#', 7.5, 'Helvetica-Bold', BLANC, TA_CENTER),
     p('DESIGNATION / DETAIL', 7.5, 'Helvetica-Bold', BLANC),
@@ -443,33 +454,33 @@ rows = [[
 for i, l in enumerate(data):
     q = int(l['qte']) if l['qte'] == int(l['qte']) else l['qte']
     rows.append([
-        p(str(i+1), 9, color=GRIS_MED, align=TA_CENTER),
-        p('<b>' + l['designation'] + '</b>', 9),
+        p(str(i+1), 9, color=OR, align=TA_CENTER),
+        p('<b>' + l['designation'] + '</b>', 9, color=MARINE),
         p(str(q), 9, align=TA_CENTER),
-        p('u.', 9, align=TA_CENTER, color=GRIS_MED),
+        p('u.', 9, align=TA_CENTER, color=GRIS_SOFT),
         p('%.2f \\u20ac' % l['prixUnit'], 9, align=TA_RIGHT),
-        p('<b>%.2f \\u20ac</b>' % l['total'], 9, 'Helvetica-Bold', NOIR, TA_RIGHT),
+        p('<b>%.2f \\u20ac</b>' % l['total'], 9, 'Helvetica-Bold', MARINE, TA_RIGHT),
     ])
     for det in l.get('details', []):
-        rows.append(['', p('   \\u2022 ' + det, 7.5, color=GRIS_DARK), '', '', '', ''])
+        rows.append(['', p('   \\u2022 ' + det, 7.5, color=GRIS_SOFT), '', '', '', ''])
 
 t = Table(rows, colWidths=cw)
 ts = [
-    ('BACKGROUND', (0,0), (-1,0), NOIR),
-    ('LINEBELOW', (0,0), (-1,0), 3, OR),
+    ('BACKGROUND', (0,0), (-1,0), MARINE),
+    ('LINEBELOW', (0,0), (-1,0), 2.5, OR),
     ('VALIGN', (0,0), (-1,-1), 'TOP'),
-    ('TOPPADDING', (0,0), (-1,-1), 5),
-    ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+    ('TOPPADDING', (0,0), (-1,-1), 6),
+    ('BOTTOMPADDING', (0,0), (-1,-1), 6),
     ('LEFTPADDING', (0,0), (-1,-1), 7),
     ('RIGHTPADDING', (0,0), (-1,-1), 7),
-    ('BOX', (0,0), (-1,-1), 0.3, GRIS_LINE),
+    ('BOX', (0,0), (-1,-1), 0.3, GRIS_LIGNE),
 ]
 row_idx = 1; bg = True
 for l in data:
     nb = 1 + len(l.get('details', []))
     c = BLANC if bg else GRIS_BG
-    ts.append(('BACKGROUND', (0,row_idx), (-1,row_idx+nb-1), c))
-    ts.append(('LINEBELOW', (0,row_idx+nb-1), (-1,row_idx+nb-1), 0.3, GRIS_LINE))
+    ts.append(('BACKGROUND', (0, row_idx), (-1, row_idx+nb-1), c))
+    ts.append(('LINEBELOW', (0, row_idx+nb-1), (-1, row_idx+nb-1), 0.3, GRIS_LIGNE))
     row_idx += nb; bg = not bg
 t.setStyle(TableStyle(ts))
 story.append(t)
@@ -477,13 +488,13 @@ story.append(Spacer(1, 0.15*cm))
 
 # ── TOTAUX ────────────────────────────────────────────────
 tt = Table([
-    ['', p('Total HT', 9, color=GRIS_DARK, align=TA_RIGHT),
-     p('%.2f \\u20ac' % totalHT, 9, align=TA_RIGHT)],
-    ['', p('TVA', 9, color=GRIS_DARK, align=TA_RIGHT),
-     p('Non applicable (art. 293B)', 8, color=GRIS_MED, align=TA_RIGHT)],
-], colWidths=[9.1*cm, 4.5*cm, 4.6*cm])
+    ['', p('Total HT', 9, color=GRIS_SOFT, align=TA_RIGHT),
+     p('%.2f \\u20ac' % totalHT, 9, 'Helvetica-Bold', GRIS_TEXTE, TA_RIGHT)],
+    ['', p('TVA', 9, color=GRIS_SOFT, align=TA_RIGHT),
+     p('Non applicable (art. 293B)', 8, color=GRIS_SOFT, align=TA_RIGHT)],
+], colWidths=[9.0*cm, 4.5*cm, 4.7*cm])
 tt.setStyle(TableStyle([
-    ('LINEABOVE', (1,0), (-1,0), 0.5, GRIS_LINE),
+    ('LINEABOVE', (1,0), (-1,0), 0.5, GRIS_LIGNE),
     ('TOPPADDING', (0,0), (-1,-1), 5),
     ('BOTTOMPADDING', (0,0), (-1,-1), 5),
     ('LEFTPADDING', (0,0), (-1,-1), 6),
@@ -494,33 +505,33 @@ story.append(Spacer(1, 0.12*cm))
 
 # ── NET A PAYER ───────────────────────────────────────────
 net = Table([[
-    p('NET A PAYER', 12, 'Helvetica-Bold', BLANC),
-    p('%.2f \\u20ac' % totalHT, 13, 'Helvetica-Bold', OR, TA_RIGHT),
-]], colWidths=[9.1*cm, 9.1*cm])
+    p('NET \\u00c0 PAYER', 13, 'Helvetica-Bold', BLANC),
+    p('%.2f \\u20ac' % totalHT, 16, 'Helvetica-Bold', OR, TA_RIGHT),
+]], colWidths=[9.0*cm, 9.2*cm])
 net.setStyle(TableStyle([
-    ('BACKGROUND', (0,0), (-1,-1), NOIR),
-    ('TOPPADDING', (0,0), (-1,-1), 9),
-    ('BOTTOMPADDING', (0,0), (-1,-1), 9),
+    ('BACKGROUND', (0,0), (-1,-1), MARINE),
+    ('TOPPADDING', (0,0), (-1,-1), 10),
+    ('BOTTOMPADDING', (0,0), (-1,-1), 10),
     ('LEFTPADDING', (0,0), (-1,-1), 14),
     ('RIGHTPADDING', (0,0), (-1,-1), 14),
     ('LINEBELOW', (0,0), (-1,-1), 3, OR),
     ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
 ]))
 story.append(net)
-story.append(Spacer(1, 0.3*cm))
+story.append(Spacer(1, 0.35*cm))
 
 # ── CONDITIONS ────────────────────────────────────────────
-story.append(HRFlowable(width='100%', thickness=0.3, color=GRIS_LINE, spaceAfter=8))
-story.append(p('CONDITIONS', 8, 'Helvetica-Bold', NOIR, sa=6))
+story.append(HRFlowable(width='100%', thickness=0.3, color=GRIS_LIGNE, spaceAfter=8))
+story.append(p('CONDITIONS', 8, 'Helvetica-Bold', MARINE, sa=6))
 cond = Table([
-    [p('Acompte 40% a la signature', 9, color=GRIS_DARK),
+    [p('Acompte 40% a la signature', 9, color=GRIS_TEXTE),
      p('%.2f \\u20ac' % (totalHT*0.4), 9, 'Helvetica-Bold', OR_FONCE, TA_RIGHT)],
-    [p('Solde a la fin des travaux', 9, color=GRIS_DARK),
+    [p('Solde a la fin des travaux', 9, color=GRIS_TEXTE),
      p('%.2f \\u20ac' % (totalHT*0.6), 9, align=TA_RIGHT)],
-    [p('Paiement : virement, especes, carte bancaire  -  Validite devis 30 jours', 8, color=GRIS_MED), ''],
-], colWidths=[14*cm, 4.2*cm])
+    [p('Validite 30 jours  \\u2022  Virement bancaire, especes, carte bancaire', 8, color=GRIS_SOFT), ''],
+], colWidths=[14.2*cm, 4.0*cm])
 cond.setStyle(TableStyle([
-    ('LINEBELOW', (0,0), (-1,1), 0.3, GRIS_LINE),
+    ('LINEBELOW', (0,0), (-1,1), 0.3, GRIS_LIGNE),
     ('TOPPADDING', (0,0), (-1,-1), 5),
     ('BOTTOMPADDING', (0,0), (-1,-1), 5),
     ('LEFTPADDING', (0,0), (-1,-1), 0),
@@ -532,15 +543,15 @@ story.append(Spacer(1, 0.15*cm))
 
 # ── IBAN ──────────────────────────────────────────────────
 iban = Table([[
-    p('IBAN', 7, 'Helvetica-Bold', GRIS_MED),
-    p('FR76 1695 8000 0174 2540 5920 931', 9, 'Helvetica-Bold', NOIR),
-    p('BIC', 7, 'Helvetica-Bold', GRIS_MED, TA_RIGHT),
-    p('QNTOFRP1XXX', 9, 'Helvetica-Bold', NOIR, TA_RIGHT),
+    p('IBAN', 7, 'Helvetica-Bold', GRIS_SOFT),
+    p('FR76 1695 8000 0174 2540 5920 931', 9, 'Helvetica-Bold', MARINE),
+    p('BIC', 7, 'Helvetica-Bold', GRIS_SOFT, TA_RIGHT),
+    p('QNTOFRP1XXX', 9, 'Helvetica-Bold', MARINE, TA_RIGHT),
 ]], colWidths=[1.5*cm, 9.5*cm, 1.8*cm, 5.4*cm])
 iban.setStyle(TableStyle([
-    ('BACKGROUND', (0,0), (-1,-1), GRIS_LIGHT),
-    ('BOX', (0,0), (-1,-1), 0.3, GRIS_LINE),
-    ('LINEBEFORE', (0,0), (0,-1), 3, OR),
+    ('BACKGROUND', (0,0), (-1,-1), OR_PALE),
+    ('BOX', (0,0), (-1,-1), 0.5, OR),
+    ('LINEBEFORE', (0,0), (0,-1), 4, MARINE),
     ('TOPPADDING', (0,0), (-1,-1), 9),
     ('BOTTOMPADDING', (0,0), (-1,-1), 9),
     ('LEFTPADDING', (0,0), (-1,-1), 10),
