@@ -436,10 +436,10 @@ print('OK')
 fs.writeFileSync(pyPath, py, 'utf8');
 
 try {
- execSync(`python3 ${pyPath} ${detailsPath}`, { cwd: __dirname, stdio: 'inherit' });
+ execSync(`python3 ${pyPath} ${detailsPath} ${pdfPath}`, { cwd: __dirname, stdio: 'inherit' });
 } catch(e) {
   try {
- execSync(`python3 ${pyPath} ${detailsPath}`, { cwd: __dirname, stdio: 'inherit' });
+ execSync(`python3 ${pyPath} ${detailsPath} ${pdfPath}`, { cwd: __dirname, stdio: 'inherit' });
   } catch(pyErr) {
     throw new Error('Python PDF failed: ' + pyErr.message);
   }
