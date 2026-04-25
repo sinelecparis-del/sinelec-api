@@ -247,12 +247,13 @@ app.post('/api/generer', async (req, res) => {
       const pdfPath = path.join(__dirname, `${num}.pdf`);
 
       // Générer descriptions pro avec Claude
+      // Descriptions pré-définies par prestation (transmises depuis app)
       let detailsData = prestations.map(p => ({
         designation: p.nom,
         qte: p.quantite,
         prixUnit: p.prix,
         total: p.prix * p.quantite,
-        details: []
+        details: p.desc ? [p.desc] : []
       }));
 
       // Générer descriptions pro avec Claude
