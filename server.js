@@ -276,8 +276,7 @@ app.post('/api/generer', async (req, res) => {
 
     const { error: dbError } = await supabase.from('historique').insert({
       num, type, client, email, telephone, adresse, prestations,
-      total_ht,        // nom avec underscore
-      totalht: total_ht, // nom sans underscore (compatibilité Supabase)
+      total_ht,
       statut: 'envoyé',
       date_envoi: new Date().toISOString(),
       source: 'app',
