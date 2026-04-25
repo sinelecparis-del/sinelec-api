@@ -1128,7 +1128,7 @@ app.post('/api/signature', async (req, res) => {
         qte: p.quantite || p.qte || 1,
         prixUnit: parseFloat(p.prix || p.prixUnit || 0),
         total: parseFloat(p.prix || p.prixUnit || 0) * (p.quantite || p.qte || 1),
-        details: []
+        details: p.desc ? [p.desc] : (p.details || [])
       }));
 
       // Sauvegarder la signature image en PNG temporaire
@@ -1246,13 +1246,19 @@ rows=[[p('#',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('DESIGNATION',7.5,'Helvetic
 for i,l in enumerate(data):
     q=int(l['qte']) if l['qte']==int(l['qte']) else l['qte']
     rows.append([p(str(i+1),9,color=OR,align=TA_CENTER),p('<b>'+l['designation']+'</b>',9,color=MARINE),p(str(q),9,align=TA_CENTER),p('u.',9,align=TA_CENTER,color=GRIS_SOFT),p('%.2f \u20ac'%l['prixUnit'],9,align=TA_RIGHT),p('<b>%.2f \u20ac</b>'%l['total'],9,'Helvetica-Bold',MARINE,TA_RIGHT)])
+    for det in l.get('details',[]):
+        rows.append(['',p('   - '+det,7.5,'Helvetica-Oblique',color=GRIS_SOFT),'','','',''])
 t=Table(rows,colWidths=cw)
 ts=[('BACKGROUND',(0,0),(-1,0),MARINE),('LINEBELOW',(0,0),(-1,0),2.5,OR),('VALIGN',(0,0),(-1,-1),'TOP'),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),('LEFTPADDING',(0,0),(-1,-1),7),('RIGHTPADDING',(0,0),(-1,-1),7),('BOX',(0,0),(-1,-1),0.3,GRIS_LIGNE)]
-for i in range(len(data)):
-    bg=BLANC if i%2==0 else GRIS_BG
-    ts.append(('BACKGROUND',(0,i+1),(-1,i+1),bg))
-    ts.append(('LINEBELOW',(0,i+1),(-1,i+1),0.3,GRIS_LIGNE))
+row_idx=1; bg=True
+for l in data:
+    nb=1+len(l.get('details',[]))
+    c=BLANC if bg else GRIS_BG
+    ts.append(('BACKGROUND',(0,row_idx),(-1,row_idx+nb-1),c))
+    ts.append(('LINEBELOW',(0,row_idx+nb-1),(-1,row_idx+nb-1),0.3,GRIS_LIGNE))
+    row_idx+=nb; bg=not bg
 t.setStyle(TableStyle(ts)); story.append(t); story.append(Spacer(1,0.15*cm))
+
 
 # ── TOTAUX ─────────────────────────────────────────────────
 tt=Table([['',p('Total HT',9,color=GRIS_SOFT,align=TA_RIGHT),p('%.2f \u20ac'%totalHT,9,'Helvetica-Bold',GRIS_TEXTE,TA_RIGHT)],['',p('TVA',9,color=GRIS_SOFT,align=TA_RIGHT),p('Non applicable (art. 293B)',8,color=GRIS_SOFT,align=TA_RIGHT)]],colWidths=[9.0*cm,4.5*cm,4.7*cm])
@@ -1595,7 +1601,7 @@ app.get('/api/pdf/:num', async (req, res) => {
       qte: p.quantite || p.qte || 1,
       prixUnit: p.prix || p.prixUnit || 0,
       total: (p.prix || p.prixUnit || 0) * (p.quantite || p.qte || 1),
-      details: []
+      details: p.desc ? [p.desc] : (Array.isArray(p.details) ? p.details : [])
     }));
 
     fs.writeFileSync(detailsPath, JSON.stringify(detailsData));
