@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>SINELEC OS v2.0</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
@@ -1092,6 +1093,99 @@ body::before {
 <script>
 // ═══════════════════ CONFIGURATION ═══════════════════
 const API_URL = window.location.origin;
+
+// ═══════════════════ POPUP MODE FACTURATION ═══════════════════
+let modePopupData = null;
+
+function ouvrirModePopup(prefix, nom, prix) {
+  modePopupData = { prefix, nom, prix };
+  document.getElementById('mode-popup-nom').textContent = nom;
+  document.getElementById('mode-popup-detail').textContent =
+    'Forfait ' + prix.f + '€  •  Fourniture ' + prix.fo + '€  •  MO ' + prix.mo + '€';
+  document.getElementById('mode-prix-forfait').textContent = prix.f + ' €';
+  document.getElementById('mode-prix-fourniture').textContent = prix.fo + ' €';
+  document.getElementById('mode-prix-mo').textContent = prix.mo + ' €';
+  document.getElementById('mode-btn-fourniture').style.display = prix.fo > 0 ? 'flex' : 'none';
+  document.getElementById('mode-btn-mo').style.display = prix.mo > 0 ? 'flex' : 'none';
+  document.getElementById('mode-popup-overlay').classList.add('active');
+}
+function fermerModePopup() {
+  document.getElementById('mode-popup-overlay').classList.remove('active');
+  modePopupData = null;
+}
+function choisirMode(mode) {
+  if (!modePopupData) return;
+  const { prefix, nom, prix } = modePopupData;
+  let prixChoisi = prix.f, label = nom;
+  if (mode === 'fourniture') { prixChoisi = prix.fo; label = nom + ' (fourniture)'; }
+  else if (mode === 'mo') { prixChoisi = prix.mo; label = nom + ' (MO)'; }
+  fermerModePopup();
+  clearSearch(prefix);
+  addToPanier(prefix, label, prixChoisi, 'Manuel');
+}
+function rechercherPrestation(prefix, query) {
+  const resultsDiv = document.getElementById(prefix+'-search-results');
+  const clearBtn = document.getElementById(prefix+'-search-clear');
+  if (!query || query.length < 2) {
+    if (resultsDiv) resultsDiv.classList.remove('show');
+    if (clearBtn) clearBtn.style.display = 'none';
+    return;
+  }
+  if (clearBtn) clearBtn.style.display = 'block';
+  const q = query.toLowerCase();
+  const results = [];
+  Object.entries(GRILLE).forEach(([cat, prests]) => {
+    Object.entries(prests).forEach(([nom, prix]) => {
+      if (nom.toLowerCase().includes(q) || cat.toLowerCase().includes(q))
+        results.push({ cat, nom, prix });
+    });
+  });
+  if (!resultsDiv) return;
+  if (results.length === 0) {
+    resultsDiv.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-3);">Aucun résultat</div>';
+  } else {
+    resultsDiv.innerHTML = results.slice(0,15).map((r, i) => {
+      const pF = typeof r.prix==='object' ? r.prix.f : r.prix;
+      window._sr = window._sr || {};
+      window._sr[prefix+'_'+i] = r.prix;
+      const nomSafe = r.nom.replace(/"/g,'&quot;');
+      return '<div class="search-result-item" onclick="pickResult(\''+prefix+'\','+i+')">'+
+        '<div><div class="search-result-name">'+r.nom+'</div><div class="search-result-cat">'+r.cat+'</div></div>'+
+        '<span class="search-result-price">'+pF+' €</span></div>';
+    }).join('');
+  }
+  resultsDiv.classList.add('show');
+}
+
+function selectSearchResult(prefix, nom, idx) {
+  const prix = (window._searchResults || {})[prefix+idx];
+  if (!prix) return;
+  if (typeof prix === 'object') {
+    ouvrirModePopup(prefix, nom, prix);
+  } else {
+    addToPanier(prefix, nom, prix, 'Manuel');
+  }
+}
+
+
+function pickResult(prefix, idx) {
+  const prix = (window._sr||{})[prefix+'_'+idx];
+  const item = document.querySelectorAll('#'+prefix+'-search-results .search-result-item')[idx];
+  const nom = item ? item.querySelector('.search-result-name').textContent : '';
+  if (!prix || !nom) return;
+  if (typeof prix === 'object') { ouvrirModePopup(prefix, nom, prix); }
+  else { addToPanier(prefix, nom, prix, 'Manuel'); clearSearch(prefix); }
+}
+
+function clearSearch(prefix) {
+  const i = document.getElementById(prefix+'-search');
+  const r = document.getElementById(prefix+'-search-results');
+  const c = document.getElementById(prefix+'-search-clear');
+  if (i) i.value='';
+  if (r) r.classList.remove('show');
+  if (c) c.style.display='none';
+}
+
 
 // ═══════════════════ TOGGLE CLIENT TYPE ═══════════════════
 function setClientType(prefix, type) {
