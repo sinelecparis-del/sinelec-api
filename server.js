@@ -1444,6 +1444,163 @@ app.post('/api/relances/lancer', async (req, res) => {
   }
 });
 
+
+// ═══════════════════════════════════════════════════════════════
+// CRON: RAPPORT HEBDOMADAIRE — Lundi 8h
+// ═══════════════════════════════════════════════════════════════
+
+async function rapportHebdomadaire() {
+  console.log('📊 Génération rapport hebdomadaire...');
+  try {
+    const maintenant = new Date();
+    const lundiDernier = new Date(maintenant);
+    lundiDernier.setDate(maintenant.getDate() - 7);
+
+    // Récupérer toutes les données de la semaine
+    const { data: docs } = await supabase
+      .from('historique')
+      .select('*')
+      .gte('created_at', lundiDernier.toISOString())
+      .order('created_at', { ascending: false });
+
+    const factures = (docs || []).filter(d => d.type === 'facture');
+    const devis = (docs || []).filter(d => d.type === 'devis');
+    const devisSemaine = (docs || []).filter(d => d.type === 'devis');
+
+    // Calculs
+    const caSemaine = factures.reduce((s, f) => s + parseFloat(f.total_ht || 0), 0);
+    const devisEnAttente = devis.filter(d => d.statut === 'envoyé' || d.statut === 'envoye');
+    const caEnAttente = devisEnAttente.reduce((s, d) => s + parseFloat(d.total_ht || 0), 0);
+    const devisSignes = devis.filter(d => d.statut === 'signe' || d.statut === 'signé');
+    const txConversion = devis.length > 0 ? Math.round((devisSignes.length / devis.length) * 100) : 0;
+
+    // Récupérer devis non signés depuis plus de 48h (toutes périodes)
+    const { data: tousDevis } = await supabase
+      .from('historique')
+      .select('*')
+      .eq('type', 'devis')
+      .in('statut', ['envoyé', 'envoye']);
+
+    const devisARelancer = (tousDevis || []).filter(d => {
+      const age = (maintenant - new Date(d.created_at)) / 3600000;
+      return age > 48;
+    });
+
+    const semaine = `${lundiDernier.toLocaleDateString('fr-FR')} → ${maintenant.toLocaleDateString('fr-FR')}`;
+
+    const html = `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family:Arial,sans-serif;background:#f0f2f5;margin:0;padding:20px;">
+<div style="max-width:600px;margin:0 auto;">
+
+  <!-- HEADER -->
+  <div style="background:linear-gradient(135deg,#1B2A4A,#243660);border-radius:16px;padding:24px;text-align:center;margin-bottom:16px;">
+    <div style="font-size:24px;font-weight:900;color:white;">⚡ SINELEC Paris</div>
+    <div style="color:rgba(255,255,255,0.7);font-size:13px;margin-top:4px;">📊 Rapport hebdomadaire — ${semaine}</div>
+  </div>
+
+  <!-- CA SEMAINE -->
+  <div style="background:white;border-radius:16px;padding:20px;margin-bottom:12px;box-shadow:0 2px 12px rgba(0,0,0,0.06);">
+    <div style="font-size:12px;font-weight:800;color:#C9A84C;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">💰 Chiffre d'affaires</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f0f0f0;">
+      <span style="color:#555;font-size:14px;">CA facturé cette semaine</span>
+      <span style="font-size:20px;font-weight:900;color:#C9A84C;">${caSemaine.toFixed(2)} €</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f0f0f0;">
+      <span style="color:#555;font-size:14px;">Factures émises</span>
+      <span style="font-weight:700;color:#1B2A4A;">${factures.length}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;">
+      <span style="color:#555;font-size:14px;">Panier moyen</span>
+      <span style="font-weight:700;color:#1B2A4A;">${factures.length > 0 ? (caSemaine / factures.length).toFixed(0) : 0} €</span>
+    </div>
+  </div>
+
+  <!-- DEVIS -->
+  <div style="background:white;border-radius:16px;padding:20px;margin-bottom:12px;box-shadow:0 2px 12px rgba(0,0,0,0.06);">
+    <div style="font-size:12px;font-weight:800;color:#C9A84C;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">📋 Devis</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f0f0f0;">
+      <span style="color:#555;font-size:14px;">Devis envoyés cette semaine</span>
+      <span style="font-weight:700;color:#1B2A4A;">${devisSemaine.length}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f0f0f0;">
+      <span style="color:#555;font-size:14px;">CA en attente de signature</span>
+      <span style="font-size:18px;font-weight:900;color:#f59e0b;">${caEnAttente.toFixed(2)} €</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f0f0f0;">
+      <span style="color:#555;font-size:14px;">Taux de conversion</span>
+      <span style="font-weight:700;color:${txConversion >= 50 ? '#10b981' : '#ef4444'};">${txConversion}%</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;">
+      <span style="color:#ef4444;font-size:14px;font-weight:700;">⚠️ Devis à relancer (+48h)</span>
+      <span style="font-weight:900;color:#ef4444;">${devisARelancer.length}</span>
+    </div>
+  </div>
+
+  ${devisARelancer.length > 0 ? `
+  <!-- DEVIS A RELANCER -->
+  <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:16px;padding:20px;margin-bottom:12px;">
+    <div style="font-size:12px;font-weight:800;color:#ef4444;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">🔔 À relancer maintenant</div>
+    ${devisARelancer.slice(0, 5).map(d => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #fee2e2;">
+      <div>
+        <div style="font-weight:700;font-size:13px;color:#1B2A4A;">${d.client || 'Client'}</div>
+        <div style="font-size:11px;color:#888;">${d.num} — ${new Date(d.created_at).toLocaleDateString('fr-FR')}</div>
+      </div>
+      <span style="font-weight:700;color:#C9A84C;">${parseFloat(d.total_ht || 0).toFixed(0)} €</span>
+    </div>`).join('')}
+  </div>` : ''}
+
+  <!-- CTA -->
+  <div style="text-align:center;margin:20px 0;">
+    <a href="https://sinelec-api-production.up.railway.app/app.html" 
+       style="display:inline-block;background:linear-gradient(135deg,#1B2A4A,#243660);color:white;text-decoration:none;padding:14px 28px;border-radius:12px;font-size:14px;font-weight:800;">
+      📱 Ouvrir SINELEC OS
+    </a>
+  </div>
+
+  <!-- FOOTER -->
+  <div style="text-align:center;color:#aaa;font-size:12px;padding:12px;">
+    SINELEC Paris — Rapport automatique chaque lundi 8h
+  </div>
+
+</div>
+</body>
+</html>`;
+
+    await envoyerEmail(
+      'sinelec.paris@gmail.com',
+      `📊 Rapport semaine SINELEC — CA: ${caSemaine.toFixed(0)}€ — ${devisARelancer.length} devis à relancer`,
+      html
+    );
+
+    console.log('✅ Rapport hebdomadaire envoyé !');
+    await logSystem('rapport_hebdo', 'Rapport envoyé', { caSemaine, nbFactures: factures.length }, true);
+
+  } catch (error) {
+    console.error('❌ Erreur rapport hebdo:', error);
+    await logSystem('rapport_hebdo', 'Erreur rapport', { error: error.message }, false, error);
+  }
+}
+
+// Cron lundi 8h
+cron.schedule('0 8 * * 1', rapportHebdomadaire);
+console.log('📅 Rapport hebdomadaire programmé: lundi 8h00');
+
+
+// ═══════════════════════════════════════════════════════════════
+// ENDPOINT: TESTER RAPPORT HEBDO MAINTENANT
+// ═══════════════════════════════════════════════════════════════
+app.post('/api/rapport-hebdo/tester', async (req, res) => {
+  try {
+    await rapportHebdomadaire();
+    res.json({ success: true, message: 'Rapport envoyé à sinelec.paris@gmail.com' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════
 // DÉMARRAGE SERVEUR
 // ═══════════════════════════════════════════════════════════════
