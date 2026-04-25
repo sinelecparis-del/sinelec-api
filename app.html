@@ -574,6 +574,22 @@ body::before {
 .client-toggle-btn { flex:1; padding:10px; text-align:center; font-size:13px; font-weight:700; border-radius:9px; cursor:pointer; transition:all 0.2s; color:var(--text-2); user-select:none; }
 .client-toggle-btn.active { background:linear-gradient(135deg,var(--accent),var(--gold)); color:#fff; box-shadow:0 2px 8px rgba(212,165,116,0.3); }
 
+/* ════════════ INDICATIF TÉLÉPHONE ════════════ */
+.tel-group {
+  display:flex; gap:8px; align-items:flex-start;
+}
+.indicatif-select {
+  background:rgba(255,255,255,0.8); border:1.5px solid var(--border);
+  border-radius:12px; padding:12px 10px; font-size:13px; font-weight:700;
+  color:var(--text); outline:none; cursor:pointer; min-width:110px;
+  transition:border-color 0.2s; appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 8px center;
+  padding-right:26px;
+}
+.indicatif-select:focus { border-color:var(--accent); }
+.tel-input-wrap { flex:1; }
+
 </style>
 </head>
 <body data-theme="light">
@@ -727,7 +743,31 @@ body::before {
     </div>
     <div class="input-group">
       <label>Téléphone client</label>
-      <input type="tel" id="d-tel" placeholder="Ex: 06 12 34 56 78">
+      <div class="tel-group">
+        <select class="indicatif-select" id="d-indicatif">
+          <option value="+33">🇫🇷 +33</option>
+          <option value="+32">🇧🇪 +32</option>
+          <option value="+41">🇨🇭 +41</option>
+          <option value="+44">🇬🇧 +44</option>
+          <option value="+1">🇺🇸 +1</option>
+          <option value="+49">🇩🇪 +49</option>
+          <option value="+39">🇮🇹 +39</option>
+          <option value="+34">🇪🇸 +34</option>
+          <option value="+351">🇵🇹 +351</option>
+          <option value="+212">🇲🇦 +212</option>
+          <option value="+213">🇩🇿 +213</option>
+          <option value="+216">🇹🇳 +216</option>
+          <option value="+221">🇸🇳 +221</option>
+          <option value="+225">🇨🇮 +225</option>
+          <option value="+237">🇨🇲 +237</option>
+          <option value="+243">🇨🇩 +243</option>
+          <option value="+966">🇸🇦 +966</option>
+          <option value="+971">🇦🇪 +971</option>
+        </select>
+        <div class="tel-input-wrap">
+          <input type="tel" id="d-tel" placeholder="06 12 34 56 78" oninput="formatTel(this)">
+        </div>
+      </div>
     </div>
     <div style="display:flex;gap:10px;">
       <div class="input-group" style="flex:0 0 120px;">
@@ -834,7 +874,31 @@ body::before {
     </div>
     <div class="input-group">
       <label>Téléphone client</label>
-      <input type="tel" id="f-tel" placeholder="Ex: 06 12 34 56 78">
+      <div class="tel-group">
+        <select class="indicatif-select" id="f-indicatif">
+          <option value="+33">🇫🇷 +33</option>
+          <option value="+32">🇧🇪 +32</option>
+          <option value="+41">🇨🇭 +41</option>
+          <option value="+44">🇬🇧 +44</option>
+          <option value="+1">🇺🇸 +1</option>
+          <option value="+49">🇩🇪 +49</option>
+          <option value="+39">🇮🇹 +39</option>
+          <option value="+34">🇪🇸 +34</option>
+          <option value="+351">🇵🇹 +351</option>
+          <option value="+212">🇲🇦 +212</option>
+          <option value="+213">🇩🇿 +213</option>
+          <option value="+216">🇹🇳 +216</option>
+          <option value="+221">🇸🇳 +221</option>
+          <option value="+225">🇨🇮 +225</option>
+          <option value="+237">🇨🇲 +237</option>
+          <option value="+243">🇨🇩 +243</option>
+          <option value="+966">🇸🇦 +966</option>
+          <option value="+971">🇦🇪 +971</option>
+        </select>
+        <div class="tel-input-wrap">
+          <input type="tel" id="f-tel" placeholder="06 12 34 56 78" oninput="formatTel(this)">
+        </div>
+      </div>
     </div>
     <div style="display:flex;gap:10px;">
       <div class="input-group" style="flex:0 0 120px;">
@@ -1208,6 +1272,31 @@ function clearSearch(prefix) {
 
 
 // ═══════════════════ TOGGLE CLIENT TYPE ═══════════════════
+
+// ═══════════════════ FORMAT TÉLÉPHONE ═══════════════════
+function formatTel(input) {
+  const ind = input.closest('.tel-group')?.querySelector('.indicatif-select')?.value || '+33';
+  let v = input.value.replace(/\D/g, '');
+  
+  if (ind === '+33') {
+    // Format français : 06 12 34 56 78
+    v = v.substring(0, 10);
+    const parts = v.match(/.{1,2}/g) || [];
+    input.value = parts.join(' ');
+  } else if (ind === '+1') {
+    // Format US : 555 123 4567
+    v = v.substring(0, 10);
+    if (v.length > 6) input.value = v.substring(0,3) + ' ' + v.substring(3,6) + ' ' + v.substring(6);
+    else if (v.length > 3) input.value = v.substring(0,3) + ' ' + v.substring(3);
+    else input.value = v;
+  } else {
+    // Autres : groupes de 2
+    v = v.substring(0, 12);
+    const parts = v.match(/.{1,2}/g) || [];
+    input.value = parts.join(' ');
+  }
+}
+
 function setClientType(prefix, type) {
   document.getElementById(prefix+'-toggle-part').classList.toggle('active', type==='particulier');
   document.getElementById(prefix+'-toggle-soc').classList.toggle('active', type==='societe');
@@ -1813,7 +1902,14 @@ const res = await fetch('/api/generer', {
     type,
     client,
     email,
-    telephone: document.getElementById(`${prefix}-tel`).value.trim(),
+    telephone: (() => {
+      const ind = document.getElementById(`${prefix}-indicatif`)?.value || '+33';
+      const num = document.getElementById(`${prefix}-tel`)?.value.trim() || '';
+      if (!num) return '';
+      // Format FR : retirer le 0 initial pour +33
+      const numClean = ind === '+33' && num.startsWith('0') ? num.substring(1) : num;
+      return ind + ' ' + numClean;
+    })(),
     adresse,
     complement: (document.getElementById(`${prefix}-complement`)?.value || '').trim(),
     codePostal: (document.getElementById(`${prefix}-cp`)?.value || '').trim(),
