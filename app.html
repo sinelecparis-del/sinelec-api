@@ -6,7 +6,135 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>SINELEC OS v2.0</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js">
+// ═══════════════════ REMISE ═══════════════════
+let remiseTypeD = 'pct', remiseTypeF = 'pct';
+
+function toggleRemise(prefix) {
+  const bar = document.getElementById(`${prefix}-remise-bar`);
+  const btn = document.getElementById(`${prefix}-remise-btn`);
+  const visible = bar.style.display !== 'none';
+  bar.style.display = visible ? 'none' : 'flex';
+  btn.textContent = visible ? '🏷️ Ajouter une remise' : '✕ Retirer la remise';
+  if (visible) {
+    document.getElementById(`${prefix}-remise-val`).value = 0;
+    renderPanier(prefix);
+  }
+}
+
+function setRemiseType(prefix, type) {
+  if (prefix === 'd') remiseTypeD = type;
+  else remiseTypeF = type;
+  document.getElementById(`${prefix}-remise-type-pct`).classList.toggle('active', type === 'pct');
+  document.getElementById(`${prefix}-remise-type-eur`).classList.toggle('active', type === 'eur');
+  renderPanier(prefix);
+}
+
+function getRemise(prefix, total) {
+  const bar = document.getElementById(`${prefix}-remise-bar`);
+  if (!bar || bar.style.display === 'none') return 0;
+  const val = parseFloat(document.getElementById(`${prefix}-remise-val`)?.value) || 0;
+  const type = prefix === 'd' ? remiseTypeD : remiseTypeF;
+  return type === 'pct' ? Math.min(total * val / 100, total) : Math.min(val, total);
+}
+
+// ═══════════════════ FAVORIS ═══════════════════
+function sauvegarderFavori(prefix) {
+  const panier = prefix === 'd' ? panierD : panierF;
+  if (panier.length === 0) { showToast('⚠️ Panier vide !', '❌'); return; }
+  
+  const nom = prompt('Nom de ce panier favori :');
+  if (!nom) return;
+  
+  const favoris = JSON.parse(localStorage.getItem('sinelec_favoris') || '[]');
+  favoris.push({ nom, panier: JSON.parse(JSON.stringify(panier)), date: new Date().toISOString() });
+  localStorage.setItem('sinelec_favoris', JSON.stringify(favoris));
+  showToast(`⭐ "${nom}" sauvegardé !`, '✅');
+  afficherFavoris(prefix);
+}
+
+function afficherFavoris(prefix) {
+  const bar = document.getElementById(`${prefix}-favoris-bar`);
+  const favoris = JSON.parse(localStorage.getItem('sinelec_favoris') || '[]');
+  
+  if (favoris.length === 0) {
+    showToast('Aucun favori sauvegardé', '📂');
+    return;
+  }
+  
+  bar.style.display = 'flex';
+  bar.innerHTML = favoris.map((f, i) => `
+    <div class="favori-chip" onclick="chargerFavori('${prefix}', ${i})">
+      ⭐ ${f.nom}
+      <span class="favori-chip-del" onclick="event.stopPropagation();supprimerFavori(${i}, '${prefix}')">×</span>
+    </div>
+  `).join('');
+}
+
+function chargerFavori(prefix, idx) {
+  const favoris = JSON.parse(localStorage.getItem('sinelec_favoris') || '[]');
+  const favori = favoris[idx];
+  if (!favori) return;
+  
+  if (prefix === 'd') panierD = JSON.parse(JSON.stringify(favori.panier));
+  else panierF = JSON.parse(JSON.stringify(favori.panier));
+  
+  renderPanier(prefix);
+  showToast(`✅ "${favori.nom}" chargé !`, '⭐');
+}
+
+function supprimerFavori(idx, prefix) {
+  const favoris = JSON.parse(localStorage.getItem('sinelec_favoris') || '[]');
+  favoris.splice(idx, 1);
+  localStorage.setItem('sinelec_favoris', JSON.stringify(favoris));
+  afficherFavoris(prefix);
+}
+
+// ═══════════════════ PDF DOWNLOAD ═══════════════════
+async function telechargerPDF(num) {
+  showToast('⏳ Génération PDF...', '📄');
+  try {
+    const res = await fetch(`/api/pdf/${num}`);
+    if (!res.ok) throw new Error('PDF non disponible');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${num}.pdf`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('✅ PDF téléchargé !', '📥');
+  } catch(e) {
+    showToast('❌ ' + e.message, '⚠️');
+  }
+}
+
+// ═══════════════════ ALERTE DEVIS NON SIGNÉS ═══════════════════
+async function verifierAlertesDevis() {
+  try {
+    const res = await fetch('/api/historique?type=devis');
+    const data = await res.json();
+    const nb = data.filter(d => {
+      const age = (new Date() - new Date(d.created_at)) / 3600000;
+      return d.statut === 'envoyé' && age > 48;
+    }).length;
+    
+    const histoTab = document.querySelector('[onclick*="historique"]');
+    if (histoTab && nb > 0) {
+      const badge = histoTab.querySelector('.notif-badge') || document.createElement('span');
+      badge.className = 'notif-badge';
+      badge.textContent = nb;
+      badge.style.cssText = 'background:#ef4444;color:#fff;border-radius:10px;padding:2px 6px;font-size:10px;font-weight:800;margin-left:4px;';
+      if (!histoTab.querySelector('.notif-badge')) histoTab.appendChild(badge);
+    }
+  } catch(e) {}
+}
+
+// Vérifier alertes au démarrage et toutes les 5 min
+setTimeout(verifierAlertesDevis, 2000);
+setInterval(verifierAlertesDevis, 300000);
+
+</script>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 <script src="config-v2.js"></script>
 
@@ -382,6 +510,59 @@ body::before {
   padding:16px; border-bottom:1px solid rgba(218,165,32,0.08);
 }
 .data-table tr:hover { background:rgba(255,255,255,0.4); }
+/* ════ REMISE ════ */
+.remise-bar {
+  background:var(--glass); border:1.5px solid var(--border);
+  border-radius:16px; padding:16px 18px; margin-bottom:12px;
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+}
+.remise-toggle {
+  display:flex; background:rgba(255,255,255,0.6);
+  border:1px solid var(--border); border-radius:10px; overflow:hidden;
+}
+.remise-toggle-btn {
+  padding:8px 14px; font-size:12px; font-weight:700;
+  cursor:pointer; color:var(--text-2); transition:all 0.2s;
+}
+.remise-toggle-btn.active {
+  background:linear-gradient(135deg,var(--accent),var(--gold)); color:#fff;
+}
+.remise-input {
+  width:90px; background:rgba(255,255,255,0.8);
+  border:1.5px solid var(--accent); border-radius:10px;
+  padding:8px 12px; font-size:15px; font-weight:800;
+  color:var(--accent); text-align:center; outline:none;
+}
+.remise-line {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:8px 0; font-size:13px; color:var(--success); font-weight:700;
+}
+
+/* ════ FAVORIS ════ */
+.favoris-bar {
+  display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;
+}
+.favori-chip {
+  display:flex; align-items:center; gap:6px;
+  background:rgba(212,165,116,0.12); border:1px solid rgba(212,165,116,0.3);
+  border-radius:20px; padding:6px 12px; cursor:pointer;
+  font-size:12px; font-weight:700; color:var(--accent);
+  transition:all 0.2s;
+}
+.favori-chip:hover { background:rgba(212,165,116,0.25); }
+.favori-chip-del {
+  color:var(--text-3); cursor:pointer; font-size:14px; line-height:1;
+}
+.favori-chip-del:hover { color:var(--error); }
+
+/* ════ ALERTE DEVIS ════ */
+.alerte-badge {
+  display:inline-flex; align-items:center; gap:4px;
+  background:rgba(239,68,68,0.12); color:var(--error);
+  border:1px solid rgba(239,68,68,0.2); border-radius:8px;
+  padding:3px 8px; font-size:11px; font-weight:700;
+}
+
 </style>
 </head>
 <body data-theme="light">
@@ -555,11 +736,38 @@ body::before {
     </div>
   </div>
   
+  <!-- FAVORIS -->
+  <div id="d-favoris-bar" class="favoris-bar" style="display:none;"></div>
+  <div style="display:flex;gap:8px;margin-bottom:8px;">
+    <button onclick="sauvegarderFavori('d')" style="flex:1;background:rgba(255,255,255,0.7);color:var(--text-2);border:1.5px solid var(--border);border-radius:12px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;">⭐ Sauvegarder panier</button>
+    <button onclick="afficherFavoris('d')" style="flex:1;background:rgba(255,255,255,0.7);color:var(--accent);border:1.5px solid rgba(212,165,116,0.3);border-radius:12px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;">📂 Mes paniers</button>
+  </div>
+
+  <!-- REMISE -->
+  <div class="remise-bar" id="d-remise-bar" style="display:none;">
+    <span style="font-size:13px;font-weight:700;color:var(--text-2);">Remise</span>
+    <div class="remise-toggle">
+      <div class="remise-toggle-btn active" id="d-remise-type-pct" onclick="setRemiseType('d','pct')">%</div>
+      <div class="remise-toggle-btn" id="d-remise-type-eur" onclick="setRemiseType('d','eur')">€</div>
+    </div>
+    <input type="number" class="remise-input" id="d-remise-val" value="0" min="0" oninput="renderPanier('d')">
+    <span style="font-size:12px;color:var(--text-3);">sur le total</span>
+  </div>
+  <button onclick="toggleRemise('d')" style="width:100%;background:rgba(255,255,255,0.6);color:var(--text-2);border:1.5px solid var(--border);border-radius:12px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:8px;" id="d-remise-btn">🏷️ Ajouter une remise</button>
+
   <div class="total-bar">
     <span class="total-label">TOTAL HT</span>
     <span class="total-amount" id="d-total">0,00 €</span>
   </div>
-  
+  <div class="remise-line" id="d-remise-line" style="display:none;">
+    <span>🏷️ Remise appliquée</span>
+    <span id="d-remise-montant" style="color:var(--success);">-0,00 €</span>
+  </div>
+  <div id="d-total-apres-remise" style="display:none;justify-content:space-between;align-items:center;padding:8px 0;font-size:16px;font-weight:900;color:var(--text);">
+    <span>NET À PAYER</span>
+    <span id="d-net-payer" style="color:var(--accent);">0,00 €</span>
+  </div>
+
   <button class="btn-gen" id="d-btn" onclick="generer('devis')">📄 Générer le devis PDF</button>
   <button onclick="envoyerPourSignature()" style="width:100%;background:rgba(255,255,255,0.7);color:var(--text);border:1.5px solid var(--border);border-radius:16px;padding:16px 24px;font-size:14px;font-weight:700;cursor:pointer;transition:all 0.25s;margin-top:8px;">✍️ Envoyer pour signature</button>
   
@@ -617,11 +825,38 @@ body::before {
     </div>
   </div>
   
+  <!-- FAVORIS FACTURE -->
+  <div id="f-favoris-bar" class="favoris-bar" style="display:none;"></div>
+  <div style="display:flex;gap:8px;margin-bottom:8px;">
+    <button onclick="sauvegarderFavori('f')" style="flex:1;background:rgba(255,255,255,0.7);color:var(--text-2);border:1.5px solid var(--border);border-radius:12px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;">⭐ Sauvegarder panier</button>
+    <button onclick="afficherFavoris('f')" style="flex:1;background:rgba(255,255,255,0.7);color:var(--accent);border:1.5px solid rgba(212,165,116,0.3);border-radius:12px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;">📂 Mes paniers</button>
+  </div>
+
+  <!-- REMISE FACTURE -->
+  <div class="remise-bar" id="f-remise-bar" style="display:none;">
+    <span style="font-size:13px;font-weight:700;color:var(--text-2);">Remise</span>
+    <div class="remise-toggle">
+      <div class="remise-toggle-btn active" id="f-remise-type-pct" onclick="setRemiseType('f','pct')">%</div>
+      <div class="remise-toggle-btn" id="f-remise-type-eur" onclick="setRemiseType('f','eur')">€</div>
+    </div>
+    <input type="number" class="remise-input" id="f-remise-val" value="0" min="0" oninput="renderPanier('f')">
+    <span style="font-size:12px;color:var(--text-3);">sur le total</span>
+  </div>
+  <button onclick="toggleRemise('f')" style="width:100%;background:rgba(255,255,255,0.6);color:var(--text-2);border:1.5px solid var(--border);border-radius:12px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:8px;" id="f-remise-btn">🏷️ Ajouter une remise</button>
+
   <div class="total-bar">
     <span class="total-label">TOTAL HT</span>
     <span class="total-amount" id="f-total">0,00 €</span>
   </div>
-  
+  <div class="remise-line" id="f-remise-line" style="display:none;">
+    <span>🏷️ Remise appliquée</span>
+    <span id="f-remise-montant" style="color:var(--success);">-0,00 €</span>
+  </div>
+  <div id="f-total-apres-remise" style="display:none;justify-content:space-between;align-items:center;padding:8px 0;font-size:16px;font-weight:900;color:var(--text);">
+    <span>NET À PAYER</span>
+    <span id="f-net-payer" style="color:var(--accent);">0,00 €</span>
+  </div>
+
   <button class="btn-gen" id="f-btn" onclick="generer('facture')">💶 Générer la facture PDF</button>
   <div class="status" id="f-status"></div>
 </div>
@@ -1038,6 +1273,23 @@ function renderPanier(prefix) {
   
   countEl.textContent = `${panier.length} prestation(s)`;
   totalEl.textContent = `${total.toFixed(2)} €`;
+
+  // Remise
+  const remise = getRemise(prefix, total);
+  const remiseLine = document.getElementById(`${prefix}-remise-line`);
+  const remiseMontant = document.getElementById(`${prefix}-remise-montant`);
+  const netPayer = document.getElementById(`${prefix}-net-payer`);
+  const netDiv = document.getElementById(`${prefix}-total-apres-remise`);
+
+  if (remise > 0) {
+    if (remiseLine) remiseLine.style.display = 'flex';
+    if (remiseMontant) remiseMontant.textContent = `-${remise.toFixed(2)} €`;
+    if (netPayer) netPayer.textContent = `${(total - remise).toFixed(2)} €`;
+    if (netDiv) netDiv.style.display = 'flex';
+  } else {
+    if (remiseLine) remiseLine.style.display = 'none';
+    if (netDiv) netDiv.style.display = 'none';
+  }
 }
 
 function changeQte(prefix, idx, delta) {
@@ -1564,7 +1816,9 @@ function afficherHistorique() {
   
   tbody.innerHTML = filtered.map(item => {
     const statut = item.statut || (item.type === 'facture' ? 'payée' : 'envoyé');
-    const badge = getStatusBadge(statut, item.type);
+    const ageHeures = (new Date() - new Date(item.created_at || item.date)) / 3600000;
+    const alerte48h = item.type === 'devis' && statut === 'envoyé' && ageHeures > 48;
+    const badge = getStatusBadge(statut, item.type) + (alerte48h ? ' <span class="alerte-badge">⚠️ +48h</span>' : '');
     const timeline = getTimeline(item.created_at || item.date);
     
     return `
@@ -1579,7 +1833,7 @@ function afficherHistorique() {
             ${item.type === 'devis' && statut === 'signé' ? `
               <button onclick="convertirEnFacture('${item.num}')" class="btn-small" style="background:rgba(16,185,129,0.15);color:var(--success);border:1px solid rgba(16,185,129,0.3);">→ Facture</button>
             ` : ''}
-            <button onclick="window.open('/api/pdf/${item.num}', '_blank')" class="btn-small">📄 PDF</button>
+            <button onclick="telechargerPDF('${item.num}')" class="btn-small">⬇️ PDF</button>
           </div>
         </td>
       </tr>
@@ -1617,9 +1871,9 @@ async function convertirEnFacture(numDevis) {
       return;
     }
     
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    // Naviguer vers facture
+    document.querySelectorAll('.sidebar-item, .mobile-tab').forEach(el => el.classList.remove('active'));
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-    document.querySelectorAll('.tab')[1].classList.add('active');
     document.getElementById('page-facture').classList.add('active');
     
     document.getElementById('f-client').value = devis.client || '';
