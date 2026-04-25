@@ -306,7 +306,9 @@ ${prestations.map(p => p.nom).join('\n')}`;
     // client contient déjà prénom+nom fusionnés par getClientComplet
     const clientNomComplet = clientEsc;
     const clientComplement = String(complement || '').replace(/'/g, ' ').trim();
-    const clientTel = String(telephone || '').replace(/'/g, ' ').trim();
+    const clientTelRaw = String(telephone || '').trim();
+    // Formater si pas déjà formaté (ajouter espaces tous les 2 chiffres)
+    const clientTel = clientTelRaw;
       const adresseEsc = String(adresse || '').replace(/'/g, ' ');
       // Nettoyer adresse GPS
       const adresseRaw = String(adresse || '').replace(/'/g, ' ').trim();
@@ -331,7 +333,7 @@ ${prestations.map(p => p.nom).join('\n')}`;
       const clientVille = [clientCP, villeManuelle || villeGPS].filter(Boolean).join(' ');
       const clientCPVille = clientVille;
 
-          const descObjet = String(description || 'Travaux d electricite generale').replace(/'/g, ' ').trim();
+            const descObjet = String(description || 'Travaux d electricite generale').trim().replace(/'/g, ' ');
       const py = `# -*- coding: utf-8 -*-
 import json, base64, io, sys
 from reportlab.lib.pagesizes import A4
@@ -912,7 +914,9 @@ app.get('/api/pdf/:num', async (req, res) => {
     // client contient déjà prénom+nom fusionnés par getClientComplet
     const clientNomComplet = clientEsc;
     const clientComplement = String(complement || '').replace(/'/g, ' ').trim();
-    const clientTel = String(telephone || '').replace(/'/g, ' ').trim();
+    const clientTelRaw = String(telephone || '').trim();
+    // Formater si pas déjà formaté (ajouter espaces tous les 2 chiffres)
+    const clientTel = clientTelRaw;
     const adresseEsc = String(adresse || '').replace(/'/g, ' ');
     const clientParts = (adresse || '').split(',');
     const clientRue = String(clientParts[0] || '').trim().replace(/'/g, ' ');
