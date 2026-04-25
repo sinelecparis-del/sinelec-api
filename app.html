@@ -8,19 +8,6 @@
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js">
 
-function setClientType(prefix, type) {
-  document.getElementById(prefix+'-toggle-part').classList.toggle('active', type==='particulier');
-  document.getElementById(prefix+'-toggle-soc').classList.toggle('active', type==='societe');
-  document.getElementById(prefix+'-bloc-particulier').style.display = type==='particulier' ? 'block' : 'none';
-  document.getElementById(prefix+'-bloc-societe').style.display = type==='societe' ? 'block' : 'none';
-}
-function getClientComplet(prefix) {
-  const isSoc = document.getElementById(prefix+'-bloc-particulier').style.display === 'none';
-  if (isSoc) return (document.getElementById(prefix+'-societe')?.value||'').trim();
-  const p = (document.getElementById(prefix+'-prenom')?.value||'').trim();
-  const n = (document.getElementById(prefix+'-client')?.value||'').trim();
-  return [p,n].filter(Boolean).join(' ');
-}
 
 // ═══════════════════ REMISE ═══════════════════
 let remiseTypeD = 'pct', remiseTypeF = 'pct';
@@ -1102,6 +1089,22 @@ body::before {
 <script>
 // ═══════════════════ CONFIGURATION ═══════════════════
 const API_URL = window.location.origin;
+
+// ═══════════════════ TOGGLE CLIENT TYPE ═══════════════════
+function setClientType(prefix, type) {
+  document.getElementById(prefix+'-toggle-part').classList.toggle('active', type==='particulier');
+  document.getElementById(prefix+'-toggle-soc').classList.toggle('active', type==='societe');
+  document.getElementById(prefix+'-bloc-particulier').style.display = type==='particulier' ? 'block' : 'none';
+  document.getElementById(prefix+'-bloc-societe').style.display = type==='societe' ? 'block' : 'none';
+}
+function getClientComplet(prefix) {
+  const isSoc = document.getElementById(prefix+'-bloc-particulier') && document.getElementById(prefix+'-bloc-particulier').style.display === 'none';
+  if (isSoc) return (document.getElementById(prefix+'-societe')?.value||'').trim();
+  const p = (document.getElementById(prefix+'-prenom')?.value||'').trim();
+  const n = (document.getElementById(prefix+'-client')?.value||'').trim();
+  return [p,n].filter(Boolean).join(' ');
+}
+
 
 const GRILLE = {
   '🚗 Deplacement & Urgences': {
