@@ -140,6 +140,56 @@ async function envoyerEmail(to, subject, htmlContent, attachment = null) {
   }
 }
 
+
+// ═══════════════════════════════════════════════════════════════
+// HELPER: ENVOI SMS BREVO (avis Google post-facture)
+// ═══════════════════════════════════════════════════════════════
+
+async function envoyerSMS(to, message) {
+  if (!to || to.length < 8) {
+    console.log('📱 SMS ignoré — numéro invalide:', to);
+    return;
+  }
+
+  // Nettoyer le numéro — format international
+  let num = to.replace(/[\s\-\.]/g, '');
+  if (num.startsWith('0')) num = '+33' + num.substring(1);
+  if (!num.startsWith('+')) num = '+33' + num;
+
+  console.log('📱 Envoi SMS à:', num);
+
+  try {
+    const res = await fetch('https://api.brevo.com/v3/transactionalSMS/sms', {
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'api-key': BREVO_API_KEY,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        sender: 'SINELEC',
+        recipient: num,
+        content: message,
+        type: 'transactional',
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      console.error('❌ Erreur SMS Brevo:', err);
+      return;
+    }
+
+    const result = await res.json();
+    console.log('✅ SMS envoyé !', result.messageId);
+    await logSystem('sms', `SMS envoyé à ${num}`, { messageId: result.messageId }, true);
+    return result;
+  } catch (error) {
+    console.error('❌ Erreur SMS:', error.message);
+    await logSystem('sms', `Erreur SMS à ${num}`, { error: error.message }, false, error);
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════
 // HELPER: INCRÉMENTER COMPTEUR
 // ═══════════════════════════════════════════════════════════════
@@ -674,6 +724,20 @@ print('PDF_OK')
     }
 
     await logSystem('generer', `${type} ${num} créé`, { client, total_ht }, true);
+
+    // ── SMS avis Google si FACTURE avec téléphone ──
+    if (type === 'facture' && telephone) {
+      try {
+        const prenomClient = (prenom || client.split(' ')[0] || 'client').split(' ')[0];
+        const smsAvis = `Bonjour ${prenomClient}, merci pour votre confiance ! Si vous etes satisfait, un avis Google nous aiderait beaucoup : https://g.page/r/sinelecparis/review - SINELEC Paris`;
+        // Délai 2h après la facture (7200000 ms)
+        setTimeout(() => envoyerSMS(telephone, smsAvis), 1200000);
+        console.log('📱 SMS avis Google programmé dans 20min pour:', telephone);
+      } catch(smsErr) {
+        console.error('⚠️ Erreur programmation SMS:', smsErr.message);
+      }
+    }
+
     res.json({ success: true, num, total_ht });
 
   } catch (error) {
@@ -743,75 +807,22 @@ app.post('/api/signature', async (req, res) => {
   }
 
   try {
-    const { num, signature, cgv_acceptees } = req.body;
-
-    // Récupérer les infos du devis
-    const { data: devisData } = await supabase.from('historique').select('*').eq('num', num).single();
+    const { num, signature } = req.body;
 
     // Sauvegarder signature
-    await supabase.from('signatures').insert({ num, signature, cgv_acceptees: cgv_acceptees || false });
+    await supabase.from('signatures').insert({ num, signature });
 
-    // Mettre à jour statut
+    // Mettre à jour devis
     await supabase.from('historique')
       .update({ 
         signature, 
-        statut: 'signe',
-        date_signature: new Date().toISOString(),
-        cgv_acceptees: cgv_acceptees || false
+        statut: 'signé',
+        date_signature: new Date().toISOString()
       })
       .eq('num', num);
 
-    // ── Générer PDF signé et envoyer aux 2 parties ──
-    if (devisData) {
-      try {
-        const dateSignature = new Date().toLocaleDateString('fr-FR');
-        const heureSignature = new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
+    await logSystem('signature', `Devis ${num} signé`, { num }, true);
 
-        const htmlConfirm = `<!DOCTYPE html><html><body style="font-family:Arial;background:#f0f2f5;margin:0;padding:20px;">
-<div style="max-width:600px;margin:0 auto;">
-<div style="background:linear-gradient(135deg,#1B2A4A,#243660);border-radius:16px;padding:24px;text-align:center;margin-bottom:16px;">
-<div style="font-size:24px;font-weight:900;color:white;">⚡ SINELEC Paris</div>
-<div style="color:rgba(255,255,255,0.7);font-size:13px;margin-top:4px;">Confirmation de signature</div>
-</div>
-<div style="background:white;border-radius:16px;padding:24px;margin-bottom:16px;box-shadow:0 2px 12px rgba(0,0,0,0.06);">
-<div style="font-size:48px;text-align:center;margin-bottom:12px;">✅</div>
-<h2 style="color:#1B2A4A;text-align:center;margin-bottom:16px;">Devis signé avec succès</h2>
-<p style="color:#555;font-size:14px;line-height:1.6;">Le devis <strong>${num}</strong> a été signé le <strong>${dateSignature} à ${heureSignature}</strong>.</p>
-<p style="color:#555;font-size:14px;line-height:1.6;margin-top:8px;">Client : <strong>${devisData.client}</strong></p>
-<p style="color:#555;font-size:14px;line-height:1.6;margin-top:8px;">Montant : <strong style="color:#C9A84C;">${(devisData.total_ht || 0).toFixed(2)} €</strong></p>
-<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:14px;margin-top:20px;">
-<div style="color:#16a34a;font-size:14px;font-weight:700;">Conditions générales acceptées</div>
-<div style="color:#555;font-size:12px;margin-top:4px;">CGV, reconnaissance du devis et bon pour accord confirmés</div>
-</div>
-</div>
-<div style="text-align:center;color:#aaa;font-size:12px;padding:8px;">
-SINELEC — 07 87 38 86 22 — sinelec.paris@gmail.com — SIRET : 91015824500019
-</div>
-</div></body></html>`;
-
-        // Email au CLIENT
-        if (devisData.email) {
-          await envoyerEmail(
-            devisData.email,
-            `✅ Devis SINELEC ${num} — Bon pour accord confirmé`,
-            htmlConfirm
-          );
-        }
-
-        // Email à SINELEC (notification)
-        await envoyerEmail(
-          'sinelec.paris@gmail.com',
-          `🔔 Devis ${num} SIGNÉ — ${devisData.client}`,
-          htmlConfirm
-        );
-
-        console.log(`✅ Emails de confirmation envoyés pour ${num}`);
-      } catch(emailErr) {
-        console.error('⚠️ Erreur email post-signature:', emailErr.message);
-      }
-    }
-
-    await logSystem('signature', `Devis ${num} signe`, { num }, true);
     res.json({ success: true });
   } catch (error) {
     console.error('Erreur signature:', error);
@@ -973,21 +984,16 @@ app.get('/api/pdf/:num', async (req, res) => {
     fs.writeFileSync(detailsPath, JSON.stringify(detailsData));
 
     const clientEsc = String(client || '').replace(/'/g, ' ');
+    // client contient déjà prénom+nom fusionnés par getClientComplet
     const clientNomComplet = clientEsc;
-    // Récupérer depuis data Supabase
-    const clientTel = String(data.telephone || '').replace(/'/g, ' ').trim();
-    const clientComplement = String(data.complement || '').replace(/'/g, ' ').trim();
-    const adresseRaw = String(adresse || '').replace(/'/g, ' ').trim();
-    const adresseParts = adresseRaw.split(',').map(s => s.trim()).filter(Boolean);
-    const clientRue = adresseParts.length >= 2 && adresseParts[0].match(/^\d+$/)
-      ? adresseParts[0] + ' ' + adresseParts[1]
-      : adresseParts[0] || '';
-    const cpMatch = adresseRaw.match(/\b(\d{5})\b/);
-    const cpFromAdresse = cpMatch ? cpMatch[1] : '';
-    const clientCP = String(data.codePostal || '').trim() || cpFromAdresse;
-    const clientVilleStr = String(data.ville || '').trim();
-    const clientVille = [clientCP, clientVilleStr].filter(Boolean).join(' ') || 
-      adresseParts.find(p => p.length > 2 && !p.match(/^\d{5}/) && !p.toLowerCase().includes('france')) || '';
+    const clientComplement = String(complement || '').replace(/'/g, ' ').trim();
+    const clientTelRaw = String(telephone || '').trim();
+    // Formater si pas déjà formaté (ajouter espaces tous les 2 chiffres)
+    const clientTel = clientTelRaw;
+    const adresseEsc = String(adresse || '').replace(/'/g, ' ');
+    const clientParts = (adresse || '').split(',');
+    const clientRue = String(clientParts[0] || '').trim().replace(/'/g, ' ');
+    const clientVille = clientParts.slice(1).join(',').trim().replace(/'/g, ' ');
 
     // Utiliser le même script Python que pour la génération
     const py = `# -*- coding: utf-8 -*-
@@ -1117,23 +1123,6 @@ print('PDF_OK')
 
   } catch (error) {
     console.error('Erreur PDF download:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-
-// ═══════════════════════════════════════════════════════════════
-// API: SUPPRIMER DEVIS/FACTURE
-// ═══════════════════════════════════════════════════════════════
-app.delete('/api/historique/:num', async (req, res) => {
-  try {
-    const { num } = req.params;
-    const { error } = await supabase.from('historique').delete().eq('num', num);
-    if (error) throw error;
-    await logSystem('delete', `${num} supprimé`, { num }, true);
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Erreur suppression:', error);
     res.status(500).json({ error: error.message });
   }
 });
