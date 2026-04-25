@@ -1382,7 +1382,7 @@ function selectCategory(prefix, cat, btn) {
     div.className = 'prest-btn';
     div.innerHTML = `
       <span class="prest-name">${nom}</span>
-      <span class="prest-price">${prix} €</span>
+      <span class="prest-price">${typeof prix === 'object' ? prix.f : prix} €</span>
     `;
     div.onclick = () => addToPanier(prefix, nom, prix, cat);
     prestsDiv.appendChild(div);
