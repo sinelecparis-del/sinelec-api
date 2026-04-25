@@ -457,9 +457,10 @@ await envoyerEmail(
 try { fs.unlinkSync(pyPath); } catch(e) {}
 try { fs.unlinkSync(detailsPath); } catch(e) {}
 try { fs.unlinkSync(pdfPath); } catch(e) {}
-}
+  }
+  }
 
-await logSystem('generer', `${type} ${num} créé`, { client, total_ht }, true);
+  await logSystem('generer', `${type} ${num} créé`, { client, total_ht }, true);
 res.json({ success: true, num, total_ht });
 } catch (error) {
   console.error('Erreur génération:', error);
