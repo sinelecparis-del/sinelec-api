@@ -264,7 +264,7 @@ app.post('/api/generer', async (req, res) => {
           messages: [{ role: 'user', content: promptDesc }]
         });
         const descText = descResp.content[0].text;
-        const jsonMatch = descText.match(/\[.*\]/s);
+        const jsonMatch = descText.match(/\[[\s\S]*\]/);
         if (jsonMatch) {
           const descs = JSON.parse(jsonMatch[0]);
           detailsData = detailsData.map((d, i) => ({
@@ -273,7 +273,7 @@ app.post('/api/generer', async (req, res) => {
           }));
         }
       } catch(e) {
-        console.log('⚠️ Descriptions auto skippées:', e.message);
+        console.error('❌ Descriptions auto erreur:', e.message, e.stack?.split('\n')[1]);
       }
 
       try {
@@ -287,7 +287,7 @@ ${prestations.map(p => p.nom).join('\n')}`;
           messages: [{ role: 'user', content: promptDesc }]
         });
         const descText = descResp.content[0].text;
-        const jsonMatch = descText.match(/\[.*\]/s);
+        const jsonMatch = descText.match(/\[[\s\S]*\]/);
         if (jsonMatch) {
           const descs = JSON.parse(jsonMatch[0]);
           detailsData = detailsData.map((d, i) => ({
@@ -296,7 +296,7 @@ ${prestations.map(p => p.nom).join('\n')}`;
           }));
         }
       } catch(e) {
-        console.log('⚠️ Descriptions auto skippées:', e.message);
+        console.error('❌ Descriptions auto erreur:', e.message, e.stack?.split('\n')[1]);
       }
 
       fs.writeFileSync(detailsPath, JSON.stringify(detailsData));
@@ -330,7 +330,7 @@ ${prestations.map(p => p.nom).join('\n')}`;
       const clientVille = [clientCP, villeManuelle || villeGPS].filter(Boolean).join(' ');
       const clientCPVille = clientVille;
 
-      const descObjet = (description || 'Travaux d\'electricite generale').replace(/'/g, ' ');
+          const descObjet = String(description || 'Travaux d electricite generale').replace(/'/g, ' ').trim();
       const py = `# -*- coding: utf-8 -*-
 import json, base64, io, sys
 from reportlab.lib.pagesizes import A4
@@ -535,7 +535,7 @@ for i, l in enumerate(data):
         p('<b>%.2f \\u20ac</b>' % l['total'], 9, 'Helvetica-Bold', MARINE, TA_RIGHT),
     ])
     for det in l.get('details', []):
-        rows.append(['', p('   \\u2022 ' + det, 7.5, color=GRIS_SOFT), '', '', '', ''])
+        rows.append(['', p('   - ' + det, 7.5, 'Helvetica-Oblique', color=GRIS_SOFT), '', '', '', ''])
 
 t = Table(rows, colWidths=cw)
 ts = [
