@@ -1520,6 +1520,7 @@ app.post('/api/sumup/lien/:num', async (req, res) => {
         amount: montant,
         currency: 'EUR',
         description: `SINELEC Paris - Facture ${num} - ${data.client || ''}`,
+        pay_to_email: process.env.SUMUP_EMAIL || 'sinelec.paris@gmail.com',
         return_url: `${process.env.APP_URL || 'https://sinelec-api-production.up.railway.app'}/paiement-confirme/${num}`,
       }),
     });
