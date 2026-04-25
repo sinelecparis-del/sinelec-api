@@ -302,12 +302,27 @@ ${prestations.map(p => p.nom).join('\n')}`;
       fs.writeFileSync(detailsPath, JSON.stringify(detailsData));
 
       const clientEsc = String(client || '').replace(/'/g, ' ');
-    const prenomEsc = String(prenom || '').replace(/'/g, ' ');
-    const clientNomComplet = [prenomEsc, clientEsc].filter(Boolean).join(' ') || clientEsc;
+    // client contient déjà prénom+nom fusionnés par getClientComplet
+    const clientNomComplet = clientEsc;
       const adresseEsc = String(adresse || '').replace(/'/g, ' ');
-      const clientParts = (adresse || '').split(',');
-      const clientRue = String(clientParts[0] || '').trim().replace(/'/g, ' ');
-      const clientVille = clientParts.slice(1).join(',').trim().replace(/'/g, ' ');
+      // Nettoyer adresse GPS
+      const adresseRaw = String(adresse || '').replace(/'/g, ' ').trim();
+      const adresseParts = adresseRaw.split(',').map(s => s.trim()).filter(Boolean);
+      const clientRue = adresseParts[0] || '';
+      const cpMatch = adresseRaw.match(/\b(\d{5})\b/);
+      const cpFromAdresse = cpMatch ? cpMatch[1] : '';
+      const clientCP = String(codePostal || '').trim() || cpFromAdresse;
+      const villeManuelle = String(ville || '').trim();
+      const villeGPS = adresseParts.find(p =>
+        p.length > 2 && p.length < 30 &&
+        !p.match(/^\d{5}/) &&
+        !p.toLowerCase().includes('france') &&
+        !p.toLowerCase().includes('ile-de') &&
+        !p.toLowerCase().includes('metropolitaine') &&
+        !p.toLowerCase().includes('arrondissement') &&
+        !p.toLowerCase().includes('quartier')
+      ) || '';
+      const clientVille = [clientCP, villeManuelle || villeGPS].filter(Boolean).join(' ');
 
       const descObjet = (description || 'Travaux d\'electricite generale').replace(/'/g, ' ');
       const py = `# -*- coding: utf-8 -*-
@@ -360,7 +375,6 @@ class SC(pdfcanvas.Canvas):
         self.saveState()
         self._draw_page()
     def save(self):
-        self._draw_footer()
         pdfcanvas.Canvas.save(self)
 
     def _draw_page(self):
@@ -392,10 +406,13 @@ class SC(pdfcanvas.Canvas):
         self.drawImage(ImageReader(logo_img), 1.3*cm, H-4.6*cm,
             width=3.0*cm, height=3.0*cm, preserveAspectRatio=True, mask='auto')
         # Infos société
-        self.setFont('Helvetica', 7.5)
+        self.setFont('Helvetica-Bold', 9)
+        self.setFillColor(colors.white)
+        self.drawString(1.0*cm, H-4.5*cm, '128 Rue La Boetie, 75008 Paris')
+        self.setFont('Helvetica', 8.5)
         self.setFillColor(colors.HexColor('#BFC8D6'))
-        self.drawString(1.3*cm, H-4.85*cm, '128 Rue La Boetie, 75008 Paris')
-        self.drawString(1.3*cm, H-5.1*cm, '07 87 38 86 22  |  sinelec.paris@gmail.com  |  SIRET : 91015824500019')
+        self.drawString(1.0*cm, H-4.75*cm, 'Tel : 07 87 38 86 22  |  sinelec.paris@gmail.com')
+        self.drawString(1.0*cm, H-5.0*cm, 'SIRET : 91015824500019')
         # DEVIS / FACTURE
         self.setFont('Helvetica-Bold', 44)
         self.setFillColor(BLANC)
@@ -884,8 +901,8 @@ app.get('/api/pdf/:num', async (req, res) => {
     fs.writeFileSync(detailsPath, JSON.stringify(detailsData));
 
     const clientEsc = String(client || '').replace(/'/g, ' ');
-    const prenomEsc = String(prenom || '').replace(/'/g, ' ');
-    const clientNomComplet = [prenomEsc, clientEsc].filter(Boolean).join(' ') || clientEsc;
+    // client contient déjà prénom+nom fusionnés par getClientComplet
+    const clientNomComplet = clientEsc;
     const adresseEsc = String(adresse || '').replace(/'/g, ' ');
     const clientParts = (adresse || '').split(',');
     const clientRue = String(clientParts[0] || '').trim().replace(/'/g, ' ');
