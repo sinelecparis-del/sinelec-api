@@ -447,7 +447,7 @@ try {
 }
 
 const pdf_base64 = fs.readFileSync(pdfPath).toString('base64');
-
+console.log('📄 PDF size:', pdf_base64.length, 'chars');
 // Nettoyage
 try { fs.unlinkSync(pyPath); } catch(e) {}
 try { fs.unlinkSync(detailsPath); } catch(e) {}
