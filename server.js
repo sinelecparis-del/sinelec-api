@@ -378,6 +378,7 @@ class SC(pdfcanvas.Canvas):
         self.restoreState()
     def _draw_last(self):
         self._draw_bg()
+
 doc=SimpleDocTemplate(sys.argv[2],pagesize=A4,
     leftMargin=1.0*cm,rightMargin=1.0*cm,topMargin=3.8*cm,bottomMargin=1.0*cm)
 story=[]
