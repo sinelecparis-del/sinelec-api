@@ -207,6 +207,10 @@ app.post('/api/generer', async (req, res) => {
 
   try {
     const { type, client, email, telephone, adresse, codePostal, ville, prenom, siret, tvaNum, description, prestations } = req.body;
+
+    // Nettoyer le nom (supprimer espaces entre lettres si espacé)
+    const clientClean = String(client || '').replace(/\s+/g, ' ').trim();
+    const prenomClean = String(prenom || '').replace(/\s+/g, ' ').trim();
     const startTime = Date.now();
 
     const compteur = await incrementerCompteur(type);
@@ -456,12 +460,9 @@ objet_b.setStyle(TableStyle([
     ('TOPPADDING', (0,0), (0,0), 10),
 ]))
 
-# Nom client en lettres espacées
-nom_espace = '  '.join(list('${clientEsc}'.upper()))
-
 client_b = Table([
     [p('CLIENT', 7, 'Helvetica-Bold', OR, sa=4)],
-    [p(nom_espace[:40], 9, 'Helvetica-Bold', MARINE)],
+    [p('${clientNomComplet}', 10, 'Helvetica-Bold', MARINE)],
     [p('${clientRue}', 8.5, color=GRIS_TEXTE)],
     [p('${clientVille}', 8.5, color=GRIS_TEXTE)],
 ], colWidths=[9.0*cm])
