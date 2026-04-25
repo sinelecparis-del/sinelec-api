@@ -725,9 +725,15 @@ body::before {
       <label>Téléphone client (non visible sur PDF)</label>
       <input type="tel" id="d-tel" placeholder="Ex: 06 12 34 56 78">
     </div>
-    <div class="input-group">
-      <label>Code postal</label>
-      <input type="text" id="d-cp" placeholder="Ex: 75001" maxlength="5" style="width:140px">
+    <div style="display:flex;gap:10px;">
+      <div class="input-group" style="flex:0 0 120px;">
+        <label>Code postal</label>
+        <input type="text" id="d-cp" placeholder="75001" maxlength="5">
+      </div>
+      <div class="input-group" style="flex:1;">
+        <label>Ville</label>
+        <input type="text" id="d-ville" placeholder="Paris" oninput="this.value=this.value.toUpperCase()">
+      </div>
     </div>
     <div class="input-group">
       <label>Email client (pour envoi auto)</label>
@@ -822,9 +828,15 @@ body::before {
       <label>Téléphone client (non visible sur PDF)</label>
       <input type="tel" id="f-tel" placeholder="Ex: 06 12 34 56 78">
     </div>
-    <div class="input-group">
-      <label>Code postal</label>
-      <input type="text" id="f-cp" placeholder="Ex: 75001" maxlength="5" style="width:140px">
+    <div style="display:flex;gap:10px;">
+      <div class="input-group" style="flex:0 0 120px;">
+        <label>Code postal</label>
+        <input type="text" id="f-cp" placeholder="75001" maxlength="5">
+      </div>
+      <div class="input-group" style="flex:1;">
+        <label>Ville</label>
+        <input type="text" id="f-ville" placeholder="Paris" oninput="this.value=this.value.toUpperCase()">
+      </div>
     </div>
     <div class="input-group">
       <label>Email client (pour envoi auto)</label>
@@ -1793,8 +1805,14 @@ const res = await fetch('/api/generer', {
     type,
     client,
     email,
-    telephone: document.getElementById(`${prefix}-tel`).value,
+    telephone: document.getElementById(`${prefix}-tel`).value.trim(),
     adresse,
+    codePostal: (document.getElementById(`${prefix}-cp`)?.value || '').trim(),
+    ville: (document.getElementById(`${prefix}-ville`)?.value || '').trim(),
+    prenom: (document.getElementById(`${prefix}-prenom`)?.value || '').trim(),
+    siret: (document.getElementById(`${prefix}-siret`)?.value || '').trim(),
+    tvaNum: (document.getElementById(`${prefix}-tva-num`)?.value || '').trim(),
+    description: (document.getElementById(`${prefix}-description`)?.value || '').trim(),
     prestations: prestationsFormatted
   })
 });
