@@ -1081,7 +1081,7 @@ app.get('/signer/:num', async (req, res) => {
 </html>`);
 });
 
-// ── API SIGNATURE — avec email de confirmation ────────────
+// ── API SIGNATURE — PDF signé légalement ─────────────────
 app.post('/api/signature', async (req, res) => {
   if (!CONFIG.features.signature_client) {
     return res.status(403).json({ error: 'Feature désactivée' });
@@ -1089,46 +1089,250 @@ app.post('/api/signature', async (req, res) => {
 
   try {
     const { num, signature, cgv_acceptees } = req.body;
-    const dateSignature = new Date().toLocaleDateString('fr-FR');
-    const heureSignature = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    const now = new Date();
+    const dateSignature = now.toLocaleDateString('fr-FR');
+    const heureSignature = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    const ipClient = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || 'N/A';
 
-    // Récupérer les infos du devis
+    // ── 1. Récupérer les infos du devis ───────────────────
     const { data: devisData } = await supabase
       .from('historique')
       .select('*')
       .eq('num', num)
       .single();
 
-    // Sauvegarder signature
+    if (!devisData) {
+      return res.status(404).json({ error: 'Devis introuvable' });
+    }
+
+    const montant = parseFloat(devisData.total_ht || devisData.totalht || 0);
+    const acompte = (montant * 0.4).toFixed(2);
+
+    // ── 2. Sauvegarder dans Supabase ──────────────────────
     await supabase.from('signatures').insert({
-      num,
-      signature,
-      cgv_acceptees: cgv_acceptees || false,
-      date_signature: new Date().toISOString()
+      num, signature, cgv_acceptees: cgv_acceptees || false,
+      date_signature: now.toISOString(), ip_client: ipClient
     });
 
-    // Mettre à jour statut
-    await supabase.from('historique')
-      .update({
-        signature,
-        statut: 'signe',
-        date_signature: new Date().toISOString(),
-        cgv_acceptees: cgv_acceptees || false
-      })
-      .eq('num', num);
+    await supabase.from('historique').update({
+      signature, statut: 'signe',
+      date_signature: now.toISOString(),
+      cgv_acceptees: cgv_acceptees || false
+    }).eq('num', num);
 
-    // ── Email de confirmation ──────────────────────────────
-    if (devisData) {
-      const montant = parseFloat(devisData.total_ht || 0);
-      const acompte = (montant * 0.4).toFixed(2);
+    // ── 3. Générer le PDF signé avec ReportLab ────────────
+    let pdfB64 = null;
+    try {
+      const prestations = devisData.prestations || [];
+      const detailsData = prestations.map(p => ({
+        designation: p.nom || p.designation || '',
+        qte: p.quantite || p.qte || 1,
+        prixUnit: parseFloat(p.prix || p.prixUnit || 0),
+        total: parseFloat(p.prix || p.prixUnit || 0) * (p.quantite || p.qte || 1),
+        details: []
+      }));
 
-      const htmlConfirm = `<!DOCTYPE html>
+      // Sauvegarder la signature image en PNG temporaire
+      const sigBase64 = signature.replace(/^data:image\/png;base64,/, '');
+      const sigPath = path.join(__dirname, `_sig_${num}.png`);
+      fs.writeFileSync(sigPath, Buffer.from(sigBase64, 'base64'));
+
+      const detailsPath = path.join(__dirname, `_sig_details_${num}.json`);
+      fs.writeFileSync(detailsPath, JSON.stringify(detailsData));
+
+      const pdfPath = path.join(__dirname, `_sig_${num}.pdf`);
+      const pyPath = path.join(__dirname, `_sig_${num}.py`);
+
+      const clientEsc = String(devisData.client || '').replace(/'/g, ' ');
+      const adresseEsc = String(devisData.adresse || '').replace(/'/g, ' ');
+
+      const py = `# -*- coding: utf-8 -*-
+import json, base64, io, sys
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.units import cm
+from reportlab.platypus import *
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
+from reportlab.pdfgen import canvas as pdfcanvas
+from reportlab.lib.utils import ImageReader
+from reportlab.platypus.flowables import HRFlowable
+
+W, H = A4
+MARINE=colors.HexColor('#1B2A4A'); OR=colors.HexColor('#C9A84C')
+OR_PALE=colors.HexColor('#FBF7EC'); OR_FONCE=colors.HexColor('#A07830')
+BLANC=colors.white; CREME=colors.HexColor('#FDFCF9')
+GRIS_TEXTE=colors.HexColor('#3A3A3A'); GRIS_SOFT=colors.HexColor('#777777')
+GRIS_LIGNE=colors.HexColor('#E0DDD6'); GRIS_BG=colors.HexColor('#F5F4F0')
+VERT=colors.HexColor('#16a34a'); VERT_PALE=colors.HexColor('#f0fdf4')
+
+def p(txt,sz=9,font='Helvetica',color=GRIS_TEXTE,align=TA_LEFT,sb=0,sa=2,leading=None):
+    if leading is None: leading=sz*1.35
+    return Paragraph(str(txt),ParagraphStyle('s',fontName=font,fontSize=sz,
+        textColor=color,alignment=align,spaceBefore=sb,spaceAfter=sa,leading=leading,wordWrap='CJK'))
+
+data=json.loads(open(sys.argv[1],encoding='utf-8').read())
+totalHT=sum(l['total'] for l in data)
+logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
+
+class SC(pdfcanvas.Canvas):
+    def __init__(self,fn,**kw):
+        pdfcanvas.Canvas.__init__(self,fn,**kw); self._pg=0
+        self.saveState(); self._draw_page()
+    def showPage(self):
+        self._draw_footer(); pdfcanvas.Canvas.showPage(self)
+        self._pg+=1; self.saveState(); self._draw_page()
+    def save(self):
+        self._draw_footer(); pdfcanvas.Canvas.save(self)
+    def _draw_page(self):
+        self.saveState()
+        self.setFillColor(CREME); self.rect(0,0,W,H,fill=1,stroke=0)
+        self.setFillColor(MARINE); self.rect(0,0,0.7*cm,H,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0.7*cm,0,0.08*cm,H,fill=1,stroke=0)
+        if self._pg==0: self._draw_header()
+        else: self._draw_header_small()
+        self.restoreState()
+    def _draw_header(self):
+        self.setFillColor(MARINE); self.rect(0.78*cm,H-5.2*cm,W-0.78*cm,5.2*cm,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0.78*cm,H-5.2*cm,W-0.78*cm,0.1*cm,fill=1,stroke=0)
+        logo_img=io.BytesIO(logo_bytes)
+        self.drawImage(ImageReader(logo_img),1.3*cm,H-4.6*cm,width=3.0*cm,height=3.0*cm,preserveAspectRatio=True,mask='auto')
+        self.setFont('Helvetica-Bold',9); self.setFillColor(BLANC)
+        self.drawString(1.0*cm,H-4.5*cm,'128 Rue La Boetie, 75008 Paris')
+        self.setFont('Helvetica',8.5); self.setFillColor(colors.HexColor('#BFC8D6'))
+        self.drawString(1.0*cm,H-4.75*cm,'Tel : 07 87 38 86 22  |  sinelec.paris@gmail.com')
+        self.drawString(1.0*cm,H-5.0*cm,'SIRET : 91015824500019')
+        self.setFont('Helvetica-Bold',44); self.setFillColor(BLANC)
+        self.drawRightString(W-1.2*cm,H-2.2*cm,'DEVIS SIGNE')
+        self.setStrokeColor(OR); self.setLineWidth(1.5)
+        self.line(10*cm,H-2.65*cm,W-1.2*cm,H-2.65*cm)
+        self.setFillColor(OR); self.roundRect(W-6.5*cm,H-3.55*cm,5.3*cm,0.65*cm,0.15*cm,fill=1,stroke=0)
+        self.setFont('Helvetica-Bold',9); self.setFillColor(MARINE)
+        self.drawCentredString(W-3.85*cm,H-3.22*cm,'N\u00b0 ${num}')
+        self.setFont('Helvetica',8); self.setFillColor(colors.HexColor('#BFC8D6'))
+        self.drawRightString(W-1.2*cm,H-3.9*cm,'Signe le : ${dateSignature} a ${heureSignature}')
+    def _draw_header_small(self):
+        self.setFillColor(MARINE); self.rect(0.78*cm,H-1.5*cm,W-0.78*cm,1.5*cm,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0.78*cm,H-1.5*cm,W-0.78*cm,0.08*cm,fill=1,stroke=0)
+        self.setFont('Helvetica-Bold',10); self.setFillColor(BLANC)
+        self.drawString(1.4*cm,H-1.0*cm,'SINELEC')
+        self.setFont('Helvetica',8); self.setFillColor(OR)
+        self.drawRightString(W-1.2*cm,H-1.0*cm,'DEVIS SIGNE N\u00b0 ${num}')
+    def _draw_footer(self):
+        self.saveState()
+        self.setFillColor(MARINE); self.rect(0,0,W,1.0*cm,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0,1.0*cm,W,0.08*cm,fill=1,stroke=0)
+        self.setFont('Helvetica',6.5); self.setFillColor(colors.HexColor('#8899BB'))
+        self.drawCentredString(W/2,0.5*cm,'SINELEC EI  \u2022  128 Rue La Boetie, 75008 Paris  \u2022  SIRET : 91015824500019  \u2022  TVA non applicable art. 293B CGI  \u2022  Garantie decennale ORUS')
+        self.setFont('Helvetica-Bold',7); self.setFillColor(OR)
+        self.drawRightString(W-1.2*cm,0.28*cm,'${num} — SIGNE')
+        self.restoreState()
+
+doc=SimpleDocTemplate(sys.argv[2],pagesize=A4,leftMargin=1.2*cm,rightMargin=1.0*cm,topMargin=5.6*cm,bottomMargin=1.6*cm)
+story=[]
+
+# ── OBJET + CLIENT ─────────────────────────────────────────
+objet_b=Table([[p('OBJET DES TRAVAUX',7.5,'Helvetica-Bold',OR,sa=4)],[p('Travaux electricite',10,'Helvetica-Bold',MARINE)],[p('Conformes NF C 15-100  \u2022  Garantie decennale ORUS',7.5,color=GRIS_SOFT)]],colWidths=[8.2*cm])
+objet_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3),('LEFTPADDING',(0,0),(-1,-1),0),('LINEABOVE',(0,0),(0,0),2.5,MARINE),('TOPPADDING',(0,0),(0,0),10)]))
+
+client_b=Table([[p('CLIENT',7,'Helvetica-Bold',OR,sa=4)],[p('${clientEsc}',10,'Helvetica-Bold',MARINE)],[p('${adresseEsc}',8.5,color=GRIS_TEXTE)]],colWidths=[9.0*cm])
+client_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('BACKGROUND',(0,0),(-1,-1),OR_PALE),('BOX',(0,0),(-1,-1),1,OR),('LINEBEFORE',(0,0),(0,-1),4,MARINE),('TOPPADDING',(0,0),(0,0),10),('BOTTOMPADDING',(0,-1),(-1,-1),10)]))
+
+story.append(Table([[objet_b,client_b]],colWidths=[8.7*cm,9.5*cm],style=TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)])))
+story.append(Spacer(1,0.6*cm))
+
+# ── TABLEAU PRESTATIONS ────────────────────────────────────
+cw=[0.7*cm,9.5*cm,1.5*cm,0.9*cm,2.4*cm,3.2*cm]
+rows=[[p('#',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('DESIGNATION',7.5,'Helvetica-Bold',BLANC),p('QTE',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('U.',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('PRIX U. HT',7.5,'Helvetica-Bold',BLANC,TA_RIGHT),p('TOTAL HT',7.5,'Helvetica-Bold',BLANC,TA_RIGHT)]]
+for i,l in enumerate(data):
+    q=int(l['qte']) if l['qte']==int(l['qte']) else l['qte']
+    rows.append([p(str(i+1),9,color=OR,align=TA_CENTER),p('<b>'+l['designation']+'</b>',9,color=MARINE),p(str(q),9,align=TA_CENTER),p('u.',9,align=TA_CENTER,color=GRIS_SOFT),p('%.2f \u20ac'%l['prixUnit'],9,align=TA_RIGHT),p('<b>%.2f \u20ac</b>'%l['total'],9,'Helvetica-Bold',MARINE,TA_RIGHT)])
+t=Table(rows,colWidths=cw)
+ts=[('BACKGROUND',(0,0),(-1,0),MARINE),('LINEBELOW',(0,0),(-1,0),2.5,OR),('VALIGN',(0,0),(-1,-1),'TOP'),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),('LEFTPADDING',(0,0),(-1,-1),7),('RIGHTPADDING',(0,0),(-1,-1),7),('BOX',(0,0),(-1,-1),0.3,GRIS_LIGNE)]
+for i in range(len(data)):
+    bg=BLANC if i%2==0 else GRIS_BG
+    ts.append(('BACKGROUND',(0,i+1),(-1,i+1),bg))
+    ts.append(('LINEBELOW',(0,i+1),(-1,i+1),0.3,GRIS_LIGNE))
+t.setStyle(TableStyle(ts)); story.append(t); story.append(Spacer(1,0.15*cm))
+
+# ── TOTAUX ─────────────────────────────────────────────────
+tt=Table([['',p('Total HT',9,color=GRIS_SOFT,align=TA_RIGHT),p('%.2f \u20ac'%totalHT,9,'Helvetica-Bold',GRIS_TEXTE,TA_RIGHT)],['',p('TVA',9,color=GRIS_SOFT,align=TA_RIGHT),p('Non applicable (art. 293B)',8,color=GRIS_SOFT,align=TA_RIGHT)]],colWidths=[9.0*cm,4.5*cm,4.7*cm])
+tt.setStyle(TableStyle([('LINEABOVE',(1,0),(-1,0),0.5,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('LEFTPADDING',(0,0),(-1,-1),6),('RIGHTPADDING',(0,0),(-1,-1),6)]))
+story.append(tt); story.append(Spacer(1,0.12*cm))
+
+net=Table([[p('NET \u00c0 PAYER',13,'Helvetica-Bold',BLANC),p('%.2f \u20ac'%totalHT,16,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
+net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('LINEBELOW',(0,0),(-1,-1),3,OR),('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
+story.append(net); story.append(Spacer(1,0.5*cm))
+
+# ── SECTION SIGNATURE LÉGALE ───────────────────────────────
+story.append(HRFlowable(width='100%',thickness=2,color=MARINE,spaceAfter=12))
+story.append(p('SIGNATURE ELECTRONIQUE — BON POUR ACCORD',11,'Helvetica-Bold',MARINE,sa=8))
+
+# CGV acceptées
+cgv_rows=[
+    [p('\u2611',12,color=VERT),p('CGV acceptees — Conditions Generales de Vente SINELEC Paris',9,color=GRIS_TEXTE)],
+    [p('\u2611',12,color=VERT),p('Montant reconnu : %.2f \u20ac HT — TVA non applicable art. 293B CGI' % totalHT,9,color=GRIS_TEXTE)],
+    [p('\u2611',12,color=VERT),p('Bon pour accord — Acompte de %.2f \u20ac a la signature' % (totalHT*0.4),9,color=GRIS_TEXTE)],
+]
+cgv_t=Table(cgv_rows,colWidths=[0.7*cm,17.5*cm])
+cgv_t.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('LEFTPADDING',(0,0),(-1,-1),0),('BACKGROUND',(0,0),(-1,-1),VERT_PALE),('BOX',(0,0),(-1,-1),1,colors.HexColor('#86efac')),('TOPPADDING',(0,0),(-1,0),10),('BOTTOMPADDING',(0,-1),(-1,-1),10)]))
+story.append(cgv_t); story.append(Spacer(1,0.3*cm))
+
+# Infos légales horodatage
+horodatage=Table([[
+    p('Date',7,'Helvetica-Bold',GRIS_SOFT),
+    p('${dateSignature} a ${heureSignature}',9,'Helvetica-Bold',MARINE),
+    p('Adresse IP',7,'Helvetica-Bold',GRIS_SOFT,TA_RIGHT),
+    p('${ipClient}',9,'Helvetica-Bold',MARINE,TA_RIGHT),
+]],colWidths=[1.8*cm,8.2*cm,3.0*cm,5.2*cm])
+horodatage.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),OR_PALE),('BOX',(0,0),(-1,-1),0.5,OR),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
+story.append(horodatage); story.append(Spacer(1,0.3*cm))
+
+# Image signature
+import os
+sig_path=sys.argv[3]
+if os.path.exists(sig_path):
+    sig_table=Table([[
+        Table([[p('Signature du client',8,'Helvetica-Bold',GRIS_SOFT,sa=8)],[Image(sig_path,width=8*cm,height=2.5*cm)]],colWidths=[9.0*cm],style=TableStyle([('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8),('LEFTPADDING',(0,0),(-1,-1),12),('BACKGROUND',(0,0),(-1,-1),BLANC),('BOX',(0,0),(-1,-1),1,GRIS_LIGNE)])),
+        Table([[p('Cachet SINELEC',8,'Helvetica-Bold',GRIS_SOFT,sa=8)],[p('Diahe',14,'Helvetica-Bold',MARINE,TA_CENTER)],[p('Gerant SINELEC EI',8,color=GRIS_SOFT,align=TA_CENTER)]],colWidths=[9.0*cm],style=TableStyle([('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8),('LEFTPADDING',(0,0),(-1,-1),12),('BACKGROUND',(0,0),(-1,-1),BLANC),('BOX',(0,0),(-1,-1),1,GRIS_LIGNE),('TOPPADDING',(0,1),(0,1),20),('BOTTOMPADDING',(0,-1),(-1,-1),20)])),
+    ]],colWidths=[9.5*cm,9.5*cm])
+    sig_table.setStyle(TableStyle([('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0),('INNERGRID',(0,0),(-1,-1),0,BLANC)]))
+    story.append(sig_table)
+
+story.append(Spacer(1,0.2*cm))
+story.append(p('Document genere automatiquement par SINELEC OS — Signature electronique avec valeur probante (horodatage + IP enregistres)',7,color=GRIS_SOFT))
+
+doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw))
+print('PDF_SIGNE_OK')
+`;
+
+      fs.writeFileSync(pyPath, py, 'utf8');
+
+      execSync(`python3 ${pyPath} ${detailsPath} ${pdfPath} ${sigPath}`, {
+        cwd: __dirname,
+        stdio: 'inherit'
+      });
+
+      const pdfBuffer = fs.readFileSync(pdfPath);
+      pdfB64 = pdfBuffer.toString('base64');
+      console.log('📄 PDF signé généré:', pdfB64.length, 'chars');
+
+      // Nettoyage fichiers temp
+      [pyPath, detailsPath, pdfPath, sigPath].forEach(f => { try { fs.unlinkSync(f); } catch(e) {} });
+
+    } catch(pdfErr) {
+      console.error('⚠️ Erreur génération PDF signé:', pdfErr.message);
+      // On continue sans PDF si erreur
+    }
+
+    // ── 4. Email de confirmation avec PDF signé ────────────
+    const htmlConfirm = `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"></head>
 <body style="font-family:Arial,sans-serif;background:#f0f2f5;margin:0;padding:20px;">
 <div style="max-width:600px;margin:0 auto;">
   <div style="background:linear-gradient(135deg,#1B2A4A,#243660);border-radius:16px;padding:24px;text-align:center;margin-bottom:16px;">
     <div style="font-size:24px;font-weight:900;color:white;">⚡ SINELEC Paris</div>
-    <div style="color:rgba(255,255,255,0.7);font-size:13px;margin-top:4px;">Confirmation de signature</div>
+    <div style="color:rgba(255,255,255,0.7);font-size:13px;margin-top:4px;">Devis signé — Bon pour accord</div>
   </div>
   <div style="background:white;border-radius:16px;padding:28px;margin-bottom:16px;box-shadow:0 2px 12px rgba(0,0,0,0.06);">
     <div style="font-size:56px;text-align:center;margin-bottom:16px;">✅</div>
@@ -1156,45 +1360,48 @@ app.post('/api/signature', async (req, res) => {
       </tr>
     </table>
     <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:14px;margin-top:20px;">
-      <div style="color:#16a34a;font-size:13px;font-weight:700;">✅ CGV acceptées — Bon pour accord confirmé</div>
+      <div style="color:#16a34a;font-size:13px;font-weight:700;">✅ CGV acceptées — Bon pour accord — Signature enregistrée</div>
+      <div style="color:#555;font-size:12px;margin-top:4px;">Le PDF signé est joint à cet email.</div>
     </div>
     <div style="background:#fef9ec;border:1px solid #fcd34d;border-radius:10px;padding:14px;margin-top:12px;">
       <div style="color:#92400e;font-size:13px;font-weight:700;">💰 Virement IBAN : FR76 1695 8000 0174 2540 5920 931</div>
-      <div style="color:#92400e;font-size:12px;margin-top:4px;">Référence virement : ${num}</div>
+      <div style="color:#92400e;font-size:12px;margin-top:4px;">Référence virement : ${num} — Acompte : ${acompte} €</div>
     </div>
   </div>
-  <div style="text-align:center;color:#aaa;font-size:12px;">
-    SINELEC EI — 128 Rue La Boétie, 75008 Paris — 07 87 38 86 22
-  </div>
-</div>
-</body></html>`;
+  <div style="text-align:center;color:#aaa;font-size:12px;">SINELEC EI — 128 Rue La Boétie, 75008 Paris — 07 87 38 86 22</div>
+</div></body></html>`;
 
-      // Email au CLIENT si email disponible
-      if (devisData.email) {
-        try {
-          await envoyerEmail(
-            devisData.email,
-            `✅ Votre devis SINELEC ${num} — Bon pour accord confirmé`,
-            htmlConfirm
-          );
-        } catch(e) {
-          console.error('⚠️ Email client signature:', e.message);
-        }
-      }
+    const pdfAttachment = pdfB64 ? { content: pdfB64, name: `Devis-Signe-${num}.pdf` } : null;
 
-      // Email de notification à SINELEC
+    // Email au CLIENT
+    if (devisData.email) {
       try {
         await envoyerEmail(
-          'sinelec.paris@gmail.com',
-          `🔔 SIGNÉ — Devis ${num} — ${devisData.client || ''} — ${montant.toFixed(0)}€`,
-          htmlConfirm
+          devisData.email,
+          `✅ Votre devis SINELEC ${num} signé — PDF en pièce jointe`,
+          htmlConfirm,
+          pdfAttachment
         );
+        console.log('✅ Email client envoyé avec PDF signé');
       } catch(e) {
-        console.error('⚠️ Email SINELEC signature:', e.message);
+        console.error('⚠️ Email client:', e.message);
       }
     }
 
-    await logSystem('signature', `Devis ${num} signé`, { num }, true);
+    // Email à SINELEC avec PDF signé
+    try {
+      await envoyerEmail(
+        'sinelec.paris@gmail.com',
+        `🔔 SIGNÉ — ${num} — ${devisData.client || ''} — ${montant.toFixed(0)}€`,
+        htmlConfirm,
+        pdfAttachment
+      );
+      console.log('✅ Email SINELEC envoyé avec PDF signé');
+    } catch(e) {
+      console.error('⚠️ Email SINELEC:', e.message);
+    }
+
+    await logSystem('signature', `Devis ${num} signé — PDF envoyé`, { num, ip: ipClient }, true);
     res.json({ success: true });
 
   } catch (error) {
