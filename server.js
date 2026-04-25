@@ -242,13 +242,37 @@ app.post('/api/generer', async (req, res) => {
       const pyPath = path.join(__dirname, `_devis_${num}.py`);
       const pdfPath = path.join(__dirname, `${num}.pdf`);
 
-      const detailsData = prestations.map(p => ({
+      // Générer descriptions pro avec Claude
+      let detailsData = prestations.map(p => ({
         designation: p.nom,
         qte: p.quantite,
         prixUnit: p.prix,
         total: p.prix * p.quantite,
         details: []
       }));
+
+      try {
+        const promptDesc = `Tu es expert électricien SINELEC Paris. Pour chaque prestation, génère UNE description courte (max 12 mots) qui justifie le prix et rassure le client. Réponds UNIQUEMENT en JSON: [{"nom": "...", "desc": "..."}]
+
+Prestations:
+${prestations.map(p => p.nom).join('\n')}`;
+        const descResp = await anthropic.messages.create({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 500,
+          messages: [{ role: 'user', content: promptDesc }]
+        });
+        const descText = descResp.content[0].text;
+        const jsonMatch = descText.match(/\[.*\]/s);
+        if (jsonMatch) {
+          const descs = JSON.parse(jsonMatch[0]);
+          detailsData = detailsData.map((d, i) => ({
+            ...d,
+            details: descs[i]?.desc ? [descs[i].desc] : []
+          }));
+        }
+      } catch(e) {
+        console.log('⚠️ Descriptions auto skippées:', e.message);
+      }
 
       fs.writeFileSync(detailsPath, JSON.stringify(detailsData));
 
@@ -792,6 +816,182 @@ app.get('/api/grille', async (req, res) => {
     res.json(grille || {});
   } catch (error) {
     console.error('Erreur grille:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+// ═══════════════════════════════════════════════════════════════
+// API: TÉLÉCHARGER PDF PAR NUMÉRO
+// ═══════════════════════════════════════════════════════════════
+app.get('/api/pdf/:num', async (req, res) => {
+  try {
+    const { num } = req.params;
+
+    // Récupérer le devis depuis Supabase
+    const { data, error } = await supabase
+      .from('historique')
+      .select('*')
+      .eq('num', num)
+      .single();
+
+    if (error || !data) {
+      return res.status(404).json({ error: 'Document non trouvé' });
+    }
+
+    const { type, client, adresse, prestations, total_ht } = data;
+    const typeLabelUpper = type === 'devis' ? 'DEVIS' : 'FACTURE';
+    const dateStr = new Date(data.date_envoi || data.created_at).toLocaleDateString('fr-FR');
+    const dateValide = new Date(new Date(data.date_envoi || data.created_at).getTime() + 30*24*60*60*1000).toLocaleDateString('fr-FR');
+
+    const detailsPath = path.join(__dirname, `_dl_details_${num}.json`);
+    const pyPath = path.join(__dirname, `_dl_devis_${num}.py`);
+    const pdfPath = path.join(__dirname, `_dl_${num}.pdf`);
+
+    const detailsData = (prestations || []).map(p => ({
+      designation: p.nom || p.designation,
+      qte: p.quantite || p.qte || 1,
+      prixUnit: p.prix || p.prixUnit || 0,
+      total: (p.prix || p.prixUnit || 0) * (p.quantite || p.qte || 1),
+      details: []
+    }));
+
+    fs.writeFileSync(detailsPath, JSON.stringify(detailsData));
+
+    const clientEsc = (client || '').replace(/\/g, '\\').replace(/'/g, "\'");
+    const adresseEsc = (adresse || '').replace(/\/g, '\\').replace(/'/g, "\'");
+    const clientParts = (adresse || '').split(',');
+    const clientRue = (clientParts[0] || '').trim().replace(/'/g, "\'");
+    const clientVille = clientParts.slice(1).join(',').trim().replace(/'/g, "\'");
+
+    // Utiliser le même script Python que pour la génération
+    const py = `# -*- coding: utf-8 -*-
+import json, base64, io, sys
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.units import cm
+from reportlab.platypus import *
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
+from reportlab.pdfgen import canvas as pdfcanvas
+from reportlab.lib.utils import ImageReader
+from reportlab.platypus.flowables import HRFlowable
+
+W, H = A4
+MARINE=colors.HexColor('#1B2A4A'); OR=colors.HexColor('#C9A84C')
+OR_PALE=colors.HexColor('#FBF7EC'); OR_FONCE=colors.HexColor('#A07830')
+BLANC=colors.white; CREME=colors.HexColor('#FDFCF9')
+GRIS_TEXTE=colors.HexColor('#3A3A3A'); GRIS_SOFT=colors.HexColor('#777777')
+GRIS_LIGNE=colors.HexColor('#E0DDD6'); GRIS_BG=colors.HexColor('#F5F4F0')
+
+def p(txt,sz=9,font='Helvetica',color=GRIS_TEXTE,align=TA_LEFT,sb=0,sa=2,leading=None):
+    if leading is None: leading=sz*1.35
+    return Paragraph(str(txt),ParagraphStyle('s',fontName=font,fontSize=sz,
+        textColor=color,alignment=align,spaceBefore=sb,spaceAfter=sa,leading=leading,wordWrap='CJK'))
+
+data=json.loads(open(sys.argv[1],encoding='utf-8').read())
+totalHT=sum(l['total'] for l in data)
+logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
+
+class SC(pdfcanvas.Canvas):
+    def __init__(self,fn,**kw):
+        pdfcanvas.Canvas.__init__(self,fn,**kw); self._pg=0
+        self.saveState(); self._draw_page()
+    def showPage(self):
+        self._draw_footer(); pdfcanvas.Canvas.showPage(self)
+        self._pg+=1; self.saveState(); self._draw_page()
+    def save(self):
+        self._draw_footer(); pdfcanvas.Canvas.save(self)
+    def _draw_page(self):
+        self.saveState()
+        self.setFillColor(CREME); self.rect(0,0,W,H,fill=1,stroke=0)
+        self.setFillColor(MARINE); self.rect(0,0,0.7*cm,H,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0.7*cm,0,0.08*cm,H,fill=1,stroke=0)
+        if self._pg==0: self._draw_header()
+        self.restoreState()
+    def _draw_header(self):
+        self.setFillColor(MARINE); self.rect(0.78*cm,H-5.2*cm,W-0.78*cm,5.2*cm,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0.78*cm,H-5.2*cm,W-0.78*cm,0.1*cm,fill=1,stroke=0)
+        logo_img=io.BytesIO(logo_bytes)
+        self.drawImage(ImageReader(logo_img),1.3*cm,H-4.6*cm,width=3.0*cm,height=3.0*cm,preserveAspectRatio=True,mask='auto')
+        self.setFont('Helvetica',7.5); self.setFillColor(colors.HexColor('#BFC8D6'))
+        self.drawString(1.3*cm,H-4.85*cm,'128 Rue La Boetie, 75008 Paris')
+        self.drawString(1.3*cm,H-5.1*cm,'07 87 38 86 22  |  sinelec.paris@gmail.com  |  SIRET : 91015824500019')
+        self.setFont('Helvetica-Bold',44); self.setFillColor(BLANC)
+        self.drawRightString(W-1.2*cm,H-2.2*cm,'${typeLabelUpper}')
+        self.setStrokeColor(OR); self.setLineWidth(1.5)
+        self.line(10*cm,H-2.65*cm,W-1.2*cm,H-2.65*cm)
+        self.setFillColor(OR); self.roundRect(W-6.5*cm,H-3.55*cm,5.3*cm,0.65*cm,0.15*cm,fill=1,stroke=0)
+        self.setFont('Helvetica-Bold',9); self.setFillColor(MARINE)
+        self.drawCentredString(W-3.85*cm,H-3.22*cm,'N ${num}')
+        self.setFont('Helvetica',8); self.setFillColor(colors.HexColor('#BFC8D6'))
+        self.drawRightString(W-1.2*cm,H-3.9*cm,'Date : ${dateStr}   |   Valable jusqu\u2019au : ${dateValide}')
+    def _draw_footer(self):
+        self.saveState()
+        self.setFillColor(MARINE); self.rect(0,0,W,1.0*cm,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0,1.0*cm,W,0.08*cm,fill=1,stroke=0)
+        self.setFont('Helvetica',6.5); self.setFillColor(colors.HexColor('#8899BB'))
+        self.drawCentredString(W/2,0.5*cm,'SINELEC EI \u2022 128 Rue La Boetie, 75008 Paris \u2022 SIRET : 91015824500019 \u2022 TVA non applicable art. 293B CGI \u2022 Garantie decennale ORUS')
+        self.setFont('Helvetica-Bold',7); self.setFillColor(OR)
+        self.drawRightString(W-1.2*cm,0.28*cm,'${num}')
+        self.restoreState()
+
+doc=SimpleDocTemplate(sys.argv[2],pagesize=A4,leftMargin=1.2*cm,rightMargin=1.0*cm,topMargin=5.6*cm,bottomMargin=1.6*cm)
+story=[]
+
+client_b=Table([[p('CLIENT',7,'Helvetica-Bold',OR,sa=4)],[p('${clientEsc}',10,'Helvetica-Bold',MARINE)],[p('${clientRue}',8.5,color=GRIS_TEXTE)],[p('${clientVille}',8.5,color=GRIS_TEXTE)]],colWidths=[18.2*cm])
+client_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('BACKGROUND',(0,0),(-1,-1),OR_PALE),('BOX',(0,0),(-1,-1),1,OR),('LINEBEFORE',(0,0),(0,-1),4,MARINE),('TOPPADDING',(0,0),(0,0),10),('BOTTOMPADDING',(0,-1),(-1,-1),10)]))
+story.append(client_b); story.append(Spacer(1,0.5*cm))
+
+cw=[0.7*cm,9.5*cm,1.5*cm,0.9*cm,2.4*cm,3.2*cm]
+rows=[[p('#',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('DESIGNATION',7.5,'Helvetica-Bold',BLANC),p('QTE',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('U.',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('PRIX U. HT',7.5,'Helvetica-Bold',BLANC,TA_RIGHT),p('TOTAL HT',7.5,'Helvetica-Bold',BLANC,TA_RIGHT)]]
+for i,l in enumerate(data):
+    q=int(l['qte']) if l['qte']==int(l['qte']) else l['qte']
+    rows.append([p(str(i+1),9,color=OR,align=TA_CENTER),p('<b>'+l['designation']+'</b>',9,color=MARINE),p(str(q),9,align=TA_CENTER),p('u.',9,align=TA_CENTER,color=GRIS_SOFT),p('%.2f \u20ac'%l['prixUnit'],9,align=TA_RIGHT),p('<b>%.2f \u20ac</b>'%l['total'],9,'Helvetica-Bold',MARINE,TA_RIGHT)])
+t=Table(rows,colWidths=cw)
+ts=[('BACKGROUND',(0,0),(-1,0),MARINE),('LINEBELOW',(0,0),(-1,0),2.5,OR),('VALIGN',(0,0),(-1,-1),'TOP'),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),('LEFTPADDING',(0,0),(-1,-1),7),('RIGHTPADDING',(0,0),(-1,-1),7),('BOX',(0,0),(-1,-1),0.3,GRIS_LIGNE)]
+for i in range(len(data)):
+    bg=BLANC if i%2==0 else GRIS_BG
+    ts.append(('BACKGROUND',(0,i+1),(-1,i+1),bg))
+    ts.append(('LINEBELOW',(0,i+1),(-1,i+1),0.3,GRIS_LIGNE))
+t.setStyle(TableStyle(ts)); story.append(t); story.append(Spacer(1,0.15*cm))
+
+tt=Table([['',p('Total HT',9,color=GRIS_SOFT,align=TA_RIGHT),p('%.2f \u20ac'%totalHT,9,'Helvetica-Bold',GRIS_TEXTE,TA_RIGHT)],['',p('TVA',9,color=GRIS_SOFT,align=TA_RIGHT),p('Non applicable (art. 293B)',8,color=GRIS_SOFT,align=TA_RIGHT)]],colWidths=[9.0*cm,4.5*cm,4.7*cm])
+tt.setStyle(TableStyle([('LINEABOVE',(1,0),(-1,0),0.5,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('LEFTPADDING',(0,0),(-1,-1),6),('RIGHTPADDING',(0,0),(-1,-1),6)]))
+story.append(tt); story.append(Spacer(1,0.12*cm))
+
+net=Table([[p('NET A PAYER',12,'Helvetica-Bold',BLANC),p('%.2f \u20ac'%totalHT,16,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
+net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('LINEBELOW',(0,0),(-1,-1),3,OR),('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
+story.append(net); story.append(Spacer(1,0.3*cm))
+
+iban=Table([[p('IBAN',7,'Helvetica-Bold',GRIS_SOFT),p('FR76 1695 8000 0174 2540 5920 931',9,'Helvetica-Bold',MARINE),p('BIC',7,'Helvetica-Bold',GRIS_SOFT,TA_RIGHT),p('QNTOFRP1XXX',9,'Helvetica-Bold',MARINE,TA_RIGHT)]],colWidths=[1.5*cm,9.5*cm,1.8*cm,5.4*cm])
+iban.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),OR_PALE),('BOX',(0,0),(-1,-1),0.5,OR),('LINEBEFORE',(0,0),(0,-1),4,MARINE),('TOPPADDING',(0,0),(-1,-1),9),('BOTTOMPADDING',(0,0),(-1,-1),9),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
+story.append(iban)
+
+doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw))
+print('PDF_OK')
+`;
+
+    fs.writeFileSync(pyPath, py, 'utf8');
+
+    try {
+      execSync(`python3 ${pyPath} ${detailsPath} ${pdfPath}`, { cwd: __dirname, stdio: 'inherit' });
+    } catch(pyErr) {
+      throw new Error('PDF generation failed');
+    }
+
+    const pdfBuffer = fs.readFileSync(pdfPath);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${num}.pdf"`);
+    res.send(pdfBuffer);
+
+    try { fs.unlinkSync(pyPath); } catch(e) {}
+    try { fs.unlinkSync(detailsPath); } catch(e) {}
+    try { fs.unlinkSync(pdfPath); } catch(e) {}
+
+  } catch (error) {
+    console.error('Erreur PDF download:', error);
     res.status(500).json({ error: error.message });
   }
 });
