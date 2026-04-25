@@ -722,7 +722,11 @@ body::before {
       <div id="d-adresse-suggestions"></div>
     </div>
     <div class="input-group">
-      <label>Téléphone client (non visible sur PDF)</label>
+      <label>Complément <span style="font-size:11px;color:var(--text-3);">(optionnel — étage, bât., apt.)</span></label>
+      <input type="text" id="d-complement" placeholder="Ex: Bât. B, 3ème étage, Apt. 12" autocomplete="off">
+    </div>
+    <div class="input-group">
+      <label>Téléphone client</label>
       <input type="tel" id="d-tel" placeholder="Ex: 06 12 34 56 78">
     </div>
     <div style="display:flex;gap:10px;">
@@ -825,7 +829,11 @@ body::before {
       <div id="f-adresse-suggestions"></div>
     </div>
     <div class="input-group">
-      <label>Téléphone client (non visible sur PDF)</label>
+      <label>Complément <span style="font-size:11px;color:var(--text-3);">(optionnel — étage, bât., apt.)</span></label>
+      <input type="text" id="f-complement" placeholder="Ex: Bât. B, 3ème étage, Apt. 12" autocomplete="off">
+    </div>
+    <div class="input-group">
+      <label>Téléphone client</label>
       <input type="tel" id="f-tel" placeholder="Ex: 06 12 34 56 78">
     </div>
     <div style="display:flex;gap:10px;">
@@ -1807,6 +1815,7 @@ const res = await fetch('/api/generer', {
     email,
     telephone: document.getElementById(`${prefix}-tel`).value.trim(),
     adresse,
+    complement: (document.getElementById(`${prefix}-complement`)?.value || '').trim(),
     codePostal: (document.getElementById(`${prefix}-cp`)?.value || '').trim(),
     ville: (document.getElementById(`${prefix}-ville`)?.value || '').trim(),
     prenom: (document.getElementById(`${prefix}-prenom`)?.value || '').trim(),
