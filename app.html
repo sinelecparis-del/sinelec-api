@@ -2307,33 +2307,55 @@ function getTimeline(date) {
 }
 
 async function convertirEnFacture(numDevis) {
+  if (!confirm(`Convertir le devis ${numDevis} en facture et envoyer l'email au client ?`)) return;
+
   try {
     const devis = historiqueData.find(item => item.num === numDevis);
     if (!devis) {
       showToast('⚠️ Devis introuvable', '❌');
       return;
     }
-    
-    // Naviguer vers facture
-    document.querySelectorAll('.sidebar-item, .mobile-tab').forEach(el => el.classList.remove('active'));
-    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-    document.getElementById('page-facture').classList.add('active');
-    
-    document.getElementById('f-client').value = devis.client || '';
-    document.getElementById('f-adresse').value = devis.adresse || '';
-    document.getElementById('f-tel').value = devis.tel || '';
-    document.getElementById('f-cp').value = devis.cp || '';
-    document.getElementById('f-email').value = devis.email || '';
-    document.getElementById('f-description').value = devis.description || '';
-    
-    if (devis.prestations && Array.isArray(devis.prestations)) {
-      panierF = JSON.parse(JSON.stringify(devis.prestations));
-      renderPanier('f');
+
+    showToast('⏳ Génération facture en cours...', '💶');
+
+    // Appel API avec toutes les infos du devis
+    const body = {
+      type: 'facture',
+      client: devis.client || '',
+      prenom: devis.prenom || '',
+      email: devis.email || '',
+      telephone: devis.telephone || devis.tel || '',
+      adresse: devis.adresse || '',
+      complement: devis.complement || '',
+      codePostal: devis.codePostal || devis.cp || '',
+      ville: devis.ville || '',
+      description: devis.description || 'Travaux électricité',
+      prestations: devis.prestations || []
+    };
+
+    const res = await fetch('/api/generer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+
+    const data = await res.json();
+
+    if (data.success) {
+      // Mettre à jour le statut du devis
+      await fetch('/api/historique/' + numDevis + '/statut', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ statut: 'facture' })
+      });
+
+      shootConfetti();
+      showToast(`✅ Facture ${data.num} créée — Email envoyé !`, '🎉');
+      setTimeout(() => chargerHistorique(), 1500);
+    } else {
+      showToast('❌ Erreur : ' + (data.error || 'Erreur API'), '⚠️');
     }
-    
-    shootConfetti();
-    showToast(`✅ Devis ${numDevis} converti en facture !`, '🎉');
-    
+
   } catch(e) {
     console.error('Erreur conversion:', e);
     showToast('❌ Erreur lors de la conversion', '⚠️');
@@ -2354,18 +2376,19 @@ async function chargerDashboard() {
     const devis = data.filter(d => d.type === 'devis');
 
     const facMois = factures.filter(f => (f.date || '').includes(`/${String(now.getMonth()+1).padStart(2,'0')}/${annee}`) || (f.created_at || '').startsWith(moisCourant));
-    const caMois = facMois.reduce((s, f) => s + parseFloat(f.totalht || 0), 0);
+    const caMois = facMois.reduce((s, f) => s + parseFloat(f.total_ht || f.totalht || 0), 0);
     document.getElementById('dash-mois-ca').textContent = caMois.toFixed(0);
     document.getElementById('dash-mois-nb').textContent = facMois.length;
 
     const facAnnee = factures.filter(f => (f.created_at || '').startsWith(annee.toString()));
-    const caAnnee = facAnnee.reduce((s, f) => s + parseFloat(f.totalht || 0), 0);
+    const caAnnee = facAnnee.reduce((s, f) => s + parseFloat(f.total_ht || f.totalht || 0), 0);
     document.getElementById('dash-annee-ca').textContent = caAnnee.toFixed(0);
 
-    const caDevisAttente = devis.reduce((s, d) => s + parseFloat(d.totalht || 0), 0);
+    const caDevisAttente = devis.filter(d => d.statut === 'envoyé' || d.statut === 'envoye')
+      .reduce((s, d) => s + parseFloat(d.total_ht || d.totalht || 0), 0);
     document.getElementById('dash-devis-attente').textContent = caDevisAttente.toFixed(0);
 
-    const panierMoyen = factures.length > 0 ? (facAnnee.reduce((s,f) => s + parseFloat(f.totalht||0),0) / facAnnee.length) : 0;
+    const panierMoyen = facAnnee.length > 0 ? (caAnnee / facAnnee.length) : 0;
     document.getElementById('dash-panier-moyen').textContent = panierMoyen.toFixed(0);
 
     const moisList = document.getElementById('dash-mois-list');
@@ -2375,7 +2398,7 @@ async function chargerDashboard() {
       const mKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
       const mLabel = d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
       const mFac = factures.filter(f => (f.created_at || '').startsWith(mKey));
-      const mCA = mFac.reduce((s,f) => s + parseFloat(f.totalht||0), 0);
+      const mCA = mFac.reduce((s,f) => s + parseFloat(f.total_ht||f.totalht||0), 0);
       const maxCA = 5000;
       const pct = Math.min((mCA / maxCA) * 100, 100);
       const isCurrentMonth = i === 0;
@@ -2394,7 +2417,7 @@ async function chargerDashboard() {
     const clientMap = {};
     factures.forEach(f => {
       if (!f.client) return;
-      clientMap[f.client] = (clientMap[f.client] || 0) + parseFloat(f.totalht || 0);
+      clientMap[f.client] = (clientMap[f.client] || 0) + parseFloat(f.total_ht || f.totalht || 0);
     });
     const topClients = Object.entries(clientMap).sort((a,b) => b[1]-a[1]).slice(0,5);
     const topEl = document.getElementById('dash-top-clients');
