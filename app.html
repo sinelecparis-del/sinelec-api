@@ -574,22 +574,6 @@ body::before {
 .client-toggle-btn { flex:1; padding:10px; text-align:center; font-size:13px; font-weight:700; border-radius:9px; cursor:pointer; transition:all 0.2s; color:var(--text-2); user-select:none; }
 .client-toggle-btn.active { background:linear-gradient(135deg,var(--accent),var(--gold)); color:#fff; box-shadow:0 2px 8px rgba(212,165,116,0.3); }
 
-/* ════════════ INDICATIF TÉLÉPHONE ════════════ */
-.tel-group {
-  display:flex; gap:8px; align-items:flex-start;
-}
-.indicatif-select {
-  background:rgba(255,255,255,0.8); border:1.5px solid var(--border);
-  border-radius:12px; padding:12px 10px; font-size:13px; font-weight:700;
-  color:var(--text); outline:none; cursor:pointer; min-width:110px;
-  transition:border-color 0.2s; appearance:none;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-  background-repeat:no-repeat; background-position:right 8px center;
-  padding-right:26px;
-}
-.indicatif-select:focus { border-color:var(--accent); }
-.tel-input-wrap { flex:1; }
-
 </style>
 </head>
 <body data-theme="light">
@@ -743,31 +727,7 @@ body::before {
     </div>
     <div class="input-group">
       <label>Téléphone client</label>
-      <div class="tel-group">
-        <select class="indicatif-select" id="d-indicatif">
-          <option value="+33">🇫🇷 +33</option>
-          <option value="+32">🇧🇪 +32</option>
-          <option value="+41">🇨🇭 +41</option>
-          <option value="+44">🇬🇧 +44</option>
-          <option value="+1">🇺🇸 +1</option>
-          <option value="+49">🇩🇪 +49</option>
-          <option value="+39">🇮🇹 +39</option>
-          <option value="+34">🇪🇸 +34</option>
-          <option value="+351">🇵🇹 +351</option>
-          <option value="+212">🇲🇦 +212</option>
-          <option value="+213">🇩🇿 +213</option>
-          <option value="+216">🇹🇳 +216</option>
-          <option value="+221">🇸🇳 +221</option>
-          <option value="+225">🇨🇮 +225</option>
-          <option value="+237">🇨🇲 +237</option>
-          <option value="+243">🇨🇩 +243</option>
-          <option value="+966">🇸🇦 +966</option>
-          <option value="+971">🇦🇪 +971</option>
-        </select>
-        <div class="tel-input-wrap">
-          <input type="tel" id="d-tel" placeholder="06 12 34 56 78" oninput="formatTel(this)">
-        </div>
-      </div>
+      <input type="tel" id="d-tel" placeholder="Ex: 06 12 34 56 78">
     </div>
     <div style="display:flex;gap:10px;">
       <div class="input-group" style="flex:0 0 120px;">
@@ -874,31 +834,7 @@ body::before {
     </div>
     <div class="input-group">
       <label>Téléphone client</label>
-      <div class="tel-group">
-        <select class="indicatif-select" id="f-indicatif">
-          <option value="+33">🇫🇷 +33</option>
-          <option value="+32">🇧🇪 +32</option>
-          <option value="+41">🇨🇭 +41</option>
-          <option value="+44">🇬🇧 +44</option>
-          <option value="+1">🇺🇸 +1</option>
-          <option value="+49">🇩🇪 +49</option>
-          <option value="+39">🇮🇹 +39</option>
-          <option value="+34">🇪🇸 +34</option>
-          <option value="+351">🇵🇹 +351</option>
-          <option value="+212">🇲🇦 +212</option>
-          <option value="+213">🇩🇿 +213</option>
-          <option value="+216">🇹🇳 +216</option>
-          <option value="+221">🇸🇳 +221</option>
-          <option value="+225">🇨🇮 +225</option>
-          <option value="+237">🇨🇲 +237</option>
-          <option value="+243">🇨🇩 +243</option>
-          <option value="+966">🇸🇦 +966</option>
-          <option value="+971">🇦🇪 +971</option>
-        </select>
-        <div class="tel-input-wrap">
-          <input type="tel" id="f-tel" placeholder="06 12 34 56 78" oninput="formatTel(this)">
-        </div>
-      </div>
+      <input type="tel" id="f-tel" placeholder="Ex: 06 12 34 56 78">
     </div>
     <div style="display:flex;gap:10px;">
       <div class="input-group" style="flex:0 0 120px;">
@@ -1272,31 +1208,6 @@ function clearSearch(prefix) {
 
 
 // ═══════════════════ TOGGLE CLIENT TYPE ═══════════════════
-
-// ═══════════════════ FORMAT TÉLÉPHONE ═══════════════════
-function formatTel(input) {
-  const ind = input.closest('.tel-group')?.querySelector('.indicatif-select')?.value || '+33';
-  let v = input.value.replace(/\D/g, '');
-  
-  if (ind === '+33') {
-    // Format français : 06 12 34 56 78
-    v = v.substring(0, 10);
-    const parts = v.match(/.{1,2}/g) || [];
-    input.value = parts.join(' ');
-  } else if (ind === '+1') {
-    // Format US : 555 123 4567
-    v = v.substring(0, 10);
-    if (v.length > 6) input.value = v.substring(0,3) + ' ' + v.substring(3,6) + ' ' + v.substring(6);
-    else if (v.length > 3) input.value = v.substring(0,3) + ' ' + v.substring(3);
-    else input.value = v;
-  } else {
-    // Autres : groupes de 2
-    v = v.substring(0, 12);
-    const parts = v.match(/.{1,2}/g) || [];
-    input.value = parts.join(' ');
-  }
-}
-
 function setClientType(prefix, type) {
   document.getElementById(prefix+'-toggle-part').classList.toggle('active', type==='particulier');
   document.getElementById(prefix+'-toggle-soc').classList.toggle('active', type==='societe');
@@ -1314,330 +1225,270 @@ function getClientComplet(prefix) {
 
 const GRILLE = {
 
-  // ══════════════════════════════════════════════
-  // DÉPLACEMENT & URGENCES
-  // ══════════════════════════════════════════════
   '🚗 Deplacement & Urgences': {
-    'Deplacement Paris intra-muros':              { f:50,   fo:0,   mo:50   },
-    'Deplacement banlieue <20km':                 { f:80,   fo:0,   mo:80   },
-    'Deplacement banlieue >20km (78/91/95)':      { f:100,  fo:0,   mo:100  },
-    'Main oeuvre heure supplementaire':           { f:70,   fo:0,   mo:70   },
-    'Urgence jour (8h-20h)':                      { f:130,  fo:0,   mo:130  },
-    'Urgence soir (20h-23h)':                     { f:180,  fo:0,   mo:180  },
-    'Urgence nuit / WE / ferie':                  { f:250,  fo:0,   mo:250  },
-    'Forfait visite diagnostic (avant devis)':    { f:80,   fo:0,   mo:80   },
-    'Deplacement + 1h MO (offert si devis signe)':{ f:120,  fo:0,   mo:120  },
-    'Attestation mise en securite Enedis':        { f:189,  fo:10,  mo:179  },
+    'Deplacement Paris intra-muros':              { f:50,   fo:0,   mo:50,   desc:'Technicien qualifie, vehicule equipe, outillage complet' },
+    'Deplacement banlieue <20km':                 { f:80,   fo:0,   mo:80,   desc:'Deplacement professionnel, vehicule equipe, IDF <20km' },
+    'Deplacement banlieue >20km (78/91/95)':      { f:100,  fo:0,   mo:100,  desc:'Deplacement grande couronne, vehicule professionnel equipe' },
+    'Main oeuvre heure supplementaire':           { f:70,   fo:0,   mo:70,   desc:'Technicien qualifie, tarif horaire supplementaire' },
+    'Urgence jour (8h-20h)':                      { f:130,  fo:0,   mo:130,  desc:'Intervention urgente sous 2h, technicien disponible 7j/7' },
+    'Urgence soir (20h-23h)':                     { f:180,  fo:0,   mo:180,  desc:'Intervention urgente en soiree, disponibilite garantie' },
+    'Urgence nuit / WE / ferie':                  { f:250,  fo:0,   mo:250,  desc:'Intervention 24h/24, nuit week-end et jours feries' },
+    'Forfait visite diagnostic (avant devis)':    { f:80,   fo:0,   mo:80,   desc:'Visite technique, analyse installation, rapport ecrit fourni' },
+    'Deplacement + 1h MO (offert si devis signe)':{ f:120,  fo:0,   mo:120,  desc:'Deplacement + 1h intervention, deduit si devis accepte' },
+    'Attestation mise en securite Enedis':        { f:189,  fo:10,  mo:179,  desc:'Diagnostic complet, verification conformite, attestation officielle Enedis' },
   },
 
-  // ══════════════════════════════════════════════
-  // DÉPANNAGE GÉNÉRAL
-  // ══════════════════════════════════════════════
   '🔧 Depannage General': {
-    'Recherche de panne simple':                  { f:120,  fo:0,   mo:120  },
-    'Recherche de panne complexe':                { f:180,  fo:0,   mo:180  },
-    'Court-circuit diagnostic + reparation':      { f:125,  fo:15,  mo:110  },
-    'Reactivation coupure generale':              { f:90,   fo:0,   mo:90   },
-    'Disjoncteur qui saute en permanence':        { f:150,  fo:20,  mo:130  },
-    'Probleme terre / neutre inverse':            { f:160,  fo:10,  mo:150  },
-    'Surtension / sous-tension diagnostic':       { f:140,  fo:0,   mo:140  },
-    'Diagnostic complet installation':            { f:180,  fo:0,   mo:180  },
-    'Recherche fuite de courant':                 { f:150,  fo:0,   mo:150  },
-    'Reparation prise defectueuse':               { f:90,   fo:25,  mo:65   },
-    'Reparation interrupteur defectueux':         { f:90,   fo:20,  mo:70   },
-    'Reparation chauffage electrique':            { f:220,  fo:40,  mo:180  },
-    'Reparation volet roulant electrique':        { f:180,  fo:30,  mo:150  },
-    'Remplacement fusible ceramique':             { f:55,   fo:5,   mo:50   },
-    'Remplacement fusible cylindrique':           { f:60,   fo:8,   mo:52   },
-    'Test continuite circuits':                   { f:100,  fo:0,   mo:100  },
-    'Remise en service apres coupure EDF':        { f:120,  fo:0,   mo:120  },
-    'Mise en service apres travaux':              { f:80,   fo:0,   mo:80   },
+    'Recherche de panne simple':                  { f:120,  fo:0,   mo:120,  desc:'Diagnostic methodique, localisation panne, rapport intervention' },
+    'Recherche de panne complexe':                { f:180,  fo:0,   mo:180,  desc:'Diagnostic approfondi multi-circuits, outils de mesure professionnels' },
+    'Court-circuit diagnostic + reparation':      { f:125,  fo:15,  mo:110,  desc:'Localisation court-circuit, remplacement piece, remise en service' },
+    'Reactivation coupure generale':              { f:90,   fo:0,   mo:90,   desc:'Remise en service complete, verification securite, test circuits' },
+    'Disjoncteur qui saute en permanence':        { f:150,  fo:20,  mo:130,  desc:'Diagnostic surcharge, identification cause, remplacement si necessaire' },
+    'Probleme terre / neutre inverse':            { f:160,  fo:10,  mo:150,  desc:'Verification cablage, correction polarite, test mise a la terre' },
+    'Surtension / sous-tension diagnostic':       { f:140,  fo:0,   mo:140,  desc:'Mesure tensions, identification source, rapport technique detaille' },
+    'Diagnostic complet installation':            { f:180,  fo:0,   mo:180,  desc:'Audit complet installation electrique, rapport conformite NF C15-100' },
+    'Recherche fuite de courant':                 { f:150,  fo:0,   mo:150,  desc:'Detection fuite par pince amperemetrique, localisation et correction' },
+    'Reparation prise defectueuse':               { f:90,   fo:25,  mo:65,   desc:'Remplacement prise, cablage, test fonctionnement, finition soignee' },
+    'Reparation interrupteur defectueux':         { f:90,   fo:20,  mo:70,   desc:'Remplacement interrupteur, raccordement, test complet' },
+    'Reparation chauffage electrique':            { f:220,  fo:40,  mo:180,  desc:'Diagnostic panne, remplacement composant defectueux, test securite' },
+    'Reparation volet roulant electrique':        { f:180,  fo:30,  mo:150,  desc:'Diagnostic moteur, remplacement piece, reglage fin de course' },
+    'Remplacement fusible ceramique':             { f:55,   fo:5,   mo:50,   desc:'Remplacement fusible calibre adapte, verification cause surcharge' },
+    'Remplacement fusible cylindrique':           { f:60,   fo:8,   mo:52,   desc:'Remplacement fusible cylindrique, calibrage adapte au circuit' },
+    'Test continuite circuits':                   { f:100,  fo:0,   mo:100,  desc:'Verification continuite tous circuits, rapport mesures fourni' },
+    'Remise en service apres coupure EDF':        { f:120,  fo:0,   mo:120,  desc:'Verification installation, remise sous tension, test general' },
+    'Mise en service apres travaux':              { f:80,   fo:0,   mo:80,   desc:'Verification conformite, mise sous tension progressive, tests securite' },
   },
 
-  // ══════════════════════════════════════════════
-  // TABLEAU MONOPHASÉ
-  // ══════════════════════════════════════════════
   '⚡ Tableau Monophase': {
-    'Disjoncteur 10A (eclairage)':                { f:140,  fo:28,  mo:112  },
-    'Disjoncteur 16A (prises)':                   { f:150,  fo:31,  mo:119  },
-    'Disjoncteur 20A (cuisine)':                  { f:150,  fo:31,  mo:119  },
-    'Disjoncteur 32A (four / plaque)':            { f:160,  fo:35,  mo:125  },
-    'Disjoncteur differentiel 30mA type AC':      { f:200,  fo:55,  mo:145  },
-    'Interrupteur differentiel 63A type A':       { f:250,  fo:85,  mo:165  },
-    'Interrupteur differentiel 40A type A':       { f:230,  fo:70,  mo:160  },
-    'Contacteur jour/nuit':                       { f:120,  fo:35,  mo:85   },
-    'Parafoudre type 2':                          { f:160,  fo:65,  mo:95   },
-    'Telerupteur':                                { f:110,  fo:30,  mo:80   },
-    'Minuterie':                                  { f:110,  fo:35,  mo:75   },
-    'Mini tableau NF C 15-100':                   { f:185,  fo:60,  mo:125  },
-    'Tableau complet 1 rangee (6 a 13 modules)':  { f:650,  fo:280, mo:370  },
-    'Tableau complet 2 rangees (14 a 26 modules)':{ f:1050, fo:450, mo:600  },
-    'Tableau complet 3 rangees (27+ modules)':    { f:1850, fo:750, mo:1100 },
-    'Ajout module tableau existant':              { f:90,   fo:20,  mo:70   },
-    'Etiquetage et mise en ordre tableau':        { f:60,   fo:5,   mo:55   },
-    'Verification et rapport tableau':            { f:80,   fo:0,   mo:80   },
+    'Disjoncteur 10A (eclairage)':                { f:140,  fo:28,  mo:112,  desc:'Fourniture Legrand/Schneider, pose, raccordement, etiquetage' },
+    'Disjoncteur 16A (prises)':                   { f:150,  fo:31,  mo:119,  desc:'Fourniture Legrand/Schneider, pose, raccordement, test' },
+    'Disjoncteur 20A (cuisine)':                  { f:150,  fo:31,  mo:119,  desc:'Fourniture Legrand/Schneider, calibre cuisine, pose complete' },
+    'Disjoncteur 32A (four / plaque)':            { f:160,  fo:35,  mo:125,  desc:'Fourniture 32A, pose, raccordement, adapte gros electromenager' },
+    'Disjoncteur differentiel 30mA type AC':      { f:200,  fo:55,  mo:145,  desc:'Fourniture differentiel 30mA, protection personnes, pose complete' },
+    'Interrupteur differentiel 63A type A':       { f:250,  fo:85,  mo:165,  desc:'Fourniture 63A type A, protection renforcee, pose et reglage' },
+    'Interrupteur differentiel 40A type A':       { f:230,  fo:70,  mo:160,  desc:'Fourniture 40A type A, protection circuits sensibles' },
+    'Contacteur jour/nuit':                       { f:120,  fo:35,  mo:85,   desc:'Fourniture contacteur, programmation HC/HP, raccordement' },
+    'Parafoudre type 2':                          { f:160,  fo:65,  mo:95,   desc:'Fourniture parafoudre NF C15-100, protection surtension, pose' },
+    'Telerupteur':                                { f:110,  fo:30,  mo:80,   desc:'Fourniture telerupteur, pose, raccordement multi-points' },
+    'Minuterie':                                  { f:110,  fo:35,  mo:75,   desc:'Fourniture minuterie reglable, pose, raccordement, reglage' },
+    'Mini tableau NF C 15-100':                   { f:185,  fo:60,  mo:125,  desc:'Coffret encastre, modules fournis, conforme NF C15-100' },
+    'Tableau complet 1 rangee (6 a 13 modules)':  { f:650,  fo:280, mo:370,  desc:'Coffret + appareillage Legrand/Schneider, pose cablage etiquetage, NF C15-100' },
+    'Tableau complet 2 rangees (14 a 26 modules)':{ f:1050, fo:450, mo:600,  desc:'Coffret 2 rangees, appareillage complet, schema fourni, NF C15-100' },
+    'Tableau complet 3 rangees (27+ modules)':    { f:1850, fo:750, mo:1100, desc:'Coffret 3 rangees, installation complete, schema electrique, NF C15-100' },
+    'Ajout module tableau existant':              { f:90,   fo:20,  mo:70,   desc:'Ajout disjoncteur/differentiel sur tableau existant, etiquetage' },
+    'Etiquetage et mise en ordre tableau':        { f:60,   fo:5,   mo:55,   desc:'Identification circuits, etiquettes professionnelles, schema mis a jour' },
+    'Verification et rapport tableau':            { f:80,   fo:0,   mo:80,   desc:'Controle visuel et electrique, rapport conformite fourni' },
   },
 
-  // ══════════════════════════════════════════════
-  // TABLEAU TRIPHASÉ
-  // ══════════════════════════════════════════════
   '🔌 Tableau Triphase': {
-    'Disjoncteur triph. 3P+N 16A':               { f:220,  fo:75,  mo:145  },
-    'Disjoncteur triph. 3P+N 20A':               { f:230,  fo:80,  mo:150  },
-    'Disjoncteur triph. 3P+N 32A':               { f:250,  fo:90,  mo:160  },
-    'Disjoncteur triph. 3P+N 40A':               { f:270,  fo:100, mo:170  },
-    'Disjoncteur triph. 3P+N 63A':               { f:300,  fo:120, mo:180  },
-    'Differentiel triph. 63A type A':            { f:380,  fo:160, mo:220  },
-    'Differentiel triph. 80A type A':            { f:420,  fo:190, mo:230  },
-    'Differentiel triph. 100A type A':           { f:480,  fo:230, mo:250  },
-    'Tableau triphase complet 1 rangee':         { f:1200, fo:500, mo:700  },
-    'Tableau triphase complet 2 rangees':        { f:2200, fo:900, mo:1300 },
-    'Tableau triphase 3 rangees et plus':        { f:3500, fo:1400,mo:2100 },
-    'Mise en service tableau triphase':          { f:150,  fo:0,   mo:150  },
+    'Disjoncteur triph. 3P+N 16A':               { f:220,  fo:75,  mo:145,  desc:'Disjoncteur triph 16A, fourniture Legrand/Schneider, pose complete' },
+    'Disjoncteur triph. 3P+N 20A':               { f:230,  fo:80,  mo:150,  desc:'Disjoncteur triph 20A, pose, raccordement, test mise en service' },
+    'Disjoncteur triph. 3P+N 32A':               { f:250,  fo:90,  mo:160,  desc:'Disjoncteur triph 32A, fourniture, pose, raccordement complet' },
+    'Disjoncteur triph. 3P+N 40A':               { f:270,  fo:100, mo:170,  desc:'Disjoncteur triph 40A, protection moteurs/machines industrielles' },
+    'Disjoncteur triph. 3P+N 63A':               { f:300,  fo:120, mo:180,  desc:'Disjoncteur triph 63A, protection circuits puissants, pose complete' },
+    'Differentiel triph. 63A type A':            { f:380,  fo:160, mo:220,  desc:'Differentiel triph 63A type A, protection renforcee, pose' },
+    'Differentiel triph. 80A type A':            { f:420,  fo:190, mo:230,  desc:'Differentiel triph 80A, protection installation triphasee complete' },
+    'Differentiel triph. 100A type A':           { f:480,  fo:230, mo:250,  desc:'Differentiel triph 100A, protection totale installation triphasee' },
+    'Tableau triphase complet 1 rangee':         { f:1200, fo:500, mo:700,  desc:'Coffret triph, appareillage complet, cablage, etiquetage, NF C15-100' },
+    'Tableau triphase complet 2 rangees':        { f:2200, fo:900, mo:1300, desc:'Coffret triph 2 rangees, installation complete, schema fourni' },
+    'Tableau triphase 3 rangees et plus':        { f:3500, fo:1400,mo:2100, desc:'TGBT complet, appareillage professionnel, schema, mise en service' },
+    'Mise en service tableau triphase':          { f:150,  fo:0,   mo:150,  desc:'Verification cablage, mise sous tension progressive, tests securite' },
   },
 
-  // ══════════════════════════════════════════════
-  // FOURNITURES DIVERSES
-  // ══════════════════════════════════════════════
   '🔩 Fournitures Diverses': {
-    'Peigne horizontal 2P+N (13 modules)':       { f:35,   fo:35,  mo:0    },
-    'Peigne horizontal 2P+N (26 modules)':       { f:55,   fo:55,  mo:0    },
-    'Peigne horizontal 3P+N (13 modules)':       { f:55,   fo:55,  mo:0    },
-    'Peigne vertical 2P+N':                      { f:45,   fo:45,  mo:0    },
-    'Peigne vertical 3P+N':                      { f:65,   fo:65,  mo:0    },
-    'Wago / domino connexion (lot 10)':          { f:15,   fo:15,  mo:0    },
-    'Cheville + vis assortiment (lot 50)':       { f:12,   fo:12,  mo:0    },
-    'Cable rigide 1.5mm² (par ml)':              { f:2,    fo:2,   mo:0    },
-    'Cable rigide 2.5mm² (par ml)':              { f:3,    fo:3,   mo:0    },
-    'Cable rigide 6mm² (par ml)':                { f:5,    fo:5,   mo:0    },
-    'Cable souple 1.5mm² (par ml)':              { f:2,    fo:2,   mo:0    },
-    'Cable souple 2.5mm² (par ml)':              { f:3,    fo:3,   mo:0    },
-    'Boite encastrement simple':                 { f:8,    fo:8,   mo:0    },
-    'Boite encastrement double':                 { f:12,   fo:12,  mo:0    },
-    'Boite derivation encastree':                { f:10,   fo:10,  mo:0    },
-    'Gaine icta 16mm (par ml)':                  { f:2,    fo:2,   mo:0    },
-    'Gaine icta 20mm (par ml)':                  { f:2,    fo:2,   mo:0    },
-    'Goulotte 40x16 (par ml)':                   { f:8,    fo:8,   mo:0    },
-    'Goulotte 60x40 (par ml)':                   { f:12,   fo:12,  mo:0    },
-    'Attache / serre-cable (lot 20)':            { f:8,    fo:8,   mo:0    },
-    'Ruban isolant (lot 3)':                     { f:6,    fo:6,   mo:0    },
-    'Cosse / embout (lot 50)':                   { f:10,   fo:10,  mo:0    },
-    'Disjoncteur de branchement 60A':            { f:180,  fo:90,  mo:90   },
+    'Peigne horizontal 2P+N (13 modules)':       { f:35,   fo:35,  mo:0,    desc:'Peigne de raccordement horizontal 13 modules, fourniture seule' },
+    'Peigne horizontal 2P+N (26 modules)':       { f:55,   fo:55,  mo:0,    desc:'Peigne de raccordement horizontal 26 modules, fourniture seule' },
+    'Peigne horizontal 3P+N (13 modules)':       { f:55,   fo:55,  mo:0,    desc:'Peigne triph 13 modules, raccordement tableau, fourniture seule' },
+    'Peigne vertical 2P+N':                      { f:45,   fo:45,  mo:0,    desc:'Peigne vertical monophase, connexion differentiels, fourniture' },
+    'Peigne vertical 3P+N':                      { f:65,   fo:65,  mo:0,    desc:'Peigne vertical triph, connexion tableaux tripahses, fourniture' },
+    'Wago / domino connexion (lot 10)':          { f:15,   fo:15,  mo:0,    desc:'Connecteurs rapides Wago, connexion sans outil, lot 10' },
+    'Cheville + vis assortiment (lot 50)':       { f:12,   fo:12,  mo:0,    desc:'Fixations assorties, chevilles murales et vis, lot 50 pieces' },
+    'Cable rigide 1.5mm² (par ml)':              { f:2,    fo:2,   mo:0,    desc:'Cable H07V-U 1.5mm2, circuits eclairage, fourniture par ml' },
+    'Cable rigide 2.5mm² (par ml)':              { f:3,    fo:3,   mo:0,    desc:'Cable H07V-U 2.5mm2, circuits prises, fourniture par ml' },
+    'Cable rigide 6mm² (par ml)':                { f:5,    fo:5,   mo:0,    desc:'Cable H07V-U 6mm2, circuits puissants, four/plaque, par ml' },
+    'Cable souple 1.5mm² (par ml)':              { f:2,    fo:2,   mo:0,    desc:'Cable H07V-R souple 1.5mm2, raccordements, fourniture par ml' },
+    'Cable souple 2.5mm² (par ml)':              { f:3,    fo:3,   mo:0,    desc:'Cable H07V-R souple 2.5mm2, raccordements flexibles, par ml' },
+    'Boite encastrement simple':                 { f:8,    fo:8,   mo:0,    desc:'Boite 1 poste encastree, compatible toutes marques' },
+    'Boite encastrement double':                 { f:12,   fo:12,  mo:0,    desc:'Boite 2 postes encastree, plaque double, toutes marques' },
+    'Boite derivation encastree':                { f:10,   fo:10,  mo:0,    desc:'Boite de derivation encastree IP40, bornes de connexion incluses' },
+    'Gaine icta 16mm (par ml)':                  { f:2,    fo:2,   mo:0,    desc:'Gaine ICTA 16mm annellee, protection cables, fourniture par ml' },
+    'Gaine icta 20mm (par ml)':                  { f:2,    fo:2,   mo:0,    desc:'Gaine ICTA 20mm annellee, tirage cable, fourniture par ml' },
+    'Goulotte 40x16 (par ml)':                   { f:8,    fo:8,   mo:0,    desc:'Goulotte PVC 40x16 blanc, pose apparent propre, par ml' },
+    'Goulotte 60x40 (par ml)':                   { f:12,   fo:12,  mo:0,    desc:'Goulotte PVC 60x40, grand volume, pose apparent soignee, par ml' },
+    'Attache / serre-cable (lot 20)':            { f:8,    fo:8,   mo:0,    desc:'Colliers de fixation assortis, maintien cables, lot 20 pieces' },
+    'Ruban isolant (lot 3)':                     { f:6,    fo:6,   mo:0,    desc:'Ruban isolant 3M professionnel, isolation connexions, lot 3' },
+    'Cosse / embout (lot 50)':                   { f:10,   fo:10,  mo:0,    desc:'Embouts de cables assortis, connexions propres et securisees' },
+    'Disjoncteur de branchement 60A':            { f:180,  fo:90,  mo:90,   desc:'Disjoncteur EDF 60A, remplacement ou installation, pose complete' },
   },
 
-  // ══════════════════════════════════════════════
-  // PRISES & INTERRUPTEURS
-  // ══════════════════════════════════════════════
   '🔌 Prises & Interrupteurs': {
-    'Prise standard 2P+T':                       { f:90,   fo:20,  mo:70   },
-    'Prise double':                              { f:110,  fo:28,  mo:82   },
-    'Prise specialisee cuisiniere 32A':          { f:140,  fo:35,  mo:105  },
-    'Prise etanche exterieure IP44':             { f:110,  fo:28,  mo:82   },
-    'Deplacement prise existante':               { f:130,  fo:25,  mo:105  },
-    'Prise RJ45 reseau':                         { f:65,   fo:15,  mo:50   },
-    'Prise USB integree':                        { f:85,   fo:25,  mo:60   },
-    'Prise TV coaxiale':                         { f:75,   fo:18,  mo:57   },
-    'Prise Green Up recharge VE':                { f:300,  fo:120, mo:180  },
-    'Interrupteur simple':                       { f:90,   fo:20,  mo:70   },
-    'Interrupteur va-et-vient':                  { f:110,  fo:25,  mo:85   },
-    'Variateur intensite':                       { f:130,  fo:40,  mo:90   },
-    'Interrupteur connecte':                     { f:150,  fo:55,  mo:95   },
-    'Bouton poussoir sonnette':                  { f:80,   fo:18,  mo:62   },
+    'Prise standard 2P+T':                       { f:90,   fo:20,  mo:70,   desc:'Prise Legrand/Schneider, pose encastree, raccordement, finition' },
+    'Prise double':                              { f:110,  fo:28,  mo:82,   desc:'Double prise 2P+T, pose encastree, raccordement, plaque fournie' },
+    'Prise specialisee cuisiniere 32A':          { f:140,  fo:35,  mo:105,  desc:'Prise 32A 3P+T, pose, raccordement ligne dediee, securisee' },
+    'Prise etanche exterieure IP44':             { f:110,  fo:28,  mo:82,   desc:'Prise IP44 etanche, protection pluie, pose exterieure complete' },
+    'Deplacement prise existante':               { f:130,  fo:25,  mo:105,  desc:'Depose prise, tirage cable, repose nouvel emplacement, finition' },
+    'Prise RJ45 reseau':                         { f:65,   fo:15,  mo:50,   desc:'Prise RJ45 cat6, pose encastree, raccordement, test connexion' },
+    'Prise USB integree':                        { f:85,   fo:25,  mo:60,   desc:'Prise avec chargeur USB integre, pose, raccordement, test' },
+    'Prise TV coaxiale':                         { f:75,   fo:18,  mo:57,   desc:'Prise coaxiale TV/SAT, pose encastree, raccordement, test signal' },
+    'Prise Green Up recharge VE':                { f:300,  fo:120, mo:180,  desc:'Prise T2 Green Up, ligne dediee 16A, protection differentielle' },
+    'Interrupteur simple':                       { f:90,   fo:20,  mo:70,   desc:'Interrupteur Legrand, pose encastree, raccordement, finition' },
+    'Interrupteur va-et-vient':                  { f:110,  fo:25,  mo:85,   desc:'Va-et-vient, 2 points de commande, pose complete, test' },
+    'Variateur intensite':                       { f:130,  fo:40,  mo:90,   desc:'Variateur LED compatible, pose, reglage, test luminosite' },
+    'Interrupteur connecte':                     { f:150,  fo:55,  mo:95,   desc:'Interrupteur WiFi/Zigbee, configuration appli, pose complete' },
+    'Bouton poussoir sonnette':                  { f:80,   fo:18,  mo:62,   desc:'Bouton poussoir, pose encastree, raccordement sonnette' },
   },
 
-  // ══════════════════════════════════════════════
-  // ÉCLAIRAGE
-  // ══════════════════════════════════════════════
   '💡 Eclairage': {
-    'Luminaire simple (plafonnier)':             { f:115,  fo:20,  mo:95   },
-    'Lustre / luminaire lourd':                  { f:200,  fo:30,  mo:170  },
-    'Spot encastre LED (unite)':                 { f:75,   fo:25,  mo:50   },
-    'Bandeau LED (par ml)':                      { f:60,   fo:20,  mo:40   },
-    'Point lumineux DCL':                        { f:100,  fo:15,  mo:85   },
-    'Applique murale':                           { f:120,  fo:20,  mo:100  },
-    'Eclairage exterieur':                       { f:150,  fo:35,  mo:115  },
-    'Chemin lumineux 3 spots':                   { f:250,  fo:85,  mo:165  },
-    'Detecteur mouvement eclairage':             { f:120,  fo:35,  mo:85   },
-    'Eclairage securite BAES':                   { f:180,  fo:65,  mo:115  },
-    'Reglette LED':                              { f:95,   fo:30,  mo:65   },
-    'Projecteur exterieur LED':                  { f:180,  fo:55,  mo:125  },
+    'Luminaire simple (plafonnier)':             { f:115,  fo:20,  mo:95,   desc:'Pose plafonnier fourni par client, raccordement DCL, fixation' },
+    'Lustre / luminaire lourd':                  { f:200,  fo:30,  mo:170,  desc:'Pose lustre lourd, fixation renforcee, raccordement, test' },
+    'Spot encastre LED (unite)':                 { f:75,   fo:25,  mo:50,   desc:'Spot LED encastre, decoupe, raccordement, test eclairage' },
+    'Bandeau LED (par ml)':                      { f:60,   fo:20,  mo:40,   desc:'Bandeau LED pose, fixation, raccordement alimentation, par ml' },
+    'Point lumineux DCL':                        { f:100,  fo:15,  mo:85,   desc:'Creation point lumineux DCL, tirage cable, boite de derivation' },
+    'Applique murale':                           { f:120,  fo:20,  mo:100,  desc:'Pose applique, fixation murale renforcee, raccordement, test' },
+    'Eclairage exterieur':                       { f:150,  fo:35,  mo:115,  desc:'Pose luminaire exterieur IP44, fixation, raccordement etanche' },
+    'Chemin lumineux 3 spots':                   { f:250,  fo:85,  mo:165,  desc:'3 spots encastres alignes, cable, alimentation, test homogeneite' },
+    'Detecteur mouvement eclairage':             { f:120,  fo:35,  mo:85,   desc:'Detecteur infrarouge, reglage sensibilite/temporisation, pose' },
+    'Eclairage securite BAES':                   { f:180,  fo:65,  mo:115,  desc:'BAES NF, pose, raccordement, test autonomie conforme ERP' },
+    'Reglette LED':                              { f:95,   fo:30,  mo:65,   desc:'Reglette LED etanche ou standard, pose, raccordement, test' },
+    'Projecteur exterieur LED':                  { f:180,  fo:55,  mo:125,  desc:'Projecteur LED IP65, fixation, raccordement etanche, reglage' },
   },
 
-  // ══════════════════════════════════════════════
-  // CIRCUITS & CÂBLAGE
-  // ══════════════════════════════════════════════
   '🔗 Circuits & Cablage': {
-    'Circuit apparent 5m':                       { f:200,  fo:35,  mo:165  },
-    'Circuit encastre 5m':                       { f:300,  fo:45,  mo:255  },
-    'Cable supplementaire (par ml)':             { f:20,   fo:8,   mo:12   },
-    'Goulotte (par ml)':                         { f:15,   fo:5,   mo:10   },
-    'Chemin de cable (par ml)':                  { f:30,   fo:10,  mo:20   },
-    'Passage cable cloison/dalle':               { f:120,  fo:5,   mo:115  },
-    'Ligne dediee lave-linge':                   { f:220,  fo:45,  mo:175  },
-    'Ligne dediee chauffe-eau':                  { f:220,  fo:45,  mo:175  },
-    'Ligne dediee plaque induction':             { f:250,  fo:50,  mo:200  },
-    'Ligne dediee climatisation':                { f:280,  fo:55,  mo:225  },
-    'Boite de derivation':                       { f:45,   fo:10,  mo:35   },
-    'Tirage cable sous gaine icta (par ml)':     { f:12,   fo:3,   mo:9    },
+    'Circuit apparent 5m':                       { f:200,  fo:35,  mo:165,  desc:'Tirage cable apparent sous goulotte 5m, raccordement tableau' },
+    'Circuit encastre 5m':                       { f:300,  fo:45,  mo:255,  desc:'Tirage cable encastre sous gaine 5m, saignee, raccordement' },
+    'Cable supplementaire (par ml)':             { f:20,   fo:8,   mo:12,   desc:'Tirage cable additionnel, goulotte ou encastre, par metre' },
+    'Goulotte (par ml)':                         { f:15,   fo:5,   mo:10,   desc:'Pose goulotte PVC, fixation, passage cable, finition, par ml' },
+    'Chemin de cable (par ml)':                  { f:30,   fo:10,  mo:20,   desc:'Chemin de cable metallique, fixation plafond, par metre lineaire' },
+    'Passage cable cloison/dalle':               { f:120,  fo:5,   mo:115,  desc:'Percage cloison ou dalle, passage fourreaux, rebouchage propre' },
+    'Ligne dediee lave-linge':                   { f:220,  fo:45,  mo:175,  desc:'Circuit 20A du tableau, cable 2.5mm2, prise 2P+T, NF C15-100' },
+    'Ligne dediee chauffe-eau':                  { f:220,  fo:45,  mo:175,  desc:'Circuit 20A, cable 2.5mm2, contacteur HC/HP, conforme norme' },
+    'Ligne dediee plaque induction':             { f:250,  fo:50,  mo:200,  desc:'Circuit 32A du tableau, cable 6mm2, prise specialisee, NF C15-100' },
+    'Ligne dediee climatisation':                { f:280,  fo:55,  mo:225,  desc:'Circuit 20A, cable 2.5mm2, prise ou raccordement direct clim' },
+    'Boite de derivation':                       { f:45,   fo:10,  mo:35,   desc:'Boite de derivation IP40, connexions, fermeture, accessible' },
+    'Tirage cable sous gaine icta (par ml)':     { f:12,   fo:3,   mo:9,    desc:'Tirage cable sous gaine encastree existante, par metre' },
   },
 
-  // ══════════════════════════════════════════════
-  // MISE AUX NORMES & SÉCURITÉ
-  // ══════════════════════════════════════════════
   '🛡️ Mise aux Normes & Securite': {
-    'Mise a la terre complete':                  { f:650,  fo:80,  mo:570  },
-    'Liaison equipotentielle principale':        { f:160,  fo:25,  mo:135  },
-    'Liaison equipotentielle salle de bain':     { f:140,  fo:20,  mo:120  },
-    'Detecteur fumee DAAF':                      { f:85,   fo:20,  mo:65   },
-    'Detecteur CO monoxyde':                     { f:95,   fo:30,  mo:65   },
-    'Diagnostic electrique obligatoire':         { f:150,  fo:0,   mo:150  },
-    'Mise en conformite NF C15-100 (par m2)':    { f:65,   fo:15,  mo:50   },
-    'Rapport de conformite':                     { f:120,  fo:0,   mo:120  },
-    'Protection differentielle SDB':             { f:200,  fo:60,  mo:140  },
+    'Mise a la terre complete':                  { f:650,  fo:80,  mo:570,  desc:'Piquet terre, cable cuivre 16mm2, barre de terre, resistance <100 ohms' },
+    'Liaison equipotentielle principale':        { f:160,  fo:25,  mo:135,  desc:'Liaison equipotentielle coffret, raccordement canalisations, NF C15-100' },
+    'Liaison equipotentielle salle de bain':     { f:140,  fo:20,  mo:120,  desc:'Liaison equipo SdB, raccordement elements metalliques, zone 0/1/2' },
+    'Detecteur fumee DAAF':                      { f:85,   fo:20,  mo:65,   desc:'DAAF certifie NF, pose, test alarme, conformite loi Morange' },
+    'Detecteur CO monoxyde':                     { f:95,   fo:30,  mo:65,   desc:'Detecteur CO certifie, pose pres chaudiere, test alarme' },
+    'Diagnostic electrique obligatoire':         { f:150,  fo:0,   mo:150,  desc:'Diagnostic reglementaire DPE, rapport officiel, points controle NF C16-600' },
+    'Mise en conformite NF C15-100 (par m2)':    { f:65,   fo:15,  mo:50,   desc:'Mise aux normes installation par m2, rapport conformite fourni' },
+    'Rapport de conformite':                     { f:120,  fo:0,   mo:120,  desc:'Rapport technique detaille, points non conformes, recommandations' },
+    'Protection differentielle SDB':             { f:200,  fo:60,  mo:140,  desc:'Differentiel 30mA type A salle de bain, protection personnes' },
   },
 
-  // ══════════════════════════════════════════════
-  // CHAUFFAGE ÉLECTRIQUE
-  // ══════════════════════════════════════════════
   '🔥 Chauffage Electrique': {
-    'Convecteur mural standard':                 { f:200,  fo:60,  mo:140  },
-    'Radiateur a inertie':                       { f:350,  fo:120, mo:230  },
-    'Seche-serviettes electrique':               { f:280,  fo:90,  mo:190  },
-    'Thermostat programmable':                   { f:140,  fo:45,  mo:95   },
-    'Thermostat connecte / fil pilote':          { f:180,  fo:70,  mo:110  },
-    'Remplacement convecteur vers inertie':      { f:450,  fo:150, mo:300  },
-    'Depose ancien radiateur':                   { f:60,   fo:0,   mo:60   },
-    'Plancher chauffant electrique (par m2)':    { f:120,  fo:50,  mo:70   },
-    'Chauffe-eau electrique 100L':               { f:450,  fo:180, mo:270  },
-    'Chauffe-eau electrique 200L':               { f:580,  fo:250, mo:330  },
-    'Ballon thermodynamique':                    { f:850,  fo:400, mo:450  },
+    'Convecteur mural standard':                 { f:200,  fo:60,  mo:140,  desc:'Pose convecteur, raccordement circuit dedie, test thermostat' },
+    'Radiateur a inertie':                       { f:350,  fo:120, mo:230,  desc:'Pose radiateur inertie, fil pilote, raccordement, programmation' },
+    'Seche-serviettes electrique':               { f:280,  fo:90,  mo:190,  desc:'Pose seche-serviettes, raccordement zone 2/3 SdB, test' },
+    'Thermostat programmable':                   { f:140,  fo:45,  mo:95,   desc:'Thermostat programmable, installation, configuration plages horaires' },
+    'Thermostat connecte / fil pilote':          { f:180,  fo:70,  mo:110,  desc:'Thermostat WiFi, installation, config appli, gestion a distance' },
+    'Remplacement convecteur vers inertie':      { f:450,  fo:150, mo:300,  desc:'Depose convecteur, pose inertie meme circuit, config fil pilote' },
+    'Depose ancien radiateur':                   { f:60,   fo:0,   mo:60,   desc:'Depose radiateur, obturation circuit, rebouchage propre' },
+    'Plancher chauffant electrique (par m2)':    { f:120,  fo:50,  mo:70,   desc:'Cable chauffant, sonde, thermostat, chape, par m2' },
+    'Chauffe-eau electrique 100L':               { f:450,  fo:180, mo:270,  desc:'Pose chauffe-eau 100L, raccordement electrique et plomberie, test' },
+    'Chauffe-eau electrique 200L':               { f:580,  fo:250, mo:330,  desc:'Pose chauffe-eau 200L, raccordement complet, groupe securite, test' },
+    'Ballon thermodynamique':                    { f:850,  fo:400, mo:450,  desc:'Pose ballon thermodynamique, raccordement electrique, mise en service' },
   },
 
-  // ══════════════════════════════════════════════
-  // VMC & VENTILATION
-  // ══════════════════════════════════════════════
   '💨 VMC & Ventilation': {
-    'VMC simple flux autoreglable':              { f:450,  fo:150, mo:300  },
-    'VMC simple flux hygroreglable A':           { f:600,  fo:220, mo:380  },
-    'VMC simple flux hygroreglable B':           { f:700,  fo:280, mo:420  },
-    'VMC double flux':                           { f:1200, fo:500, mo:700  },
-    'Remplacement moteur VMC':                   { f:250,  fo:90,  mo:160  },
-    'Bouche extraction':                         { f:60,   fo:18,  mo:42   },
-    'Nettoyage / entretien VMC':                 { f:100,  fo:0,   mo:100  },
-    'Ligne dediee VMC (disj 2A)':                { f:110,  fo:25,  mo:85   },
-    'Extracteur d air simple':                   { f:150,  fo:50,  mo:100  },
-    'Extracteur temporise':                      { f:180,  fo:70,  mo:110  },
+    'VMC simple flux autoreglable':              { f:450,  fo:150, mo:300,  desc:'VMC SF autoreglable, pose, cablage, bouches, mise en service' },
+    'VMC simple flux hygroreglable A':           { f:600,  fo:220, mo:380,  desc:'VMC hygro A, capteurs hygro, pose complete, equilibrage debit' },
+    'VMC simple flux hygroreglable B':           { f:700,  fo:280, mo:420,  desc:'VMC hygro B, bouches autoregulables, pose complete, test' },
+    'VMC double flux':                           { f:1200, fo:500, mo:700,  desc:'VMC double flux, echangeur thermique, pose, reglage, test' },
+    'Remplacement moteur VMC':                   { f:250,  fo:90,  mo:160,  desc:'Depose moteur, fourniture moteur adapte, repose, test debit' },
+    'Bouche extraction':                         { f:60,   fo:18,  mo:42,   desc:'Bouche extraction, pose, reglage debit, raccordement caisson' },
+    'Nettoyage / entretien VMC':                 { f:100,  fo:0,   mo:100,  desc:'Nettoyage caisson, bouches, gaines accessibles, test debit' },
+    'Ligne dediee VMC (disj 2A)':                { f:110,  fo:25,  mo:85,   desc:'Circuit dedie VMC 2A, disjoncteur tableau, cablage complete' },
+    'Extracteur d air simple':                   { f:150,  fo:50,  mo:100,  desc:'Extracteur SdB/cuisine, pose, raccordement, test debit conforme' },
+    'Extracteur temporise':                      { f:180,  fo:70,  mo:110,  desc:'Extracteur avec temporisation, reglage, pose complete, test' },
   },
 
-  // ══════════════════════════════════════════════
-  // ÉQUIPEMENTS SPÉCIAUX
-  // ══════════════════════════════════════════════
   '🏠 Equipements Speciaux': {
-    'Interphone audio':                          { f:500,  fo:180, mo:320  },
-    'Visiophone':                                { f:900,  fo:350, mo:550  },
-    'Sonnette filaire':                          { f:130,  fo:35,  mo:95   },
-    'Motorisation volet roulant':                { f:350,  fo:130, mo:220  },
-    'Portier electrique':                        { f:600,  fo:250, mo:350  },
-    'Detecteur mouvement exterieur':             { f:120,  fo:35,  mo:85   },
-    'Camera surveillance filaire':               { f:350,  fo:130, mo:220  },
-    'Antenne TV / prise coaxiale':               { f:200,  fo:35,  mo:165  },
-    'Forfait maintenance annuelle':              { f:350,  fo:0,   mo:350  },
+    'Interphone audio':                          { f:500,  fo:180, mo:320,  desc:'Interphone audio 2 fils, platine exterieure, poste interieur, pose' },
+    'Visiophone':                                { f:900,  fo:350, mo:550,  desc:'Visiophone couleur, camera HD, ecran interieur, pose complete' },
+    'Sonnette filaire':                          { f:130,  fo:35,  mo:95,   desc:'Sonnette filaire, bouton exterieur, carillon interieur, cablage' },
+    'Motorisation volet roulant':                { f:350,  fo:130, mo:220,  desc:'Moteur volet, commande murale, fin de course, raccordement' },
+    'Portier electrique':                        { f:600,  fo:250, mo:350,  desc:'Portier electrique, gache, interphone, cablage complet' },
+    'Detecteur mouvement exterieur':             { f:120,  fo:35,  mo:85,   desc:'Detecteur IR exterieur IP44, reglage angle/sensibilite, pose' },
+    'Camera surveillance filaire':               { f:350,  fo:130, mo:220,  desc:'Camera IP filaire, alimentation, passage cable, fixation' },
+    'Antenne TV / prise coaxiale':               { f:200,  fo:35,  mo:165,  desc:'Prise coaxiale, cable coax, raccordement antenne/tete reseau' },
+    'Forfait maintenance annuelle':              { f:350,  fo:0,   mo:350,  desc:'Visite annuelle, verification complete installation, rapport' },
   },
 
-  // ══════════════════════════════════════════════
-  // IRVE & RECHARGE VE
-  // ══════════════════════════════════════════════
   '🔋 IRVE & Recharge VE': {
-    'Prise Green Up T2 3.7kW':                  { f:300,  fo:120, mo:180  },
-    'Borne IRVE 7kW monophasee':                 { f:1500, fo:600, mo:900  },
-    'Borne IRVE 22kW triphasee':                 { f:2500, fo:1000,mo:1500 },
-    'Installation cablage IRVE':                 { f:400,  fo:80,  mo:320  },
-    'Tableau IRVE dedie':                        { f:350,  fo:120, mo:230  },
-    'Mise en service borne IRVE':                { f:100,  fo:0,   mo:100  },
+    'Prise Green Up T2 3.7kW':                  { f:300,  fo:120, mo:180,  desc:'Prise T2 3.7kW, circuit dedie 16A, protection differentielle' },
+    'Borne IRVE 7kW monophasee':                 { f:1500, fo:600, mo:900,  desc:'Borne 7kW, cablage dedie, protection, mise en service, attestation' },
+    'Borne IRVE 22kW triphasee':                 { f:2500, fo:1000,mo:1500, desc:'Borne 22kW triphasee, tableau dedie, cablage, mise en service' },
+    'Installation cablage IRVE':                 { f:400,  fo:80,  mo:320,  desc:'Tirage cable IRVE, chemin de cable, raccordement tableau' },
+    'Tableau IRVE dedie':                        { f:350,  fo:120, mo:230,  desc:'Tableau dedie recharge, protection adaptee, comptage energie' },
+    'Mise en service borne IRVE':                { f:100,  fo:0,   mo:100,  desc:'Configuration borne, tests charge, attestation IRVE fournie' },
   },
 
-  // ══════════════════════════════════════════════
-  // DOMOTIQUE & CONNECTÉ
-  // ══════════════════════════════════════════════
   '🏡 Domotique & Connecte': {
-    'Interrupteur connecte Legrand':             { f:150,  fo:55,  mo:95   },
-    'Prise connectee':                           { f:120,  fo:40,  mo:80   },
-    'Thermostat connecte Netatmo':               { f:250,  fo:120, mo:130  },
-    'Passerelle domotique':                      { f:300,  fo:150, mo:150  },
-    'Store / volet connecte':                    { f:400,  fo:180, mo:220  },
-    'Eclairage connecte (unite)':                { f:180,  fo:80,  mo:100  },
-    'Systeme alarme connecte':                   { f:900,  fo:400, mo:500  },
+    'Interrupteur connecte Legrand':             { f:150,  fo:55,  mo:95,   desc:'Interrupteur Legrand connecte, config appli Netatmo, pose' },
+    'Prise connectee':                           { f:120,  fo:40,  mo:80,   desc:'Prise WiFi avec mesure conso, config appli, pose complete' },
+    'Thermostat connecte Netatmo':               { f:250,  fo:120, mo:130,  desc:'Thermostat Netatmo, installation, config WiFi, test commande' },
+    'Passerelle domotique':                      { f:300,  fo:150, mo:150,  desc:'Box domotique, configuration, integration appareils, test' },
+    'Store / volet connecte':                    { f:400,  fo:180, mo:220,  desc:'Moteur connecte, commande appli/vocal, configuration complete' },
+    'Eclairage connecte (unite)':                { f:180,  fo:80,  mo:100,  desc:'Ampoule/module connecte, configuration, integration domotique' },
+    'Systeme alarme connecte':                   { f:900,  fo:400, mo:500,  desc:'Alarme connectee, detecteurs, sirene, config appli, test' },
   },
 
-  // ══════════════════════════════════════════════
-  // CLIMATISATION & PAC
-  // ══════════════════════════════════════════════
   '❄️ Climatisation & PAC': {
-    'Raccordement electrique split mono':        { f:250,  fo:40,  mo:210  },
-    'Raccordement electrique split multi':       { f:350,  fo:55,  mo:295  },
-    'Ligne dediee climatisation 20A':            { f:220,  fo:45,  mo:175  },
-    'Raccordement PAC air/air':                  { f:300,  fo:50,  mo:250  },
-    'Raccordement PAC air/eau':                  { f:400,  fo:60,  mo:340  },
-    'Alimentation groupe froid':                 { f:280,  fo:50,  mo:230  },
+    'Raccordement electrique split mono':        { f:250,  fo:40,  mo:210,  desc:'Circuit dedie 20A, cablage split, raccordement unite ext/int' },
+    'Raccordement electrique split multi':       { f:350,  fo:55,  mo:295,  desc:'Multi-split, circuits dedies, cablage complet, test mise en service' },
+    'Ligne dediee climatisation 20A':            { f:220,  fo:45,  mo:175,  desc:'Circuit 20A tableau, cable 2.5mm2, prise ou raccordement direct' },
+    'Raccordement PAC air/air':                  { f:300,  fo:50,  mo:250,  desc:'Cablage PAC air/air, alimentation, protections, mise en service' },
+    'Raccordement PAC air/eau':                  { f:400,  fo:60,  mo:340,  desc:'Raccordement electrique PAC air/eau, tableau dedie, test' },
+    'Alimentation groupe froid':                 { f:280,  fo:50,  mo:230,  desc:'Circuit dedie groupe froid, protection adaptee, raccordement' },
   },
 
-  // ══════════════════════════════════════════════
-  // PISCINE & SPA
-  // ══════════════════════════════════════════════
   '🏊 Piscine & Spa': {
-    'Alimentation piscine complete':             { f:850,  fo:200, mo:650  },
-    'Tableau electrique piscine':                { f:450,  fo:150, mo:300  },
-    'Pompe piscine raccordement':                { f:250,  fo:40,  mo:210  },
-    'Eclairage subaquatique':                    { f:350,  fo:120, mo:230  },
-    'Alimentation spa / jacuzzi':                { f:600,  fo:150, mo:450  },
-    'Coffret de protection piscine':             { f:320,  fo:110, mo:210  },
+    'Alimentation piscine complete':             { f:850,  fo:200, mo:650,  desc:'Tableau piscine, pompe, eclairage, liaison equipo, NF C15-100' },
+    'Tableau electrique piscine':                { f:450,  fo:150, mo:300,  desc:'Tableau dedie piscine, protections adaptees, conforme NF C15-100' },
+    'Pompe piscine raccordement':                { f:250,  fo:40,  mo:210,  desc:'Raccordement pompe filtration, protection, test fonctionnement' },
+    'Eclairage subaquatique':                    { f:350,  fo:120, mo:230,  desc:'Projecteur immergeable, tres basse tension, transformateur, pose' },
+    'Alimentation spa / jacuzzi':                { f:600,  fo:150, mo:450,  desc:'Circuit dedie spa, protection differentielle, raccordement etanche' },
+    'Coffret de protection piscine':             { f:320,  fo:110, mo:210,  desc:'Coffret IP65, disjoncteurs, differentiel, conforme zone piscine' },
   },
 
-  // ══════════════════════════════════════════════
-  // CHANTIER & TERTIAIRE
-  // ══════════════════════════════════════════════
   '🏗️ Chantier & Tertiaire': {
-    'Coffret de chantier 32A':                   { f:450,  fo:180, mo:270  },
-    'Coffret de chantier 63A':                   { f:650,  fo:280, mo:370  },
-    'Eclairage provisoire chantier':             { f:300,  fo:80,  mo:220  },
-    'Tableau divisionnaire extension':           { f:550,  fo:200, mo:350  },
-    'TGBT tertiaire bureau/commerce':            { f:2800, fo:1200,mo:1600 },
-    'Mise en conformite ERP':                    { f:1500, fo:200, mo:1300 },
-    'Enseigne lumineuse raccordement':           { f:350,  fo:80,  mo:270  },
-    'Alimentation caisse enregistreuse':         { f:180,  fo:30,  mo:150  },
+    'Coffret de chantier 32A':                   { f:450,  fo:180, mo:270,  desc:'Coffret chantier 32A, prises 16/32A, protection differentielle' },
+    'Coffret de chantier 63A':                   { f:650,  fo:280, mo:370,  desc:'Coffret chantier 63A, prises assorties, mise en service complete' },
+    'Eclairage provisoire chantier':             { f:300,  fo:80,  mo:220,  desc:'Installation eclairage chantier, reglettes, cablage provisoire' },
+    'Tableau divisionnaire extension':           { f:550,  fo:200, mo:350,  desc:'Tableau divisionnaire, circuits dedies extension, NF C15-100' },
+    'TGBT tertiaire bureau/commerce':            { f:2800, fo:1200,mo:1600, desc:'TGBT complet local commercial, appareillage professionnel, schema' },
+    'Mise en conformite ERP':                    { f:1500, fo:200, mo:1300, desc:'Mise aux normes ERP, eclairage securite, rapport bureau de controle' },
+    'Enseigne lumineuse raccordement':           { f:350,  fo:80,  mo:270,  desc:'Circuit dedie enseigne, programmateur, raccordement, test' },
+    'Alimentation caisse enregistreuse':         { f:180,  fo:30,  mo:150,  desc:'Prise dediee caisse, circuit protege, parafoudre si necessaire' },
   },
 
-  // ══════════════════════════════════════════════
-  // PORTAIL & ACCÈS
-  // ══════════════════════════════════════════════
   '🚪 Portail & Acces': {
-    'Motorisation portail battant':              { f:800,  fo:350, mo:450  },
-    'Motorisation portail coulissant':           { f:900,  fo:400, mo:500  },
-    'Portier video exterieur':                   { f:700,  fo:280, mo:420  },
-    'Digicode / badge access':                   { f:400,  fo:150, mo:250  },
-    'Alimentation interphone immeuble':          { f:300,  fo:80,  mo:220  },
+    'Motorisation portail battant':              { f:800,  fo:350, mo:450,  desc:'Verin portail battant, commande, telecommande, fin de course' },
+    'Motorisation portail coulissant':           { f:900,  fo:400, mo:500,  desc:'Moteur cremaillere, telecommande, photocellules, raccordement' },
+    'Portier video exterieur':                   { f:700,  fo:280, mo:420,  desc:'Platine video HD, gache electrique, raccordement, configuration' },
+    'Digicode / badge access':                   { f:400,  fo:150, mo:250,  desc:'Digicode ou lecteur badge, gache, cablage, programmation codes' },
+    'Alimentation interphone immeuble':          { f:300,  fo:80,  mo:220,  desc:'Colonne interphone, alimentation, raccordement gache, test' },
   },
 
-  // ══════════════════════════════════════════════
-  // GROUPE & ONDULEUR
-  // ══════════════════════════════════════════════
   '⚡ Groupe & Onduleur': {
-    'Groupe electrogene raccordement':           { f:600,  fo:100, mo:500  },
-    'Onduleur / UPS installation':               { f:400,  fo:150, mo:250  },
-    'Transfert automatique ATS':                 { f:550,  fo:200, mo:350  },
+    'Groupe electrogene raccordement':           { f:600,  fo:100, mo:500,  desc:'Raccordement groupe, inverseur de source, protections, test' },
+    'Onduleur / UPS installation':               { f:400,  fo:150, mo:250,  desc:'Pose onduleur, raccordement, configuration autonomie, test batterie' },
+    'Transfert automatique ATS':                 { f:550,  fo:200, mo:350,  desc:'ATS automatique, bascule reseau/groupe, test commutation' },
   },
 
-  // ══════════════════════════════════════════════
-  // ADMINISTRATIF & CONSUEL
-  // ══════════════════════════════════════════════
   '📋 Administratif & Consuel': {
-    'Attestation Consuel COPREC':                { f:250,  fo:0,   mo:250  },
-    'Demande mise en service Enedis':            { f:150,  fo:0,   mo:150  },
-    'Colonne montante diagnostic':               { f:300,  fo:0,   mo:300  },
-    'Rapport de visite reglementaire':           { f:180,  fo:0,   mo:180  },
-    'Dossier technique installation':            { f:200,  fo:0,   mo:200  },
-    'Mise a jour schema electrique':             { f:120,  fo:0,   mo:120  },
-    'Certification NF C 15-100 complete':        { f:350,  fo:0,   mo:350  },
+    'Attestation Consuel COPREC':                { f:250,  fo:0,   mo:250,  desc:'Preparation dossier, verification installation, attestation officielle' },
+    'Demande mise en service Enedis':            { f:150,  fo:0,   mo:150,  desc:'Constitution dossier Enedis, suivi demande, coordination mise en service' },
+    'Colonne montante diagnostic':               { f:300,  fo:0,   mo:300,  desc:'Diagnostic colonne montante, rapport etat, recommandations' },
+    'Rapport de visite reglementaire':           { f:180,  fo:0,   mo:180,  desc:'Visite reglementaire, rapport detaille, points de controle' },
+    'Dossier technique installation':            { f:200,  fo:0,   mo:200,  desc:'Constitution dossier technique complet, schemas, notices, plans' },
+    'Mise a jour schema electrique':             { f:120,  fo:0,   mo:120,  desc:'Schema unifilaire mis a jour, etiquetage tableau, remis client' },
+    'Certification NF C 15-100 complete':        { f:350,  fo:0,   mo:350,  desc:'Audit complet NF C15-100, rapport conformite, attestation fournie' },
   },
 };
 
@@ -1888,11 +1739,21 @@ async function generer(type) {
   
   try {
     // Formatter les prestations pour le backend
-   const prestationsFormatted = panier.map(item => ({
-      nom: item.designation,
-      prix: item.prixUnit,
-      quantite: item.qte
-    }));
+   const prestationsFormatted = panier.map(item => {
+      // Chercher description dans la grille
+      let desc = '';
+      Object.values(GRILLE).forEach(cat => {
+        const nomBase = item.designation.replace(' (fourniture)', '').replace(' (MO)', '').replace(' (main d\'oeuvre)', '').trim();
+        if (cat[item.designation]?.desc) desc = cat[item.designation].desc;
+        else if (cat[nomBase]?.desc) desc = cat[nomBase].desc;
+      });
+      return {
+        nom: item.designation,
+        prix: item.prixUnit,
+        quantite: item.qte,
+        desc: desc
+      };
+    });
     
     // Appel API backend pour génération PDF
 const res = await fetch('/api/generer', {
@@ -1902,14 +1763,7 @@ const res = await fetch('/api/generer', {
     type,
     client,
     email,
-    telephone: (() => {
-      const ind = document.getElementById(`${prefix}-indicatif`)?.value || '+33';
-      const num = document.getElementById(`${prefix}-tel`)?.value.trim() || '';
-      if (!num) return '';
-      // Format FR : retirer le 0 initial pour +33
-      const numClean = ind === '+33' && num.startsWith('0') ? num.substring(1) : num;
-      return ind + ' ' + numClean;
-    })(),
+    telephone: document.getElementById(`${prefix}-tel`).value.trim(),
     adresse,
     complement: (document.getElementById(`${prefix}-complement`)?.value || '').trim(),
     codePostal: (document.getElementById(`${prefix}-cp`)?.value || '').trim(),
