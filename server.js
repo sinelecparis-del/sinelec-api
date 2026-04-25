@@ -449,14 +449,15 @@ try {
 const pdf_base64 = fs.readFileSync(pdfPath).toString('base64');
 console.log('📄 PDF size:', pdf_base64.length, 'chars');
 // Nettoyage
-try { fs.unlinkSync(pyPath); } catch(e) {}
-try { fs.unlinkSync(detailsPath); } catch(e) {}
-try { fs.unlinkSync(pdfPath); } catch(e) {}
-  await envoyerEmail(
+await envoyerEmail(
     email, subject,
     html.replace('{num}', num),
     { content: pdf_base64, name: `${num}.pdf` }
   );
+
+try { fs.unlinkSync(pyPath); } catch(e) {}
+try { fs.unlinkSync(detailsPath); } catch(e) {}
+try { fs.unlinkSync(pdfPath); } catch(e) {}
 }
 
 await logSystem('generer', `${type} ${num} créé`, { client, total_ht }, true);
