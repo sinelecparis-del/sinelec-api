@@ -39,6 +39,7 @@ const anthropic = new Anthropic({
 });
 
 const BREVO_API_KEY = process.env.BREVO_API_KEY;
+const SUMUP_API_KEY = process.env.SUMUP_API_KEY;
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
@@ -137,56 +138,6 @@ async function envoyerEmail(to, subject, htmlContent, attachment = null) {
     console.error('❌ Erreur lors de l\'envoi email:', error);
     await logSystem('email', `Erreur envoi à ${to}`, { error: error.message }, false, error);
     throw error;
-  }
-}
-
-
-// ═══════════════════════════════════════════════════════════════
-// HELPER: ENVOI SMS BREVO (avis Google post-facture)
-// ═══════════════════════════════════════════════════════════════
-
-async function envoyerSMS(to, message) {
-  if (!to || to.length < 8) {
-    console.log('📱 SMS ignoré — numéro invalide:', to);
-    return;
-  }
-
-  // Nettoyer le numéro — format international
-  let num = to.replace(/[\s\-\.]/g, '');
-  if (num.startsWith('0')) num = '+33' + num.substring(1);
-  if (!num.startsWith('+')) num = '+33' + num;
-
-  console.log('📱 Envoi SMS à:', num);
-
-  try {
-    const res = await fetch('https://api.brevo.com/v3/transactionalSMS/sms', {
-      method: 'POST',
-      headers: {
-        'accept': 'application/json',
-        'api-key': BREVO_API_KEY,
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        sender: 'SINELEC',
-        recipient: num,
-        content: message,
-        type: 'transactional',
-      }),
-    });
-
-    if (!res.ok) {
-      const err = await res.text();
-      console.error('❌ Erreur SMS Brevo:', err);
-      return;
-    }
-
-    const result = await res.json();
-    console.log('✅ SMS envoyé !', result.messageId);
-    await logSystem('sms', `SMS envoyé à ${num}`, { messageId: result.messageId }, true);
-    return result;
-  } catch (error) {
-    console.error('❌ Erreur SMS:', error.message);
-    await logSystem('sms', `Erreur SMS à ${num}`, { error: error.message }, false, error);
   }
 }
 
@@ -724,20 +675,6 @@ print('PDF_OK')
     }
 
     await logSystem('generer', `${type} ${num} créé`, { client, total_ht }, true);
-
-    // ── SMS avis Google si FACTURE avec téléphone ──
-    if (type === 'facture' && telephone) {
-      try {
-        const prenomClient = (prenom || client.split(' ')[0] || 'client').split(' ')[0];
-        const smsAvis = `Bonjour ${prenomClient}, merci pour votre confiance ! Si vous etes satisfait, un avis Google nous aiderait beaucoup : https://g.page/r/sinelecparis/review - SINELEC Paris`;
-        // Délai 2h après la facture (7200000 ms)
-        setTimeout(() => envoyerSMS(telephone, smsAvis), 1200000);
-        console.log('📱 SMS avis Google programmé dans 20min pour:', telephone);
-      } catch(smsErr) {
-        console.error('⚠️ Erreur programmation SMS:', smsErr.message);
-      }
-    }
-
     res.json({ success: true, num, total_ht });
 
   } catch (error) {
@@ -1125,6 +1062,111 @@ print('PDF_OK')
     console.error('Erreur PDF download:', error);
     res.status(500).json({ error: error.message });
   }
+});
+
+
+// ═══════════════════════════════════════════════════════════════
+// API: GÉNÉRER LIEN DE PAIEMENT SUMUP
+// ═══════════════════════════════════════════════════════════════
+app.post('/api/sumup/lien/:num', async (req, res) => {
+  try {
+    const { num } = req.params;
+
+    // Récupérer la facture
+    const { data, error } = await supabase
+      .from('historique')
+      .select('*')
+      .eq('num', num)
+      .single();
+
+    if (error || !data) {
+      return res.status(404).json({ error: 'Document non trouvé' });
+    }
+
+    const montant = parseFloat(data.total_ht || 0);
+    if (montant <= 0) {
+      return res.status(400).json({ error: 'Montant invalide' });
+    }
+
+    console.log(`💳 Génération lien SumUp pour ${num} — ${montant}€`);
+
+    // Créer checkout SumUp
+    const checkoutRes = await fetch('https://api.sumup.com/v0.1/checkouts', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SUMUP_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        checkout_reference: num,
+        amount: montant,
+        currency: 'EUR',
+        description: `SINELEC Paris - ${num} - ${data.client || ''}`,
+        merchant_code: process.env.SUMUP_MERCHANT_CODE || '',
+        return_url: `${process.env.APP_URL || 'https://sinelec-api-production.up.railway.app'}/paiement-confirme/${num}`,
+      }),
+    });
+
+    if (!checkoutRes.ok) {
+      const err = await checkoutRes.text();
+      console.error('❌ Erreur SumUp:', err);
+      return res.status(500).json({ error: 'Erreur création checkout SumUp: ' + err });
+    }
+
+    const checkout = await checkoutRes.json();
+    const lienPaiement = `https://pay.sumup.com/b2c/redirect?checkout_id=${checkout.id}`;
+
+    console.log(`✅ Lien SumUp créé: ${lienPaiement}`);
+
+    // Sauvegarder le lien dans Supabase
+    await supabase.from('historique')
+      .update({ lien_paiement: lienPaiement, checkout_id: checkout.id })
+      .eq('num', num);
+
+    await logSystem('sumup', `Lien paiement créé pour ${num}`, { lien: lienPaiement, montant }, true);
+
+    // Envoyer SMS au client si téléphone disponible
+    if (data.telephone) {
+      const prenomClient = (data.client || 'client').split(' ')[0];
+      const smsMsg = `Bonjour ${prenomClient}, voici le lien pour regler votre facture SINELEC ${num} (${montant}€) : ${lienPaiement}`;
+      await envoyerSMS(data.telephone, smsMsg);
+    }
+
+    res.json({ 
+      success: true, 
+      lien: lienPaiement,
+      checkout_id: checkout.id,
+      montant,
+      num
+    });
+
+  } catch (error) {
+    console.error('Erreur SumUp:', error);
+    await logSystem('sumup', 'Erreur lien paiement', { error: error.message }, false, error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Page confirmation paiement
+app.get('/paiement-confirme/:num', (req, res) => {
+  const { num } = req.params;
+  res.send(`<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Paiement confirmé - SINELEC</title>
+</head>
+<body style="font-family:Arial,sans-serif;background:#f0f2f5;margin:0;padding:20px;text-align:center;">
+<div style="max-width:500px;margin:40px auto;background:white;border-radius:20px;padding:40px;box-shadow:0 4px 20px rgba(0,0,0,0.1);">
+  <div style="font-size:64px;margin-bottom:16px;">✅</div>
+  <h2 style="color:#1B2A4A;margin-bottom:12px;">Paiement confirmé !</h2>
+  <p style="color:#555;margin-bottom:8px;">Merci pour votre règlement.</p>
+  <p style="color:#555;">Référence : <strong style="color:#C9A84C;">${num}</strong></p>
+  <p style="color:#aaa;font-size:13px;margin-top:20px;">SINELEC Paris — 07 87 38 86 22</p>
+</div>
+</body>
+</html>`);
 });
 
 // ═══════════════════════════════════════════════════════════════
