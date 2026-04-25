@@ -1208,6 +1208,35 @@ function clearSearch(prefix) {
 
 
 // ═══════════════════ TOGGLE CLIENT TYPE ═══════════════════
+
+// ═══════════════════ LIEN SIGNATURE ═══════════════════
+
+// ═══════════════════ SUPPRIMER ═══════════════════
+async function supprimerDoc(num) {
+  if (!confirm('Supprimer ' + num + ' ? Cette action est irréversible.')) return;
+  try {
+    const res = await fetch('/api/historique/' + num, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.success) {
+      showToast('🗑️ ' + num + ' supprimé', '✅');
+      chargerHistorique();
+    }
+  } catch(e) {
+    showToast('❌ Erreur suppression', '⚠️');
+  }
+}
+
+function copierLienSignature(num) {
+  const lien = window.location.origin + '/signer/' + num;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(lien).then(() => {
+      showToast('✅ Lien copié ! Envoyez-le à votre client', '✍️');
+    });
+  } else {
+    prompt('Copiez ce lien pour votre client :', lien);
+  }
+}
+
 function setClientType(prefix, type) {
   document.getElementById(prefix+'-toggle-part').classList.toggle('active', type==='particulier');
   document.getElementById(prefix+'-toggle-soc').classList.toggle('active', type==='societe');
