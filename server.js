@@ -302,6 +302,8 @@ ${prestations.map(p => p.nom).join('\n')}`;
       fs.writeFileSync(detailsPath, JSON.stringify(detailsData));
 
       const clientEsc = String(client || '').replace(/'/g, ' ');
+    const prenomEsc = String(prenom || '').replace(/'/g, ' ');
+    const clientNomComplet = [prenomEsc, clientEsc].filter(Boolean).join(' ') || clientEsc;
       const adresseEsc = String(adresse || '').replace(/'/g, ' ');
       const clientParts = (adresse || '').split(',');
       const clientRue = String(clientParts[0] || '').trim().replace(/'/g, ' ');
@@ -882,6 +884,8 @@ app.get('/api/pdf/:num', async (req, res) => {
     fs.writeFileSync(detailsPath, JSON.stringify(detailsData));
 
     const clientEsc = String(client || '').replace(/'/g, ' ');
+    const prenomEsc = String(prenom || '').replace(/'/g, ' ');
+    const clientNomComplet = [prenomEsc, clientEsc].filter(Boolean).join(' ') || clientEsc;
     const adresseEsc = String(adresse || '').replace(/'/g, ' ');
     const clientParts = (adresse || '').split(',');
     const clientRue = String(clientParts[0] || '').trim().replace(/'/g, ' ');
