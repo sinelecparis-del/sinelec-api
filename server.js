@@ -320,10 +320,11 @@ class SC(pdfcanvas.Canvas):
     def __init__(self,fn,**kw):
         pdfcanvas.Canvas.__init__(self,fn,**kw)
         self.saveState()
-    def showPage(self):
         self._draw_bg()
+    def showPage(self):
         pdfcanvas.Canvas.showPage(self)
         self.saveState()
+        self._draw_bg()
     def save(self):
         pdfcanvas.Canvas.save(self)
     def _draw_bg(self):
