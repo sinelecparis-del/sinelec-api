@@ -737,196 +737,81 @@ RÉPONDS EN JSON:
 // API: SIGNATURE CLIENT
 // ═══════════════════════════════════════════════════════════════
 
-// ═══════════════════════════════════════════════════════════════
-// PAGE PUBLIQUE : SIGNATURE CLIENT
-// ═══════════════════════════════════════════════════════════════
-app.get('/signer/:num', async (req, res) => {
-  const { num } = req.params;
-  try {
-    const { data, error } = await supabase.from('historique').select('*').eq('num', num).single();
-    if (error || !data) return res.send('<html><body style="font-family:Arial;text-align:center;padding:40px;"><h2>Devis introuvable</h2><p>Lien invalide ou expire.</p></body></html>');
-    if (data.statut === 'signe') return res.send(`<html><body style="font-family:Arial;text-align:center;padding:40px;color:#1B2A4A;"><h2>✅ Deja signe</h2><p>Ce devis a ete signe le ${new Date(data.date_signature).toLocaleDateString('fr-FR')}.</p></body></html>`);
-    
-    const totalHT = data.total_ht || 0;
-    const prestationsHTML = (data.prestations || []).map((p,i) =>
-      `<tr style="background:${i%2===0?'#f8f9fa':'white'}"><td style="padding:8px 12px;border-bottom:1px solid #eee;">${p.nom||p.designation}</td><td style="padding:8px 12px;border-bottom:1px solid #eee;text-align:center;">${p.quantite||p.qte||1}</td><td style="padding:8px 12px;border-bottom:1px solid #eee;text-align:right;font-weight:700;">${(p.prix||p.prixUnit||0).toFixed(2)} €</td></tr>`
-    ).join('');
-
-    const html = `<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0">
-<title>Signature ${num} - SINELEC</title>
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#222}
-.container{max-width:600px;margin:0 auto;padding:12px}
-.header{background:linear-gradient(135deg,#1B2A4A,#243660);color:white;border-radius:16px;padding:20px;margin-bottom:12px;text-align:center}
-.header h1{font-size:20px;font-weight:900}
-.header p{font-size:12px;opacity:0.75;margin-top:4px}
-.card{background:white;border-radius:16px;padding:18px;margin-bottom:12px;box-shadow:0 2px 12px rgba(0,0,0,0.06)}
-.card h2{font-size:13px;font-weight:800;color:#C9A84C;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px}
-.badge{display:inline-block;background:#C9A84C;color:white;border-radius:8px;padding:3px 12px;font-size:12px;font-weight:800}
-table{width:100%;border-collapse:collapse}
-th{background:#1B2A4A;color:white;padding:8px 12px;text-align:left;font-size:12px}
-.total-row td{background:#1B2A4A;color:white;padding:10px 12px;font-weight:800;font-size:14px}
-.total-row td:last-child{color:#C9A84C;font-size:16px;text-align:right}
-.cgv-box{background:#f8f9fa;border:1px solid #e0e0e0;border-radius:10px;padding:12px;height:160px;overflow-y:auto;font-size:11px;line-height:1.6;color:#666;margin-bottom:12px;white-space:pre-line}
-.cb-item{display:flex;align-items:flex-start;gap:10px;padding:12px;border:2px solid #e0e0e0;border-radius:12px;margin-bottom:8px;cursor:pointer}
-.cb-item.on{border-color:#C9A84C;background:#FDFAF0}
-.cb-item input{width:20px;height:20px;cursor:pointer;accent-color:#C9A84C;flex-shrink:0;margin-top:1px}
-.cb-item label{font-size:13px;font-weight:600;color:#333;cursor:pointer;line-height:1.4}
-canvas{border:2px solid #1B2A4A;border-radius:12px;width:100%;touch-action:none;display:block;background:white}
-.info-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f0f0f0;font-size:13px}
-.info-row span:last-child{font-weight:700;color:#1B2A4A}
-.btn-clear{background:none;border:1px solid #ddd;border-radius:8px;padding:8px 14px;font-size:12px;cursor:pointer;color:#888;margin-top:8px;display:block}
-.btn-sign{width:100%;background:#ccc;color:white;border:none;border-radius:14px;padding:18px;font-size:16px;font-weight:800;cursor:not-allowed;margin-top:12px;transition:all 0.2s}
-.btn-sign.active{background:linear-gradient(135deg,#C9A84C,#A07830);cursor:pointer}
-.success{text-align:center;padding:40px 20px}
-</style>
-</head>
-<body>
-<div class="container">
-  <div class="header">
-    <h1>⚡ SINELEC Paris</h1>
-    <p>128 Rue La Boetie, 75008 Paris | 07 87 38 86 22</p>
-  </div>
-
-  <div class="card">
-    <h2>📋 Devis a signer</h2>
-    <div class="info-row"><span>Numero</span><span class="badge">${num}</span></div>
-    <div class="info-row"><span>Client</span><span>${data.client}</span></div>
-    <div class="info-row"><span>Date</span><span>${new Date(data.date_envoi||data.created_at).toLocaleDateString('fr-FR')}</span></div>
-  </div>
-
-  <div class="card">
-    <h2>📦 Prestations</h2>
-    <table>
-      <thead><tr><th>Designation</th><th style="text-align:center">Qte</th><th style="text-align:right">Prix HT</th></tr></thead>
-      <tbody>${prestationsHTML}</tbody>
-      <tfoot><tr class="total-row"><td colspan="2">NET A PAYER</td><td>${totalHT.toFixed(2)} €</td></tr></tfoot>
-    </table>
-  </div>
-
-  <div class="card">
-    <h2>📜 Conditions Generales de Vente</h2>
-    <div class="cgv-box">CONDITIONS GENERALES DE VENTE - SINELEC (SIRET : 91015824500019)
-
-Art.1 - Objet : Les presentes CGV regissent toutes les prestations electriques realisees par SINELEC, auto-entrepreneur represente par Diahe, 128 Rue La Boetie 75008 Paris.
-
-Art.2 - Devis : Valable 30 jours. Acceptation = commande ferme. Tout modification = avenant signe obligatoire.
-
-Art.3 - Prix et paiement : Prix HT, TVA non applicable art.293B CGI. Acompte 40% obligatoire pour devis > 400 euros. Solde a la fin des travaux. Penalites retard : 3x le taux legal + 40 euros forfaitaires des le 1er jour de retard.
-
-Art.4 - Retractation : 14 jours (Loi Hamon) pour les particuliers, sauf travaux urgents expressement demandes.
-
-Art.5 - Execution : Travaux conformes NF C 15-100. Client assure acces libre et signale contraintes techniques. Tout imprévu = avenant avant reprise.
-
-Art.6 - Garanties : Decennale ORUS 10 ans, biennale equipements 2 ans, parfait achevement 1 an.
-
-Art.7 - Reception : Defauts apparents a signaler par ecrit sous 48h apres fin travaux.
-
-Art.8 - Responsabilite : Limitee au montant HT de la prestation. Pas de responsabilite pour dommages indirects.
-
-Art.9 - Reserve de propriete : Materiaux propriete de SINELEC jusqu au paiement integral.
-
-Art.10 - Signature electronique : Valeur juridique identique signature manuscrite (art.1366-1367 Code Civil). Date, heure, IP conservees comme preuve opposable.
-
-Art.11 - RGPD : Donnees utilisees uniquement pour gestion commerciale. Conservation 5 ans. Droit acces/suppression : sinelec.paris@gmail.com.
-
-Art.12 - Force majeure : Aucune responsabilite en cas d evenement imprevisible hors de notre controle.
-
-Art.13 - Sous-traitance : SINELEC peut sous-traiter, reste responsable vis-a-vis du client.
-
-Art.14 - Litiges : Resolution amiable prioritaire. Mediateur : Medicys Paris. A defaut : Tribunal de Commerce de Paris.</div>
-    <div class="cb-item" id="w1" onclick="tog('cb1')"><input type="checkbox" id="cb1" onchange="check()"><label for="cb1">J ai lu et j accepte les CGV SINELEC dans leur integralite</label></div>
-    <div class="cb-item" id="w2" onclick="tog('cb2')"><input type="checkbox" id="cb2" onchange="check()"><label for="cb2">Je reconnais avoir pris connaissance du devis ${num} — Total : <strong>${totalHT.toFixed(2)} €</strong></label></div>
-    <div class="cb-item" id="w3" onclick="tog('cb3')"><input type="checkbox" id="cb3" onchange="check()"><label for="cb3">Bon pour accord — J autorise SINELEC a realiser les travaux</label></div>
-  </div>
-
-  <div class="card" id="sig-card" style="opacity:0.4;pointer-events:none">
-    <h2>✍️ Votre signature</h2>
-    <canvas id="cv" height="150"></canvas>
-    <p style="font-size:11px;color:#999;text-align:center;margin-top:6px">Signez avec votre doigt dans le cadre</p>
-    <button class="btn-clear" onclick="clearSig()">✕ Effacer</button>
-  </div>
-
-  <button class="btn-sign" id="btn" onclick="submit()">🔒 Cochez les 3 cases pour continuer</button>
-</div>
-
-<script>
-const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
-let drawing=false,lx=0,ly=0;
-function resize(){const r=cv.getBoundingClientRect();cv.width=r.width*window.devicePixelRatio;cv.height=r.height*window.devicePixelRatio;ctx.scale(window.devicePixelRatio,window.devicePixelRatio);ctx.strokeStyle='#1B2A4A';ctx.lineWidth=2.5;ctx.lineCap='round'}
-resize();
-function pos(e){const r=cv.getBoundingClientRect(),t=e.touches?e.touches[0]:e;return{x:t.clientX-r.left,y:t.clientY-r.top}}
-cv.onmousedown=e=>{drawing=true;const p=pos(e);lx=p.x;ly=p.y};
-cv.onmousemove=e=>{if(!drawing)return;const p=pos(e);ctx.beginPath();ctx.moveTo(lx,ly);ctx.lineTo(p.x,p.y);ctx.stroke();lx=p.x;ly=p.y};
-cv.onmouseup=()=>{drawing=false;checkSig()};
-cv.addEventListener('touchstart',e=>{e.preventDefault();drawing=true;const p=pos(e);lx=p.x;ly=p.y},{passive:false});
-cv.addEventListener('touchmove',e=>{e.preventDefault();if(!drawing)return;const p=pos(e);ctx.beginPath();ctx.moveTo(lx,ly);ctx.lineTo(p.x,p.y);ctx.stroke();lx=p.x;ly=p.y},{passive:false});
-cv.addEventListener('touchend',()=>{drawing=false;checkSig()},{passive:false});
-function clearSig(){ctx.clearRect(0,0,cv.width,cv.height);checkSig()}
-function tog(id){const c=document.getElementById(id);c.checked=!c.checked;document.getElementById('w'+id.slice(2)).classList.toggle('on',c.checked);check()}
-function check(){
-  const ok=['cb1','cb2','cb3'].every(id=>document.getElementById(id).checked);
-  const sc=document.getElementById('sig-card');
-  sc.style.opacity=ok?'1':'0.4';sc.style.pointerEvents=ok?'auto':'none';
-  if(ok)checkSig();else{document.getElementById('btn').className='btn-sign';document.getElementById('btn').textContent='🔒 Cochez les 3 cases pour continuer'}
-}
-function checkSig(){
-  if(!['cb1','cb2','cb3'].every(id=>document.getElementById(id).checked))return;
-  const d=ctx.getImageData(0,0,cv.width,cv.height).data;
-  const has=d.some((v,i)=>i%4===3&&v>0);
-  const btn=document.getElementById('btn');
-  btn.className=has?'btn-sign active':'btn-sign';
-  btn.textContent=has?'✅ Valider et envoyer le bon pour accord':'✍️ Signez dans le cadre ci-dessus';
-  btn.onclick=has?submit:null;
-}
-async function submit(){
-  const btn=document.getElementById('btn');
-  btn.disabled=true;btn.textContent='⏳ Envoi...';
-  try{
-    const r=await fetch('/api/signature',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({num:'${num}',signature:cv.toDataURL('image/png'),cgv_acceptees:true})});
-    const d=await r.json();
-    if(d.success){document.querySelector('.container').innerHTML='<div class="card success"><div style="font-size:64px">✅</div><h2 style="color:#1B2A4A;margin:16px 0">Devis signe !</h2><p style="color:#666">Merci pour votre confiance.</p><p style="color:#666;margin-top:8px">Un exemplaire signe vous a ete envoye par email.</p><p style="color:#aaa;font-size:11px;margin-top:20px">${num} — ${new Date().toLocaleDateString("fr-FR")} ${new Date().toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"})}</p></div>';}
-    else throw new Error(d.error);
-  }catch(e){btn.disabled=false;btn.className='btn-sign active';btn.textContent='❌ Erreur - Reessayer';}
-}
-</script>
-</body>
-</html>`;
-
-    res.send(html);
-  } catch(err) {
-    console.error('Erreur page signature:', err);
-    res.status(500).send('<html><body><h2>Erreur serveur</h2></body></html>');
-  }
-});
-
 app.post('/api/signature', async (req, res) => {
   if (!CONFIG.features.signature_client) {
     return res.status(403).json({ error: 'Feature désactivée' });
   }
 
   try {
-    const { num, signature } = req.body;
+    const { num, signature, cgv_acceptees } = req.body;
+
+    // Récupérer les infos du devis
+    const { data: devisData } = await supabase.from('historique').select('*').eq('num', num).single();
 
     // Sauvegarder signature
-    await supabase.from('signatures').insert({ num, signature });
+    await supabase.from('signatures').insert({ num, signature, cgv_acceptees: cgv_acceptees || false });
 
-    // Mettre à jour devis
+    // Mettre à jour statut
     await supabase.from('historique')
       .update({ 
         signature, 
-        statut: 'signé',
-        date_signature: new Date().toISOString()
+        statut: 'signe',
+        date_signature: new Date().toISOString(),
+        cgv_acceptees: cgv_acceptees || false
       })
       .eq('num', num);
 
-    await logSystem('signature', `Devis ${num} signé`, { num }, true);
+    // ── Générer PDF signé et envoyer aux 2 parties ──
+    if (devisData) {
+      try {
+        const dateSignature = new Date().toLocaleDateString('fr-FR');
+        const heureSignature = new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
 
+        const htmlConfirm = `<!DOCTYPE html><html><body style="font-family:Arial;background:#f0f2f5;margin:0;padding:20px;">
+<div style="max-width:600px;margin:0 auto;">
+<div style="background:linear-gradient(135deg,#1B2A4A,#243660);border-radius:16px;padding:24px;text-align:center;margin-bottom:16px;">
+<div style="font-size:24px;font-weight:900;color:white;">⚡ SINELEC Paris</div>
+<div style="color:rgba(255,255,255,0.7);font-size:13px;margin-top:4px;">Confirmation de signature</div>
+</div>
+<div style="background:white;border-radius:16px;padding:24px;margin-bottom:16px;box-shadow:0 2px 12px rgba(0,0,0,0.06);">
+<div style="font-size:48px;text-align:center;margin-bottom:12px;">✅</div>
+<h2 style="color:#1B2A4A;text-align:center;margin-bottom:16px;">Devis signé avec succès</h2>
+<p style="color:#555;font-size:14px;line-height:1.6;">Le devis <strong>${num}</strong> a été signé le <strong>${dateSignature} à ${heureSignature}</strong>.</p>
+<p style="color:#555;font-size:14px;line-height:1.6;margin-top:8px;">Client : <strong>${devisData.client}</strong></p>
+<p style="color:#555;font-size:14px;line-height:1.6;margin-top:8px;">Montant : <strong style="color:#C9A84C;">${(devisData.total_ht || 0).toFixed(2)} €</strong></p>
+<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:14px;margin-top:20px;">
+<div style="color:#16a34a;font-size:14px;font-weight:700;">Conditions générales acceptées</div>
+<div style="color:#555;font-size:12px;margin-top:4px;">CGV, reconnaissance du devis et bon pour accord confirmés</div>
+</div>
+</div>
+<div style="text-align:center;color:#aaa;font-size:12px;padding:8px;">
+SINELEC — 07 87 38 86 22 — sinelec.paris@gmail.com — SIRET : 91015824500019
+</div>
+</div></body></html>`;
+
+        // Email au CLIENT
+        if (devisData.email) {
+          await envoyerEmail(
+            devisData.email,
+            `✅ Devis SINELEC ${num} — Bon pour accord confirmé`,
+            htmlConfirm
+          );
+        }
+
+        // Email à SINELEC (notification)
+        await envoyerEmail(
+          'sinelec.paris@gmail.com',
+          `🔔 Devis ${num} SIGNÉ — ${devisData.client}`,
+          htmlConfirm
+        );
+
+        console.log(`✅ Emails de confirmation envoyés pour ${num}`);
+      } catch(emailErr) {
+        console.error('⚠️ Erreur email post-signature:', emailErr.message);
+      }
+    }
+
+    await logSystem('signature', `Devis ${num} signe`, { num }, true);
     res.json({ success: true });
   } catch (error) {
     console.error('Erreur signature:', error);
@@ -1088,16 +973,21 @@ app.get('/api/pdf/:num', async (req, res) => {
     fs.writeFileSync(detailsPath, JSON.stringify(detailsData));
 
     const clientEsc = String(client || '').replace(/'/g, ' ');
-    // client contient déjà prénom+nom fusionnés par getClientComplet
     const clientNomComplet = clientEsc;
-    const clientComplement = String(complement || '').replace(/'/g, ' ').trim();
-    const clientTelRaw = String(telephone || '').trim();
-    // Formater si pas déjà formaté (ajouter espaces tous les 2 chiffres)
-    const clientTel = clientTelRaw;
-    const adresseEsc = String(adresse || '').replace(/'/g, ' ');
-    const clientParts = (adresse || '').split(',');
-    const clientRue = String(clientParts[0] || '').trim().replace(/'/g, ' ');
-    const clientVille = clientParts.slice(1).join(',').trim().replace(/'/g, ' ');
+    // Récupérer depuis data Supabase
+    const clientTel = String(data.telephone || '').replace(/'/g, ' ').trim();
+    const clientComplement = String(data.complement || '').replace(/'/g, ' ').trim();
+    const adresseRaw = String(adresse || '').replace(/'/g, ' ').trim();
+    const adresseParts = adresseRaw.split(',').map(s => s.trim()).filter(Boolean);
+    const clientRue = adresseParts.length >= 2 && adresseParts[0].match(/^\d+$/)
+      ? adresseParts[0] + ' ' + adresseParts[1]
+      : adresseParts[0] || '';
+    const cpMatch = adresseRaw.match(/\b(\d{5})\b/);
+    const cpFromAdresse = cpMatch ? cpMatch[1] : '';
+    const clientCP = String(data.codePostal || '').trim() || cpFromAdresse;
+    const clientVilleStr = String(data.ville || '').trim();
+    const clientVille = [clientCP, clientVilleStr].filter(Boolean).join(' ') || 
+      adresseParts.find(p => p.length > 2 && !p.match(/^\d{5}/) && !p.toLowerCase().includes('france')) || '';
 
     // Utiliser le même script Python que pour la génération
     const py = `# -*- coding: utf-8 -*-
@@ -1227,6 +1117,23 @@ print('PDF_OK')
 
   } catch (error) {
     console.error('Erreur PDF download:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+// ═══════════════════════════════════════════════════════════════
+// API: SUPPRIMER DEVIS/FACTURE
+// ═══════════════════════════════════════════════════════════════
+app.delete('/api/historique/:num', async (req, res) => {
+  try {
+    const { num } = req.params;
+    const { error } = await supabase.from('historique').delete().eq('num', num);
+    if (error) throw error;
+    await logSystem('delete', `${num} supprimé`, { num }, true);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Erreur suppression:', error);
     res.status(500).json({ error: error.message });
   }
 });
