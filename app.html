@@ -1210,6 +1210,36 @@ function clearSearch(prefix) {
 // ═══════════════════ TOGGLE CLIENT TYPE ═══════════════════
 
 // ═══════════════════ SUPPRIMER ═══════════════════
+
+// ═══════════════════ LIEN PAIEMENT SUMUP ═══════════════════
+async function genererLienPaiement(num) {
+  showToast('⏳ Génération lien paiement...', '💳');
+  try {
+    const res = await fetch('/api/sumup/lien/' + num, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      // Copier le lien
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(data.lien);
+      }
+      // Afficher avec option d'envoyer
+      const action = confirm(
+        '✅ Lien de paiement généré !\n\n' +
+        '💰 Montant : ' + data.montant.toFixed(2) + ' €\n' +
+        '🔗 ' + data.lien + '\n\n' +
+        'Lien copié dans le presse-papier.\n' +
+        'Cliquez OK pour ouvrir le lien.'
+      );
+      if (action) window.open(data.lien, '_blank');
+      showToast('💳 Lien copié — SMS envoyé au client !', '✅');
+    } else {
+      showToast('❌ Erreur : ' + (data.error || 'Erreur SumUp'), '⚠️');
+    }
+  } catch(e) {
+    showToast('❌ ' + e.message, '⚠️');
+  }
+}
+
 async function supprimerDoc(num) {
   if (!confirm('Supprimer ' + num + ' ? Cette action est irréversible.')) return;
   try {
@@ -2245,6 +2275,7 @@ function afficherHistorique() {
               <button onclick="convertirEnFacture('${item.num}')" class="btn-small" style="background:rgba(16,185,129,0.15);color:var(--success);border:1px solid rgba(16,185,129,0.3);">→ Facture</button>
             ` : ''}
             <button onclick="telechargerPDF('${item.num}')" class="btn-small">⬇️ PDF</button>
+            <button onclick="genererLienPaiement('${item.num}')" class="btn-small" style="background:rgba(16,185,129,0.1);color:#10b981;border:1px solid rgba(16,185,129,0.2);">💳 Paiement</button>
             <button onclick="supprimerDoc('${item.num}')" class="btn-small" style="background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.2);">🗑️</button>
           </div>
         </td>
