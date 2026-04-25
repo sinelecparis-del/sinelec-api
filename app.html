@@ -7,6 +7,21 @@
 <title>SINELEC OS v2.0</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js">
+
+function setClientType(prefix, type) {
+  document.getElementById(prefix+'-toggle-part').classList.toggle('active', type==='particulier');
+  document.getElementById(prefix+'-toggle-soc').classList.toggle('active', type==='societe');
+  document.getElementById(prefix+'-bloc-particulier').style.display = type==='particulier' ? 'block' : 'none';
+  document.getElementById(prefix+'-bloc-societe').style.display = type==='societe' ? 'block' : 'none';
+}
+function getClientComplet(prefix) {
+  const isSoc = document.getElementById(prefix+'-bloc-particulier').style.display === 'none';
+  if (isSoc) return (document.getElementById(prefix+'-societe')?.value||'').trim();
+  const p = (document.getElementById(prefix+'-prenom')?.value||'').trim();
+  const n = (document.getElementById(prefix+'-client')?.value||'').trim();
+  return [p,n].filter(Boolean).join(' ');
+}
+
 // ═══════════════════ REMISE ═══════════════════
 let remiseTypeD = 'pct', remiseTypeF = 'pct';
 
@@ -563,6 +578,11 @@ body::before {
   padding:3px 8px; font-size:11px; font-weight:700;
 }
 
+/* ════════════ TOGGLE PARTICULIER/SOCIÉTÉ ════════════ */
+.client-toggle { display:flex; background:rgba(255,255,255,0.6); border:1.5px solid var(--border); border-radius:12px; padding:4px; margin-bottom:16px; gap:4px; }
+.client-toggle-btn { flex:1; padding:10px; text-align:center; font-size:13px; font-weight:700; border-radius:9px; cursor:pointer; transition:all 0.2s; color:var(--text-2); user-select:none; }
+.client-toggle-btn.active { background:linear-gradient(135deg,var(--accent),var(--gold)); color:#fff; box-shadow:0 2px 8px rgba(212,165,116,0.3); }
+
 </style>
 </head>
 <body data-theme="light">
@@ -692,10 +712,18 @@ body::before {
 <div class="content">
   <div class="section">
     <div class="section-title">📋 Informations client</div>
-    <div class="input-group">
-      <label>Nom / Société</label>
-      <input type="text" id="d-client" placeholder="Ex: Dupont Marie" oninput="autocompleteClient('d', this.value)" autocomplete="off">
-      <div id="d-client-suggestions"></div>
+    <div class="client-toggle">
+      <div class="client-toggle-btn active" id="d-toggle-part" onclick="setClientType('d','particulier')">👤 Particulier</div>
+      <div class="client-toggle-btn" id="d-toggle-soc" onclick="setClientType('d','societe')">🏢 Société</div>
+    </div>
+    <div id="d-bloc-particulier">
+      <div class="input-group"><label>Prénom</label><input type="text" id="d-prenom" placeholder="Ex: MARIE" oninput="this.value=this.value.toUpperCase()" autocomplete="off"></div>
+      <div class="input-group"><label>Nom</label><input type="text" id="d-client" placeholder="Ex: DUPONT" oninput="this.value=this.value.toUpperCase();autocompleteClient('d',this.value)" autocomplete="off"><div id="d-client-suggestions"></div></div>
+    </div>
+    <div id="d-bloc-societe" style="display:none;">
+      <div class="input-group"><label>Nom société</label><input type="text" id="d-societe" placeholder="Ex: JAS INVEST" oninput="this.value=this.value.toUpperCase()" autocomplete="off"></div>
+      <div class="input-group"><label>SIRET</label><input type="text" id="d-siret" placeholder="Ex: 123 456 789 00012" maxlength="17" autocomplete="off"></div>
+      <div class="input-group"><label>N° TVA <span style="font-size:11px;color:var(--text-3);">(optionnel)</span></label><input type="text" id="d-tva-num" placeholder="Ex: FR12 123456789" autocomplete="off"></div>
     </div>
     <div class="input-group">
       <label>Adresse</label>
@@ -781,10 +809,18 @@ body::before {
 <div class="content">
   <div class="section">
     <div class="section-title">💶 Informations client</div>
-    <div class="input-group">
-      <label>Nom / Société</label>
-      <input type="text" id="f-client" placeholder="Ex: Dupont Marie" oninput="autocompleteClient('f', this.value)" autocomplete="off">
-      <div id="f-client-suggestions"></div>
+    <div class="client-toggle">
+      <div class="client-toggle-btn active" id="f-toggle-part" onclick="setClientType('f','particulier')">👤 Particulier</div>
+      <div class="client-toggle-btn" id="f-toggle-soc" onclick="setClientType('f','societe')">🏢 Société</div>
+    </div>
+    <div id="f-bloc-particulier">
+      <div class="input-group"><label>Prénom</label><input type="text" id="f-prenom" placeholder="Ex: MARIE" oninput="this.value=this.value.toUpperCase()" autocomplete="off"></div>
+      <div class="input-group"><label>Nom</label><input type="text" id="f-client" placeholder="Ex: DUPONT" oninput="this.value=this.value.toUpperCase();autocompleteClient('f',this.value)" autocomplete="off"><div id="f-client-suggestions"></div></div>
+    </div>
+    <div id="f-bloc-societe" style="display:none;">
+      <div class="input-group"><label>Nom société</label><input type="text" id="f-societe" placeholder="Ex: JAS INVEST" oninput="this.value=this.value.toUpperCase()" autocomplete="off"></div>
+      <div class="input-group"><label>SIRET</label><input type="text" id="f-siret" placeholder="Ex: 123 456 789 00012" maxlength="17" autocomplete="off"></div>
+      <div class="input-group"><label>N° TVA <span style="font-size:11px;color:var(--text-3);">(optionnel)</span></label><input type="text" id="f-tva-num" placeholder="Ex: FR12 123456789" autocomplete="off"></div>
     </div>
     <div class="input-group">
       <label>Adresse</label>
@@ -1068,56 +1104,203 @@ body::before {
 const API_URL = window.location.origin;
 
 const GRILLE = {
-  'Deplacement & MO': {
-    'Deplacement Paris': 50,
-    'Deplacement banlieue <20km': 80,
-    'Deplacement >20km (78/91/95)': 100,
-    'MO / heure supplementaire': 70,
-    'Urgence jour': 130,
-    'Urgence soir (18h-22h)': 165,
-    'Urgence nuit / WE / ferie': 220,
+  '🚗 Deplacement & Urgences': {
+    'Deplacement Paris intra-muros':         { f:50,   fo:0,   mo:50  },
+    'Deplacement banlieue <20km':            { f:80,   fo:0,   mo:80  },
+    'Deplacement banlieue >20km':            { f:100,  fo:0,   mo:100 },
+    'Main oeuvre heure supplementaire':      { f:70,   fo:0,   mo:70  },
+    'Urgence jour (8h-20h)':                 { f:130,  fo:0,   mo:130 },
+    'Urgence soir (20h-23h)':               { f:180,  fo:0,   mo:180 },
+    'Urgence nuit / WE / ferie':             { f:250,  fo:0,   mo:250 },
+    'Attestation mise en securite Enedis':   { f:189,  fo:10,  mo:179 },
   },
-  'Prises & Interrupteurs': {
-    'Prise standard': 90,
-    'Prise cuisiniere 32A': 140,
-    'Prise etanche IP44': 110,
-    'Prise RJ45': 65,
-    'Interrupteur simple': 90,
-    'Interrupteur va-et-vient': 110,
-    'Variateur / connecte': 130,
+  '🔧 Depannage General': {
+    'Recherche de panne simple':             { f:120,  fo:0,   mo:120 },
+    'Recherche de panne complexe':           { f:180,  fo:0,   mo:180 },
+    'Court-circuit diagnostic+reparation':   { f:125,  fo:15,  mo:110 },
+    'Reactivation coupure generale':         { f:90,   fo:0,   mo:90  },
+    'Diagnostic complet installation':       { f:180,  fo:0,   mo:180 },
+    'Recherche fuite de courant':            { f:150,  fo:0,   mo:150 },
+    'Reparation prise defectueuse':          { f:90,   fo:25,  mo:65  },
+    'Reparation interrupteur defectueux':    { f:90,   fo:20,  mo:70  },
+    'Reparation chauffage electrique':       { f:220,  fo:40,  mo:180 },
+    'Reparation volet roulant electrique':   { f:180,  fo:30,  mo:150 },
+    'Remplacement fusible':                  { f:60,   fo:5,   mo:55  },
+    'Test continuite circuits':              { f:100,  fo:0,   mo:100 },
+    'Remise en service apres coupure EDF':   { f:120,  fo:0,   mo:120 },
   },
-  'Eclairage': {
-    'Luminaire simple': 115,
-    'Lustre lourd': 200,
-    'Spot encastre': 75,
-    'Bandeau LED (ml)': 60,
-    'Point lumineux DCL': 100,
-    'Eclairage exterieur': 150,
+  '⚡ Tableau Electrique': {
+    'Disjoncteur standard (16A-32A)':        { f:150,  fo:31,  mo:119 },
+    'Disjoncteur 10A eclairage':             { f:140,  fo:28,  mo:112 },
+    'Disjoncteur 20A cuisine':               { f:150,  fo:31,  mo:119 },
+    'Disjoncteur 32A four/plaque':           { f:160,  fo:35,  mo:125 },
+    'Disjoncteur differentiel 30mA type AC': { f:200,  fo:55,  mo:145 },
+    'Inter. differentiel 63A type A':        { f:250,  fo:85,  mo:165 },
+    'Contacteur jour/nuit':                  { f:120,  fo:35,  mo:85  },
+    'Parafoudre':                            { f:160,  fo:65,  mo:95  },
+    'Telerupteur':                           { f:110,  fo:30,  mo:80  },
+    'Minuterie':                             { f:110,  fo:35,  mo:75  },
+    'Mini tableau NF C 15-100':              { f:185,  fo:60,  mo:125 },
+    'Tableau complet 1 rangee':              { f:650,  fo:280, mo:370 },
+    'Tableau complet 2 rangees':             { f:1050, fo:450, mo:600 },
+    'Tableau complet 3 rangees':             { f:1850, fo:750, mo:1100},
+    'Tableau complet 4+ rangees':            { f:2500, fo:1000,mo:1500},
+    'Ajout module tableau existant':         { f:90,   fo:20,  mo:70  },
+    'Etiquetage et mise en ordre tableau':   { f:60,   fo:5,   mo:55  },
+    'Verification tableau electrique':       { f:80,   fo:0,   mo:80  },
   },
-  'Tableaux': {
-    'Disjoncteur standard': 150,
-    'Disjoncteur differentiel 30mA': 200,
-    'Inter. differentiel 63A type A': 250,
-    'Parafoudre': 120,
-    'Mini tableau NF C 15-100': 185,
-    'Tableau complet 1 rangee': 650,
-    'Tableau complet 2 rangees': 980,
-    'Tableau complet 3 rangees': 1450,
+  '🔌 Prises & Interrupteurs': {
+    'Prise standard 2P+T':                  { f:90,   fo:20,  mo:70  },
+    'Prise double':                          { f:110,  fo:28,  mo:82  },
+    'Prise specialisee cuisiniere 32A':      { f:140,  fo:35,  mo:105 },
+    'Prise etanche exterieure IP44':         { f:110,  fo:28,  mo:82  },
+    'Deplacement prise existante':           { f:130,  fo:25,  mo:105 },
+    'Prise RJ45 reseau':                     { f:65,   fo:15,  mo:50  },
+    'Prise USB integree':                    { f:85,   fo:25,  mo:60  },
+    'Prise TV coaxiale':                     { f:75,   fo:18,  mo:57  },
+    'Prise Green Up recharge VE':            { f:300,  fo:120, mo:180 },
+    'Interrupteur simple':                   { f:90,   fo:20,  mo:70  },
+    'Interrupteur va-et-vient':              { f:110,  fo:25,  mo:85  },
+    'Variateur intensite':                   { f:130,  fo:40,  mo:90  },
+    'Interrupteur connecte':                 { f:150,  fo:55,  mo:95  },
+    'Bouton poussoir sonnette':              { f:80,   fo:18,  mo:62  },
   },
-  'Diagnostics': {
-    'Recherche de panne': 120,
-    'Reparation court-circuit': 125,
-    'Reactivation coupure': 120,
-    'Diagnostic complet': 180,
-    'Recherche fuite de courant': 150,
+  '💡 Eclairage': {
+    'Luminaire simple (plafonnier)':         { f:115,  fo:20,  mo:95  },
+    'Lustre / luminaire lourd':              { f:200,  fo:30,  mo:170 },
+    'Spot encastre LED (unite)':             { f:75,   fo:25,  mo:50  },
+    'Bandeau LED par ml':                    { f:60,   fo:20,  mo:40  },
+    'Point lumineux DCL':                    { f:100,  fo:15,  mo:85  },
+    'Applique murale':                       { f:120,  fo:20,  mo:100 },
+    'Eclairage exterieur':                   { f:150,  fo:35,  mo:115 },
+    'Chemin lumineux 3 spots':               { f:250,  fo:85,  mo:165 },
+    'Detecteur mouvement eclairage':         { f:120,  fo:35,  mo:85  },
+    'Eclairage securite BAES':               { f:180,  fo:65,  mo:115 },
+    'Reglette fluorescente':                 { f:95,   fo:30,  mo:65  },
+    'Projecteur exterieur LED':              { f:180,  fo:55,  mo:125 },
   },
-  'Securite': {
-    'Mise a la terre complete': 350,
-    'Liaison equipotentielle princ.': 200,
-    'Liaison equipotentielle SDB': 140,
-    'Detecteur fumee DAAF': 85,
-    'Diagnostic electrique': 120,
-  }
+  '🔗 Circuits & Cablage': {
+    'Circuit apparent 5m':                   { f:200,  fo:35,  mo:165 },
+    'Circuit encastre 5m':                   { f:300,  fo:45,  mo:255 },
+    'Cable supplementaire par ml':           { f:20,   fo:8,   mo:12  },
+    'Goulotte par ml':                       { f:15,   fo:5,   mo:10  },
+    'Chemin de cable par ml':                { f:30,   fo:10,  mo:20  },
+    'Passage cable cloison/dalle':           { f:120,  fo:5,   mo:115 },
+    'Ligne dediee lave-linge':               { f:220,  fo:45,  mo:175 },
+    'Ligne dediee chauffe-eau':              { f:220,  fo:45,  mo:175 },
+    'Ligne dediee plaque induction':         { f:250,  fo:50,  mo:200 },
+    'Ligne dediee climatisation':            { f:280,  fo:55,  mo:225 },
+    'Boite de derivation':                   { f:45,   fo:10,  mo:35  },
+  },
+  '🛡️ Mise aux Normes & Securite': {
+    'Mise a la terre complete':              { f:650,  fo:80,  mo:570 },
+    'Liaison equipotentielle principale':    { f:160,  fo:25,  mo:135 },
+    'Liaison equipotentielle salle de bain': { f:140,  fo:20,  mo:120 },
+    'Detecteur fumee DAAF':                  { f:85,   fo:20,  mo:65  },
+    'Detecteur CO monoxyde':                 { f:95,   fo:30,  mo:65  },
+    'Diagnostic electrique obligatoire':     { f:150,  fo:0,   mo:150 },
+    'Mise en conformite NF C15-100 (m2)':    { f:65,   fo:15,  mo:50  },
+    'Rapport de conformite':                 { f:120,  fo:0,   mo:120 },
+    'Protection differentielle SDB':         { f:200,  fo:60,  mo:140 },
+  },
+  '🔥 Chauffage Electrique': {
+    'Convecteur mural standard':             { f:200,  fo:60,  mo:140 },
+    'Radiateur a inertie':                   { f:350,  fo:120, mo:230 },
+    'Seche-serviettes electrique':           { f:280,  fo:90,  mo:190 },
+    'Thermostat programmable':               { f:140,  fo:45,  mo:95  },
+    'Thermostat connecte / fil pilote':      { f:180,  fo:70,  mo:110 },
+    'Remplacement convecteur vers inertie':  { f:450,  fo:150, mo:300 },
+    'Depose ancien radiateur':               { f:60,   fo:0,   mo:60  },
+    'Plancher chauffant electrique (m2)':    { f:120,  fo:50,  mo:70  },
+    'Chauffe-eau electrique 100L':           { f:450,  fo:180, mo:270 },
+    'Chauffe-eau electrique 200L':           { f:580,  fo:250, mo:330 },
+    'Ballon thermodynamique':                { f:850,  fo:400, mo:450 },
+  },
+  '💨 VMC & Ventilation': {
+    'VMC simple flux autoreglable':          { f:450,  fo:150, mo:300 },
+    'VMC simple flux hygroreglable':         { f:700,  fo:280, mo:420 },
+    'VMC double flux':                       { f:1200, fo:500, mo:700 },
+    'Remplacement moteur VMC':               { f:250,  fo:90,  mo:160 },
+    'Bouche extraction':                     { f:60,   fo:18,  mo:42  },
+    'Nettoyage / entretien VMC':             { f:100,  fo:0,   mo:100 },
+    'Ligne dediee VMC (disj 2A)':            { f:110,  fo:25,  mo:85  },
+    'Extracteur d air simple':               { f:150,  fo:50,  mo:100 },
+    'Extracteur temporise':                  { f:180,  fo:70,  mo:110 },
+  },
+  '🏠 Equipements Speciaux': {
+    'Interphone audio':                      { f:500,  fo:180, mo:320 },
+    'Visiophone':                            { f:900,  fo:350, mo:550 },
+    'Sonnette filaire':                      { f:130,  fo:35,  mo:95  },
+    'Motorisation volet roulant':            { f:350,  fo:130, mo:220 },
+    'Portier electrique':                    { f:600,  fo:250, mo:350 },
+    'Detecteur mouvement exterieur':         { f:120,  fo:35,  mo:85  },
+    'Camera surveillance filaire':           { f:350,  fo:130, mo:220 },
+    'Antenne TV / prise coaxiale':           { f:200,  fo:35,  mo:165 },
+  },
+  '🔋 IRVE & Recharge VE': {
+    'Prise Green Up T2 3.7kW':              { f:300,  fo:120, mo:180 },
+    'Borne IRVE 7kW monophasee':             { f:1500, fo:600, mo:900 },
+    'Borne IRVE 22kW triphasee':             { f:2500, fo:1000,mo:1500},
+    'Installation cablage IRVE':             { f:400,  fo:80,  mo:320 },
+    'Tableau IRVE dedie':                    { f:350,  fo:120, mo:230 },
+    'Mise en service borne IRVE':            { f:100,  fo:0,   mo:100 },
+  },
+  '🏡 Domotique & Connecte': {
+    'Interrupteur connecte Legrand':         { f:150,  fo:55,  mo:95  },
+    'Prise connectee':                       { f:120,  fo:40,  mo:80  },
+    'Thermostat connecte Netatmo':           { f:250,  fo:120, mo:130 },
+    'Passerelle domotique':                  { f:300,  fo:150, mo:150 },
+    'Store / volet connecte':                { f:400,  fo:180, mo:220 },
+    'Eclairage connecte (unite)':            { f:180,  fo:80,  mo:100 },
+    'Systeme alarme connecte':               { f:900,  fo:400, mo:500 },
+  },
+  '❄️ Climatisation & PAC': {
+    'Raccordement electrique split mono':    { f:250,  fo:40,  mo:210 },
+    'Raccordement electrique split multi':   { f:350,  fo:55,  mo:295 },
+    'Ligne dediee climatisation 20A':        { f:220,  fo:45,  mo:175 },
+    'Raccordement PAC air/air':              { f:300,  fo:50,  mo:250 },
+    'Raccordement PAC air/eau':              { f:400,  fo:60,  mo:340 },
+    'Alimentation groupe froid':             { f:280,  fo:50,  mo:230 },
+  },
+  '🏊 Piscine & Spa': {
+    'Alimentation piscine complete':         { f:850,  fo:200, mo:650 },
+    'Tableau electrique piscine':            { f:450,  fo:150, mo:300 },
+    'Pompe piscine raccordement':            { f:250,  fo:40,  mo:210 },
+    'Eclairage subaquatique':                { f:350,  fo:120, mo:230 },
+    'Alimentation spa / jacuzzi':            { f:600,  fo:150, mo:450 },
+    'Coffret de protection piscine':         { f:320,  fo:110, mo:210 },
+  },
+  '🏗️ Chantier & Tertiaire': {
+    'Coffret de chantier 63A':              { f:650,  fo:280, mo:370 },
+    'Coffret de chantier 32A':              { f:450,  fo:180, mo:270 },
+    'Eclairage provisoire chantier':         { f:300,  fo:80,  mo:220 },
+    'Tableau divisionnaire extension':       { f:550,  fo:200, mo:350 },
+    'TGBT tertiaire bureau/commerce':        { f:2800, fo:1200,mo:1600},
+    'Mise en conformite ERP':               { f:1500, fo:200, mo:1300},
+    'Enseigne lumineuse raccordement':       { f:350,  fo:80,  mo:270 },
+    'Alimentation caisse enregistreuse':     { f:180,  fo:30,  mo:150 },
+  },
+  '🚪 Portail & Acces': {
+    'Motorisation portail battant':          { f:800,  fo:350, mo:450 },
+    'Motorisation portail coulissant':       { f:900,  fo:400, mo:500 },
+    'Portier video exterieur':               { f:700,  fo:280, mo:420 },
+    'Digicode / badge access':               { f:400,  fo:150, mo:250 },
+    'Alimentation interphone immeuble':      { f:300,  fo:80,  mo:220 },
+  },
+  '⚡ Groupe & Onduleur': {
+    'Groupe electrogene raccordement':       { f:600,  fo:100, mo:500 },
+    'Onduleur / UPS installation':           { f:400,  fo:150, mo:250 },
+    'Transfert automatique (ATS)':           { f:550,  fo:200, mo:350 },
+  },
+  '📋 Administratif & Consuel': {
+    'Attestation Consuel COPREC':           { f:250,  fo:0,   mo:250 },
+    'Demande mise en service Enedis':        { f:150,  fo:0,   mo:150 },
+    'Colonne montante diagnostic':           { f:300,  fo:0,   mo:300 },
+    'Rapport de visite reglementaire':       { f:180,  fo:0,   mo:180 },
+    'Dossier technique installation':        { f:200,  fo:0,   mo:200 },
+    'Mise a jour schema electrique':         { f:120,  fo:0,   mo:120 },
+    'Certification NF C 15-100 complete':   { f:350,  fo:0,   mo:350 },
+  },
 };
 
 let panierD = [];
@@ -1345,7 +1528,7 @@ async function generer(type) {
     return;
   }
   
-  const client = document.getElementById(`${prefix}-client`).value.trim();
+  const client = getClientComplet(prefix);
   const adresse = document.getElementById(`${prefix}-adresse`).value.trim();
   const email = document.getElementById(`${prefix}-email`).value.trim();
   const description = document.getElementById(`${prefix}-description`).value.trim();
@@ -2030,15 +2213,27 @@ function afficherParams() {
     section.style.cssText = 'margin-bottom:24px;';
     section.innerHTML = `<div style="font-size:12px;font-weight:800;color:var(--accent);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:12px;padding-left:16px;position:relative;"><span style="position:absolute;left:0;width:4px;height:20px;background:linear-gradient(180deg,var(--accent),var(--gold));border-radius:4px;top:-2px;"></span>${cat}</div>`;
     Object.entries(prestations).forEach(([nom, prix]) => {
+      const pF  = typeof prix === 'object' ? prix.f  : prix;
+      const pFo = typeof prix === 'object' ? prix.fo : 0;
+      const pMo = typeof prix === 'object' ? prix.mo : prix;
       const row = document.createElement('div');
-      row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:8px;gap:12px;';
-      row.innerHTML = `
-        <span style="font-size:13px;color:var(--text);font-weight:600;flex:1;">${nom}</span>
-        <div style="display:flex;align-items:center;gap:6px;">
-          <input type="number" data-cat="${cat}" data-prest="${nom}" value="${prix}"
-            style="width:80px;background:rgba(255,255,255,0.8);border:1.5px solid var(--accent);border-radius:10px;padding:10px;color:var(--accent);font-size:15px;font-weight:800;text-align:center;outline:none;">
-          <span style="font-size:13px;color:var(--text-2);font-weight:600;">€</span>
-        </div>`;
+      row.style.cssText = 'background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:8px;';
+      row.innerHTML = 
+        '<div style="font-size:13px;color:var(--text);font-weight:600;margin-bottom:10px;">' + nom + '</div>' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+          '<div style="display:flex;align-items:center;gap:4px;">' +
+            '<span style="font-size:10px;color:var(--text-3);font-weight:700;">FORFAIT</span>' +
+            '<input type="number" data-cat="' + cat + '" data-prest="' + nom + '" data-mode="f" value="' + pF + '" style="width:72px;background:rgba(255,255,255,0.9);border:1.5px solid var(--accent);border-radius:8px;padding:8px;color:var(--accent);font-size:14px;font-weight:800;text-align:center;outline:none;">' +
+          '</div>' +
+          '<div style="display:flex;align-items:center;gap:4px;">' +
+            '<span style="font-size:10px;color:var(--text-3);font-weight:700;">FOURNI.</span>' +
+            '<input type="number" data-cat="' + cat + '" data-prest="' + nom + '" data-mode="fo" value="' + pFo + '" style="width:72px;background:rgba(255,255,255,0.8);border:1.5px solid var(--border);border-radius:8px;padding:8px;color:var(--text-2);font-size:14px;font-weight:700;text-align:center;outline:none;">' +
+          '</div>' +
+          '<div style="display:flex;align-items:center;gap:4px;">' +
+            '<span style="font-size:10px;color:var(--text-3);font-weight:700;">MO</span>' +
+            '<input type="number" data-cat="' + cat + '" data-prest="' + nom + '" data-mode="mo" value="' + pMo + '" style="width:72px;background:rgba(255,255,255,0.8);border:1.5px solid var(--border);border-radius:8px;padding:8px;color:var(--text-2);font-size:14px;font-weight:700;text-align:center;outline:none;">' +
+          '</div>' +
+        '</div>';
       section.appendChild(row);
     });
     container.appendChild(section);
@@ -2049,8 +2244,15 @@ function sauvegarderPrix() {
   document.querySelectorAll('#params-grid input[data-cat]').forEach(input => {
     const cat = input.getAttribute('data-cat');
     const prest = input.getAttribute('data-prest');
+    const mode = input.getAttribute('data-mode');
     const val = parseFloat(input.value);
-    if (!isNaN(val) && val > 0) GRILLE[cat][prest] = val;
+    if (!isNaN(val) && val >= 0 && GRILLE[cat] && GRILLE[cat][prest]) {
+      if (typeof GRILLE[cat][prest] === 'object' && mode) {
+        GRILLE[cat][prest][mode] = val;
+      } else {
+        GRILLE[cat][prest] = val;
+      }
+    }
   });
   localStorage.setItem('sinelec_prix', JSON.stringify(GRILLE));
   renderPanier('d');
