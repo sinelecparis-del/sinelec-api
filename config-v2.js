@@ -145,18 +145,84 @@ const CONFIG = {
     
     // Templates
     template_devis: `
-      <h2>Votre devis SINELEC</h2>
-      <p>Bonjour,</p>
-      <p>Veuillez trouver ci-joint votre devis.</p>
-      <p>Cordialement,<br>L'équipe SINELEC Paris</p>
-    `,
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f0f2f5;font-family:Arial,sans-serif;">
+  <div style="max-width:600px;margin:0 auto;padding:20px;">
+    
+    <!-- HEADER -->
+    <div style="background:linear-gradient(135deg,#1B2A4A,#243660);border-radius:16px;padding:28px;text-align:center;margin-bottom:16px;">
+      <div style="font-size:28px;font-weight:900;color:white;letter-spacing:1px;">⚡ SINELEC</div>
+      <div style="color:rgba(255,255,255,0.7);font-size:13px;margin-top:6px;">128 Rue La Boetie, 75008 Paris</div>
+    </div>
+    
+    <!-- CORPS -->
+    <div style="background:white;border-radius:16px;padding:28px;margin-bottom:16px;box-shadow:0 2px 12px rgba(0,0,0,0.06);">
+      <h2 style="color:#1B2A4A;font-size:20px;margin:0 0 16px;">Votre devis {num}</h2>
+      <p style="color:#555;font-size:14px;line-height:1.6;margin:0 0 12px;">Bonjour,</p>
+      <p style="color:#555;font-size:14px;line-height:1.6;margin:0 0 20px;">
+        Veuillez trouver ci-joint votre devis SINELEC. Vous pouvez le consulter en pièce jointe.
+      </p>
+      
+      <!-- BOUTON SIGNATURE -->
+      <div style="text-align:center;margin:28px 0;">
+        <a href="{lien_signature}" 
+           style="display:inline-block;background:linear-gradient(135deg,#C9A84C,#A07830);color:white;text-decoration:none;padding:16px 36px;border-radius:12px;font-size:16px;font-weight:800;letter-spacing:0.5px;">
+          ✍️ Signer le devis en ligne
+        </a>
+        <p style="color:#999;font-size:12px;margin-top:10px;">Cliquez pour signer votre devis de manière sécurisée</p>
+      </div>
+      
+      <div style="background:#f8f9fa;border-radius:10px;padding:14px;font-size:12px;color:#777;line-height:1.6;">
+        <strong>Comment ça marche ?</strong><br>
+        1. Cliquez sur le bouton ci-dessus<br>
+        2. Lisez et acceptez les conditions générales<br>
+        3. Signez avec votre doigt ou stylet<br>
+        4. Vous recevrez une copie signée par email
+      </div>
+    </div>
+    
+    <!-- FOOTER -->
+    <div style="text-align:center;padding:16px;color:#aaa;font-size:12px;">
+      SINELEC — 07 87 38 86 22 — sinelec.paris@gmail.com<br>
+      SIRET : 91015824500019 — Garantie décennale ORUS
+    </div>
+  </div>
+</body>
+</html>`,
     
     template_facture: `
-      <h2>Votre facture SINELEC</h2>
-      <p>Bonjour,</p>
-      <p>Veuillez trouver ci-joint votre facture.</p>
-      <p>Cordialement,<br>L'équipe SINELEC Paris</p>
-    `
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f0f2f5;font-family:Arial,sans-serif;">
+  <div style="max-width:600px;margin:0 auto;padding:20px;">
+    
+    <div style="background:linear-gradient(135deg,#1B2A4A,#243660);border-radius:16px;padding:28px;text-align:center;margin-bottom:16px;">
+      <div style="font-size:28px;font-weight:900;color:white;letter-spacing:1px;">⚡ SINELEC</div>
+      <div style="color:rgba(255,255,255,0.7);font-size:13px;margin-top:6px;">128 Rue La Boetie, 75008 Paris</div>
+    </div>
+    
+    <div style="background:white;border-radius:16px;padding:28px;margin-bottom:16px;box-shadow:0 2px 12px rgba(0,0,0,0.06);">
+      <h2 style="color:#1B2A4A;font-size:20px;margin:0 0 16px;">Votre facture {num}</h2>
+      <p style="color:#555;font-size:14px;line-height:1.6;margin:0 0 12px;">Bonjour,</p>
+      <p style="color:#555;font-size:14px;line-height:1.6;margin:0 0 20px;">
+        Veuillez trouver ci-joint votre facture SINELEC. Merci pour votre confiance.
+      </p>
+      <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:14px;text-align:center;">
+        <div style="color:#16a34a;font-size:14px;font-weight:700;">✅ Merci pour votre règlement</div>
+        <div style="color:#555;font-size:13px;margin-top:4px;">Coordonnées bancaires en pièce jointe</div>
+      </div>
+    </div>
+    
+    <div style="text-align:center;padding:16px;color:#aaa;font-size:12px;">
+      SINELEC — 07 87 38 86 22 — sinelec.paris@gmail.com<br>
+      SIRET : 91015824500019 — Garantie décennale ORUS
+    </div>
+  </div>
+</body>
+</html>`
   },
 
   // ═══════════════════════════════════════════════════════════════
