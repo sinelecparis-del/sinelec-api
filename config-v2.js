@@ -167,11 +167,13 @@ const CONFIG = {
       
       <!-- BOUTON SIGNATURE -->
       <div style="text-align:center;margin:28px 0;">
-        <a href="{lien_signature}" 
-           style="display:inline-block;background:linear-gradient(135deg,#C9A84C,#A07830);color:white;text-decoration:none;padding:16px 36px;border-radius:12px;font-size:16px;font-weight:800;letter-spacing:0.5px;">
+        <a href="{lien_signature}" target="_blank"
+           style="display:inline-block;background:#C9A84C;color:white;text-decoration:none;padding:16px 36px;border-radius:12px;font-size:16px;font-weight:800;">
           ✍️ Signer le devis en ligne
         </a>
         <p style="color:#999;font-size:12px;margin-top:10px;">Cliquez pour signer votre devis de manière sécurisée</p>
+        <p style="color:#aaa;font-size:11px;margin-top:8px;">Si le bouton ne fonctionne pas, copiez ce lien :</p>
+        <p style="color:#1B2A4A;font-size:11px;word-break:break-all;margin-top:4px;font-weight:700;">{lien_signature}</p>
       </div>
       
       <div style="background:#f8f9fa;border-radius:10px;padding:14px;font-size:12px;color:#777;line-height:1.6;">
