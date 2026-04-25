@@ -40,6 +40,7 @@ const anthropic = new Anthropic({
 
 const BREVO_API_KEY = process.env.BREVO_API_KEY;
 const SUMUP_API_KEY = process.env.SUMUP_API_KEY;
+const SUMUP_CLIENT_ID = process.env.SUMUP_CLIENT_ID;
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
@@ -738,29 +739,414 @@ RÉPONDS EN JSON:
 // API: SIGNATURE CLIENT
 // ═══════════════════════════════════════════════════════════════
 
+// ── PAGE SIGNATURE PUBLIQUE (iOS Safari compatible) ──────────
+app.get('/signer/:num', async (req, res) => {
+  const { num } = req.params;
+
+  // Récupérer le devis
+  const { data: devis, error } = await supabase
+    .from('historique')
+    .select('*')
+    .eq('num', num)
+    .single();
+
+  if (error || !devis) {
+    return res.status(404).send(`<!DOCTYPE html><html><body style="font-family:Arial;text-align:center;padding:40px;">
+      <h2>❌ Document introuvable</h2><p>Le devis ${num} n'existe pas ou a expiré.</p></body></html>`);
+  }
+
+  if (devis.statut === 'signe' || devis.statut === 'signé') {
+    return res.send(`<!DOCTYPE html><html><body style="font-family:Arial;text-align:center;padding:40px;background:#f0fdf4;">
+      <div style="max-width:500px;margin:0 auto;background:white;border-radius:20px;padding:40px;box-shadow:0 4px 20px rgba(0,0,0,0.1);">
+      <div style="font-size:64px;">✅</div>
+      <h2 style="color:#1B2A4A;">Devis déjà signé</h2>
+      <p style="color:#555;">Ce devis a déjà été signé. Merci pour votre confiance.</p>
+      <p style="color:#C9A84C;font-weight:700;">SINELEC Paris — 07 87 38 86 22</p>
+      </div></body></html>`);
+  }
+
+  const montant = parseFloat(devis.total_ht || 0).toFixed(2);
+  const prestationsHtml = (devis.prestations || []).map((p, i) =>
+    `<tr style="border-bottom:1px solid #eee;">
+      <td style="padding:10px 8px;color:#1B2A4A;font-weight:600;">${p.nom || p.designation || ''}</td>
+      <td style="padding:10px 8px;text-align:center;color:#555;">${p.quantite || p.qte || 1}</td>
+      <td style="padding:10px 8px;text-align:right;color:#C9A84C;font-weight:700;">${parseFloat(p.prix || p.prixUnit || 0).toFixed(2)} €</td>
+    </tr>`
+  ).join('');
+
+  res.send(`<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Signer le devis ${num} — SINELEC</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:#f5f7fa;color:#1a1a2e;min-height:100vh;}
+  .container{max-width:600px;margin:0 auto;padding:16px;}
+  .header{background:linear-gradient(135deg,#1B2A4A,#243660);border-radius:20px;padding:24px;text-align:center;margin-bottom:16px;}
+  .header h1{color:white;font-size:22px;font-weight:900;}
+  .header p{color:rgba(255,255,255,0.7);font-size:13px;margin-top:6px;}
+  .card{background:white;border-radius:16px;padding:20px;margin-bottom:14px;box-shadow:0 2px 16px rgba(0,0,0,0.06);}
+  .label{font-size:11px;font-weight:800;color:#C9A84C;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;}
+  table{width:100%;border-collapse:collapse;}
+  th{background:#f8f9fa;padding:10px 8px;font-size:12px;color:#888;text-align:left;font-weight:600;}
+  th:last-child,td:last-child{text-align:right;}
+  th:nth-child(2),td:nth-child(2){text-align:center;}
+  .total{background:#1B2A4A;border-radius:12px;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;margin-top:12px;}
+  .total span:first-child{color:white;font-size:14px;font-weight:700;}
+  .total span:last-child{color:#C9A84C;font-size:22px;font-weight:900;}
+  .cgv-item{display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid #f0f0f0;cursor:pointer;}
+  .cgv-item:last-child{border-bottom:none;}
+  .cgv-check{width:24px;height:24px;min-width:24px;border:2px solid #ddd;border-radius:6px;display:flex;align-items:center;justify-content:center;transition:all 0.2s;}
+  .cgv-check.checked{background:#1B2A4A;border-color:#1B2A4A;}
+  .cgv-check.checked::after{content:'✓';color:white;font-size:14px;font-weight:700;}
+  .cgv-text{font-size:13px;color:#555;line-height:1.5;}
+  .canvas-wrap{border:2px dashed #ddd;border-radius:12px;background:#fafafa;position:relative;overflow:hidden;cursor:crosshair;-webkit-user-select:none;user-select:none;}
+  canvas{display:block;width:100%;touch-action:none;-webkit-user-select:none;}
+  .canvas-placeholder{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#ccc;font-size:13px;pointer-events:none;text-align:center;}
+  .btn-clear{background:none;border:1px solid #ddd;border-radius:8px;padding:8px 16px;font-size:12px;color:#888;cursor:pointer;margin-top:8px;}
+  .btn-sign{width:100%;background:linear-gradient(135deg,#1B2A4A,#243660);color:white;border:none;border-radius:16px;padding:18px;font-size:16px;font-weight:800;cursor:pointer;transition:opacity 0.2s;margin-top:8px;}
+  .btn-sign:disabled{opacity:0.4;cursor:not-allowed;}
+  .btn-sign:not(:disabled):active{opacity:0.8;}
+  .success{display:none;text-align:center;padding:40px 20px;}
+  .success .icon{font-size:72px;margin-bottom:16px;}
+  .success h2{color:#1B2A4A;font-size:22px;font-weight:900;margin-bottom:8px;}
+  .success p{color:#555;font-size:14px;line-height:1.6;}
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <h1>⚡ SINELEC Paris</h1>
+    <p>Signature électronique — Devis N° ${num}</p>
+  </div>
+
+  <div id="main-content">
+
+    <div class="card">
+      <div class="label">📋 Récapitulatif</div>
+      <p style="font-size:15px;font-weight:700;color:#1B2A4A;margin-bottom:4px;">${devis.client || ''}</p>
+      <p style="font-size:12px;color:#888;margin-bottom:16px;">${devis.adresse || ''}</p>
+      <table>
+        <thead><tr>
+          <th>Prestation</th>
+          <th>Qté</th>
+          <th>Prix HT</th>
+        </tr></thead>
+        <tbody>${prestationsHtml}</tbody>
+      </table>
+      <div class="total">
+        <span>NET À PAYER</span>
+        <span>${montant} €</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="label">✅ Conditions à accepter</div>
+      <div class="cgv-item" onclick="toggleCGV(0)">
+        <div class="cgv-check" id="cgv-0"></div>
+        <div class="cgv-text"><strong>J'accepte les Conditions Générales de Vente</strong> de SINELEC Paris, incluant les modalités de paiement et d'intervention.</div>
+      </div>
+      <div class="cgv-item" onclick="toggleCGV(1)">
+        <div class="cgv-check" id="cgv-1"></div>
+        <div class="cgv-text"><strong>Je reconnais le montant de <span style="color:#C9A84C;">${montant} €</span></strong> HT (TVA non applicable, Art. 293B du CGI) pour les travaux décrits.</div>
+      </div>
+      <div class="cgv-item" onclick="toggleCGV(2)">
+        <div class="cgv-check" id="cgv-2"></div>
+        <div class="cgv-text"><strong>Bon pour accord</strong> — Je mandate SINELEC Paris pour réaliser les travaux selon ce devis, et m'engage à régler l'acompte de <strong style="color:#C9A84C;">${(parseFloat(montant)*0.4).toFixed(2)} €</strong> à la signature.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="label">✍️ Votre signature</div>
+      <div class="canvas-wrap" id="canvas-wrap">
+        <canvas id="sig-canvas" height="180"></canvas>
+        <div class="canvas-placeholder" id="canvas-placeholder">Signez ici avec votre doigt</div>
+      </div>
+      <button class="btn-clear" onclick="clearCanvas()">🗑️ Effacer</button>
+    </div>
+
+    <button class="btn-sign" id="btn-sign" disabled onclick="soumettre()">
+      ✍️ Signer et valider le devis
+    </button>
+
+    <p style="font-size:11px;color:#aaa;text-align:center;margin-top:12px;padding-bottom:24px;">
+      Signature électronique légalement valide — IP et horodatage enregistrés
+    </p>
+
+  </div>
+
+  <div class="success" id="success-block">
+    <div class="icon">✅</div>
+    <h2>Devis signé !</h2>
+    <p>Merci <strong>${devis.client || ''}</strong>, votre bon pour accord a bien été enregistré.<br>Vous allez recevoir une confirmation par email.<br><br>
+    <span style="color:#C9A84C;font-weight:700;">SINELEC Paris — 07 87 38 86 22</span></p>
+  </div>
+
+</div>
+<script>
+  const cgvState = [false, false, false];
+  let hasDrawn = false;
+  let isDrawing = false;
+  let canvas, ctx;
+
+  // Init canvas — délai pour iOS Safari
+  function initCanvas() {
+    canvas = document.getElementById('sig-canvas');
+    const wrap = document.getElementById('canvas-wrap');
+    
+    // Adapter la taille réelle du canvas au container
+    const dpr = window.devicePixelRatio || 1;
+    const rect = wrap.getBoundingClientRect();
+    const w = rect.width || wrap.offsetWidth || 320;
+    canvas.width = w * dpr;
+    canvas.height = 180 * dpr;
+    canvas.style.width = w + 'px';
+    canvas.style.height = '180px';
+
+    ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    ctx.strokeStyle = '#1B2A4A';
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    // Événements souris
+    canvas.addEventListener('mousedown', e => { e.preventDefault(); startDraw(e.offsetX, e.offsetY); });
+    canvas.addEventListener('mousemove', e => { e.preventDefault(); if(isDrawing) draw(e.offsetX, e.offsetY); });
+    canvas.addEventListener('mouseup', e => { e.preventDefault(); stopDraw(); });
+    canvas.addEventListener('mouseleave', stopDraw);
+
+    // Événements tactiles iOS — passive:false obligatoire
+    canvas.addEventListener('touchstart', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      const t = e.touches[0];
+      const r = canvas.getBoundingClientRect();
+      const dpr2 = window.devicePixelRatio || 1;
+      startDraw((t.clientX - r.left), (t.clientY - r.top));
+    }, { passive: false });
+
+    canvas.addEventListener('touchmove', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!isDrawing) return;
+      const t = e.touches[0];
+      const r = canvas.getBoundingClientRect();
+      draw((t.clientX - r.left), (t.clientY - r.top));
+    }, { passive: false });
+
+    canvas.addEventListener('touchend', e => {
+      e.preventDefault();
+      stopDraw();
+    }, { passive: false });
+  }
+
+  function startDraw(x, y) {
+    isDrawing = true;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    document.getElementById('canvas-placeholder').style.display = 'none';
+  }
+
+  function draw(x, y) {
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    hasDrawn = true;
+    checkBtn();
+  }
+
+  function stopDraw() { isDrawing = false; }
+
+  function clearCanvas() {
+    if (!ctx) return;
+    const dpr = window.devicePixelRatio || 1;
+    ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+    hasDrawn = false;
+    document.getElementById('canvas-placeholder').style.display = 'block';
+    checkBtn();
+  }
+
+  function toggleCGV(i) {
+    cgvState[i] = !cgvState[i];
+    const el = document.getElementById('cgv-'+i);
+    if (cgvState[i]) el.classList.add('checked');
+    else el.classList.remove('checked');
+    checkBtn();
+  }
+
+  function checkBtn() {
+    const allCGV = cgvState.every(v => v);
+    document.getElementById('btn-sign').disabled = !(allCGV && hasDrawn);
+  }
+
+  async function soumettre() {
+    const btn = document.getElementById('btn-sign');
+    btn.disabled = true;
+    btn.textContent = '⏳ Envoi en cours...';
+
+    const sigData = canvas.toDataURL('image/png');
+
+    try {
+      const res = await fetch('/api/signature', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          num: '${num}',
+          signature: sigData,
+          cgv_acceptees: true
+        })
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        document.getElementById('main-content').style.display = 'none';
+        document.getElementById('success-block').style.display = 'block';
+      } else {
+        btn.disabled = false;
+        btn.textContent = '✍️ Signer et valider le devis';
+        alert('Erreur : ' + (data.error || 'Veuillez réessayer'));
+      }
+    } catch(e) {
+      btn.disabled = false;
+      btn.textContent = '✍️ Signer et valider le devis';
+      alert('Erreur réseau. Vérifiez votre connexion et réessayez.');
+    }
+  }
+
+  // Attendre que le DOM soit prêt + délai pour iOS
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => setTimeout(initCanvas, 300));
+  } else {
+    setTimeout(initCanvas, 300);
+  }
+</script>
+</body>
+</html>`);
+});
+
+// ── API SIGNATURE — avec email de confirmation ────────────
 app.post('/api/signature', async (req, res) => {
   if (!CONFIG.features.signature_client) {
     return res.status(403).json({ error: 'Feature désactivée' });
   }
 
   try {
-    const { num, signature } = req.body;
+    const { num, signature, cgv_acceptees } = req.body;
+    const dateSignature = new Date().toLocaleDateString('fr-FR');
+    const heureSignature = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+    // Récupérer les infos du devis
+    const { data: devisData } = await supabase
+      .from('historique')
+      .select('*')
+      .eq('num', num)
+      .single();
 
     // Sauvegarder signature
-    await supabase.from('signatures').insert({ num, signature });
+    await supabase.from('signatures').insert({
+      num,
+      signature,
+      cgv_acceptees: cgv_acceptees || false,
+      date_signature: new Date().toISOString()
+    });
 
-    // Mettre à jour devis
+    // Mettre à jour statut
     await supabase.from('historique')
-      .update({ 
-        signature, 
-        statut: 'signé',
-        date_signature: new Date().toISOString()
+      .update({
+        signature,
+        statut: 'signe',
+        date_signature: new Date().toISOString(),
+        cgv_acceptees: cgv_acceptees || false
       })
       .eq('num', num);
 
-    await logSystem('signature', `Devis ${num} signé`, { num }, true);
+    // ── Email de confirmation ──────────────────────────────
+    if (devisData) {
+      const montant = parseFloat(devisData.total_ht || 0);
+      const acompte = (montant * 0.4).toFixed(2);
 
+      const htmlConfirm = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"></head>
+<body style="font-family:Arial,sans-serif;background:#f0f2f5;margin:0;padding:20px;">
+<div style="max-width:600px;margin:0 auto;">
+  <div style="background:linear-gradient(135deg,#1B2A4A,#243660);border-radius:16px;padding:24px;text-align:center;margin-bottom:16px;">
+    <div style="font-size:24px;font-weight:900;color:white;">⚡ SINELEC Paris</div>
+    <div style="color:rgba(255,255,255,0.7);font-size:13px;margin-top:4px;">Confirmation de signature</div>
+  </div>
+  <div style="background:white;border-radius:16px;padding:28px;margin-bottom:16px;box-shadow:0 2px 12px rgba(0,0,0,0.06);">
+    <div style="font-size:56px;text-align:center;margin-bottom:16px;">✅</div>
+    <h2 style="color:#1B2A4A;text-align:center;margin-bottom:20px;">Devis signé avec succès</h2>
+    <table style="width:100%;border-collapse:collapse;">
+      <tr style="border-bottom:1px solid #f0f0f0;">
+        <td style="padding:12px 0;color:#888;font-size:13px;">Référence</td>
+        <td style="padding:12px 0;font-weight:700;color:#1B2A4A;text-align:right;">${num}</td>
+      </tr>
+      <tr style="border-bottom:1px solid #f0f0f0;">
+        <td style="padding:12px 0;color:#888;font-size:13px;">Client</td>
+        <td style="padding:12px 0;font-weight:700;color:#1B2A4A;text-align:right;">${devisData.client || ''}</td>
+      </tr>
+      <tr style="border-bottom:1px solid #f0f0f0;">
+        <td style="padding:12px 0;color:#888;font-size:13px;">Date de signature</td>
+        <td style="padding:12px 0;font-weight:700;color:#1B2A4A;text-align:right;">${dateSignature} à ${heureSignature}</td>
+      </tr>
+      <tr style="border-bottom:1px solid #f0f0f0;">
+        <td style="padding:12px 0;color:#888;font-size:13px;">Montant HT</td>
+        <td style="padding:12px 0;font-size:18px;font-weight:900;color:#C9A84C;text-align:right;">${montant.toFixed(2)} €</td>
+      </tr>
+      <tr>
+        <td style="padding:12px 0;color:#888;font-size:13px;">Acompte à régler (40%)</td>
+        <td style="padding:12px 0;font-weight:700;color:#C9A84C;text-align:right;">${acompte} €</td>
+      </tr>
+    </table>
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:14px;margin-top:20px;">
+      <div style="color:#16a34a;font-size:13px;font-weight:700;">✅ CGV acceptées — Bon pour accord confirmé</div>
+    </div>
+    <div style="background:#fef9ec;border:1px solid #fcd34d;border-radius:10px;padding:14px;margin-top:12px;">
+      <div style="color:#92400e;font-size:13px;font-weight:700;">💰 Virement IBAN : FR76 1695 8000 0174 2540 5920 931</div>
+      <div style="color:#92400e;font-size:12px;margin-top:4px;">Référence virement : ${num}</div>
+    </div>
+  </div>
+  <div style="text-align:center;color:#aaa;font-size:12px;">
+    SINELEC EI — 128 Rue La Boétie, 75008 Paris — 07 87 38 86 22
+  </div>
+</div>
+</body></html>`;
+
+      // Email au CLIENT si email disponible
+      if (devisData.email) {
+        try {
+          await envoyerEmail(
+            devisData.email,
+            `✅ Votre devis SINELEC ${num} — Bon pour accord confirmé`,
+            htmlConfirm
+          );
+        } catch(e) {
+          console.error('⚠️ Email client signature:', e.message);
+        }
+      }
+
+      // Email de notification à SINELEC
+      try {
+        await envoyerEmail(
+          'sinelec.paris@gmail.com',
+          `🔔 SIGNÉ — Devis ${num} — ${devisData.client || ''} — ${montant.toFixed(0)}€`,
+          htmlConfirm
+        );
+      } catch(e) {
+        console.error('⚠️ Email SINELEC signature:', e.message);
+      }
+    }
+
+    await logSystem('signature', `Devis ${num} signé`, { num }, true);
     res.json({ success: true });
+
   } catch (error) {
     console.error('Erreur signature:', error);
     await logSystem('signature', 'Erreur signature', { error: error.message }, false, error);
@@ -1090,27 +1476,58 @@ app.post('/api/sumup/lien/:num', async (req, res) => {
 
     console.log(`💳 Génération lien SumUp pour ${num} — ${montant}€`);
 
-    // Créer checkout SumUp
+    // ── Étape 1 : Obtenir le token OAuth2 SumUp ───────────
+    let accessToken = SUMUP_API_KEY; // fallback si déjà un Bearer token
+
+    // Si c'est un Client Secret (pas un token), obtenir le token via OAuth2
+    if (SUMUP_API_KEY && !SUMUP_API_KEY.startsWith('eyJ')) {
+      try {
+        const tokenRes = await fetch('https://api.sumup.com/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            grant_type: 'client_credentials',
+            client_id: process.env.SUMUP_CLIENT_ID || '',
+            client_secret: SUMUP_API_KEY,
+            scope: 'payments'
+          })
+        });
+
+        if (tokenRes.ok) {
+          const tokenData = await tokenRes.json();
+          accessToken = tokenData.access_token;
+          console.log('✅ Token SumUp OAuth2 obtenu');
+        } else {
+          const tokenErr = await tokenRes.text();
+          console.error('❌ Erreur token SumUp:', tokenErr);
+          // Continuer avec la clé directe en fallback
+        }
+      } catch(tokenErr) {
+        console.error('❌ Erreur OAuth SumUp:', tokenErr.message);
+      }
+    }
+
+    // ── Étape 2 : Créer le checkout ───────────────────────
+    const checkoutRef = `SINELEC-${num}-${Date.now()}`;
     const checkoutRes = await fetch('https://api.sumup.com/v0.1/checkouts', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${SUMUP_API_KEY}`,
+        'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        checkout_reference: num,
+        checkout_reference: checkoutRef,
         amount: montant,
         currency: 'EUR',
-        description: `SINELEC Paris - ${num} - ${data.client || ''}`,
-        merchant_code: process.env.SUMUP_MERCHANT_CODE || '',
+        description: `SINELEC Paris - Facture ${num} - ${data.client || ''}`,
         return_url: `${process.env.APP_URL || 'https://sinelec-api-production.up.railway.app'}/paiement-confirme/${num}`,
       }),
     });
 
     if (!checkoutRes.ok) {
       const err = await checkoutRes.text();
-      console.error('❌ Erreur SumUp:', err);
-      return res.status(500).json({ error: 'Erreur création checkout SumUp: ' + err });
+      console.error('❌ Erreur SumUp checkout:', err);
+      return res.status(500).json({ error: 'Erreur SumUp: ' + err });
     }
 
     const checkout = await checkoutRes.json();
