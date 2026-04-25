@@ -244,6 +244,7 @@ app.post('/api/generer', async (req, res) => {
     });
 
     if (dbError) throw dbError;
+      console.log('📌 DB saved, email check:', CONFIG.features.email_auto, email);
 
     // Email si activé et adresse fournie
    if (CONFIG.features.email_auto && email) {
