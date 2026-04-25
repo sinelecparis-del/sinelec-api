@@ -1293,13 +1293,51 @@ sig_path=sys.argv[3]
 if os.path.exists(sig_path):
     sig_table=Table([[
         Table([[p('Signature du client',8,'Helvetica-Bold',GRIS_SOFT,sa=8)],[Image(sig_path,width=8*cm,height=2.5*cm)]],colWidths=[9.0*cm],style=TableStyle([('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8),('LEFTPADDING',(0,0),(-1,-1),12),('BACKGROUND',(0,0),(-1,-1),BLANC),('BOX',(0,0),(-1,-1),1,GRIS_LIGNE)])),
-        Table([[p('Cachet SINELEC',8,'Helvetica-Bold',GRIS_SOFT,sa=8)],[p('Diahe',14,'Helvetica-Bold',MARINE,TA_CENTER)],[p('Gerant SINELEC EI',8,color=GRIS_SOFT,align=TA_CENTER)]],colWidths=[9.0*cm],style=TableStyle([('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8),('LEFTPADDING',(0,0),(-1,-1),12),('BACKGROUND',(0,0),(-1,-1),BLANC),('BOX',(0,0),(-1,-1),1,GRIS_LIGNE),('TOPPADDING',(0,1),(0,1),20),('BOTTOMPADDING',(0,-1),(-1,-1),20)])),
+        Table([[p('Cachet SINELEC',8,'Helvetica-Bold',GRIS_SOFT,sa=8)],[p('Mr SINERA DIAHE',12,'Helvetica-Bold',MARINE,TA_CENTER)],[p('Gerant SINELEC EI',8,color=GRIS_SOFT,align=TA_CENTER)]],colWidths=[9.0*cm],style=TableStyle([('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8),('LEFTPADDING',(0,0),(-1,-1),12),('BACKGROUND',(0,0),(-1,-1),BLANC),('BOX',(0,0),(-1,-1),1,GRIS_LIGNE),('TOPPADDING',(0,1),(0,1),20),('BOTTOMPADDING',(0,-1),(-1,-1),20)])),
     ]],colWidths=[9.5*cm,9.5*cm])
     sig_table.setStyle(TableStyle([('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0),('INNERGRID',(0,0),(-1,-1),0,BLANC)]))
     story.append(sig_table)
 
 story.append(Spacer(1,0.2*cm))
 story.append(p('Document genere automatiquement par SINELEC OS — Signature electronique avec valeur probante (horodatage + IP enregistres)',7,color=GRIS_SOFT))
+
+# ── CONDITIONS GENERALES DE VENTE ─────────────────────────
+story.append(PageBreak())
+story.append(p('CONDITIONS GENERALES DE VENTE — SINELEC',16,'Helvetica-Bold',MARINE,sa=6))
+story.append(p('Version en vigueur au 1er janvier 2026',9,color=GRIS_SOFT,sa=16))
+story.append(HRFlowable(width='100%',thickness=2,color=OR,spaceAfter=16))
+
+cgv_articles = [
+    ('Art. 1 — Objet et champ d application', 'Les presentes CGV regissent l ensemble des relations contractuelles entre SINELEC, auto-entrepreneur represente par Mr SINERA DIAHE, SIRET 91015824500019, 128 Rue La Boetie 75008 Paris, et tout Client ayant recours a ses services. Elles s appliquent a toutes les prestations d electricite, installation, depannage, mise aux normes et maintenance. Toute commande implique l acceptation pleine des presentes CGV.'),
+    ('Art. 2 — Devis, commande et acceptation', 'Tout devis est valable 30 jours. Son acceptation avec mention "Bon pour accord" et signature vaut commande ferme. Toute modification du perimetre fera l objet d un avenant signe avant execution.'),
+    ('Art. 3 — Prix, facturation et penalites de retard', 'Prix en euros HT. TVA non applicable (art. 293B CGI). Acompte de 40% exige a la signature pour tout devis superieur a 400 euros. Solde a la fin des travaux. En cas de retard de paiement : penalites au taux de 3x le taux legal + indemnite forfaitaire de 40 euros (decret 2012-1115).'),
+    ('Art. 4 — Droit de retractation', 'Tout client particulier (contrat hors etablissement) dispose de 14 jours calendaires pour se retracter (art. L.221-18 Code Consommation). Ce droit ne s applique pas si les travaux ont commence avec l accord expres du Client avant expiration du delai.'),
+    ('Art. 5 — Execution des travaux et obligations', 'SINELEC s engage a respecter la norme NF C 15-100. Le Client assure un acces libre, informe des contraintes techniques, degage les zones de travail. Tout imprévu majeur fait l objet d un avenant avant reprise.'),
+    ('Art. 6 — Garanties', 'Garantie decennale ORUS (114 Bd Marius Vivier Merle, 69003 Lyon) : 10 ans sur la solidite des ouvrages. Garantie biennale : 2 ans sur les equipements. Garantie de parfait achevement : 1 an. Non applicables en cas de mauvaise utilisation, modification par tiers ou force majeure.'),
+    ('Art. 7 — Reception des travaux', 'Reception contradictoire a l achevement. Tout defaut apparent doit etre signale par ecrit sous 48h a sinelec.paris@gmail.com. Passe ce delai, les travaux sont reputes acceptes sans reserve.'),
+    ('Art. 8 — Responsabilite et limitation', 'Responsabilite de SINELEC limitee au montant HT de la prestation concernee. SINELEC non responsable des dommages indirects (pertes d exploitation, pertes de revenus, etc.).'),
+    ('Art. 9 — Reserve de propriete', 'Les materiaux restent propriete de SINELEC jusqu au paiement integral. En cas de non-paiement, SINELEC peut reprendre les materiaux aux frais du Client.'),
+    ('Art. 10 — Signature electronique et valeur juridique', 'Conformement aux art. 1366 et 1367 du Code Civil, la signature electronique a la meme valeur qu une signature manuscrite. Date, heure, adresse IP et metadonnees conservees en serveur securise constituent une preuve opposable.'),
+    ('Art. 11 — Protection des donnees (RGPD)', 'Donnees collectees uniquement pour la gestion commerciale et la facturation. Non cedees a des tiers. Droit d acces, rectification, suppression via sinelec.paris@gmail.com. Conservation 5 ans.'),
+    ('Art. 12 — Force majeure', 'Aucune partie responsable en cas de force majeure (art. 1218 Code Civil). Notification sous 48h. Si persistance au-dela de 30 jours, resiliation sans indemnite sauf paiement des prestations effectuees.'),
+    ('Art. 13 — Sous-traitance', 'SINELEC peut sous-traiter a des professionnels qualifies en restant seul responsable vis-a-vis du Client. Le Client sera informe de tout recours a la sous-traitance.'),
+    ('Art. 14 — Mediation et litiges', 'Resolution amiable prioritaire (reponse sous 15 jours ouvrables). En cas d echec : mediation via Medicys, 73 bd de Clichy, 75009 Paris — www.medicys.fr. A defaut : competence exclusive du Tribunal de Commerce de Paris.'),
+    ('Art. 15 — Dispositions diverses', 'Clauses independantes. CGV soumises au droit francais. Modifiables a tout moment ; version applicable = celle en vigueur a la date d acceptation du devis.'),
+]
+
+for titre, contenu in cgv_articles:
+    story.append(p(titre, 9, 'Helvetica-Bold', MARINE, sb=8, sa=3))
+    story.append(p(contenu, 8, color=GRIS_TEXTE, sa=2, leading=11))
+
+story.append(Spacer(1,0.4*cm))
+story.append(HRFlowable(width='100%',thickness=0.5,color=GRIS_LIGNE,spaceAfter=8))
+pied = Table([[
+    p('SINELEC EI',8,'Helvetica-Bold',MARINE),
+    p('128 Rue La Boetie, 75008 Paris',8,color=GRIS_TEXTE,align=TA_CENTER),
+    p('SIRET : 91015824500019',8,color=GRIS_TEXTE,align=TA_RIGHT),
+]],colWidths=[6.0*cm,9.0*cm,6.0*cm])
+pied.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)]))
+story.append(pied)
 
 doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw))
 print('PDF_SIGNE_OK')
