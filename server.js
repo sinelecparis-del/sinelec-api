@@ -143,6 +143,54 @@ async function envoyerEmail(to, subject, htmlContent, attachment = null) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// HELPER: ENVOI SMS BREVO
+// ═══════════════════════════════════════════════════════════════
+
+async function envoyerSMS(to, message) {
+  if (!to || String(to).length < 8) {
+    console.log('📱 SMS ignoré — numéro invalide:', to);
+    return;
+  }
+
+  let num = String(to).replace(/[\s\-\.]/g, '');
+  if (num.startsWith('0')) num = '+33' + num.substring(1);
+  if (!num.startsWith('+')) num = '+33' + num;
+
+  console.log('📱 Envoi SMS à:', num);
+
+  try {
+    const res = await fetch('https://api.brevo.com/v3/transactionalSMS/sms', {
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'api-key': BREVO_API_KEY,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        sender: 'SINELEC',
+        recipient: num,
+        content: message,
+        type: 'transactional',
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      console.error('❌ Erreur SMS Brevo:', err);
+      return;
+    }
+
+    const result = await res.json();
+    console.log('✅ SMS envoyé !', result.messageId);
+    await logSystem('sms', `SMS envoyé à ${num}`, { messageId: result.messageId }, true);
+    return result;
+  } catch (error) {
+    console.error('❌ Erreur SMS:', error.message);
+    await logSystem('sms', `Erreur SMS à ${num}`, { error: error.message }, false, error);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
 // HELPER: INCRÉMENTER COMPTEUR
 // ═══════════════════════════════════════════════════════════════
 
@@ -227,7 +275,9 @@ app.post('/api/generer', async (req, res) => {
     const total_ht = prestations.reduce((sum, p) => sum + (p.prix * p.quantite), 0);
 
     const { error: dbError } = await supabase.from('historique').insert({
-      num, type, client, email, telephone, adresse, prestations, total_ht,
+      num, type, client, email, telephone, adresse, prestations,
+      total_ht,        // nom avec underscore
+      totalht: total_ht, // nom sans underscore (compatibilité Supabase)
       statut: 'envoyé',
       date_envoi: new Date().toISOString(),
       source: 'app',
