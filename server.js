@@ -100,6 +100,8 @@ async function envoyerEmail(to, subject, htmlContent, attachment = null) {
     to: [{ email: to }],
     subject,
     htmlContent,
+    trackOpens: 0,
+    trackClicks: 0,
   };
 
   if (attachment) {
@@ -653,9 +655,16 @@ print('PDF_OK')
       const pdfB64 = pdfBuffer.toString('base64');
       console.log('📄 PDF size:', pdfB64.length, 'chars');
 
+      // Construire email avec lien signature
+      const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+      const lienSig = `${appUrl}/signer/${num}`;
+      const htmlFinal = (type === 'devis' ? CONFIG.email.template_devis : CONFIG.email.template_facture)
+        .replace(/\{num\}/g, num)
+        .replace(/\{lien_signature\}/g, lienSig);
+
       await envoyerEmail(
         email, subject,
-        htmlEmail.replace('{num}', num),
+        htmlFinal,
         { content: pdfB64, name: `${num}.pdf` }
       );
 
