@@ -226,7 +226,6 @@ app.post('/api/generer', async (req, res) => {
       await supabase.storage
         .from('devis-factures')
         .upload(`${num}.pdf`, buffer, { contentType: 'application/pdf' });
-    }((sum, p) => sum + (p.prix * p.quantite), 0);
 
     // Sauvegarder
     const { error: dbError } = await supabase.from('historique').insert({
@@ -326,7 +325,6 @@ class SC(pdfcanvas.Canvas):
         pdfcanvas.Canvas.showPage(self)
         self.saveState()
     def save(self):
-        self._draw_last()
         pdfcanvas.Canvas.save(self)
     def _draw_bg(self):
         self.saveState()
@@ -345,8 +343,8 @@ class SC(pdfcanvas.Canvas):
         self.rect(0.1*cm,H-3.6*cm,W-0.1*cm,3.38*cm,fill=1,stroke=0)
         # Logo
         from reportlab.lib.utils import ImageReader
+        logo_img.seek(0)
         self.drawImage(ImageReader(logo_img),0.9*cm,H-3.2*cm,width=2.5*cm,height=2.5*cm,preserveAspectRatio=True,mask='auto')
-        from reportlab.lib.utils import ImageReader
         # SINELEC texte
         self.setFont('Helvetica-Bold',22)
         self.setFillColor(JAUNE)
