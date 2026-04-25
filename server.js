@@ -206,7 +206,7 @@ app.post('/api/generer', async (req, res) => {
   }
 
   try {
-    const { type, client, email, telephone, adresse, prestations } = req.body;
+    const { type, client, email, telephone, adresse, codePostal, ville, prenom, siret, tvaNum, description, prestations } = req.body;
     const startTime = Date.now();
 
     const compteur = await incrementerCompteur(type);
@@ -250,6 +250,27 @@ app.post('/api/generer', async (req, res) => {
         total: p.prix * p.quantite,
         details: []
       }));
+
+      // Générer descriptions pro avec Claude
+      try {
+        const promptDesc = 'Tu es expert électricien SINELEC Paris. Pour chaque prestation ci-dessous, génère UNE description courte (max 12 mots) qui détaille ce qui est inclus et rassure le client. Réponds UNIQUEMENT en JSON valide: [{"nom": "...", "desc": "..."}]\n\nPrestations:\n' + prestations.map(p => p.nom).join('\n');
+        const descResp = await anthropic.messages.create({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 800,
+          messages: [{ role: 'user', content: promptDesc }]
+        });
+        const descText = descResp.content[0].text;
+        const jsonMatch = descText.match(/\[.*\]/s);
+        if (jsonMatch) {
+          const descs = JSON.parse(jsonMatch[0]);
+          detailsData = detailsData.map((d, i) => ({
+            ...d,
+            details: descs[i]?.desc ? [descs[i].desc] : []
+          }));
+        }
+      } catch(e) {
+        console.log('⚠️ Descriptions auto skippées:', e.message);
+      }
 
       try {
         const promptDesc = `Tu es expert électricien SINELEC Paris. Pour chaque prestation, génère UNE description courte (max 12 mots) qui justifie le prix et rassure le client. Réponds UNIQUEMENT en JSON: [{"nom": "...", "desc": "..."}]
@@ -423,8 +444,8 @@ story = []
 # ── OBJET + CLIENT ────────────────────────────────────────
 objet_b = Table([
     [p('OBJET DES TRAVAUX', 7.5, 'Helvetica-Bold', OR, sa=4)],
-    [p('Travaux d\\u2019electricite generale', 10, 'Helvetica-Bold', MARINE)],
-    [p('Conformes NF C 15-100  \\u2022  Garantie decennale ORUS', 7.5, color=GRIS_SOFT)],
+    [p('${description or 'Travaux d\u2019electricite generale'}', 10, 'Helvetica-Bold', MARINE)],
+    [p('Conformes NF C 15-100  \u2022  Garantie decennale ORUS', 7.5, color=GRIS_SOFT)],
 ], colWidths=[8.2*cm])
 objet_b.setStyle(TableStyle([
     ('TOPPADDING', (0,0), (-1,-1), 3),
