@@ -308,7 +308,10 @@ ${prestations.map(p => p.nom).join('\n')}`;
       // Nettoyer adresse GPS
       const adresseRaw = String(adresse || '').replace(/'/g, ' ').trim();
       const adresseParts = adresseRaw.split(',').map(s => s.trim()).filter(Boolean);
-      const clientRue = adresseParts[0] || '';
+      // Rue = rejoindre numéro + nom si séparés
+      const clientRue = adresseParts.length >= 2 && adresseParts[0].match(/^\d+$/)
+        ? adresseParts[0] + ' ' + adresseParts[1]
+        : adresseParts[0] || '';
       const cpMatch = adresseRaw.match(/\b(\d{5})\b/);
       const cpFromAdresse = cpMatch ? cpMatch[1] : '';
       const clientCP = String(codePostal || '').trim() || cpFromAdresse;
@@ -372,8 +375,6 @@ class SC(pdfcanvas.Canvas):
         self._draw_footer()
         pdfcanvas.Canvas.showPage(self)
         self._pg += 1
-        self.saveState()
-        self._draw_page()
     def save(self):
         pdfcanvas.Canvas.save(self)
 
