@@ -1776,9 +1776,10 @@ app.post('/api/sumup/lien/:num', async (req, res) => {
 
     console.log(`💳 Génération lien SumUp pour ${num} — ${montant}€`);
 
-    // ── Créer le checkout SumUp ──────────────────────────
-    // La clé API SumUp fonctionne directement comme Bearer token
+    // ── Hosted Checkout SumUp (méthode officielle) ───────
     const checkoutRef = `SINELEC-${num}-${Date.now()}`;
+    const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+
     const checkoutRes = await fetch('https://api.sumup.com/v0.1/checkouts', {
       method: 'POST',
       headers: {
@@ -1791,18 +1792,24 @@ app.post('/api/sumup/lien/:num', async (req, res) => {
         currency: 'EUR',
         description: `SINELEC Paris - Facture ${num} - ${data.client || ''}`,
         pay_to_email: process.env.SUMUP_EMAIL || 'sinelec.paris@gmail.com',
-        return_url: `${process.env.APP_URL || 'https://sinelec-api-production.up.railway.app'}/paiement-confirme/${num}`,
+        redirect_url: `${appUrl}/paiement-confirme/${num}`,
+        hosted_checkout: { enabled: true }
       }),
     });
 
     if (!checkoutRes.ok) {
       const err = await checkoutRes.text();
-      console.error('❌ Erreur SumUp checkout:', err);
+      console.error('❌ Erreur SumUp:', err);
       return res.status(500).json({ error: 'Erreur SumUp: ' + err });
     }
 
     const checkout = await checkoutRes.json();
-    const lienPaiement = `https://pay.sumup.com/b2c/redirect?checkout_id=${checkout.id}`;
+    console.log('💳 SumUp checkout créé:', checkout.id);
+
+    // hosted_checkout_url = URL de paiement directe retournée par SumUp
+    const lienPaiement = checkout.hosted_checkout_url ||
+      checkout.checkout_url ||
+      `https://pay.sumup.com/b2c/checkout/${checkout.id}`;
 
     console.log(`✅ Lien SumUp créé: ${lienPaiement}`);
 
