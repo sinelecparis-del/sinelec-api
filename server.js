@@ -2660,14 +2660,16 @@ async function verifierSante() {
     erreurs.push('sumup');
   }
 
-  // 5. Claude API — test minimal
+  // 5. Claude API — vérifier la clé via endpoint account
   try {
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 5,
-      messages: [{ role: 'user', content: 'ok' }]
+    if (!process.env.ANTHROPIC_API_KEY) throw new Error('Clé API manquante');
+    const res = await fetch('https://api.anthropic.com/v1/models', {
+      headers: {
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01'
+      }
     });
-    if (!response.content) throw new Error('Pas de réponse');
+    if (!res.ok && res.status !== 404) throw new Error('HTTP ' + res.status);
     await mettreAJourStatut('claude_api', true);
     console.log('✅ Claude API OK');
   } catch(e) {
@@ -2700,8 +2702,10 @@ async function verifierSante() {
 cron.schedule('0 * * * *', verifierSante);
 console.log('📅 Health check programmé: toutes les heures');
 
-// Lancer un premier check au démarrage (après 30s)
-setTimeout(() => verifierSante(), 30000);
+// Lancer un premier check au démarrage (après 2min) — non bloquant
+setTimeout(() => {
+  verifierSante().catch(e => console.error('⚠️ Health check démarrage:', e.message));
+}, 120000); // 2 minutes
 
 // ══════════════════════════════════════════════════════════════
 // API: ÉTAT SANTÉ SYSTÈME
