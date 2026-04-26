@@ -1483,6 +1483,35 @@ app.get('/api/historique', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════
+// API: SUPPRIMER DEVIS/FACTURE
+// ═══════════════════════════════════════════════════════════════
+app.delete('/api/historique/:num', async (req, res) => {
+  try {
+    const { num } = req.params;
+    const { error } = await supabase.from('historique').delete().eq('num', num);
+    if (error) throw error;
+    await logSystem('delete', `${num} supprimé`, { num }, true);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Erreur suppression:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ── PATCH statut d'un document ──────────────────────────────
+app.patch('/api/historique/:num/statut', async (req, res) => {
+  try {
+    const { num } = req.params;
+    const { statut } = req.body;
+    await supabase.from('historique').update({ statut }).eq('num', num);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+// ═══════════════════════════════════════════════════════════════
 // API: CLIENTS (agrégés)
 // ═══════════════════════════════════════════════════════════════
 
