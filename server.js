@@ -1820,11 +1820,56 @@ app.post('/api/sumup/lien/:num', async (req, res) => {
 
     await logSystem('sumup', `Lien paiement créé pour ${num}`, { lien: lienPaiement, montant }, true);
 
-    // Envoyer SMS au client si téléphone disponible
+    const prenomClient = (data.client || 'client').split(' ')[0];
+
+    // ── Email avec bouton paiement ────────────────────────
+    if (data.email) {
+      try {
+        const htmlPaiement = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"></head>
+<body style="font-family:Arial,sans-serif;background:#f0f2f5;margin:0;padding:20px;">
+<div style="max-width:600px;margin:0 auto;">
+  <div style="background:linear-gradient(135deg,#1B2A4A,#243660);border-radius:16px;padding:24px;text-align:center;margin-bottom:16px;">
+    <div style="font-size:24px;font-weight:900;color:white;">⚡ SINELEC Paris</div>
+    <div style="color:rgba(255,255,255,0.7);font-size:13px;margin-top:4px;">Lien de paiement sécurisé</div>
+  </div>
+  <div style="background:white;border-radius:16px;padding:28px;margin-bottom:16px;box-shadow:0 2px 12px rgba(0,0,0,0.06);">
+    <h2 style="color:#1B2A4A;margin-bottom:8px;">Bonjour ${prenomClient},</h2>
+    <p style="color:#555;font-size:14px;margin-bottom:20px;">Votre facture SINELEC <strong>${num}</strong> d'un montant de <strong style="color:#C9A84C;">${montant.toFixed(2)} €</strong> est prête au paiement.</p>
+    <div style="text-align:center;margin:28px 0;">
+      <a href="${lienPaiement}" style="display:inline-block;background:linear-gradient(135deg,#C9A84C,#A07830);color:white;text-decoration:none;padding:18px 40px;border-radius:14px;font-size:16px;font-weight:800;letter-spacing:0.5px;">
+        💳 Payer ${montant.toFixed(2)} € maintenant
+      </a>
+    </div>
+    <p style="color:#aaa;font-size:12px;text-align:center;">Paiement sécurisé via SumUp — Lien valable 30 minutes</p>
+    <div style="background:#f8f9fa;border-radius:10px;padding:14px;margin-top:20px;">
+      <div style="color:#888;font-size:12px;">Si le bouton ne fonctionne pas, copiez ce lien :</div>
+      <div style="color:#1B2A4A;font-size:11px;word-break:break-all;margin-top:6px;">${lienPaiement}</div>
+    </div>
+  </div>
+  <div style="text-align:center;color:#aaa;font-size:12px;">SINELEC Paris — 07 87 38 86 22 — sinelec.paris@gmail.com</div>
+</div></body></html>`;
+
+        await envoyerEmail(
+          data.email,
+          `💳 Paiement SINELEC ${num} — ${montant.toFixed(2)} €`,
+          htmlPaiement
+        );
+        console.log('✅ Email paiement envoyé à:', data.email);
+      } catch(e) {
+        console.error('⚠️ Email paiement:', e.message);
+      }
+    }
+
+    // ── SMS court et chaleureux ───────────────────────────
     if (data.telephone) {
-      const prenomClient = (data.client || 'client').split(' ')[0];
-      const smsMsg = `Bonjour ${prenomClient}, voici le lien pour regler votre facture SINELEC ${num} (${montant}€) : ${lienPaiement}`;
-      await envoyerSMS(data.telephone, smsMsg);
+      try {
+        const smsCourt = `Bonjour ${prenomClient} 😊 Merci pour votre confiance ! Voici votre lien de paiement securise - ${montant.toFixed(0)}EUR : ${lienPaiement} A bientot ! SINELEC Paris ⚡`;
+        await envoyerSMS(data.telephone, smsCourt);
+        console.log('✅ SMS paiement envoyé à:', data.telephone);
+      } catch(e) {
+        console.error('⚠️ SMS paiement:', e.message);
+      }
     }
 
     res.json({ 
