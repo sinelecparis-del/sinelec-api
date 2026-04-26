@@ -61,7 +61,7 @@ function verifierToken(token) {
 // Middleware auth — protège toutes les routes /api/*
 function authMiddleware(req, res, next) {
   // Routes publiques — pas d'auth requise
-  const publicRoutes = ['/api/login', '/health', '/signer/', '/paiement-confirme/', '/api/signature'];
+  const publicRoutes = ['/', '/health', '/api/login', '/signer/', '/paiement-confirme/', '/api/signature', '/api/auth/check'];
   if (publicRoutes.some(r => req.path.startsWith(r))) return next();
   
   const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
