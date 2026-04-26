@@ -138,6 +138,9 @@ async function envoyerEmail(to, subject, htmlContent, attachment = null) {
   } catch (error) {
     console.error('❌ Erreur lors de l\'envoi email:', error);
     await logSystem('email', `Erreur envoi à ${to}`, { error: error.message }, false, error);
+    // Alerte monitoring — en background pour ne pas bloquer
+    alerterErreurCritique('brevo_email', error.message, `Destinataire: ${to} | Sujet: ${subject}`).catch(() => {});
+    mettreAJourStatut('brevo_email', false, error.message).catch(() => {});
     throw error;
   }
 }
@@ -187,6 +190,9 @@ async function envoyerSMS(to, message) {
   } catch (error) {
     console.error('❌ Erreur SMS:', error.message);
     await logSystem('sms', `Erreur SMS à ${num}`, { error: error.message }, false, error);
+    // Alerte monitoring
+    alerterErreurCritique('brevo_sms', error.message, `Destinataire: ${num}`).catch(() => {});
+    mettreAJourStatut('brevo_sms', false, error.message).catch(() => {});
   }
 }
 
@@ -699,6 +705,8 @@ print('PDF_OK')
         execSync(`python3 ${pyPath} ${detailsPath} ${pdfPath}`, { cwd: __dirname, stdio: 'inherit' });
       } catch(pyErr) {
         console.error('❌ Python error:', pyErr.message);
+        alerterErreurCritique('pdf_python', pyErr.message, `Devis: ${num}`).catch(() => {});
+        mettreAJourStatut('pdf_python', false, pyErr.message).catch(() => {});
         throw new Error('PDF generation failed');
       }
 
@@ -1926,6 +1934,8 @@ app.post('/api/sumup/lien/:num', async (req, res) => {
   } catch (error) {
     console.error('Erreur SumUp:', error);
     await logSystem('sumup', 'Erreur lien paiement', { error: error.message }, false, error);
+    alerterErreurCritique('sumup', error.message, `Facture: ${req.params?.num}`).catch(() => {});
+    mettreAJourStatut('sumup', false, error.message).catch(() => {});
     res.status(500).json({ error: error.message });
   }
 });
@@ -2381,6 +2391,284 @@ app.post('/api/rapport-hebdo/tester', async (req, res) => {
     res.json({ success: true, message: 'Rapport envoyé à sinelec.paris@gmail.com' });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+
+// ═══════════════════════════════════════════════════════════════
+// MONITORING SYSTÈME — SINELEC OS
+// ═══════════════════════════════════════════════════════════════
+
+// Cache état des services en mémoire
+const serviceStatus = {
+  brevo_email: { status: 'unknown', lastCheck: null, lastError: null, uptime: 0, checks: 0 },
+  brevo_sms:   { status: 'unknown', lastCheck: null, lastError: null, uptime: 0, checks: 0 },
+  sumup:       { status: 'unknown', lastCheck: null, lastError: null, uptime: 0, checks: 0 },
+  supabase:    { status: 'unknown', lastCheck: null, lastError: null, uptime: 0, checks: 0 },
+  claude_api:  { status: 'unknown', lastCheck: null, lastError: null, uptime: 0, checks: 0 },
+  pdf_python:  { status: 'unknown', lastCheck: null, lastError: null, uptime: 0, checks: 0 },
+};
+
+// Mettre à jour le cache + Supabase
+async function mettreAJourStatut(service, ok, erreur = null) {
+  const s = serviceStatus[service];
+  if (!s) return;
+  s.status = ok ? 'ok' : 'error';
+  s.lastCheck = new Date().toISOString();
+  s.lastError = ok ? null : String(erreur || 'Erreur inconnue');
+  s.checks++;
+  if (ok) s.uptime++;
+
+  try {
+    await supabase.from('monitoring').upsert({
+      service,
+      status: s.status,
+      last_check: s.lastCheck,
+      last_error: s.lastError,
+      uptime_pct: s.checks > 0 ? Math.round((s.uptime / s.checks) * 100) : 0
+    }, { onConflict: 'service' });
+  } catch(e) {
+    // Silencieux — le monitoring ne doit pas faire planter l'app
+  }
+}
+
+// Alerte email critique — NON BLOQUANT
+async function alerterErreurCritique(service, erreur, contexte = '') {
+  const icons = {
+    brevo_email: '📧', brevo_sms: '📱', sumup: '💳',
+    supabase: '🗄️', claude_api: '🤖', pdf_python: '📄'
+  };
+  const labels = {
+    brevo_email: 'Brevo Email', brevo_sms: 'Brevo SMS', sumup: 'SumUp Paiement',
+    supabase: 'Base de données Supabase', claude_api: 'Claude API', pdf_python: 'Génération PDF'
+  };
+
+  console.error(`🚨 ALERTE CRITIQUE [${service}]:`, erreur, contexte);
+
+  const html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"></head>
+<body style="font-family:Arial,sans-serif;background:#fff5f5;margin:0;padding:20px;">
+<div style="max-width:600px;margin:0 auto;">
+  <div style="background:linear-gradient(135deg,#dc2626,#b91c1c);border-radius:16px;padding:24px;text-align:center;margin-bottom:16px;">
+    <div style="font-size:32px;margin-bottom:8px;">🚨</div>
+    <div style="font-size:20px;font-weight:900;color:white;">ALERTE SINELEC OS</div>
+    <div style="color:rgba(255,255,255,0.8);font-size:13px;margin-top:4px;">Erreur critique détectée</div>
+  </div>
+  <div style="background:white;border-radius:16px;padding:24px;box-shadow:0 2px 12px rgba(0,0,0,0.1);">
+    <table style="width:100%;border-collapse:collapse;">
+      <tr style="border-bottom:1px solid #fee2e2;">
+        <td style="padding:12px 0;color:#888;font-size:13px;">Service</td>
+        <td style="padding:12px 0;font-weight:700;color:#dc2626;text-align:right;">${icons[service] || '⚠️'} ${labels[service] || service}</td>
+      </tr>
+      <tr style="border-bottom:1px solid #fee2e2;">
+        <td style="padding:12px 0;color:#888;font-size:13px;">Heure</td>
+        <td style="padding:12px 0;font-weight:700;color:#1B2A4A;text-align:right;">${new Date().toLocaleString('fr-FR')}</td>
+      </tr>
+      <tr style="border-bottom:1px solid #fee2e2;">
+        <td style="padding:12px 0;color:#888;font-size:13px;">Erreur</td>
+        <td style="padding:12px 0;font-weight:700;color:#dc2626;text-align:right;font-size:12px;">${String(erreur).substring(0, 200)}</td>
+      </tr>
+      ${contexte ? `<tr>
+        <td style="padding:12px 0;color:#888;font-size:13px;">Contexte</td>
+        <td style="padding:12px 0;color:#555;text-align:right;font-size:12px;">${contexte}</td>
+      </tr>` : ''}
+    </table>
+    <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px;margin-top:16px;">
+      <div style="color:#dc2626;font-size:13px;font-weight:700;">⚡ Action requise</div>
+      <div style="color:#555;font-size:12px;margin-top:4px;">Connectez-vous à SINELEC OS et vérifiez l'onglet Santé Système.</div>
+    </div>
+    <div style="text-align:center;margin-top:20px;">
+      <a href="${process.env.APP_URL || 'https://sinelec-api-production.up.railway.app'}/app.html" 
+         style="display:inline-block;background:linear-gradient(135deg,#1B2A4A,#243660);color:white;text-decoration:none;padding:12px 24px;border-radius:10px;font-size:13px;font-weight:700;">
+        🔍 Voir SINELEC OS
+      </a>
+    </div>
+  </div>
+  <div style="text-align:center;color:#aaa;font-size:11px;margin-top:12px;">
+    SINELEC OS Monitoring — Alerte automatique
+  </div>
+</div></body></html>`;
+
+  try {
+    // Envoyer l'alerte directement via fetch (pas via envoyerEmail pour éviter boucle infinie)
+    await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'api-key': BREVO_API_KEY,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        sender: { name: 'SINELEC OS Monitoring', email: 'sinelec.paris@gmail.com' },
+        to: [{ email: 'sinelec.paris@gmail.com' }],
+        subject: `🚨 ALERTE SINELEC OS — ${labels[service] || service} en erreur`,
+        htmlContent: html,
+        trackOpens: 0, trackClicks: 0,
+      }),
+    });
+  } catch(e) {
+    console.error('⚠️ Impossible d\'envoyer l\'alerte monitoring:', e.message);
+  }
+
+  // Logger dans Supabase
+  await mettreAJourStatut(service, false, erreur);
+}
+
+// ══════════════════════════════════════════════════════════════
+// HEALTH CHECK — Test réel de chaque service
+// ══════════════════════════════════════════════════════════════
+
+async function verifierSante() {
+  console.log('🏥 Health check démarré...');
+  const erreurs = [];
+
+  // 1. Supabase — test lecture simple
+  try {
+    const { error } = await supabase.from('compteurs').select('valeur').limit(1);
+    if (error) throw error;
+    await mettreAJourStatut('supabase', true);
+    console.log('✅ Supabase OK');
+  } catch(e) {
+    await alerterErreurCritique('supabase', e.message, 'Health check');
+    erreurs.push('supabase');
+  }
+
+  // 2. Brevo Email — vérifier le solde
+  try {
+    const res = await fetch('https://api.brevo.com/v3/account', {
+      headers: { 'api-key': BREVO_API_KEY, 'accept': 'application/json' }
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    // Vérifier si le plan est actif
+    if (!data.email || !data.email.blockedContactsUrl) {
+      // Compte valide même sans cette propriété
+    }
+    await mettreAJourStatut('brevo_email', true);
+    console.log('✅ Brevo Email OK');
+  } catch(e) {
+    await alerterErreurCritique('brevo_email', e.message, 'Health check');
+    erreurs.push('brevo_email');
+  }
+
+  // 3. Brevo SMS — vérifier crédit
+  try {
+    const res = await fetch('https://api.brevo.com/v3/account', {
+      headers: { 'api-key': BREVO_API_KEY, 'accept': 'application/json' }
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    // Vérifier crédit SMS
+    const creditSMS = data.plan?.find(p => p.type === 'sms')?.credits || 0;
+    if (creditSMS < 10) {
+      // Alerte crédit bas mais pas une erreur bloquante
+      await alerterErreurCritique('brevo_sms', 
+        `Crédit SMS bas: ${creditSMS} SMS restants`, 
+        'Rechargez vos crédits sur brevo.com');
+    } else {
+      await mettreAJourStatut('brevo_sms', true);
+    }
+    console.log(`✅ Brevo SMS OK — ${creditSMS} crédits`);
+  } catch(e) {
+    await alerterErreurCritique('brevo_sms', e.message, 'Health check');
+    erreurs.push('brevo_sms');
+  }
+
+  // 4. SumUp — vérifier l'auth
+  try {
+    if (SUMUP_API_KEY) {
+      const res = await fetch('https://api.sumup.com/v0.1/me', {
+        headers: { 'Authorization': `Bearer ${SUMUP_API_KEY}` }
+      });
+      if (!res.ok && res.status !== 404) throw new Error('HTTP ' + res.status);
+      await mettreAJourStatut('sumup', true);
+      console.log('✅ SumUp OK');
+    }
+  } catch(e) {
+    await alerterErreurCritique('sumup', e.message, 'Health check');
+    erreurs.push('sumup');
+  }
+
+  // 5. Claude API — test minimal
+  try {
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 5,
+      messages: [{ role: 'user', content: 'ok' }]
+    });
+    if (!response.content) throw new Error('Pas de réponse');
+    await mettreAJourStatut('claude_api', true);
+    console.log('✅ Claude API OK');
+  } catch(e) {
+    await alerterErreurCritique('claude_api', e.message, 'Health check');
+    erreurs.push('claude_api');
+  }
+
+  // 6. PDF Python — vérifier que python3 + reportlab sont dispo
+  try {
+    const { execSync } = require('child_process');
+    execSync('python3 -c "import reportlab; print(\'ok\')"', { timeout: 5000 });
+    await mettreAJourStatut('pdf_python', true);
+    console.log('✅ PDF Python OK');
+  } catch(e) {
+    await alerterErreurCritique('pdf_python', e.message, 'Health check');
+    erreurs.push('pdf_python');
+  }
+
+  const bilan = erreurs.length === 0 
+    ? '✅ Tous les services OK' 
+    : `⚠️ ${erreurs.length} service(s) en erreur: ${erreurs.join(', ')}`;
+  
+  console.log('🏥 Health check terminé —', bilan);
+  await logSystem('health_check', bilan, { erreurs }, erreurs.length === 0);
+  
+  return { ok: erreurs.length === 0, erreurs, status: serviceStatus };
+}
+
+// Cron health check toutes les heures
+cron.schedule('0 * * * *', verifierSante);
+console.log('📅 Health check programmé: toutes les heures');
+
+// Lancer un premier check au démarrage (après 30s)
+setTimeout(() => verifierSante(), 30000);
+
+// ══════════════════════════════════════════════════════════════
+// API: ÉTAT SANTÉ SYSTÈME
+// ══════════════════════════════════════════════════════════════
+
+app.get('/api/sante', async (req, res) => {
+  try {
+    // Récupérer depuis Supabase pour avoir l'historique
+    const { data } = await supabase.from('monitoring').select('*');
+    
+    // Fusionner avec le cache mémoire
+    const result = {};
+    for (const [service, status] of Object.entries(serviceStatus)) {
+      const dbRecord = (data || []).find(r => r.service === service);
+      result[service] = {
+        ...status,
+        uptime_pct: dbRecord?.uptime_pct || (status.checks > 0 ? Math.round((status.uptime / status.checks) * 100) : null)
+      };
+    }
+    
+    const allOk = Object.values(result).every(s => s.status === 'ok' || s.status === 'unknown');
+    res.json({ 
+      global: allOk ? 'ok' : 'degraded',
+      lastCheck: new Date().toISOString(),
+      services: result 
+    });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// API: Lancer health check manuellement
+app.post('/api/sante/verifier', async (req, res) => {
+  try {
+    const result = await verifierSante();
+    res.json(result);
+  } catch(e) {
+    res.status(500).json({ error: e.message });
   }
 });
 
