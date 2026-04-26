@@ -725,6 +725,19 @@ print('PDF_OK')
     }
 
     await logSystem('generer', `${type} ${num} créé`, { client, total_ht }, true);
+
+    // ── SMS avis Google immédiat à la génération FACTURE ──
+    if (type === 'facture' && telephone) {
+      try {
+        const prenomSms = String(prenom || client || 'client').split(' ')[0].trim();
+        const smsAvis = `Bonjour ${prenomSms}, merci pour votre confiance ! Si vous etes satisfait, un avis Google nous aiderait beaucoup : https://g.page/r/sinelecparis/review - SINELEC Paris`;
+        await envoyerSMS(telephone, smsAvis);
+        console.log('📱 SMS avis Google envoyé à:', telephone);
+      } catch(smsErr) {
+        console.error('⚠️ Erreur SMS avis:', smsErr.message);
+      }
+    }
+
     res.json({ success: true, num, total_ht });
 
   } catch (error) {
