@@ -1213,25 +1213,51 @@ function clearSearch(prefix) {
 
 // ═══════════════════ LIEN PAIEMENT SUMUP ═══════════════════
 async function genererLienPaiement(num) {
+
+  // ── Choix du mode d'envoi ──────────────────────────────
+  const choix = await new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = `
+      <div style="background:white;border-radius:20px;padding:28px;max-width:340px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+        <div style="text-align:center;margin-bottom:20px;">
+          <div style="font-size:36px;margin-bottom:8px;">💳</div>
+          <div style="font-size:16px;font-weight:800;color:#1B2A4A;">Envoyer le lien de paiement</div>
+          <div style="font-size:13px;color:#888;margin-top:4px;">Comment envoyer au client ?</div>
+        </div>
+        <button id="choix-sms" style="width:100%;background:linear-gradient(135deg,#1B2A4A,#243660);color:white;border:none;border-radius:12px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:10px;">
+          📱 SMS — Brevo
+        </button>
+        <button id="choix-email" style="width:100%;background:linear-gradient(135deg,#C9A84C,#A07830);color:white;border:none;border-radius:12px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:10px;">
+          📧 Email seulement
+        </button>
+        <button id="choix-les2" style="width:100%;background:rgba(16,185,129,0.1);color:#10b981;border:1px solid rgba(16,185,129,0.3);border-radius:12px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:16px;">
+          📱 + 📧 SMS & Email
+        </button>
+        <button id="choix-annuler" style="width:100%;background:none;border:1px solid #eee;border-radius:12px;padding:10px;font-size:13px;color:#888;cursor:pointer;">
+          Annuler
+        </button>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#choix-sms').onclick = () => { document.body.removeChild(overlay); resolve('sms'); };
+    overlay.querySelector('#choix-email').onclick = () => { document.body.removeChild(overlay); resolve('email'); };
+    overlay.querySelector('#choix-les2').onclick = () => { document.body.removeChild(overlay); resolve('les2'); };
+    overlay.querySelector('#choix-annuler').onclick = () => { document.body.removeChild(overlay); resolve(null); };
+  });
+
+  if (!choix) return;
+
   showToast('⏳ Génération lien paiement...', '💳');
+
   try {
-    const res = await fetch('/api/sumup/lien/' + num, { method: 'POST' });
+    const res = await fetch('/api/sumup/lien/' + num + '?envoi=' + choix, { method: 'POST' });
     const data = await res.json();
     if (data.success) {
-      // Copier le lien
-      if (navigator.clipboard) {
-        await navigator.clipboard.writeText(data.lien);
-      }
-      // Afficher avec option d'envoyer
-      const action = confirm(
-        '✅ Lien de paiement généré !\n\n' +
-        '💰 Montant : ' + data.montant.toFixed(2) + ' €\n' +
-        '🔗 ' + data.lien + '\n\n' +
-        'Lien copié dans le presse-papier.\n' +
-        'Cliquez OK pour ouvrir le lien.'
-      );
+      if (navigator.clipboard) await navigator.clipboard.writeText(data.lien);
+      const labels = { sms: '📱 SMS envoyé', email: '📧 Email envoyé', les2: '📱 SMS + 📧 Email envoyés' };
+      showToast('💳 Lien généré — ' + (labels[choix] || '') + ' !', '✅');
+      const action = confirm('✅ Lien de paiement généré !\n\n💰 Montant : ' + data.montant.toFixed(2) + ' €\n\nLien copié dans le presse-papier.\nCliquez OK pour ouvrir le lien.');
       if (action) window.open(data.lien, '_blank');
-      showToast('💳 Lien copié — SMS envoyé au client !', '✅');
     } else {
       showToast('❌ Erreur : ' + (data.error || 'Erreur SumUp'), '⚠️');
     }
