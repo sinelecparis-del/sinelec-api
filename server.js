@@ -77,12 +77,14 @@ app.use(authMiddleware);
 app.post('/api/login', (req, res) => {
   const { password } = req.body;
   
-  // Comparaison en temps constant pour éviter timing attacks
-  const inputHash = crypto.createHash('sha256').update(password || '').digest('hex');
-  const validHash = crypto.createHash('sha256').update(APP_PASSWORD).digest('hex');
+  // Comparaison directe avec trim pour éviter les espaces parasites
+  const inputPwd = String(password || '').trim();
+  const validPwd = String(APP_PASSWORD || 'sinelec2026').trim();
   
-  if (inputHash !== validHash) {
-    console.log('🔐 Tentative de connexion échouée');
+  console.log('🔐 Tentative connexion — longueur input:', inputPwd.length, '/ longueur attendu:', validPwd.length);
+  
+  if (inputPwd !== validPwd) {
+    console.log('🔐 Connexion échouée');
     return res.status(401).json({ error: 'Mot de passe incorrect' });
   }
   
