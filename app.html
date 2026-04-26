@@ -1267,13 +1267,33 @@ async function genererLienPaiement(num) {
 }
 
 async function supprimerDoc(num) {
-  if (!confirm('Supprimer ' + num + ' ? Cette action est irréversible.')) return;
+  // Safari iOS bloque confirm() — popup custom
+  const ok = await new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = `
+      <div style="background:white;border-radius:20px;padding:28px;max-width:320px;width:88%;box-shadow:0 20px 60px rgba(0,0,0,0.3);text-align:center;">
+        <div style="font-size:40px;margin-bottom:12px;">🗑️</div>
+        <div style="font-size:16px;font-weight:800;color:#1B2A4A;margin-bottom:8px;">Supprimer ${num} ?</div>
+        <div style="font-size:13px;color:#888;margin-bottom:24px;">Cette action est irréversible.</div>
+        <button id="sup-oui" style="width:100%;background:#ef4444;color:white;border:none;border-radius:12px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:10px;">Supprimer</button>
+        <button id="sup-non" style="width:100%;background:none;border:1px solid #eee;border-radius:12px;padding:12px;font-size:13px;color:#888;cursor:pointer;">Annuler</button>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#sup-oui').onclick = () => { document.body.removeChild(overlay); resolve(true); };
+    overlay.querySelector('#sup-non').onclick = () => { document.body.removeChild(overlay); resolve(false); };
+  });
+
+  if (!ok) return;
+
   try {
     const res = await fetch('/api/historique/' + num, { method: 'DELETE' });
     const data = await res.json();
     if (data.success) {
       showToast('🗑️ ' + num + ' supprimé', '✅');
       chargerHistorique();
+    } else {
+      showToast('❌ Erreur suppression', '⚠️');
     }
   } catch(e) {
     showToast('❌ Erreur suppression', '⚠️');
