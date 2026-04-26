@@ -1821,9 +1821,10 @@ app.post('/api/sumup/lien/:num', async (req, res) => {
     await logSystem('sumup', `Lien paiement créé pour ${num}`, { lien: lienPaiement, montant }, true);
 
     const prenomClient = (data.client || 'client').split(' ')[0];
+    const modeEnvoi = req.query.envoi || 'les2'; // sms | email | les2
 
     // ── Email avec bouton paiement ────────────────────────
-    if (data.email) {
+    if ((modeEnvoi === 'email' || modeEnvoi === 'les2') && data.email) {
       try {
         const htmlPaiement = `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"></head>
@@ -1862,7 +1863,7 @@ app.post('/api/sumup/lien/:num', async (req, res) => {
     }
 
     // ── SMS court et chaleureux ───────────────────────────
-    if (data.telephone) {
+    if ((modeEnvoi === 'sms' || modeEnvoi === 'les2') && data.telephone) {
       try {
         const smsCourt = `Bonjour ${prenomClient} 😊 Merci pour votre confiance ! Voici votre lien de paiement securise - ${montant.toFixed(0)}EUR : ${lienPaiement} A bientot ! SINELEC Paris ⚡`;
         await envoyerSMS(data.telephone, smsCourt);
