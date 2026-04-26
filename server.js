@@ -843,34 +843,69 @@ app.post('/api/chat', async (req, res) => {
     const grille = await chargerGrilleTarifaire();
     if (!grille) throw new Error('Impossible de charger la grille tarifaire');
 
-    const prompt = `Tu es un assistant pour SINELEC Paris, électricien. Le client décrit son chantier. Analyse et génère un panier.
+    // Résumé compact de la grille
+    const grilleResume = Object.entries(grille).map(([cat, items]) =>
+      `${cat}: ${items.map(i => `${i.nom} (${i.prix}€)`).join(', ')}`
+    ).join('\n');
 
-GRILLE TARIFAIRE:
-${JSON.stringify(grille, null, 2)}
+    const prompt = `Tu es l'assistant IA de SINELEC Paris, electricien expert IDF.
+Diahe (le patron) te decrit un chantier. Tu dois :
+1. Identifier les prestations dans la grille tarifaire
+2. Pour les prestations HORS GRILLE utiliser web_search pour trouver le prix marche IDF
+3. Retourner un devis complet en JSON
 
-MESSAGE CLIENT: "${message}"
+GRILLE TARIFAIRE SINELEC:
+${grilleResume}
 
-RÉPONDS EN JSON:
+REGLES:
+- Forfait tout compris (MO + fourniture + fixations)
+- Prix coherents avec le marche Paris IDF
+- Si prestation hors grille chercher sur internet le prix moyen IDF
+- TVA non applicable art. 293B
+
+CHANTIER: "${message}"
+
+REPONDS UNIQUEMENT EN JSON:
 {
   "prestations": [
-    { "code": "prise", "nom": "Prise électrique", "quantite": 2, "prix": 90 }
+    { "nom": "Nom prestation", "quantite": 1, "prix": 90, "desc": "Description courte forfait tout compris" }
   ],
-  "explication": "J'ai détecté..."
+  "total": 0,
+  "explication": "Analyse du chantier...",
+  "hors_grille": []
 }`;
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 1000,
+      max_tokens: 2000,
+      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
       messages: [{ role: 'user', content: prompt }]
     });
 
-    const text = response.content[0].text;
+    // Extraire le texte final après les tool_use blocks
+    let text = '';
+    for (const block of response.content) {
+      if (block.type === 'text') text += block.text;
+    }
+
     const jsonMatch = text.match(/\{[\s\S]*\}/);
-    const result = jsonMatch ? JSON.parse(jsonMatch[0]) : { prestations: [], explication: text };
+    let result;
+    if (jsonMatch) {
+      try {
+        result = JSON.parse(jsonMatch[0]);
+        if (!result.total && result.prestations) {
+          result.total = result.prestations.reduce((s, p) => s + (p.prix * p.quantite), 0);
+        }
+      } catch(e) {
+        result = { prestations: [], explication: text, total: 0 };
+      }
+    } else {
+      result = { prestations: [], explication: text, total: 0 };
+    }
 
-    await logSystem('chatbot', 'Parsing chantier réussi', { message, result }, true);
-
+    await logSystem('chatbot', 'Parsing chantier reussi', { message, nb: result.prestations?.length }, true);
     res.json(result);
+
   } catch (error) {
     console.error('Erreur chatbot:', error);
     await logSystem('chatbot', 'Erreur parsing', { error: error.message }, false, error);
