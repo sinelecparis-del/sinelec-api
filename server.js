@@ -1776,43 +1776,13 @@ app.post('/api/sumup/lien/:num', async (req, res) => {
 
     console.log(`💳 Génération lien SumUp pour ${num} — ${montant}€`);
 
-    // ── Étape 1 : Obtenir le token OAuth2 SumUp ───────────
-    let accessToken = SUMUP_API_KEY; // fallback si déjà un Bearer token
-
-    // Si c'est un Client Secret (pas un token), obtenir le token via OAuth2
-    if (SUMUP_API_KEY && !SUMUP_API_KEY.startsWith('eyJ')) {
-      try {
-        const tokenRes = await fetch('https://api.sumup.com/token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({
-            grant_type: 'client_credentials',
-            client_id: process.env.SUMUP_CLIENT_ID || '',
-            client_secret: SUMUP_API_KEY,
-            scope: 'payments'
-          })
-        });
-
-        if (tokenRes.ok) {
-          const tokenData = await tokenRes.json();
-          accessToken = tokenData.access_token;
-          console.log('✅ Token SumUp OAuth2 obtenu');
-        } else {
-          const tokenErr = await tokenRes.text();
-          console.error('❌ Erreur token SumUp:', tokenErr);
-          // Continuer avec la clé directe en fallback
-        }
-      } catch(tokenErr) {
-        console.error('❌ Erreur OAuth SumUp:', tokenErr.message);
-      }
-    }
-
-    // ── Étape 2 : Créer le checkout ───────────────────────
+    // ── Créer le checkout SumUp ──────────────────────────
+    // La clé API SumUp fonctionne directement comme Bearer token
     const checkoutRef = `SINELEC-${num}-${Date.now()}`;
     const checkoutRes = await fetch('https://api.sumup.com/v0.1/checkouts', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
+        'Authorization': `Bearer ${SUMUP_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
