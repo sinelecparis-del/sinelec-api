@@ -28,6 +28,77 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(__dirname));
 
+// ═══════════════════════════════════════════════════════════════
+// AUTHENTIFICATION — SINELEC OS
+// ═══════════════════════════════════════════════════════════════
+
+const crypto = require('crypto');
+
+const APP_PASSWORD = process.env.APP_PASSWORD || 'sinelec2026';
+const JWT_SECRET   = process.env.JWT_SECRET   || crypto.randomBytes(32).toString('hex');
+const TOKEN_EXPIRY = 7 * 24 * 60 * 60 * 1000; // 7 jours
+
+// Générer un token simple HMAC
+function genererToken() {
+  const payload = JSON.stringify({ ts: Date.now(), exp: Date.now() + TOKEN_EXPIRY });
+  const b64 = Buffer.from(payload).toString('base64');
+  const sig = crypto.createHmac('sha256', JWT_SECRET).update(b64).digest('hex');
+  return `${b64}.${sig}`;
+}
+
+// Vérifier un token
+function verifierToken(token) {
+  if (!token) return false;
+  try {
+    const [b64, sig] = token.split('.');
+    const expectedSig = crypto.createHmac('sha256', JWT_SECRET).update(b64).digest('hex');
+    if (sig !== expectedSig) return false;
+    const { exp } = JSON.parse(Buffer.from(b64, 'base64').toString());
+    return Date.now() < exp;
+  } catch(e) { return false; }
+}
+
+// Middleware auth — protège toutes les routes /api/*
+function authMiddleware(req, res, next) {
+  // Routes publiques — pas d'auth requise
+  const publicRoutes = ['/api/login', '/health', '/signer/', '/paiement-confirme/', '/api/signature'];
+  if (publicRoutes.some(r => req.path.startsWith(r))) return next();
+  
+  const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
+  if (!verifierToken(token)) {
+    return res.status(401).json({ error: 'Non autorisé — Veuillez vous connecter', code: 'UNAUTHORIZED' });
+  }
+  next();
+}
+
+app.use(authMiddleware);
+
+// Route de connexion
+app.post('/api/login', (req, res) => {
+  const { password } = req.body;
+  
+  // Comparaison en temps constant pour éviter timing attacks
+  const inputHash = crypto.createHash('sha256').update(password || '').digest('hex');
+  const validHash = crypto.createHash('sha256').update(APP_PASSWORD).digest('hex');
+  
+  if (inputHash !== validHash) {
+    console.log('🔐 Tentative de connexion échouée');
+    return res.status(401).json({ error: 'Mot de passe incorrect' });
+  }
+  
+  const token = genererToken();
+  console.log('🔐 Connexion réussie');
+  res.json({ success: true, token, expiresIn: TOKEN_EXPIRY });
+});
+
+// Route de vérification token
+app.get('/api/auth/check', (req, res) => {
+  const token = req.headers['authorization']?.replace('Bearer ', '');
+  res.json({ valid: verifierToken(token) });
+});
+
+
+
 // Clients
 const supabase = createClient(
   process.env.SUPABASE_URL,
