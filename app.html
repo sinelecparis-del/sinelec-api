@@ -2101,11 +2101,12 @@ async function autocompleteAdresse(id, value) {
 // ═══════════════════ CHATBOT CLAUDE ═══════════════════
 let chatPanier = [];
 
-function ajouterMessageChat(texte, estUser) {
+function ajouterMessageChat(texte, estUser, isHTML) {
   const container = document.getElementById('chat-messages');
   const div = document.createElement('div');
-  div.style.cssText = `background:${estUser ? 'rgba(212,165,116,0.2)' : 'rgba(212,165,116,0.15)'};border-radius:12px;padding:12px;font-size:13px;line-height:1.6;align-self:${estUser ? 'flex-end' : 'flex-start'};max-width:85%;color:var(--text);`;
-  div.textContent = texte;
+  div.style.cssText = 'background:' + (estUser ? 'rgba(212,165,116,0.2)' : 'rgba(212,165,116,0.15)') + ';border-radius:12px;padding:12px;font-size:13px;line-height:1.6;align-self:' + (estUser ? 'flex-end' : 'flex-start') + ';max-width:85%;color:var(--text);';
+  if (isHTML) div.innerHTML = texte;
+  else div.textContent = texte;
   container.appendChild(div);
   container.scrollTop = container.scrollHeight;
 }
@@ -2114,41 +2115,55 @@ async function envoyerMessage() {
   const input = document.getElementById('chat-input');
   const msg = input.value.trim();
   if (!msg) return;
-  
+
   input.value = '';
-  ajouterMessageChat(msg, true);
-  
+  input.disabled = true;
+  ajouterMessageChat(msg, true, false);
+
   const loading = document.createElement('div');
-  loading.style.cssText = 'background:rgba(212,165,116,0.15);border-radius:12px;padding:12px;font-size:13px;color:var(--accent);';
-  loading.textContent = '⏳ Claude analyse...';
+  loading.style.cssText = 'background:rgba(212,165,116,0.15);border-radius:12px;padding:12px;font-size:13px;color:var(--accent);align-self:flex-start;';
+  loading.innerHTML = '🤖 Claude analyse... <span style="opacity:0.6;font-size:11px;">(recherche web si nécessaire)</span>';
   document.getElementById('chat-messages').appendChild(loading);
 
   try {
-    const grille_str = JSON.stringify(GRILLE);
-    
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: msg,
-        grille: grille_str
-      })
+      body: JSON.stringify({ message: msg })
     });
 
     const data = await res.json();
     loading.remove();
+    input.disabled = false;
+    input.focus();
+
+    if (data.error) { ajouterMessageChat('❌ Erreur : ' + data.error, false, false); return; }
 
     if (data.prestations && data.prestations.length > 0) {
-      chatPanier = data.prestations;
-      ajouterMessageChat(`✅ J'ai détecté ${data.prestations.length} prestation(s) pour ${data.total.toFixed(2)} € HT. Vérifie le panier ci-dessous !`, false);
-      if (data.message) ajouterMessageChat(data.message, false);
+      chatPanier = data.prestations.map(function(p) {
+        return {
+          designation: p.nom || p.designation || 'Prestation',
+          qte: p.quantite || p.qte || 1,
+          prixUnit: p.prix || p.prixUnit || 0,
+          desc: p.desc || ''
+        };
+      });
+
+      const total = data.total || chatPanier.reduce(function(s, p) { return s + p.prixUnit * p.qte; }, 0);
+      let msgReponse = '✅ ' + chatPanier.length + ' prestation(s) — <strong>' + total.toFixed(2) + ' € HT</strong>';
+      if (data.hors_grille && data.hors_grille.length > 0) {
+        msgReponse += '<br><span style="color:#C9A84C;font-size:11px;">🔍 Recherche web : ' + data.hors_grille.join(', ') + '</span>';
+      }
+      ajouterMessageChat(msgReponse, false, true);
+      if (data.explication) ajouterMessageChat('💡 ' + data.explication, false, false);
       afficherChatPanier();
     } else {
-      ajouterMessageChat(data.message || 'Je n\'ai pas compris. Essaie de décrire autrement !', false);
+      ajouterMessageChat(data.explication || '🤔 Décris plus précisément le chantier !', false, false);
     }
   } catch(e) {
     loading.remove();
-    ajouterMessageChat('❌ Erreur de connexion. Réessaie !', false);
+    input.disabled = false;
+    ajouterMessageChat('❌ Erreur de connexion. Réessaie !', false, false);
   }
 }
 
