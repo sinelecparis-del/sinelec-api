@@ -2364,6 +2364,116 @@ function afficherSante(data) {
 }
 
 
+
+// ═══════════════════════════════════════════════════════════ AUTH SINELEC OS
+
+const TOKEN_KEY = 'sinelec_token';
+
+function getToken() { return localStorage.getItem(TOKEN_KEY); }
+function saveToken(t) { localStorage.setItem(TOKEN_KEY, t); }
+function clearToken() { localStorage.removeItem(TOKEN_KEY); }
+
+// Intercepter tous les fetch pour ajouter le token automatiquement
+const _originalFetch = window.fetch;
+window.fetch = function(url, options = {}) {
+  const token = getToken();
+  if (token && typeof url === 'string' && url.startsWith('/api/') && !url.startsWith('/api/login')) {
+    options.headers = options.headers || {};
+    options.headers['Authorization'] = `Bearer ${token}`;
+    // Si la réponse est 401 → déconnexion automatique
+    return _originalFetch(url, options).then(res => {
+      if (res.status === 401) {
+        clearToken();
+        afficherLogin();
+        return res;
+      }
+      return res;
+    });
+  }
+  return _originalFetch(url, options);
+};
+
+async function seConnecter() {
+  const pwd = document.getElementById('login-password').value;
+  const btn = document.getElementById('login-btn');
+  const errEl = document.getElementById('login-error');
+  
+  if (!pwd) return;
+  
+  btn.disabled = true;
+  btn.textContent = '⏳ Connexion...';
+  errEl.style.display = 'none';
+  
+  try {
+    const res = await _originalFetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pwd })
+    });
+    const data = await res.json();
+    
+    if (data.success && data.token) {
+      saveToken(data.token);
+      masquerLogin();
+      initialiserApp();
+    } else {
+      errEl.style.display = 'block';
+      document.getElementById('login-password').value = '';
+      document.getElementById('login-password').focus();
+    }
+  } catch(e) {
+    errEl.textContent = '❌ Erreur réseau — Réessayez';
+    errEl.style.display = 'block';
+  }
+  
+  btn.disabled = false;
+  btn.textContent = '🔐 Connexion';
+}
+
+function afficherLogin() {
+  document.getElementById('login-screen').style.display = 'flex';
+  setTimeout(() => document.getElementById('login-password')?.focus(), 100);
+}
+
+function masquerLogin() {
+  document.getElementById('login-screen').style.display = 'none';
+}
+
+function seDeconnecter() {
+  clearToken();
+  afficherLogin();
+}
+
+async function verifierAuth() {
+  const token = getToken();
+  if (!token) { afficherLogin(); return false; }
+  
+  try {
+    const res = await _originalFetch('/api/auth/check', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (!data.valid) { clearToken(); afficherLogin(); return false; }
+    return true;
+  } catch(e) {
+    afficherLogin(); return false;
+  }
+}
+
+function initialiserApp() {
+  masquerLogin();
+  // Charger le dashboard au démarrage
+  if (typeof chargerDashboard === 'function') chargerDashboard();
+  if (typeof chargerHistorique === 'function') chargerHistorique();
+}
+
+// Au chargement de la page
+window.addEventListener('DOMContentLoaded', async () => {
+  const ok = await verifierAuth();
+  if (ok) initialiserApp();
+});
+
+
 let historiqueData = [];
 let histoFiltreActif = 'tous';
 
@@ -2774,6 +2884,10 @@ function switchPageMenu() {
       <div onclick="switchPage('params', this);document.body.querySelectorAll('[style*=bottom]')[1].remove();menuPlusOpen=false;" style="padding:12px 20px;border-radius:10px;background:rgba(255,255,255,0.5);cursor:pointer;font-size:14px;font-weight:600;display:flex;align-items:center;gap:10px;">
         <span>⚙️</span> Paramètres
       </div>
+    <div class="sidebar-item" onclick="seDeconnecter()" style="margin-top:auto;color:#ef4444;border-top:1px solid rgba(239,68,68,0.2);">
+      <span class="sidebar-item-icon">🚪</span>
+      <span class="sidebar-item-label">Déconnexion</span>
+    </div>
     </div>
   `;
   document.body.appendChild(menu);
