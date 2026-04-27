@@ -1688,53 +1688,108 @@ app.get('/api/clients', async (req, res) => {
 
 app.post('/api/dpe', async (req, res) => {
   try {
-    const { pdf_text, nom_client, adresse_client } = req.body;
-    if (!pdf_text) return res.status(400).json({ error: 'Texte DPE manquant' });
+    const { pdf_text, image_base64, image_type, nom_client, adresse_client } = req.body;
+    if (!pdf_text && !image_base64) return res.status(400).json({ error: 'Fichier manquant (PDF ou photo)' });
 
-    const prompt = `Tu es un expert électricien parisien. Analyse ce DPE et identifie UNIQUEMENT les travaux électriques. Ignore tout ce qui n'est pas électrique (isolation, fenêtres, toiture, gaz, etc.).
+    const promptBase = `Tu es un expert électricien certifié parisien avec 20 ans d'expérience. Tu analyses des DPE pour établir des devis électriques PRÉCIS et PROFESSIONNELS.
 
-Voici le contenu du DPE :
----
-${pdf_text.substring(0, 20000)}
----
+MISSION : Analyser ce DPE et identifier UNIQUEMENT les travaux électriques nécessaires. Ignore absolument tout ce qui n'est pas électrique : isolation, fenêtres, toiture, chaudière gaz, VMC non électrique, etc.
 
-Extrais :
-1. Surface m², classe énergie, année construction
-2. Chauffage électrique présent (convecteurs/inertie/plancher/non électrique)
-3. Eau chaude électrique (chauffe-eau/ballon thermo/non électrique)
-4. VMC présente ou absente
-5. État tableau électrique
-6. DAAF présent ou absent
+MÉTHODE D'ANALYSE - Procède étape par étape :
 
-Puis génère les recommandations électriques avec ces prix SINELEC exacts :
-- Remplacement convecteur → inertie : 450€/unité
-- Convecteur mural : 200€/unité
-- Radiateur inertie : 350€/unité
-- Sèche-serviettes : 280€/unité
+ÉTAPE 1 — LIS ATTENTIVEMENT tout le document pour identifier :
+- La surface exacte en m²
+- La classe énergie actuelle (A à G) et les étiquettes énergie/GES
+- L'année de construction du bâtiment
+- Le système de chauffage : est-il électrique ? (convecteurs, radiateurs à inertie, plancher chauffant électrique, pompe à chaleur électrique) ou non électrique (gaz, fioul) ?
+- Le système d'eau chaude sanitaire : électrique ? (chauffe-eau électrique, ballon thermodynamique) ou non électrique ?
+- La présence ou absence de VMC et son type
+- L'état du tableau électrique mentionné ou visible
+- La présence de DAAF (détecteur de fumée)
+- Tout équipement électrique mentionné (climatisation, volets roulants motorisés, etc.)
+
+ÉTAPE 2 — POUR CHAQUE ÉLÉMENT ÉLECTRIQUE IDENTIFIÉ, évalue :
+- L'état actuel (vétuste, conforme, absent, à remplacer)
+- La quantité précise si mentionnée (nombre de radiateurs, surface, etc.)
+- La priorité réelle pour le confort et la sécurité du client
+- L'impact sur la classe énergie après travaux
+
+ÉTAPE 3 — GÉNÈRE LES RECOMMANDATIONS avec les prix SINELEC EXACTS suivants (n'invente AUCUN autre prix) :
+
+CHAUFFAGE ÉLECTRIQUE :
+- Remplacement convecteur → radiateur inertie : 450€/unité (inclut dépose ancien + fourniture + pose + raccordement)
+- Installation convecteur mural neuf : 200€/unité
+- Installation radiateur à inertie neuf : 350€/unité
+- Sèche-serviettes électrique : 280€/unité
 - Thermostat programmable : 140€/unité
-- Thermostat connecté : 180€/unité
-- VMC autoréglable : 450€
-- VMC hygroréglable A : 600€
-- VMC hygroréglable B : 700€
-- Chauffe-eau 100L : 450€
-- Chauffe-eau 200L : 580€
-- Ballon thermodynamique : 850€
-- Mise conformité NF C15-100 : 65€/m²
-- Tableau 1 rangée : 650€
-- Tableau 2 rangées : 1050€
-- DAAF : 85€/unité
-- Diagnostic électrique : 150€
-- Ligne dédiée chauffe-eau : 220€
-- Mise à la terre : 650€
-- Liaison équipotentielle SdB : 140€
+- Thermostat connecté / fil pilote : 180€/unité
+- Dépose ancien radiateur : 60€/unité
 
-Réponds UNIQUEMENT en JSON valide sans markdown ni backticks :
-{"logement":{"surface":65,"classe":"F","annee_construction":1975,"chauffage_electrique":"convecteurs","eau_chaude_electrique":"chauffe-eau 200L","vmc":"absente","tableau":"non conforme","daaf":"absent"},"resume":"Description courte du logement.","recommandations":[{"id":"chauffage","titre":"Titre court","description":"Description précise","priorite":"haute","prestations":[{"nom":"Nom prestation SINELEC","prix":450,"quantite":3}]}]}`;
+EAU CHAUDE SANITAIRE :
+- Chauffe-eau électrique 100L : 450€ (fourniture + pose + raccordement)
+- Chauffe-eau électrique 200L : 580€ (fourniture + pose + raccordement)
+- Ballon thermodynamique : 850€ (fourniture + pose + raccordement)
+- Ligne dédiée chauffe-eau 20A : 220€
+
+VMC :
+- VMC simple flux autoréglable : 450€ (fourniture + pose + mise en service)
+- VMC simple flux hygroréglable type A : 600€
+- VMC simple flux hygroréglable type B : 700€
+
+TABLEAU ÉLECTRIQUE & CONFORMITÉ :
+- Tableau complet 1 rangée (6-13 modules) : 650€
+- Tableau complet 2 rangées (14-26 modules) : 1050€
+- Mise en conformité NF C15-100 : 65€/m² (circuits, protections, mise à la terre)
+- Diagnostic électrique obligatoire : 150€
+- Mise à la terre complète : 650€
+- Liaison équipotentielle principale : 160€
+- Liaison équipotentielle salle de bain : 140€
+- DAAF certifié NF : 85€/unité
+- Détecteur CO monoxyde : 95€/unité
+
+ÉTAPE 4 — RÉDIGE des descriptions PROFESSIONNELLES et PRÉCISES pour chaque recommandation, comme si tu les expliquais au client en face à face. Sois concret sur les bénéfices.
+
+Réponds UNIQUEMENT en JSON valide, sans texte avant ni après, sans markdown, sans backticks. Respecte exactement ce format :
+{
+  "logement": {
+    "surface": 65,
+    "classe": "F",
+    "annee_construction": 1975,
+    "chauffage_electrique": "4 convecteurs électriques vétustes",
+    "eau_chaude_electrique": "chauffe-eau 200L de 2008",
+    "vmc": "absente",
+    "tableau": "non conforme - tableau années 80",
+    "daaf": "absent"
+  },
+  "resume": "Appartement 65m² classé F construit en 1975. Chauffage électrique par 4 convecteurs vétustes très énergivores. Pas de VMC, risque d'humidité. Chauffe-eau électrique de 2008 à remplacer. Tableau électrique non conforme aux normes actuelles.",
+  "recommandations": [
+    {
+      "id": "chauffage",
+      "titre": "Remplacement des convecteurs par radiateurs à inertie",
+      "description": "Vos 4 convecteurs électriques actuels datent de la construction et consomment beaucoup trop. Le remplacement par des radiateurs à inertie avec thermostat connecté et fil pilote permettra de réduire votre consommation électrique de chauffage de 25 à 40%, tout en améliorant le confort thermique. Chaque radiateur sera raccordé sur un circuit dédié avec protection différentielle.",
+      "priorite": "haute",
+      "prestations": [
+        { "nom": "Remplacement convecteur vers inertie", "prix": 450, "quantite": 4 },
+        { "nom": "Thermostat connecté / fil pilote", "prix": 180, "quantite": 1 }
+      ]
+    }
+  ]
+}`;
+
+    let messageContent;
+    if (image_base64) {
+      messageContent = [
+        { type: 'image', source: { type: 'base64', media_type: image_type || 'image/jpeg', data: image_base64 } },
+        { type: 'text', text: promptBase }
+      ];
+    } else {
+      messageContent = `${promptBase}\n\nVoici le contenu complet du DPE à analyser :\n---\n${pdf_text.substring(0, 20000)}\n---\n\nAnalyse maintenant ce DPE avec la méthode en 4 étapes et génère le JSON de recommandations.`;
+    }
 
     const response = await anthropic.messages.create({
       model: 'claude-opus-4-6',
-      max_tokens: 2000,
-      messages: [{ role: 'user', content: prompt }]
+      max_tokens: 4096,
+      messages: [{ role: 'user', content: messageContent }]
     });
 
     const rawText = response.content[0].text.trim();
