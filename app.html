@@ -8,6 +8,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
 
@@ -1603,13 +1604,26 @@ async function traiterFichierDPE(file) {
   document.getElementById('dpe-resultats').style.display = 'none';
 
   try {
-    // Lire PDF en base64
-    const base64 = await new Promise((res, rej) => {
-      const r = new FileReader();
-      r.onload = () => res(r.result.split(',')[1]);
-      r.onerror = rej;
-      r.readAsDataURL(file);
-    });
+    // Extraire le texte du PDF avec PDF.js
+    if (typeof pdfjsLib === 'undefined') throw new Error('PDF.js non chargé — recharge la page');
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+    // Limiter à 15 pages max — les infos électriques d'un DPE sont toujours dans les premières pages
+    const nbPages = Math.min(pdf.numPages, 15);
+    let texteComplet = '';
+    for (let i = 1; i <= nbPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      texteComplet += `[Page ${i}]\n` + content.items.map(item => item.str).join(' ') + '\n\n';
+    }
+
+    texteComplet = texteComplet.trim();
+    if (!texteComplet || texteComplet.length < 50) throw new Error('PDF scanné ou illisible — utilise un DPE en format texte');
+
+    showToast(`📄 ${nbPages}/${pdf.numPages} pages lues — Analyse Claude Opus en cours...`, '🔍');
 
     const nomClient = document.getElementById('dpe-client-nom').value.trim();
     const adresseClient = document.getElementById('dpe-client-adresse').value.trim();
@@ -1617,7 +1631,7 @@ async function traiterFichierDPE(file) {
     const resp = await fetch('/api/dpe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pdf_base64: base64, nom_client: nomClient, adresse_client: adresseClient })
+      body: JSON.stringify({ pdf_text: texteComplet, nom_client: nomClient, adresse_client: adresseClient })
     });
 
     const data = await resp.json();
