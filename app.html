@@ -1625,7 +1625,7 @@ function dropDPE(e) {
   }
 }
 
-// ─── Compression image via canvas (max 1200px, qualité 0.75) ───────
+// ─── Compression image via canvas (max 800px, qualité 0.7) ───────
 function compresserImage(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -1634,7 +1634,7 @@ function compresserImage(file) {
       const img = new Image();
       img.onerror = reject;
       img.onload = () => {
-        const MAX = 1200;
+        const MAX = 800;
         let w = img.width, h = img.height;
         if (w > MAX || h > MAX) {
           if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
@@ -1643,7 +1643,7 @@ function compresserImage(file) {
         const canvas = document.createElement('canvas');
         canvas.width = w; canvas.height = h;
         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        const compressed = canvas.toDataURL('image/jpeg', 0.75).split(',')[1];
+        const compressed = canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
         resolve({ base64: compressed, type: 'image/jpeg' });
       };
       img.src = e.target.result;
