@@ -108,7 +108,7 @@ const supabase = createClient(
 );
 
 const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY
+  apiKey: (process.env.ANTHROPIC_API_KEY || '').trim()
 });
 
 const BREVO_API_KEY = process.env.BREVO_API_KEY;
@@ -3484,7 +3484,7 @@ async function verifierSante() {
     if (!process.env.ANTHROPIC_API_KEY) throw new Error('Clé API manquante');
     const res = await fetch('https://api.anthropic.com/v1/models', {
       headers: {
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'x-api-key': (process.env.ANTHROPIC_API_KEY || '').trim(),
         'anthropic-version': '2023-06-01'
       }
     });
