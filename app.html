@@ -663,6 +663,10 @@ body::before {
 <!-- ════════════ MOBILE TABS BOTTOM ════════════ -->
 <div class="mobile-tabs">
   <div class="mobile-tabs-grid">
+    <div class="mobile-tab" onclick="switchPage('depannage', this)">
+      <div class="mobile-tab-icon">⚡</div>
+      <div class="mobile-tab-label">Urgence</div>
+    </div>
     <div class="mobile-tab active" onclick="switchPage('devis', this)">
       <div class="mobile-tab-icon">📋</div>
       <div class="mobile-tab-label">Devis</div>
@@ -670,10 +674,6 @@ body::before {
     <div class="mobile-tab" onclick="switchPage('facture', this)">
       <div class="mobile-tab-icon">💶</div>
       <div class="mobile-tab-label">Facture</div>
-    </div>
-    <div class="mobile-tab" onclick="switchPage('dashboard', this)">
-      <div class="mobile-tab-icon">📊</div>
-      <div class="mobile-tab-label">CA</div>
     </div>
     <div class="mobile-tab" onclick="switchPage('historique', this)">
       <div class="mobile-tab-icon">📋</div>
@@ -3260,6 +3260,9 @@ function switchPageMenu() {
       </div>
       <div onclick="switchPage('clients', this);document.body.querySelectorAll('[style*=bottom]')[1].remove();menuPlusOpen=false;" style="padding:12px 20px;border-radius:10px;background:rgba(255,255,255,0.5);cursor:pointer;font-size:14px;font-weight:600;display:flex;align-items:center;gap:10px;">
         <span>👥</span> Clients
+      </div>
+      <div onclick="switchPage('dashboard', this);document.body.querySelectorAll('[style*=bottom]')[1].remove();menuPlusOpen=false;" style="padding:12px 20px;border-radius:10px;background:rgba(255,255,255,0.5);cursor:pointer;font-size:14px;font-weight:600;display:flex;align-items:center;gap:10px;">
+        <span>📊</span> CA & Stats
       </div>
       <div onclick="switchPage('params', this);document.body.querySelectorAll('[style*=bottom]')[1].remove();menuPlusOpen=false;" style="padding:12px 20px;border-radius:10px;background:rgba(255,255,255,0.5);cursor:pointer;font-size:14px;font-weight:600;display:flex;align-items:center;gap:10px;">
         <span>⚙️</span> Paramètres
