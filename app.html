@@ -1079,6 +1079,17 @@ function afficherListeAgenda() {
   }).join('');
 }
 
+async function changerStatutIntervention(id, statut) {
+  try {
+    await fetch(`/api/agenda/${id}/statut`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ statut })
+    });
+    showToast(`✅ Intervention marquée "${statut}"`, '📅');
+    chargerAgenda();
+  } catch(e) { showToast('❌ Erreur', '⚠️'); }
+}
+
 async function voirMateriel(type) {
   try {
     const res = await fetch(`/api/agenda/materiel/${encodeURIComponent(type)}`);
