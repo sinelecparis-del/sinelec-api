@@ -37,20 +37,20 @@ const CONFIG = {
     historique: true,                  // ✅ Historique devis/factures
     
     // ─────────────── INTELLIGENCE (À activer progressivement) ───────────────
-    chatbot_claude: false,             // 🔒 Chatbot parsing chantier
+    chatbot_claude: true,              // ✅ Chatbot parsing chantier avec recherche web
     autocomplete_adresse: true,        // ✅ Autocomplete OpenStreetMap IDF
     autocomplete_client: true,        // 🔒 Autocomplete clients Supabase
     
     // ─────────────── AUTOMATISATION (À activer) ───────────────
-    veille_tarifaire: false,           // 🔒 Analyse marché automatique
+    veille_tarifaire: true,           // 🔒 Analyse marché automatique
     relances_auto: true,              // 🔒 Relances 48h automatiques
-    rapports_intervention: false,      // 🔒 Rapports avec photos
+    rapports_intervention: true,      // 🔒 Rapports avec photos
     
     // ─────────────── ANALYTICS AVANCÉS (À activer) ───────────────
     prediction_ca: false,              // 🔒 Prédiction CA mensuel
     analyse_devis_perdus: false,       // 🔒 Analyse pourquoi devis non signés
     stats_avancees: false,             // 🔒 Stats détaillées (taux conversion, etc.)
-    recommandations_ia: false,         // 🔒 Recommandations Claude
+    recommandations_ia: true,         // 🔒 Recommandations Claude
     
     // ─────────────── FUTUR / BETA (Désactivés) ───────────────
     multi_utilisateurs: false,         // 🔒 Gestion équipe
