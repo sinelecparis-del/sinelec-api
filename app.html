@@ -3966,8 +3966,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 chargerPrixSauvegardes();
-initCategories('d');
-initCategories('f');
+
+document.addEventListener('DOMContentLoaded', () => {
+  initCategories('d');
+  initCategories('f');
+});
 
 console.log('🔥 SINELEC Pro Edition loaded!');
 
