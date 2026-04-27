@@ -1800,7 +1800,7 @@ Réponds UNIQUEMENT en JSON valide, sans texte avant ni après, sans markdown, s
 
 
     const response = await anthropic.messages.create({
-      model: 'claude-opus-4-6',
+      model: 'claude-opus-4-5-20251101',
       max_tokens: 4096,
       messages: [{ role: 'user', content: messageContent }]
     });
@@ -1817,8 +1817,17 @@ Réponds UNIQUEMENT en JSON valide, sans texte avant ni après, sans markdown, s
 
     res.json({ success: true, ...result });
   } catch(e) {
-    console.error('Erreur DPE:', e.message);
-    res.status(500).json({ error: e.message });
+    console.error('═══ ERREUR DPE ═══');
+    console.error('Message:', e.message);
+    console.error('Type:', e.constructor?.name);
+    console.error('Status:', e.status);
+    console.error('Stack:', e.stack?.split('\n')[0]);
+    console.error('══════════════════');
+    res.status(500).json({ 
+      error: e.message,
+      type: e.constructor?.name,
+      status: e.status || null
+    });
   }
 });
 
