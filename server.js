@@ -536,39 +536,55 @@ class SC(pdfcanvas.Canvas):
         self.restoreState()
 
     def _draw_header(self):
-        # Header marine pleine largeur
         self.setFillColor(MARINE)
-        self.rect(0.78*cm, H-5.2*cm, W-0.78*cm, 5.2*cm, fill=1, stroke=0)
-        # Liseré or bas header
+        self.rect(0.78*cm, H-5.4*cm, W-0.78*cm, 5.4*cm, fill=1, stroke=0)
         self.setFillColor(OR)
-        self.rect(0.78*cm, H-5.2*cm, W-0.78*cm, 0.1*cm, fill=1, stroke=0)
-        # Logo
+        self.rect(0.78*cm, H-5.4*cm, W-0.78*cm, 0.12*cm, fill=1, stroke=0)
+        # Logo plus grand + monte
         logo_img = io.BytesIO(logo_bytes)
-        self.drawImage(ImageReader(logo_img), 1.3*cm, H-4.6*cm,
-            width=3.0*cm, height=3.0*cm, preserveAspectRatio=True, mask='auto')
-        # Infos société
+        self.drawImage(ImageReader(logo_img), 0.9*cm, H-5.05*cm,
+            width=4.2*cm, height=4.2*cm, preserveAspectRatio=True, mask='auto')
+        # Separateur vertical or
+        self.setStrokeColor(OR)
+        self.setLineWidth(0.8)
+        self.line(5.5*cm, H-0.9*cm, 5.5*cm, H-5.2*cm)
+        # Nom societe
+        self.setFont('Helvetica-Bold', 15)
+        self.setFillColor(colors.white)
+        self.drawString(5.9*cm, H-1.7*cm, 'SINELEC PARIS')
+        self.setStrokeColor(OR)
+        self.setLineWidth(1.0)
+        self.line(5.9*cm, H-1.95*cm, 11.5*cm, H-1.95*cm)
+        # Adresse
         self.setFont('Helvetica-Bold', 9)
         self.setFillColor(colors.white)
-        self.drawString(1.0*cm, H-4.5*cm, '128 Rue La Boetie, 75008 Paris')
+        self.drawString(5.9*cm, H-2.5*cm, '128 Rue La Boetie, 75008 Paris')
+        # Tel + Email
         self.setFont('Helvetica', 8.5)
         self.setFillColor(colors.HexColor('#BFC8D6'))
-        self.drawString(1.0*cm, H-4.75*cm, 'Tel : 07 87 38 86 22  |  sinelec.paris@gmail.com')
-        self.drawString(1.0*cm, H-5.0*cm, 'SIRET : 91015824500019')
-        # DEVIS / FACTURE
-        self.setFont('Helvetica-Bold', 44)
+        self.drawString(5.9*cm, H-3.0*cm, 'Tel : 07 87 38 86 22')
+        self.drawString(5.9*cm, H-3.4*cm, 'sinelec.paris@gmail.com')
+        # SIRET encadre
+        self.setFillColor(colors.HexColor('#243660'))
+        self.roundRect(5.9*cm, H-4.15*cm, 5.5*cm, 0.55*cm, 0.1*cm, fill=1, stroke=0)
+        self.setFont('Helvetica-Bold', 8)
+        self.setFillColor(OR)
+        self.drawString(6.1*cm, H-3.88*cm, 'SIRET : 91015824500019')
+        self.setFont('Helvetica', 7.5)
+        self.setFillColor(colors.HexColor('#8899BB'))
+        self.drawString(5.9*cm, H-4.6*cm, 'TVA non applicable art. 293B CGI')
+        # TITRE DEVIS / FACTURE
+        self.setFont('Helvetica-Bold', 40)
         self.setFillColor(BLANC)
         self.drawRightString(W-1.2*cm, H-2.2*cm, '${typeLabelUpper}')
-        # Liseré or sous le titre
         self.setStrokeColor(OR)
         self.setLineWidth(1.5)
-        self.line(10*cm, H-2.65*cm, W-1.2*cm, H-2.65*cm)
-        # Badge numéro
+        self.line(13*cm, H-2.65*cm, W-1.2*cm, H-2.65*cm)
         self.setFillColor(OR)
         self.roundRect(W-6.5*cm, H-3.55*cm, 5.3*cm, 0.65*cm, 0.15*cm, fill=1, stroke=0)
         self.setFont('Helvetica-Bold', 9)
         self.setFillColor(MARINE)
         self.drawCentredString(W-3.85*cm, H-3.22*cm, 'N\\u00b0 ${num}')
-        # Date
         self.setFont('Helvetica', 8)
         self.setFillColor(colors.HexColor('#BFC8D6'))
         self.drawRightString(W-1.2*cm, H-3.9*cm, 'Date : ${dateStr}   |   Valable jusqu\\u2019au : ${dateValide}')
