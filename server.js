@@ -1041,18 +1041,20 @@ app.get('/signer/:num', async (req, res) => {
     </div>
 
     <div class="card">
-      <div class="label">✅ Conditions à accepter</div>
-      <div class="cgv-item" onclick="toggleCGV(0)">
-        <div class="cgv-check" id="cgv-0"></div>
-        <div class="cgv-text"><strong>J'accepte les Conditions Générales de Vente</strong> de SINELEC Paris, incluant les modalités de paiement et d'intervention.</div>
-      </div>
-      <div class="cgv-item" onclick="toggleCGV(1)">
-        <div class="cgv-check" id="cgv-1"></div>
-        <div class="cgv-text"><strong>Je reconnais le montant de <span style="color:#C9A84C;">${montant} €</span></strong> HT (TVA non applicable, Art. 293B du CGI) pour les travaux décrits.</div>
-      </div>
-      <div class="cgv-item" onclick="toggleCGV(2)">
-        <div class="cgv-check" id="cgv-2"></div>
-        <div class="cgv-text"><strong>Bon pour accord</strong> — Je mandate SINELEC Paris pour réaliser les travaux selon ce devis, et m'engage à régler l'acompte de <strong style="color:#C9A84C;">${(parseFloat(montant)*0.4).toFixed(2)} €</strong> à la signature.</div>
+      <div class="label">✅ En signant, vous acceptez</div>
+      <div style="padding:12px 0;">
+        <div class="cgv-item" style="cursor:default;pointer-events:none;">
+          <div class="cgv-check checked" id="cgv-0" style="background:#1B2A4A;border-color:#1B2A4A;"></div>
+          <div class="cgv-text"><strong>Conditions Générales de Vente</strong> de SINELEC Paris, incluant les modalités de paiement et d'intervention.</div>
+        </div>
+        <div class="cgv-item" style="cursor:default;pointer-events:none;">
+          <div class="cgv-check checked" id="cgv-1" style="background:#1B2A4A;border-color:#1B2A4A;"></div>
+          <div class="cgv-text"><strong>Montant reconnu : <span style="color:#C9A84C;">${montant} €</span></strong> HT (TVA non applicable, Art. 293B du CGI).</div>
+        </div>
+        <div class="cgv-item" style="cursor:default;pointer-events:none;">
+          <div class="cgv-check checked" id="cgv-2" style="background:#1B2A4A;border-color:#1B2A4A;"></div>
+          <div class="cgv-text"><strong>Bon pour accord</strong> — Acompte de <strong style="color:#C9A84C;">${(parseFloat(montant)*0.4).toFixed(2)} €</strong> à la signature.</div>
+        </div>
       </div>
     </div>
 
@@ -1084,7 +1086,7 @@ app.get('/signer/:num', async (req, res) => {
 
 </div>
 <script>
-  const cgvState = [false, false, false];
+  const cgvState = [true, true, true]; // Pré-cochées — acceptées à la signature
   let hasDrawn = false;
   let isDrawing = false;
   let canvas, ctx;
@@ -1177,8 +1179,7 @@ app.get('/signer/:num', async (req, res) => {
   }
 
   function checkBtn() {
-    const allCGV = cgvState.every(v => v);
-    document.getElementById('btn-sign').disabled = !(allCGV && hasDrawn);
+    document.getElementById('btn-sign').disabled = !hasDrawn;
   }
 
   async function soumettre() {
@@ -1731,7 +1732,353 @@ Décris les travaux réalisés de manière claire et professionnelle (2-3 phrase
 });
 
 // ═══════════════════════════════════════════════════════════════
-// API: GRILLE TARIFAIRE
+// API: AGENDA
+// ═══════════════════════════════════════════════════════════════
+
+app.get('/api/agenda', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('agenda')
+      .select('*')
+      .order('date_intervention', { ascending: true })
+      .order('heure', { ascending: true });
+    if (error) throw error;
+    res.json(data || []);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/agenda', async (req, res) => {
+  try {
+    const { prenom, nom, client, telephone, adresse, date_intervention, heure, type_intervention, notes, sms_rappel } = req.body;
+    const { data, error } = await supabase.from('agenda').insert({
+      prenom, nom,
+      client: client || `${prenom} ${nom}`,
+      telephone, adresse, date_intervention, heure,
+      type_intervention, notes,
+      sms_rappel: sms_rappel !== false,
+      statut: 'planifié',
+      sms_veille_envoye: false,
+      sms_matin_envoye: false
+    }).select().single();
+    if (error) throw error;
+    await logSystem('agenda', `Intervention planifiée: ${client} le ${date_intervention}`, { date_intervention, heure }, true);
+    res.json({ success: true, id: data.id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/agenda/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { prenom, nom, client, telephone, adresse, date_intervention, heure, type_intervention, notes, sms_rappel } = req.body;
+    const { error } = await supabase.from('agenda').update({
+      prenom, nom,
+      client: client || `${prenom} ${nom}`,
+      telephone, adresse, date_intervention, heure,
+      type_intervention, notes,
+      sms_rappel: sms_rappel !== false,
+      sms_veille_envoye: false,
+      sms_matin_envoye: false
+    }).eq('id', id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.patch('/api/agenda/:id/statut', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { statut } = req.body;
+    const { error } = await supabase.from('agenda').update({ statut }).eq('id', id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/agenda/:id', async (req, res) => {
+  try {
+    const { error } = await supabase.from('agenda').delete().eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ─── CRON: SMS RAPPEL VEILLE à 18h ────────────────────────────
+cron.schedule('0 18 * * *', async () => {
+  console.log('📱 Cron SMS rappel veille 18h...');
+  try {
+    const demain = new Date(); demain.setDate(demain.getDate() + 1);
+    const demainStr = demain.toISOString().split('T')[0];
+
+    const { data: interventions } = await supabase
+      .from('agenda')
+      .select('*')
+      .eq('date_intervention', demainStr)
+      .eq('sms_rappel', true)
+      .eq('sms_veille_envoye', false)
+      .neq('statut', 'annulé');
+
+    for (const iv of (interventions || [])) {
+      if (!iv.telephone) continue;
+      const prenom = iv.prenom || (iv.client||'').split(' ')[0];
+      const dateLabel = demain.toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' });
+      const msg = `Bonjour ${prenom} ! Rappel : votre intervention SINELEC est prévue demain ${dateLabel} à ${iv.heure} au ${iv.adresse}. Pour toute question : 07 87 38 86 22 ⚡`;
+      await envoyerSMS(iv.telephone, msg);
+      await supabase.from('agenda').update({ sms_veille_envoye: true }).eq('id', iv.id);
+      console.log(`✅ SMS veille envoyé à ${iv.client}`);
+    }
+  } catch(e) { console.error('Erreur SMS veille:', e.message); }
+});
+
+// ─── CRON: SMS RAPPEL MATIN à 8h45 ────────────────────────────
+cron.schedule('45 8 * * *', async () => {
+  console.log('📱 Cron SMS rappel matin 8h45...');
+  try {
+    const aujourdhui = new Date().toISOString().split('T')[0];
+
+    const { data: interventions } = await supabase
+      .from('agenda')
+      .select('*')
+      .eq('date_intervention', aujourdhui)
+      .eq('sms_rappel', true)
+      .eq('sms_matin_envoye', false)
+      .neq('statut', 'annulé');
+
+    for (const iv of (interventions || [])) {
+      if (!iv.telephone) continue;
+      const prenom = iv.prenom || (iv.client||'').split(' ')[0];
+      const msg = `Bonjour ${prenom} ! 😊 Votre intervention SINELEC est bien confirmée aujourd'hui à ${iv.heure}. Nous serons là à l'heure ! En cas de besoin : 07 87 38 86 22 — Bonne journée ⚡`;
+      await envoyerSMS(iv.telephone, msg);
+      await supabase.from('agenda').update({ sms_matin_envoye: true }).eq('id', iv.id);
+      console.log(`✅ SMS matin envoyé à ${iv.client}`);
+    }
+  } catch(e) { console.error('Erreur SMS matin:', e.message); }
+});
+
+// ─── CRON: RÉCAP MATIN DIAHE à 7h00 ──────────────────────────
+cron.schedule('0 7 * * *', async () => {
+  console.log('☀️ Cron récap matin 7h...');
+  try {
+    const aujourdhui = new Date().toISOString().split('T')[0];
+    const dateLabel = new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+
+    const { data: interventions } = await supabase
+      .from('agenda').select('*')
+      .eq('date_intervention', aujourdhui)
+      .neq('statut', 'annulé')
+      .order('heure', { ascending: true });
+
+    const liste = interventions || [];
+    if (liste.length === 0) {
+      console.log('☀️ Aucune intervention aujourd\'hui');
+      return;
+    }
+
+    // Calcul CA potentiel (si lié à des devis)
+    const { data: devisJour } = await supabase
+      .from('historique').select('total_ht')
+      .eq('type', 'devis')
+      .gte('created_at', aujourdhui + 'T00:00:00')
+      .lte('created_at', aujourdhui + 'T23:59:59');
+    const caPotentiel = (devisJour||[]).reduce((s,d) => s + parseFloat(d.total_ht||0), 0);
+
+    // ── Email détaillé uniquement (gratuit) ──
+    const rowsHtml = liste.map(iv => `
+      <tr style="border-bottom:1px solid #f0f0f0;">
+        <td style="padding:12px 8px;font-weight:700;color:#C9A84C;font-size:14px;">${iv.heure}</td>
+        <td style="padding:12px 8px;font-weight:600;color:#1B2A4A;">${iv.client}</td>
+        <td style="padding:12px 8px;color:#555;font-size:13px;">${iv.adresse||'—'}</td>
+        <td style="padding:12px 8px;"><span style="background:#1B2A4A22;color:#1B2A4A;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700;">${iv.type_intervention}</span></td>
+        <td style="padding:12px 8px;font-size:12px;color:#888;">${iv.notes||'—'}</td>
+      </tr>`).join('');
+
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
+<body style="font-family:Arial,sans-serif;background:#f0f2f5;margin:0;padding:20px;">
+<div style="max-width:680px;margin:0 auto;">
+  <div style="background:linear-gradient(135deg,#1B2A4A,#243660);border-radius:16px;padding:24px;margin-bottom:16px;text-align:center;">
+    <div style="font-size:28px;margin-bottom:6px;">☀️</div>
+    <div style="font-size:22px;font-weight:900;color:white;">Bonjour Diahe !</div>
+    <div style="color:rgba(255,255,255,0.7);font-size:14px;margin-top:4px;">${dateLabel}</div>
+  </div>
+  <div style="background:white;border-radius:16px;padding:24px;margin-bottom:16px;box-shadow:0 2px 12px rgba(0,0,0,0.06);">
+    <div style="display:flex;gap:16px;margin-bottom:20px;">
+      <div style="flex:1;background:#f8f9fa;border-radius:12px;padding:16px;text-align:center;">
+        <div style="font-size:28px;font-weight:900;color:#C9A84C;">${liste.length}</div>
+        <div style="font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Interventions</div>
+      </div>
+      <div style="flex:1;background:#f8f9fa;border-radius:12px;padding:16px;text-align:center;">
+        <div style="font-size:28px;font-weight:900;color:#C9A84C;">${liste[0]?.heure||'—'}</div>
+        <div style="font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Première RDV</div>
+      </div>
+      <div style="flex:1;background:#f8f9fa;border-radius:12px;padding:16px;text-align:center;">
+        <div style="font-size:28px;font-weight:900;color:#C9A84C;">${Math.round(caPotentiel)} €</div>
+        <div style="font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px;">CA potentiel</div>
+      </div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;">
+      <thead><tr style="background:#f8f9fa;">
+        <th style="padding:10px 8px;text-align:left;font-size:11px;color:#888;font-weight:700;text-transform:uppercase;">Heure</th>
+        <th style="padding:10px 8px;text-align:left;font-size:11px;color:#888;font-weight:700;text-transform:uppercase;">Client</th>
+        <th style="padding:10px 8px;text-align:left;font-size:11px;color:#888;font-weight:700;text-transform:uppercase;">Adresse</th>
+        <th style="padding:10px 8px;text-align:left;font-size:11px;color:#888;font-weight:700;text-transform:uppercase;">Type</th>
+        <th style="padding:10px 8px;text-align:left;font-size:11px;color:#888;font-weight:700;text-transform:uppercase;">Notes</th>
+      </tr></thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+  </div>
+  <div style="text-align:center;color:#aaa;font-size:12px;">SINELEC Paris — Récap auto chaque matin 7h</div>
+</div></body></html>`;
+
+    await envoyerEmail('sinelec.paris@gmail.com', `☀️ ${liste.length} intervention${liste.length>1?'s':''} aujourd'hui — SINELEC`, html);
+    console.log('✅ Récap matin envoyé');
+  } catch(e) { console.error('Erreur récap matin:', e.message); }
+});
+
+// ─── CRON: BILAN JOURNÉE à 19h00 ──────────────────────────────
+cron.schedule('0 19 * * *', async () => {
+  console.log('🌙 Cron bilan journée 19h...');
+  try {
+    const aujourdhui = new Date().toISOString().split('T')[0];
+    const dateLabel = new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' });
+
+    // Interventions du jour
+    const { data: interventions } = await supabase
+      .from('agenda').select('*')
+      .eq('date_intervention', aujourdhui)
+      .order('heure', { ascending: true });
+
+    // Factures du jour
+    const { data: factures } = await supabase
+      .from('historique').select('*')
+      .eq('type', 'facture')
+      .gte('created_at', aujourdhui + 'T00:00:00')
+      .lte('created_at', aujourdhui + 'T23:59:59');
+
+    // Devis du jour
+    const { data: devis } = await supabase
+      .from('historique').select('*')
+      .eq('type', 'devis')
+      .gte('created_at', aujourdhui + 'T00:00:00')
+      .lte('created_at', aujourdhui + 'T23:59:59');
+
+    const caJour = (factures||[]).reduce((s,f) => s + parseFloat(f.total_ht||0), 0);
+    const devisAttente = (devis||[]).filter(d => d.statut==='envoyé');
+    const caAttente = devisAttente.reduce((s,d) => s + parseFloat(d.total_ht||0), 0);
+    const terminees = (interventions||[]).filter(iv => iv.statut==='terminé').length;
+    const total = (interventions||[]).length;
+
+    if (total === 0 && caJour === 0) { console.log('🌙 Journée vide'); return; }
+
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
+<body style="font-family:Arial,sans-serif;background:#f0f2f5;margin:0;padding:20px;">
+<div style="max-width:600px;margin:0 auto;">
+  <div style="background:linear-gradient(135deg,#1B2A4A,#243660);border-radius:16px;padding:24px;margin-bottom:16px;text-align:center;">
+    <div style="font-size:28px;margin-bottom:6px;">🌙</div>
+    <div style="font-size:20px;font-weight:900;color:white;">Bilan de journée</div>
+    <div style="color:rgba(255,255,255,0.7);font-size:14px;margin-top:4px;">${dateLabel}</div>
+  </div>
+  <div style="background:white;border-radius:16px;padding:24px;margin-bottom:16px;box-shadow:0 2px 12px rgba(0,0,0,0.06);">
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px;">
+      <div style="background:#f8f9fa;border-radius:12px;padding:14px;text-align:center;">
+        <div style="font-size:26px;font-weight:900;color:#10b981;">${Math.round(caJour)} €</div>
+        <div style="font-size:11px;color:#888;margin-top:3px;">CA encaissé</div>
+      </div>
+      <div style="background:#f8f9fa;border-radius:12px;padding:14px;text-align:center;">
+        <div style="font-size:26px;font-weight:900;color:#C9A84C;">${terminees}/${total}</div>
+        <div style="font-size:11px;color:#888;margin-top:3px;">Interventions</div>
+      </div>
+      <div style="background:#f8f9fa;border-radius:12px;padding:14px;text-align:center;">
+        <div style="font-size:26px;font-weight:900;color:#f59e0b;">${Math.round(caAttente)} €</div>
+        <div style="font-size:11px;color:#888;margin-top:3px;">Devis en attente</div>
+      </div>
+    </div>
+
+    ${(factures||[]).length > 0 ? `
+    <div style="margin-bottom:16px;">
+      <div style="font-size:12px;font-weight:800;color:#C9A84C;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">💰 Factures émises</div>
+      ${(factures||[]).map(f => `
+      <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f0f0f0;">
+        <span style="color:#333;font-size:13px;">${f.client||'—'}</span>
+        <span style="font-weight:700;color:#C9A84C;">${Math.round(parseFloat(f.total_ht||0))} €</span>
+      </div>`).join('')}
+    </div>` : ''}
+
+    ${devisAttente.length > 0 ? `
+    <div style="background:#fef9ec;border:1px solid #fcd34d;border-radius:10px;padding:14px;">
+      <div style="font-size:12px;font-weight:800;color:#92400e;margin-bottom:8px;">⏳ ${devisAttente.length} devis à relancer</div>
+      ${devisAttente.map(d => `<div style="font-size:12px;color:#555;padding:3px 0;">${d.client} — ${Math.round(parseFloat(d.total_ht||0))} €</div>`).join('')}
+    </div>` : ''}
+
+  </div>
+  <div style="text-align:center;color:#aaa;font-size:12px;">SINELEC Paris — Bilan auto chaque soir 19h</div>
+</div></body></html>`;
+
+    await envoyerEmail('sinelec.paris@gmail.com',
+      `🌙 Bilan ${dateLabel} — CA : ${Math.round(caJour)} € — ${terminees}/${total} interventions`,
+      html);
+    console.log('✅ Bilan journée envoyé');
+  } catch(e) { console.error('Erreur bilan journée:', e.message); }
+});
+
+// ─── API: LISTE MATÉRIEL PAR TYPE ──────────────────────────────
+const MATERIEL_PAR_TYPE = {
+  'Dépannage': [
+    'Multimètre numérique', 'Pince ampèremétrique', 'Testeur de prise',
+    'Tournevis isolés jeu complet', 'Pince à dénuder', 'Wago lot 50',
+    'Disjoncteurs 10/16/20A (2 de chaque)', 'Câble 1.5mm² + 2.5mm² (5m)',
+    'Ruban isolant', 'Lampe frontale', 'Boîtes de dérivation (x3)',
+  ],
+  'Tableau': [
+    'Coffret 1 rangée (si remplacement)', 'Disjoncteurs assortis 10/16/20/32A',
+    'Différentiel 30mA type A 63A (x2)', 'Peigne horizontal 13 modules',
+    'Câble 2.5mm² rigide (10m)', 'Tournevis isolés', 'Multimètre',
+    'Étiquettes tableau', 'Schéma vierge', 'Vis + chevilles assortiment',
+  ],
+  'VMC': [
+    'Caisson VMC (si remplacement)', 'Gaine flexible (3m)',
+    'Bouches extraction (x2)', 'Câble 1.5mm² souple (5m)',
+    'Perceuse + forets béton', 'Scie cloche', 'Wago',
+    'Gaine ICTA 20mm (3m)', 'Tournevis', 'Enduit rebouchage',
+  ],
+  'Installation': [
+    'Câble 2.5mm² (20m)', 'Câble 1.5mm² (10m)', 'Goulotte 40x16 (3ml)',
+    'Prises 2P+T (x6)', 'Interrupteurs (x4)', 'Boîtes encastrement (x6)',
+    'Perceuse + forets', 'Niveau laser', 'Multimètre',
+    'Wago lot 100', 'Tournevis isolés', 'Disjoncteurs assortis',
+  ],
+  'Devis': [
+    'Bloc-notes + stylo', 'Mètre ruban 5m', 'Lampe frontale',
+    'Multimètre (test rapide)', 'Téléphone chargé (photos)',
+    'Catalogue tarifs SINELEC',
+  ],
+  'Mise en conformité': [
+    'Multimètre + pince', 'Testeur de terre', 'Câble terre 16mm² (2m)',
+    'DAAF (x2)', 'Rapport de conformité vierge', 'Disjoncteurs assortis',
+    'Wago', 'Tournevis isolés', 'Testerélectrique',
+  ],
+  'Autre': [
+    'Multimètre', 'Tournevis isolés jeu complet', 'Câbles assortis',
+    'Wago', 'Lampe frontale', 'Téléphone chargé',
+  ],
+};
+
+app.get('/api/agenda/materiel/:type', (req, res) => {
+  const type = decodeURIComponent(req.params.type);
+  const liste = MATERIEL_PAR_TYPE[type] || MATERIEL_PAR_TYPE['Autre'];
+  res.json({ type, materiel: liste });
+});
+
+// API: Tester récap matin manuellement
+app.post('/api/agenda/test-recap', async (req, res) => {
+  try {
+    // Déclencher le récap manuellement (même logique que le cron)
+    const aujourdhui = new Date().toISOString().split('T')[0];
+    const { data } = await supabase.from('agenda').select('*').eq('date_intervention', aujourdhui);
+    res.json({ success: true, interventions: (data||[]).length, message: 'Récap déclenché' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+
 // ═══════════════════════════════════════════════════════════════
 
 app.get('/api/grille', async (req, res) => {
