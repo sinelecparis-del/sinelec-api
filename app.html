@@ -615,6 +615,10 @@ body::before {
       <span class="sidebar-item-icon">⚡</span>
       <span class="sidebar-item-label">Dépannage</span>
     </div>
+    <div class="sidebar-item" onclick="switchPage('agenda', this)">
+      <span class="sidebar-item-icon">📅</span>
+      <span>Agenda</span>
+    </div>
     <div class="sidebar-item active" onclick="switchPage('devis', this)">
       <span class="sidebar-item-icon">📋</span>
       <span>Devis</span>
@@ -727,6 +731,406 @@ body::before {
   </div>
 </div>
 
+
+<!-- PAGE AGENDA -->
+<div id="page-agenda" class="page">
+<div class="content" style="max-width:700px;">
+
+  <!-- MINI CALENDRIER SEMAINE -->
+  <div class="section" style="margin-bottom:16px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div class="section-title" style="margin-bottom:0;">📅 Semaine en cours</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button onclick="semainePrecedente()" class="btn-small" style="padding:6px 10px;">←</button>
+        <span id="agenda-semaine-label" style="font-size:13px;color:var(--text-2);font-weight:600;"></span>
+        <button onclick="semaineSuivante()" class="btn-small" style="padding:6px 10px;">→</button>
+      </div>
+    </div>
+    <div id="agenda-calendrier" style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;"></div>
+  </div>
+
+  <!-- BOUTON AJOUTER -->
+  <button onclick="ouvrirFormulaireAgenda()" class="btn-gen" style="margin-bottom:20px;">
+    ➕ Planifier une intervention
+  </button>
+
+  <!-- LISTE INTERVENTIONS -->
+  <div class="section">
+    <div class="section-title">📋 Interventions à venir</div>
+    <div id="agenda-liste">
+      <div class="panier-empty">Chargement...</div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- POPUP NOUVELLE INTERVENTION -->
+<div class="popup-overlay" id="popup-agenda">
+  <div class="popup-box" style="max-width:480px;">
+    <h3>📅 Planifier une intervention</h3>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+      <div class="input-group" style="margin-bottom:0;">
+        <label>Prénom</label>
+        <input type="text" id="ag-prenom" placeholder="MARIE" oninput="this.value=this.value.toUpperCase()">
+      </div>
+      <div class="input-group" style="margin-bottom:0;">
+        <label>Nom</label>
+        <input type="text" id="ag-nom" placeholder="DUPONT" oninput="this.value=this.value.toUpperCase()">
+      </div>
+    </div>
+
+    <div class="input-group">
+      <label>Téléphone client</label>
+      <input type="tel" id="ag-tel" placeholder="06 12 34 56 78">
+    </div>
+
+    <div class="input-group">
+      <label>Adresse</label>
+      <input type="text" id="ag-adresse" placeholder="12 rue de la Paix, 75001 Paris" oninput="autocompleteAdresse('ag-adresse', this.value)" autocomplete="off">
+      <div id="ag-adresse-suggestions"></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="input-group">
+        <label>Date</label>
+        <input type="date" id="ag-date">
+      </div>
+      <div class="input-group">
+        <label>Heure</label>
+        <input type="time" id="ag-heure" value="09:00">
+      </div>
+    </div>
+
+    <div class="input-group">
+      <label>Type d'intervention</label>
+      <select id="ag-type" style="width:100%;background:rgba(255,255,255,0.65);border:1.5px solid rgba(218,165,32,0.15);border-radius:12px;padding:14px 18px;font-size:15px;color:var(--text);outline:none;font-family:'Plus Jakarta Sans',sans-serif;">
+        <option value="Dépannage">⚡ Dépannage</option>
+        <option value="Devis">📋 Devis / Visite</option>
+        <option value="Installation">🔌 Installation</option>
+        <option value="Tableau">⚡ Tableau électrique</option>
+        <option value="VMC">💨 VMC</option>
+        <option value="Mise en conformité">🛡️ Mise en conformité</option>
+        <option value="Autre">🔧 Autre</option>
+      </select>
+    </div>
+
+    <div class="input-group">
+      <label>Notes <span style="font-size:11px;color:var(--text-3);">(optionnel)</span></label>
+      <textarea id="ag-notes" placeholder="Ex: tableau vétuste, prévoir 3h, code interphone 1234..." rows="2"></textarea>
+    </div>
+
+    <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.25);border-radius:12px;padding:14px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="toggleSmsRappel()">
+      <div>
+        <div style="font-size:14px;font-weight:700;color:var(--text);">📱 SMS rappel automatique</div>
+        <div style="font-size:12px;color:var(--text-3);margin-top:2px;">La veille à 18h + le matin même à 8h45</div>
+      </div>
+      <div id="ag-sms-toggle" style="width:44px;height:24px;border-radius:12px;background:#10b981;position:relative;transition:all 0.3s;">
+        <div style="width:20px;height:20px;border-radius:50%;background:#fff;position:absolute;top:2px;right:2px;transition:all 0.3s;box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div>
+      </div>
+    </div>
+
+    <div class="popup-btns">
+      <button onclick="fermerPopupAgenda()" style="background:rgba(255,255,255,0.6);color:var(--text-2);">Annuler</button>
+      <button onclick="sauvegarderIntervention()" style="background:linear-gradient(135deg,var(--accent),var(--gold));color:#fff;">📅 Planifier</button>
+    </div>
+    <div id="ag-status" class="status"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════ AGENDA ═══════════════════
+let agendaSmsActif = true;
+let agendaSemaineOffset = 0;
+let agendaInterventions = [];
+let agendaEditId = null;
+
+function toggleSmsRappel() {
+  agendaSmsActif = !agendaSmsActif;
+  const toggle = document.getElementById('ag-sms-toggle');
+  toggle.style.background = agendaSmsActif ? '#10b981' : 'rgba(255,255,255,0.2)';
+  const dot = toggle.querySelector('div');
+  dot.style.right = agendaSmsActif ? '2px' : 'calc(100% - 22px)';
+}
+
+function ouvrirFormulaireAgenda(id = null) {
+  agendaEditId = id;
+  const popup = document.getElementById('popup-agenda');
+  popup.classList.add('active');
+
+  // Date par défaut = demain
+  const demain = new Date(); demain.setDate(demain.getDate() + 1);
+  document.getElementById('ag-date').value = demain.toISOString().split('T')[0];
+  document.getElementById('ag-heure').value = '09:00';
+  document.getElementById('ag-sms-toggle').style.background = '#10b981';
+  agendaSmsActif = true;
+
+  if (id) {
+    const interv = agendaInterventions.find(i => i.id === id);
+    if (interv) {
+      document.getElementById('ag-prenom').value = interv.prenom || '';
+      document.getElementById('ag-nom').value = interv.nom || '';
+      document.getElementById('ag-tel').value = interv.telephone || '';
+      document.getElementById('ag-adresse').value = interv.adresse || '';
+      document.getElementById('ag-date').value = interv.date_intervention || '';
+      document.getElementById('ag-heure').value = interv.heure || '09:00';
+      document.getElementById('ag-type').value = interv.type_intervention || 'Dépannage';
+      document.getElementById('ag-notes').value = interv.notes || '';
+    }
+  } else {
+    ['ag-prenom','ag-nom','ag-tel','ag-adresse','ag-notes'].forEach(id => {
+      const el = document.getElementById(id); if(el) el.value = '';
+    });
+  }
+}
+
+function fermerPopupAgenda() {
+  document.getElementById('popup-agenda').classList.remove('active');
+  agendaEditId = null;
+}
+
+async function sauvegarderIntervention() {
+  const prenom = document.getElementById('ag-prenom').value.trim();
+  const nom = document.getElementById('ag-nom').value.trim();
+  const tel = document.getElementById('ag-tel').value.trim();
+  const adresse = document.getElementById('ag-adresse').value.trim();
+  const date = document.getElementById('ag-date').value;
+  const heure = document.getElementById('ag-heure').value;
+  const type = document.getElementById('ag-type').value;
+  const notes = document.getElementById('ag-notes').value.trim();
+
+  if (!prenom || !nom || !date || !heure) {
+    showToast('⚠️ Remplis prénom, nom, date et heure !', '❌'); return;
+  }
+
+  const payload = {
+    prenom, nom,
+    client: prenom + ' ' + nom,
+    telephone: tel, adresse, date_intervention: date,
+    heure, type_intervention: type, notes,
+    sms_rappel: agendaSmsActif, statut: 'planifié'
+  };
+
+  try {
+    const url = agendaEditId ? `/api/agenda/${agendaEditId}` : '/api/agenda';
+    const method = agendaEditId ? 'PUT' : 'POST';
+    const res = await fetch(url, {
+      method, headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (data.success || data.id) {
+      showToast(`✅ Intervention planifiée${agendaSmsActif ? ' — SMS rappel activé' : ''}`, '📅');
+      fermerPopupAgenda();
+      chargerAgenda();
+    } else {
+      showToast('❌ Erreur : ' + (data.error || 'Erreur'), '⚠️');
+    }
+  } catch(e) { showToast('❌ ' + e.message, '⚠️'); }
+}
+
+async function supprimerIntervention(id) {
+  const ok = await new Promise(resolve => {
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    ov.innerHTML = `<div style="background:white;border-radius:20px;padding:28px;max-width:320px;width:88%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+      <div style="font-size:40px;margin-bottom:12px;">🗑️</div>
+      <div style="font-size:16px;font-weight:800;color:#1B2A4A;margin-bottom:20px;">Supprimer cette intervention ?</div>
+      <button id="ov-oui" style="width:100%;background:#ef4444;color:white;border:none;border-radius:12px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:10px;">Supprimer</button>
+      <button id="ov-non" style="width:100%;background:none;border:1px solid #eee;border-radius:12px;padding:12px;font-size:13px;color:#888;cursor:pointer;">Annuler</button>
+    </div>`;
+    document.body.appendChild(ov);
+    ov.querySelector('#ov-oui').onclick = () => { document.body.removeChild(ov); resolve(true); };
+    ov.querySelector('#ov-non').onclick = () => { document.body.removeChild(ov); resolve(false); };
+  });
+  if (!ok) return;
+  try {
+    await fetch(`/api/agenda/${id}`, { method: 'DELETE' });
+    showToast('🗑️ Intervention supprimée', '✅');
+    chargerAgenda();
+  } catch(e) { showToast('❌ Erreur', '⚠️'); }
+}
+
+function semainePrecedente() { agendaSemaineOffset--; chargerAgenda(); }
+function semaineSuivante() { agendaSemaineOffset++; chargerAgenda(); }
+
+async function chargerAgenda() {
+  try {
+    const res = await fetch('/api/agenda');
+    const data = await res.json();
+    agendaInterventions = Array.isArray(data) ? data : [];
+    afficherCalendrier();
+    afficherListeAgenda();
+  } catch(e) {
+    document.getElementById('agenda-liste').innerHTML = '<div class="panier-empty">Erreur de chargement</div>';
+  }
+}
+
+function getLundiDeSemaine(offset) {
+  const now = new Date();
+  const day = now.getDay() || 7;
+  const lundi = new Date(now);
+  lundi.setDate(now.getDate() - day + 1 + offset * 7);
+  lundi.setHours(0,0,0,0);
+  return lundi;
+}
+
+function afficherCalendrier() {
+  const lundi = getLundiDeSemaine(agendaSemaineOffset);
+  const dimanche = new Date(lundi); dimanche.setDate(lundi.getDate() + 6);
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  // Label semaine
+  const opts = { day: 'numeric', month: 'short' };
+  document.getElementById('agenda-semaine-label').textContent =
+    `${lundi.toLocaleDateString('fr-FR', opts)} — ${dimanche.toLocaleDateString('fr-FR', opts)}`;
+
+  const cal = document.getElementById('agenda-calendrier');
+  cal.innerHTML = '';
+  const jours = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+
+  for (let i = 0; i < 7; i++) {
+    const jour = new Date(lundi); jour.setDate(lundi.getDate() + i);
+    const jourStr = jour.toISOString().split('T')[0];
+    const isToday = jour.getTime() === today.getTime();
+    const isPast = jour < today;
+    const count = agendaInterventions.filter(iv => iv.date_intervention === jourStr).length;
+
+    const col = document.createElement('div');
+    col.style.cssText = `text-align:center;padding:10px 4px;border-radius:12px;cursor:pointer;transition:all 0.2s;
+      background:${isToday ? 'linear-gradient(135deg,var(--accent),var(--gold))' : count > 0 ? 'rgba(212,165,116,0.12)' : 'rgba(255,255,255,0.04)'};
+      border:1px solid ${isToday ? 'transparent' : count > 0 ? 'rgba(212,165,116,0.3)' : 'rgba(218,165,32,0.08)'};
+      opacity:${isPast && !isToday ? '0.5' : '1'};`;
+    col.innerHTML = `
+      <div style="font-size:10px;font-weight:700;color:${isToday ? '#fff' : 'var(--text-3)'};text-transform:uppercase;letter-spacing:0.5px;">${jours[i]}</div>
+      <div style="font-size:18px;font-weight:800;color:${isToday ? '#fff' : 'var(--text)'};margin:4px 0;">${jour.getDate()}</div>
+      ${count > 0 ? `<div style="background:${isToday ? 'rgba(255,255,255,0.3)' : 'var(--accent)'};color:${isToday ? '#fff' : '#fff'};border-radius:8px;padding:2px 6px;font-size:10px;font-weight:800;">${count}</div>` : '<div style="height:18px;"></div>'}
+    `;
+    col.onclick = () => filtrerJour(jourStr);
+    cal.appendChild(col);
+  }
+}
+
+let filtreJour = null;
+function filtrerJour(jourStr) {
+  filtreJour = filtreJour === jourStr ? null : jourStr;
+  afficherListeAgenda();
+}
+
+function afficherListeAgenda() {
+  const liste = document.getElementById('agenda-liste');
+  const now = new Date(); now.setHours(0,0,0,0);
+
+  let intervs = [...agendaInterventions].sort((a,b) => {
+    const da = new Date(a.date_intervention + 'T' + (a.heure||'00:00'));
+    const db = new Date(b.date_intervention + 'T' + (b.heure||'00:00'));
+    return da - db;
+  });
+
+  if (filtreJour) {
+    intervs = intervs.filter(iv => iv.date_intervention === filtreJour);
+  } else {
+    intervs = intervs.filter(iv => new Date(iv.date_intervention) >= now);
+  }
+
+  if (intervs.length === 0) {
+    liste.innerHTML = `<div class="panier-empty">${filtreJour ? 'Aucune intervention ce jour' : 'Aucune intervention à venir'}</div>`;
+    return;
+  }
+
+  const typeColors = {
+    'Dépannage': '#ef4444', 'Devis': '#3b82f6', 'Installation': '#10b981',
+    'Tableau': '#f59e0b', 'VMC': '#8b5cf6', 'Mise en conformité': '#06b6d4', 'Autre': '#9d8f7f'
+  };
+
+  liste.innerHTML = intervs.map(iv => {
+    const dateObj = new Date(iv.date_intervention + 'T12:00:00');
+    const isToday = dateObj.toISOString().split('T')[0] === new Date().toISOString().split('T')[0];
+    const isTomorrow = dateObj.toISOString().split('T')[0] === new Date(Date.now()+86400000).toISOString().split('T')[0];
+    const labelDate = isToday ? '🔴 Aujourd\'hui' : isTomorrow ? '🟡 Demain' : dateObj.toLocaleDateString('fr-FR', {weekday:'short', day:'numeric', month:'short'});
+    const color = typeColors[iv.type_intervention] || '#9d8f7f';
+    const statutStyle = { 'planifié': 'badge-info', 'en cours': 'badge-warning', 'terminé': 'badge-success', 'annulé': 'badge-error' };
+
+    return `<div style="background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:10px;transition:all 0.2s;" onmouseover="this.style.borderColor='rgba(212,165,116,0.35)'" onmouseout="this.style.borderColor='rgba(218,165,32,0.18)'">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+        <div>
+          <div style="font-size:15px;font-weight:700;color:var(--text);">${iv.client || iv.prenom + ' ' + iv.nom}</div>
+          <div style="font-size:12px;color:var(--text-3);margin-top:2px;">${iv.adresse || ''}</div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          ${iv.sms_rappel ? '<span title="SMS rappel actif" style="font-size:16px;">📱</span>' : ''}
+          <span class="badge ${statutStyle[iv.statut]||'badge-info'}" style="font-size:10px;">${iv.statut||'planifié'}</span>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <span style="background:${color}22;color:${color};border:1px solid ${color}44;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;">${iv.type_intervention}</span>
+        <span style="font-size:12px;color:var(--text-2);font-weight:600;">${labelDate} à ${iv.heure}</span>
+        ${iv.telephone ? `<span style="font-size:12px;color:var(--text-3);">📞 ${iv.telephone}</span>` : ''}
+      </div>
+      ${iv.notes ? `<div style="font-size:12px;color:var(--text-3);margin-top:8px;font-style:italic;">💬 ${iv.notes}</div>` : ''}
+      <div style="display:flex;gap:8px;margin-top:12px;">
+        <button onclick="ouvrirFormulaireAgenda('${iv.id}')" class="btn-small" style="font-size:11px;padding:6px 12px;">✏️ Modifier</button>
+        <button onclick="voirMateriel('${iv.type_intervention}')" class="btn-small" style="font-size:11px;padding:6px 12px;background:rgba(201,168,76,0.1);color:var(--accent);border-color:rgba(201,168,76,0.3);">📦 Matériel</button>
+        <button onclick="changerStatutIntervention('${iv.id}','terminé')" class="btn-small" style="font-size:11px;padding:6px 12px;background:rgba(16,185,129,0.1);color:#10b981;border-color:rgba(16,185,129,0.3);">✅ Terminé</button>
+        <button onclick="supprimerIntervention('${iv.id}')" class="btn-small" style="font-size:11px;padding:6px 12px;background:rgba(239,68,68,0.1);color:#ef4444;border-color:rgba(239,68,68,0.2);">🗑️</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function voirMateriel(type) {
+  try {
+    const res = await fetch(`/api/agenda/materiel/${encodeURIComponent(type)}`);
+    const data = await res.json();
+    const liste = data.materiel || [];
+
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);';
+    ov.innerHTML = `
+      <div style="background:var(--glass);backdrop-filter:blur(30px);border:1px solid var(--border);border-radius:20px;padding:24px;max-width:400px;width:90%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.4);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <h3 style="font-size:16px;font-weight:800;color:var(--accent);">📦 Matériel — ${type}</h3>
+          <button onclick="this.closest('[style*=fixed]').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-3);">×</button>
+        </div>
+        <div style="font-size:12px;color:var(--text-3);margin-bottom:14px;">À prendre dans le van avant de partir :</div>
+        ${liste.map((item, i) => `
+          <div id="mat-${i}" onclick="toggleMat(${i})" style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(218,165,32,0.08);cursor:pointer;transition:opacity 0.2s;">
+            <div id="mat-check-${i}" style="width:20px;height:20px;border:1.5px solid rgba(218,165,32,0.4);border-radius:6px;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all 0.2s;"></div>
+            <span id="mat-text-${i}" style="font-size:13px;color:var(--text);font-weight:500;">${item}</span>
+          </div>`).join('')}
+        <div style="margin-top:16px;text-align:center;">
+          <button onclick="this.closest('[style*=fixed]').remove()" style="background:linear-gradient(135deg,var(--accent),var(--gold));color:#fff;border:none;border-radius:12px;padding:12px 28px;font-size:14px;font-weight:700;cursor:pointer;">✅ C'est bon, je pars !</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+  } catch(e) { showToast('❌ Impossible de charger le matériel', '⚠️'); }
+}
+
+function toggleMat(i) {
+  const check = document.getElementById(`mat-check-${i}`);
+  const text = document.getElementById(`mat-text-${i}`);
+  const row = document.getElementById(`mat-${i}`);
+  const isChecked = check.innerHTML !== '';
+  check.innerHTML = isChecked ? '' : '✓';
+  check.style.background = isChecked ? 'transparent' : 'var(--accent)';
+  check.style.borderColor = isChecked ? 'rgba(218,165,32,0.4)' : 'var(--accent)';
+  check.style.color = '#fff';
+  text.style.textDecoration = isChecked ? 'none' : 'line-through';
+  text.style.color = isChecked ? 'var(--text)' : 'var(--text-3)';
+  row.style.opacity = isChecked ? '1' : '0.5';
+}
+
+  try {
+    await fetch(`/api/agenda/${id}/statut`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ statut })
+    });
+    showToast(`✅ Intervention marquée "${statut}"`, '📅');
+    chargerAgenda();
+  } catch(e) { showToast('❌ Erreur', '⚠️'); }
+}
+</script>
 
 <!-- PAGE DEVIS -->
 <!-- PAGE DÉPANNAGE RAPIDE -->
@@ -3393,6 +3797,7 @@ function switchPage(page, el) {
   if (page === 'clients') setTimeout(chargerClients, 100);
   if (page === 'params') setTimeout(afficherParams, 100);
   if (page === 'rapport') setTimeout(initSignature, 100);
+  if (page === 'agenda') setTimeout(chargerAgenda, 100);
 }
 
 // Menu Plus sur mobile
@@ -3405,6 +3810,9 @@ function switchPageMenu() {
   menu.style.cssText = 'position:fixed;bottom:70px;right:10px;background:var(--glass);backdrop-filter:blur(24px);border:1px solid var(--border);border-radius:16px;padding:12px;z-index:999;box-shadow:0 8px 32px rgba(26,20,16,0.15);';
   menu.innerHTML = `
     <div style="display:flex;flex-direction:column;gap:8px;">
+      <div onclick="switchPage('agenda', this);document.body.querySelectorAll('[style*=bottom]')[1].remove();menuPlusOpen=false;" style="padding:12px 20px;border-radius:10px;background:rgba(255,255,255,0.5);cursor:pointer;font-size:14px;font-weight:600;display:flex;align-items:center;gap:10px;">
+        <span>📅</span> Agenda
+      </div>
       <div onclick="switchPage('chat', this);document.body.querySelectorAll('[style*=bottom]')[1].remove();menuPlusOpen=false;" style="padding:12px 20px;border-radius:10px;background:rgba(255,255,255,0.5);cursor:pointer;font-size:14px;font-weight:600;display:flex;align-items:center;gap:10px;">
         <span>🤖</span> Chat AI
       </div>
