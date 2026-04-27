@@ -811,7 +811,7 @@ print('PDF_OK')
     if (type === 'facture' && telephone) {
       try {
         const prenomSms = String(prenom || client || 'client').split(' ')[0].trim();
-        const smsAvis = `Bonjour ${prenomSms}, merci pour votre confiance ! Si vous etes satisfait, un avis Google nous aiderait beaucoup : https://g.page/r/sinelecparis/review - SINELEC Paris`;
+        const smsAvis = `Bonjour ${prenomSms}, merci pour votre confiance ! Si vous etes satisfait, un avis Google nous aiderait beaucoup : https://g.page/r/CSw-MABnFUAYEAE/review - SINELEC Paris`;
         await envoyerSMS(telephone, smsAvis);
         console.log('📱 SMS avis Google envoyé à:', telephone);
       } catch(smsErr) {
@@ -1765,12 +1765,12 @@ app.get('/api/pdf/:num', async (req, res) => {
     fs.writeFileSync(detailsPath, JSON.stringify(detailsData));
 
     const clientEsc = String(client || '').replace(/'/g, ' ');
-    // client contient déjà prénom+nom fusionnés par getClientComplet
     const clientNomComplet = clientEsc;
+    // Récupérer les champs depuis data (peuvent être absents)
+    const complement = data.complement || '';
+    const telephone = data.telephone || '';
     const clientComplement = String(complement || '').replace(/'/g, ' ').trim();
-    const clientTelRaw = String(telephone || '').trim();
-    // Formater si pas déjà formaté (ajouter espaces tous les 2 chiffres)
-    const clientTel = clientTelRaw;
+    const clientTel = String(telephone || '').trim();
     const adresseEsc = String(adresse || '').replace(/'/g, ' ');
     const clientParts = (adresse || '').split(',');
     const clientRue = String(clientParts[0] || '').trim().replace(/'/g, ' ');
