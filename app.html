@@ -1289,11 +1289,17 @@ function toggleMat(i) {
       <textarea id="d-description" placeholder="Ex: Renovation electrique complete appartement 75m2" rows="2" style="resize:vertical;"></textarea>
     </div>
 
-    <div class="input-group">
-      <label>📅 Date d'intervention <span style="font-size:11px;color:var(--text-3);">(optionnel — planifie auto si date future)</span></label>
-      <input type="date" id="d-date-intervention">
-      <div id="d-date-info" style="font-size:12px;margin-top:6px;padding:8px 12px;border-radius:8px;display:none;"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="input-group">
+        <label>📅 Date intervention <span style="font-size:11px;color:var(--text-3);">(date future = agenda auto)</span></label>
+        <input type="date" id="d-date-intervention">
+      </div>
+      <div class="input-group">
+        <label>🕐 Heure</label>
+        <input type="time" id="d-heure-intervention" value="09:00">
+      </div>
     </div>
+    <div id="d-date-info" style="font-size:12px;margin-top:-8px;margin-bottom:14px;padding:8px 12px;border-radius:8px;display:none;"></div>
   </div>
   
   <div class="section">
@@ -2494,6 +2500,7 @@ if (data.success) {
         const telVal = (document.getElementById('d-tel')?.value||'').trim();
         const adresseVal = (document.getElementById('d-adresse')?.value||'').trim();
         const descVal = (document.getElementById('d-description')?.value||'').trim();
+        const heureVal = (document.getElementById('d-heure-intervention')?.value) || '09:00';
         await fetch('/api/agenda', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2502,7 +2509,7 @@ if (data.success) {
             client: prenomVal + ' ' + nomVal,
             telephone: telVal, adresse: adresseVal,
             date_intervention: dateIntervInput.value,
-            heure: '09:00',
+            heure: heureVal,
             type_intervention: 'Installation',
             notes: descVal || `Intervention suite devis ${data.num}`,
             sms_rappel: true
@@ -3831,7 +3838,8 @@ document.addEventListener('DOMContentLoaded', () => {
         info.style.border = '1px solid rgba(16,185,129,0.25)';
         info.style.color = '#10b981';
         const label = chosen.toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' });
-        info.textContent = `📅 Intervention planifiée automatiquement le ${label}`;
+        const heureDisplay = document.getElementById('d-heure-intervention')?.value || '09:00';
+        info.textContent = `📅 Intervention planifiée automatiquement le ${label} à ${heureDisplay}`;
       }
     });
   }
