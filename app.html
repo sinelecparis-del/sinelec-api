@@ -151,10 +151,12 @@ setInterval(verifierAlertesDevis, 300000);
   --accent: #d4a574; --gold: #daa520;
   --success: #10b981; --warning: #f59e0b; --error: #ef4444;
   --sidebar-width: 260px;
+  --bg-2: rgba(255,255,255,0.55);
 }
 [data-theme="dark"] {
   --bg: #0a0a0a; --glass: rgba(18,18,18,0.75); --border: rgba(218,165,32,0.22);
   --text: #fff; --text-2: #a8a8a8; --text-3: #6b6b6b;
+  --bg-2: rgba(30,30,30,0.7);
 }
 * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 body {
@@ -729,7 +731,7 @@ body::before {
 
 <!-- PAGE DEVIS -->
 <!-- PAGE DÉPANNAGE RAPIDE -->
-<div id="page-depannage" class="page" style="display:none;">
+<div id="page-depannage" class="page">
 <div class="content">
   <div class="section">
     <div class="section-header">
