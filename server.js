@@ -3550,7 +3550,7 @@ app.post('/api/sante/verifier', async (req, res) => {
 // DÉMARRAGE SERVEUR
 // ═══════════════════════════════════════════════════════════════
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log('');
   console.log('═══════════════════════════════════════════════════════════════');
   console.log('  ⚡ SINELEC OS v' + CONFIG.meta.version + ' - Serveur démarré !');
@@ -3573,3 +3573,7 @@ app.listen(PORT, () => {
   console.log('═══════════════════════════════════════════════════════════════');
   console.log('');
 });
+
+// Timeout 5 minutes pour les analyses DPE longues (Claude Opus + multi-images)
+server.timeout = 300000;
+server.keepAliveTimeout = 300000;
