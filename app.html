@@ -1851,12 +1851,14 @@ function creerDevisDPE() {
   (dpeData.recommandations || []).forEach((r, i) => {
     const card = document.getElementById(`dpe-reco-${i}`);
     if (card && card.getAttribute('data-selected') === 'true') {
-      (r.prestations || []).forEach(p => {
+      (r.prestations || []).forEach((p, pidx) => {
         prestations.push({
           designation: p.nom,
           prixUnit: p.prix,
           qte: p.quantite || 1,
-          categorie: 'DPE'
+          categorie: 'DPE',
+          // Description détaillée Claude : sur la 1ère prestation de chaque reco
+          desc: pidx === 0 ? (r.description || '') : ''
         });
       });
     }
@@ -2833,13 +2835,16 @@ async function generer(type) {
   try {
     // Formatter les prestations pour le backend
    const prestationsFormatted = panier.map(item => {
-      // Chercher description dans la grille
-      let desc = '';
-      Object.values(GRILLE).forEach(cat => {
-        const nomBase = item.designation.replace(' (fourniture)', '').replace(' (MO)', '').replace(' (main d\'oeuvre)', '').trim();
-        if (cat[item.designation]?.desc) desc = cat[item.designation].desc;
-        else if (cat[nomBase]?.desc) desc = cat[nomBase].desc;
-      });
+      // Priorité 1 : description déjà définie (ex: venant du DPE Claude)
+      let desc = item.desc || '';
+      // Priorité 2 : chercher dans la GRILLE si pas de desc
+      if (!desc) {
+        Object.values(GRILLE).forEach(cat => {
+          const nomBase = item.designation.replace(' (fourniture)', '').replace(' (MO)', '').replace(' (main d\'oeuvre)', '').trim();
+          if (cat[item.designation]?.desc) desc = cat[item.designation].desc;
+          else if (cat[nomBase]?.desc) desc = cat[nomBase].desc;
+        });
+      }
       return {
         nom: item.designation,
         prix: item.prixUnit,
