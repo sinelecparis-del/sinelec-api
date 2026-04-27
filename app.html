@@ -639,6 +639,10 @@ body::before {
       <span class="sidebar-item-icon">🤖</span>
       <span>Chat AI</span>
     </div>
+    <div class="sidebar-item" onclick="switchPage('dpe', this)">
+      <span class="sidebar-item-icon">🏠</span>
+      <span>Analyse DPE</span>
+    </div>
     <div class="sidebar-item" onclick="switchPage('rapport', this)">
       <span class="sidebar-item-icon">📸</span>
       <span>Rapport</span>
@@ -1507,6 +1511,262 @@ function toggleMat(i) {
   </div>
 </div>
 </div>
+
+<!-- PAGE ANALYSE DPE -->
+<div id="page-dpe" class="page">
+<div class="content" style="max-width:700px;">
+
+  <!-- UPLOAD ZONE -->
+  <div id="dpe-upload-zone" class="section" style="text-align:center;cursor:pointer;transition:all 0.3s;" ondragover="event.preventDefault();this.style.borderColor='var(--accent)'" ondragleave="this.style.borderColor='var(--border)'" ondrop="dropDPE(event)">
+    <div style="font-size:48px;margin-bottom:16px;">📄</div>
+    <div style="font-size:17px;font-weight:800;color:var(--text);margin-bottom:8px;">Analyse DPE → Devis électrique</div>
+    <div style="font-size:13px;color:var(--text-3);margin-bottom:20px;line-height:1.6;">Glisse le PDF du DPE ici ou clique pour l'importer.<br>Claude analyse et génère les recommandations électriques uniquement.</div>
+    <input type="file" id="dpe-file-input" accept=".pdf" style="display:none;" onchange="chargerDPE(this)">
+    <button onclick="document.getElementById('dpe-file-input').click()" style="background:linear-gradient(135deg,var(--accent),var(--gold));color:#fff;border:none;border-radius:12px;padding:14px 28px;font-size:14px;font-weight:700;cursor:pointer;">📄 Importer le DPE</button>
+    <div style="margin-top:16px;font-size:11px;color:var(--text-3);">Seuls les éléments électriques seront analysés — chauffage élec, VMC, tableau, eau chaude, conformité</div>
+  </div>
+
+  <!-- CHAMPS CLIENT (optionnel) -->
+  <div class="section" id="dpe-client-zone">
+    <div class="section-title">👤 Client (optionnel — pour pré-remplir le devis)</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="input-group" style="margin-bottom:0;">
+        <label>Prénom Nom</label>
+        <input type="text" id="dpe-client-nom" placeholder="MARIE DUPONT" oninput="this.value=this.value.toUpperCase()">
+      </div>
+      <div class="input-group" style="margin-bottom:0;">
+        <label>Adresse</label>
+        <input type="text" id="dpe-client-adresse" placeholder="12 rue de la Paix, 75001 Paris">
+      </div>
+    </div>
+  </div>
+
+  <!-- ÉTAT ANALYSE -->
+  <div id="dpe-loading" style="display:none;" class="section">
+    <div style="text-align:center;padding:20px;">
+      <div style="font-size:36px;margin-bottom:12px;animation:float 2s ease-in-out infinite;">🔍</div>
+      <div style="font-size:15px;font-weight:700;color:var(--accent);margin-bottom:8px;">Claude analyse le DPE...</div>
+      <div style="font-size:13px;color:var(--text-3);">Extraction des éléments électriques en cours</div>
+    </div>
+  </div>
+
+  <!-- RÉSULTATS -->
+  <div id="dpe-resultats" style="display:none;">
+
+    <!-- INFOS LOGEMENT -->
+    <div class="section" id="dpe-infos-logement">
+      <div class="section-title">🏠 Logement analysé</div>
+      <div id="dpe-resume-text" style="font-size:13px;color:var(--text-2);margin-bottom:16px;line-height:1.6;font-style:italic;"></div>
+      <div id="dpe-badges" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+    </div>
+
+    <!-- RECOMMANDATIONS -->
+    <div class="section">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div class="section-title" style="margin-bottom:0;">⚡ Recommandations électriques</div>
+        <div id="dpe-total-global" style="font-size:14px;font-weight:800;color:var(--accent);"></div>
+      </div>
+      <div id="dpe-liste-reco"></div>
+    </div>
+
+    <!-- BOUTON DEVIS -->
+    <button onclick="creerDevisDPE()" class="btn-gen" id="dpe-btn-devis">
+      📋 Créer le devis avec les sélections
+    </button>
+    <div style="font-size:12px;color:var(--text-3);text-align:center;margin-top:8px;">Les prestations cochées seront ajoutées dans le panier Devis</div>
+
+  </div>
+
+</div>
+</div>
+
+<script>
+// ═══════════════════ ANALYSE DPE ═══════════════════
+let dpeData = null;
+
+function dropDPE(e) {
+  e.preventDefault();
+  document.getElementById('dpe-upload-zone').style.borderColor = 'var(--border)';
+  const file = e.dataTransfer.files[0];
+  if (file && file.type === 'application/pdf') traiterFichierDPE(file);
+  else showToast('⚠️ Fichier PDF uniquement', '❌');
+}
+
+function chargerDPE(input) {
+  const file = input.files[0];
+  if (file) traiterFichierDPE(file);
+}
+
+async function traiterFichierDPE(file) {
+  document.getElementById('dpe-upload-zone').style.display = 'none';
+  document.getElementById('dpe-loading').style.display = 'block';
+  document.getElementById('dpe-resultats').style.display = 'none';
+
+  try {
+    // Lire PDF en base64
+    const base64 = await new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(r.result.split(',')[1]);
+      r.onerror = rej;
+      r.readAsDataURL(file);
+    });
+
+    const nomClient = document.getElementById('dpe-client-nom').value.trim();
+    const adresseClient = document.getElementById('dpe-client-adresse').value.trim();
+
+    const resp = await fetch('/api/dpe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pdf_base64: base64, nom_client: nomClient, adresse_client: adresseClient })
+    });
+
+    const data = await resp.json();
+    if (!data.success) throw new Error(data.error || 'Erreur analyse');
+
+    dpeData = data;
+    afficherResultatsDPE(data);
+
+  } catch(e) {
+    showToast('❌ ' + e.message, '⚠️');
+    document.getElementById('dpe-upload-zone').style.display = 'block';
+  } finally {
+    document.getElementById('dpe-loading').style.display = 'none';
+  }
+}
+
+function afficherResultatsDPE(data) {
+  document.getElementById('dpe-resultats').style.display = 'block';
+
+  // Résumé
+  document.getElementById('dpe-resume-text').textContent = data.resume || '';
+
+  // Badges logement
+  const l = data.logement || {};
+  const prioriteColor = { haute: '#ef4444', moyenne: '#f59e0b', basse: '#10b981' };
+  const classeColor = { A:'#10b981', B:'#84cc16', C:'#eab308', D:'#f97316', E:'#ef4444', F:'#dc2626', G:'#7f1d1d' };
+  const badges = [];
+  if (l.surface) badges.push(`<span class="badge badge-info">📐 ${l.surface} m²</span>`);
+  if (l.classe) badges.push(`<span style="background:${classeColor[l.classe]||'#888'}22;color:${classeColor[l.classe]||'#888'};border:1px solid ${classeColor[l.classe]||'#888'}44;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:800;">Classe ${l.classe}</span>`);
+  if (l.annee_construction) badges.push(`<span class="badge badge-warning">🏗️ ${l.annee_construction}</span>`);
+  if (l.chauffage_electrique && l.chauffage_electrique !== 'non électrique') badges.push(`<span class="badge badge-info">🔥 ${l.chauffage_electrique}</span>`);
+  if (l.vmc && l.vmc !== 'absente') badges.push(`<span class="badge badge-success">💨 VMC ${l.vmc}</span>`);
+  if (l.vmc === 'absente') badges.push(`<span class="badge badge-error">💨 Pas de VMC</span>`);
+  if (l.tableau) badges.push(`<span class="badge ${l.tableau === 'conforme' ? 'badge-success' : 'badge-error'}">⚡ Tableau ${l.tableau}</span>`);
+  if (l.daaf === 'absent') badges.push(`<span class="badge badge-error">🚨 DAAF absent</span>`);
+  document.getElementById('dpe-badges').innerHTML = badges.join('');
+
+  // Total global
+  const totalEl = document.getElementById('dpe-total-global');
+  totalEl.textContent = `Total sélection : ${(data.total_general||0).toLocaleString('fr-FR')} €`;
+
+  // Liste recommandations
+  const liste = document.getElementById('dpe-liste-reco');
+  liste.innerHTML = (data.recommandations || []).map((r, i) => {
+    const pColor = prioriteColor[r.priorite] || '#888';
+    const prests = (r.prestations || []).map(p =>
+      `<div style="font-size:12px;color:var(--text-3);padding:4px 0;display:flex;justify-content:space-between;">
+        <span>${p.nom}${p.quantite > 1 ? ` ×${p.quantite}` : ''}</span>
+        <span style="font-weight:700;color:var(--text-2);">${(p.prix * (p.quantite||1)).toLocaleString('fr-FR')} €</span>
+      </div>`).join('');
+
+    return `
+      <div id="dpe-reco-${i}" onclick="toggleRecoDPE(${i})" style="background:var(--glass);border:1.5px solid rgba(212,165,116,0.2);border-radius:14px;padding:16px;margin-bottom:10px;cursor:pointer;transition:all 0.2s;" data-selected="true">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+          <div style="display:flex;align-items:center;gap:10px;flex:1;">
+            <div id="dpe-check-${i}" style="width:22px;height:22px;border-radius:6px;background:var(--accent);border:1.5px solid var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px;color:#fff;transition:all 0.2s;">✓</div>
+            <div>
+              <div style="font-size:14px;font-weight:700;color:var(--text);">${r.titre}</div>
+              <div style="font-size:12px;color:var(--text-3);margin-top:2px;">${r.description}</div>
+            </div>
+          </div>
+          <div style="text-align:right;flex-shrink:0;margin-left:12px;">
+            <div style="font-size:15px;font-weight:800;color:var(--accent);">${(r.total||0).toLocaleString('fr-FR')} €</div>
+            <span style="background:${pColor}22;color:${pColor};border:1px solid ${pColor}44;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700;">${r.priorite}</span>
+          </div>
+        </div>
+        <div id="dpe-prests-${i}" style="border-top:1px solid rgba(218,165,32,0.1);margin-top:8px;padding-top:8px;">${prests}</div>
+      </div>`;
+  }).join('');
+
+  majTotalDPE();
+}
+
+function toggleRecoDPE(i) {
+  const card = document.getElementById(`dpe-reco-${i}`);
+  const check = document.getElementById(`dpe-check-${i}`);
+  const selected = card.getAttribute('data-selected') === 'true';
+  card.setAttribute('data-selected', !selected);
+  if (!selected) {
+    check.style.background = 'var(--accent)';
+    check.style.borderColor = 'var(--accent)';
+    check.textContent = '✓';
+    card.style.borderColor = 'rgba(212,165,116,0.2)';
+    card.style.opacity = '1';
+  } else {
+    check.style.background = 'transparent';
+    check.style.borderColor = 'rgba(218,165,32,0.3)';
+    check.textContent = '';
+    card.style.borderColor = 'rgba(218,165,32,0.08)';
+    card.style.opacity = '0.5';
+  }
+  majTotalDPE();
+}
+
+function majTotalDPE() {
+  if (!dpeData) return;
+  let total = 0;
+  (dpeData.recommandations || []).forEach((r, i) => {
+    const card = document.getElementById(`dpe-reco-${i}`);
+    if (card && card.getAttribute('data-selected') === 'true') total += r.total || 0;
+  });
+  document.getElementById('dpe-total-global').textContent = `Total sélection : ${total.toLocaleString('fr-FR')} €`;
+}
+
+function creerDevisDPE() {
+  if (!dpeData) return;
+  const prestations = [];
+  (dpeData.recommandations || []).forEach((r, i) => {
+    const card = document.getElementById(`dpe-reco-${i}`);
+    if (card && card.getAttribute('data-selected') === 'true') {
+      (r.prestations || []).forEach(p => {
+        prestations.push({
+          designation: p.nom,
+          prixUnit: p.prix,
+          qte: p.quantite || 1,
+          categorie: 'DPE'
+        });
+      });
+    }
+  });
+
+  if (prestations.length === 0) { showToast('⚠️ Sélectionne au moins une recommandation !', '❌'); return; }
+
+  // Transférer vers devis
+  panierD = prestations;
+  renderPanier('d');
+
+  // Pré-remplir client si renseigné
+  const nomClient = document.getElementById('dpe-client-nom').value.trim();
+  const adresseClient = document.getElementById('dpe-client-adresse').value.trim();
+  if (nomClient) {
+    const parts = nomClient.split(' ');
+    const prenom = parts[0] || '';
+    const nom = parts.slice(1).join(' ');
+    const prenomEl = document.getElementById('d-prenom');
+    const nomEl = document.getElementById('d-client');
+    if (prenomEl) prenomEl.value = prenom;
+    if (nomEl) nomEl.value = nom;
+  }
+  if (adresseClient) {
+    const adEl = document.getElementById('d-adresse');
+    if (adEl) adEl.value = adresseClient;
+  }
+
+  // Aller sur la page devis
+  switchPage('devis', document.querySelector('.sidebar-item[onclick*="devis"]'));
+  showToast(`✅ ${prestations.length} prestation(s) ajoutées dans le devis !`, '📋');
+}
+</script>
 
 <!-- PAGE RAPPORT -->
 <div id="page-rapport" class="page">
@@ -3995,6 +4255,7 @@ function switchPage(page, el) {
   if (page === 'params') setTimeout(afficherParams, 100);
   if (page === 'rapport') setTimeout(initSignature, 100);
   if (page === 'agenda') setTimeout(chargerAgenda, 100);
+  if (page === 'sante') setTimeout(chargerSante, 100);
 }
 
 // Menu Plus sur mobile
