@@ -1131,16 +1131,6 @@ function toggleMat(i) {
   text.style.color = isChecked ? 'var(--text)' : 'var(--text-3)';
   row.style.opacity = isChecked ? '1' : '0.5';
 }
-
-  try {
-    await fetch(`/api/agenda/${id}/statut`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ statut })
-    });
-    showToast(`✅ Intervention marquée "${statut}"`, '📅');
-    chargerAgenda();
-  } catch(e) { showToast('❌ Erreur', '⚠️'); }
-}
 </script>
 
 <!-- PAGE DEVIS -->
@@ -3507,6 +3497,7 @@ async function dupliquerDoc(num) {
 }
 
 
+function getStatusBadge(statut, type) {
   const badges = {
     'signé': '<span class="badge badge-success">✓ Signé</span>',
     'envoyé': '<span class="badge badge-info">✉ Envoyé</span>',
