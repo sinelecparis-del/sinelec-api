@@ -8,6 +8,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
 
 
@@ -151,12 +152,10 @@ setInterval(verifierAlertesDevis, 300000);
   --accent: #d4a574; --gold: #daa520;
   --success: #10b981; --warning: #f59e0b; --error: #ef4444;
   --sidebar-width: 260px;
-  --bg-2: rgba(255,255,255,0.55);
 }
 [data-theme="dark"] {
   --bg: #0a0a0a; --glass: rgba(18,18,18,0.75); --border: rgba(218,165,32,0.22);
   --text: #fff; --text-2: #a8a8a8; --text-3: #6b6b6b;
-  --bg-2: rgba(30,30,30,0.7);
 }
 * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 body {
@@ -665,10 +664,6 @@ body::before {
 <!-- ════════════ MOBILE TABS BOTTOM ════════════ -->
 <div class="mobile-tabs">
   <div class="mobile-tabs-grid">
-    <div class="mobile-tab" onclick="switchPage('depannage', this)">
-      <div class="mobile-tab-icon">⚡</div>
-      <div class="mobile-tab-label">Urgence</div>
-    </div>
     <div class="mobile-tab active" onclick="switchPage('devis', this)">
       <div class="mobile-tab-icon">📋</div>
       <div class="mobile-tab-label">Devis</div>
@@ -676,6 +671,10 @@ body::before {
     <div class="mobile-tab" onclick="switchPage('facture', this)">
       <div class="mobile-tab-icon">💶</div>
       <div class="mobile-tab-label">Facture</div>
+    </div>
+    <div class="mobile-tab" onclick="switchPage('dashboard', this)">
+      <div class="mobile-tab-icon">📊</div>
+      <div class="mobile-tab-label">CA</div>
     </div>
     <div class="mobile-tab" onclick="switchPage('historique', this)">
       <div class="mobile-tab-icon">📋</div>
@@ -731,7 +730,7 @@ body::before {
 
 <!-- PAGE DEVIS -->
 <!-- PAGE DÉPANNAGE RAPIDE -->
-<div id="page-depannage" class="page">
+<div id="page-depannage" class="page" style="display:none;">
 <div class="content">
   <div class="section">
     <div class="section-header">
@@ -809,7 +808,7 @@ body::before {
     </div>
 
     <!-- Option remise -->
-    <div id="dep-remise-box" style="display:block;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.3);border-radius:10px;padding:12px;margin-bottom:16px;cursor:pointer;" onclick="toggleRemiseDep()">
+    <div id="dep-remise-box" style="display:none;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.3);border-radius:10px;padding:12px;margin-bottom:16px;cursor:pointer;" onclick="toggleRemise()">
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <span style="font-size:13px;font-weight:700;color:var(--accent);">🎁 Appliquer remise 7%</span>
         <span id="dep-remise-montant" style="font-size:13px;font-weight:700;color:var(--text-3);"></span>
@@ -1200,13 +1199,13 @@ body::before {
 <!-- PAGE DASHBOARD CA -->
 <div id="page-dashboard" class="page">
 <div class="content" style="max-width:1000px;">
-  <div class="stat-grid">
+
+  <!-- KPI TOP -->
+  <div class="stat-grid" style="margin-bottom:20px;">
     <div class="stat-card">
       <div class="stat-value" id="dash-mois-ca">0</div>
       <div class="stat-label">CA Ce Mois (€)</div>
-      <div style="font-size:12px;color:var(--text-3);margin-top:4px;">
-        <span id="dash-mois-nb">0</span> facture(s)
-      </div>
+      <div style="font-size:12px;color:var(--text-3);margin-top:4px;"><span id="dash-mois-nb">0</span> facture(s)</div>
     </div>
     <div class="stat-card">
       <div class="stat-value" id="dash-annee-ca">0</div>
@@ -1221,16 +1220,55 @@ body::before {
       <div class="stat-label">Panier moyen (€)</div>
     </div>
   </div>
-  
+
+  <!-- GRAPHIQUE CA 6 MOIS -->
   <div class="section">
-    <div class="section-title">📊 Évolution CA - 6 derniers mois</div>
-    <div id="dash-mois-list"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div class="section-title" style="margin-bottom:0;">📊 CA par mois</div>
+      <div style="display:flex;gap:6px;" id="dash-period-btns">
+        <button onclick="setDashPeriod(6,this)" class="btn-small" style="padding:5px 12px;font-size:11px;background:linear-gradient(135deg,var(--accent),var(--gold));color:#fff;border:none;">6 mois</button>
+        <button onclick="setDashPeriod(12,this)" class="btn-small" style="padding:5px 12px;font-size:11px;">12 mois</button>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:20px;margin-bottom:12px;font-size:12px;color:var(--text-2);">
+      <span style="display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:2px;background:#d4a574;display:inline-block;"></span>CA facturé</span>
+      <span style="display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:2px;background:rgba(212,165,116,0.25);border:1px dashed #d4a574;display:inline-block;"></span>Devis signés</span>
+    </div>
+    <div style="position:relative;width:100%;height:220px;">
+      <canvas id="chart-ca" role="img" aria-label="Graphique CA par mois">Évolution du chiffre d'affaires sur les derniers mois.</canvas>
+    </div>
   </div>
-  
+
+  <!-- LIGNE 2 : CONVERSION + ZONES -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+
+    <div class="section" style="margin-bottom:0;">
+      <div class="section-title">🎯 Conversion devis → facture</div>
+      <div style="position:relative;width:100%;height:180px;">
+        <canvas id="chart-conv" role="img" aria-label="Taux de conversion par mois">Taux de conversion des devis en factures.</canvas>
+      </div>
+      <div id="dash-conv-stats" style="margin-top:10px;font-size:12px;color:var(--text-2);text-align:center;"></div>
+    </div>
+
+    <div class="section" style="margin-bottom:0;">
+      <div class="section-title">📍 Zones Paris</div>
+      <div id="dash-zones" style="padding-top:4px;"></div>
+    </div>
+
+  </div>
+
+  <!-- TOP PRESTATIONS -->
+  <div class="section">
+    <div class="section-title">⚡ Top prestations facturées</div>
+    <div id="dash-top-prests" style="padding-top:4px;"></div>
+  </div>
+
+  <!-- TOP CLIENTS -->
   <div class="section">
     <div class="section-title">⭐ Top 5 Clients</div>
     <div id="dash-top-clients"></div>
   </div>
+
 </div>
 </div>
 
@@ -1484,266 +1522,266 @@ const GRILLE = {
     'Deplacement Paris intra-muros':              { f:50,   fo:0,   mo:50,   desc:'Technicien qualifie, vehicule equipe, outillage complet' },
     'Deplacement banlieue <20km':                 { f:80,   fo:0,   mo:80,   desc:'Deplacement professionnel, vehicule equipe, IDF <20km' },
     'Deplacement banlieue >20km (78/91/95)':      { f:100,  fo:0,   mo:100,  desc:'Deplacement grande couronne, vehicule professionnel equipe' },
-    'Main oeuvre heure supplementaire':           { f:80,   fo:0,   mo:80,   desc:'Technicien qualifie, tarif horaire supplementaire' },
-    'Urgence jour (8h-20h)':                      { f:150,  fo:0,   mo:150,  desc:'Intervention urgente sous 2h, technicien disponible 7j/7' },
-    'Urgence soir (20h-23h)':                     { f:207,  fo:0,   mo:207,  desc:'Intervention urgente en soiree, disponibilite garantie' },
-    'Urgence nuit / WE / ferie':                  { f:288,  fo:0,   mo:288,  desc:'Intervention 24h/24, nuit week-end et jours feries' },
-    'Forfait visite diagnostic (avant devis)':    { f:92,   fo:0,   mo:92,   desc:'Visite technique, analyse installation, rapport ecrit fourni' },
-    'Deplacement + 1h MO (offert si devis signe)':{ f:138,  fo:0,   mo:138,  desc:'Deplacement + 1h intervention, deduit si devis accepte' },
-    'Attestation mise en securite Enedis':        { f:217,  fo:12,  mo:206,  desc:'Diagnostic complet, verification conformite, attestation officielle Enedis' },
+    'Main oeuvre heure supplementaire':           { f:70,   fo:0,   mo:70,   desc:'Technicien qualifie, tarif horaire supplementaire' },
+    'Urgence jour (8h-20h)':                      { f:130,  fo:0,   mo:130,  desc:'Intervention urgente sous 2h, technicien disponible 7j/7' },
+    'Urgence soir (20h-23h)':                     { f:180,  fo:0,   mo:180,  desc:'Intervention urgente en soiree, disponibilite garantie' },
+    'Urgence nuit / WE / ferie':                  { f:250,  fo:0,   mo:250,  desc:'Intervention 24h/24, nuit week-end et jours feries' },
+    'Forfait visite diagnostic (avant devis)':    { f:80,   fo:0,   mo:80,   desc:'Visite technique, analyse installation, rapport ecrit fourni' },
+    'Deplacement + 1h MO (offert si devis signe)':{ f:120,  fo:0,   mo:120,  desc:'Deplacement + 1h intervention, deduit si devis accepte' },
+    'Attestation mise en securite Enedis':        { f:189,  fo:10,  mo:179,  desc:'Diagnostic complet, verification conformite, attestation officielle Enedis' },
   },
 
   '🔧 Depannage General': {
-    'Recherche de panne simple':                  { f:138,  fo:0,   mo:138,  desc:'Diagnostic methodique, localisation panne, rapport intervention' },
-    'Recherche de panne complexe':                { f:207,  fo:0,   mo:207,  desc:'Diagnostic approfondi multi-circuits, outils de mesure professionnels' },
-    'Court-circuit diagnostic + reparation':      { f:144,  fo:17,  mo:126,  desc:'Localisation court-circuit, remplacement piece, remise en service' },
-    'Reactivation coupure generale':              { f:103,   fo:0,   mo:103,   desc:'Remise en service complete, verification securite, test circuits' },
-    'Disjoncteur qui saute en permanence':        { f:172,  fo:23,  mo:150,  desc:'Diagnostic surcharge, identification cause, remplacement si necessaire' },
-    'Probleme terre / neutre inverse':            { f:184,  fo:12,  mo:172,  desc:'Verification cablage, correction polarite, test mise a la terre' },
-    'Surtension / sous-tension diagnostic':       { f:161,  fo:0,   mo:161,  desc:'Mesure tensions, identification source, rapport technique detaille' },
-    'Diagnostic complet installation':            { f:207,  fo:0,   mo:207,  desc:'Audit complet installation electrique, rapport conformite NF C15-100' },
-    'Recherche fuite de courant':                 { f:172,  fo:0,   mo:172,  desc:'Detection fuite par pince amperemetrique, localisation et correction' },
-    'Reparation prise defectueuse':               { f:103,   fo:29,  mo:75,   desc:'Remplacement prise, cablage, test fonctionnement, finition soignee' },
-    'Reparation interrupteur defectueux':         { f:103,   fo:23,  mo:80,   desc:'Remplacement interrupteur, raccordement, test complet' },
-    'Reparation chauffage electrique':            { f:253,  fo:46,  mo:207,  desc:'Diagnostic panne, remplacement composant defectueux, test securite' },
-    'Reparation volet roulant electrique':        { f:207,  fo:34,  mo:172,  desc:'Diagnostic moteur, remplacement piece, reglage fin de course' },
-    'Remplacement fusible ceramique':             { f:63,   fo:6,   mo:57,   desc:'Remplacement fusible calibre adapte, verification cause surcharge' },
-    'Remplacement fusible cylindrique':           { f:69,   fo:9,   mo:60,   desc:'Remplacement fusible cylindrique, calibrage adapte au circuit' },
-    'Test continuite circuits':                   { f:115,  fo:0,   mo:115,  desc:'Verification continuite tous circuits, rapport mesures fourni' },
-    'Remise en service apres coupure EDF':        { f:138,  fo:0,   mo:138,  desc:'Verification installation, remise sous tension, test general' },
-    'Mise en service apres travaux':              { f:92,   fo:0,   mo:92,   desc:'Verification conformite, mise sous tension progressive, tests securite' },
+    'Recherche de panne simple':                  { f:120,  fo:0,   mo:120,  desc:'Diagnostic methodique, localisation panne, rapport intervention' },
+    'Recherche de panne complexe':                { f:180,  fo:0,   mo:180,  desc:'Diagnostic approfondi multi-circuits, outils de mesure professionnels' },
+    'Court-circuit diagnostic + reparation':      { f:125,  fo:15,  mo:110,  desc:'Localisation court-circuit, remplacement piece, remise en service' },
+    'Reactivation coupure generale':              { f:90,   fo:0,   mo:90,   desc:'Remise en service complete, verification securite, test circuits' },
+    'Disjoncteur qui saute en permanence':        { f:150,  fo:20,  mo:130,  desc:'Diagnostic surcharge, identification cause, remplacement si necessaire' },
+    'Probleme terre / neutre inverse':            { f:160,  fo:10,  mo:150,  desc:'Verification cablage, correction polarite, test mise a la terre' },
+    'Surtension / sous-tension diagnostic':       { f:140,  fo:0,   mo:140,  desc:'Mesure tensions, identification source, rapport technique detaille' },
+    'Diagnostic complet installation':            { f:180,  fo:0,   mo:180,  desc:'Audit complet installation electrique, rapport conformite NF C15-100' },
+    'Recherche fuite de courant':                 { f:150,  fo:0,   mo:150,  desc:'Detection fuite par pince amperemetrique, localisation et correction' },
+    'Reparation prise defectueuse':               { f:90,   fo:25,  mo:65,   desc:'Remplacement prise, cablage, test fonctionnement, finition soignee' },
+    'Reparation interrupteur defectueux':         { f:90,   fo:20,  mo:70,   desc:'Remplacement interrupteur, raccordement, test complet' },
+    'Reparation chauffage electrique':            { f:220,  fo:40,  mo:180,  desc:'Diagnostic panne, remplacement composant defectueux, test securite' },
+    'Reparation volet roulant electrique':        { f:180,  fo:30,  mo:150,  desc:'Diagnostic moteur, remplacement piece, reglage fin de course' },
+    'Remplacement fusible ceramique':             { f:55,   fo:5,   mo:50,   desc:'Remplacement fusible calibre adapte, verification cause surcharge' },
+    'Remplacement fusible cylindrique':           { f:60,   fo:8,   mo:52,   desc:'Remplacement fusible cylindrique, calibrage adapte au circuit' },
+    'Test continuite circuits':                   { f:100,  fo:0,   mo:100,  desc:'Verification continuite tous circuits, rapport mesures fourni' },
+    'Remise en service apres coupure EDF':        { f:120,  fo:0,   mo:120,  desc:'Verification installation, remise sous tension, test general' },
+    'Mise en service apres travaux':              { f:80,   fo:0,   mo:80,   desc:'Verification conformite, mise sous tension progressive, tests securite' },
   },
 
   '⚡ Tableau Monophase': {
-    'Disjoncteur 10A (eclairage)':                { f:161,  fo:32,  mo:129,  desc:'Fourniture Legrand/Schneider, pose, raccordement, etiquetage' },
-    'Disjoncteur 16A (prises)':                   { f:172,  fo:36,  mo:137,  desc:'Fourniture Legrand/Schneider, pose, raccordement, test' },
-    'Disjoncteur 20A (cuisine)':                  { f:172,  fo:36,  mo:137,  desc:'Fourniture Legrand/Schneider, calibre cuisine, pose complete' },
-    'Disjoncteur 32A (four / plaque)':            { f:184,  fo:40,  mo:144,  desc:'Fourniture 32A, pose, raccordement, adapte gros electromenager' },
-    'Disjoncteur differentiel 30mA type AC':      { f:230,  fo:63,  mo:167,  desc:'Fourniture differentiel 30mA, protection personnes, pose complete' },
-    'Interrupteur differentiel 63A type A':       { f:288,  fo:98,  mo:190,  desc:'Fourniture 63A type A, protection renforcee, pose et reglage' },
-    'Interrupteur differentiel 40A type A':       { f:264,  fo:80,  mo:184,  desc:'Fourniture 40A type A, protection circuits sensibles' },
-    'Contacteur jour/nuit':                       { f:138,  fo:40,  mo:98,   desc:'Fourniture contacteur, programmation HC/HP, raccordement' },
-    'Parafoudre type 2':                          { f:184,  fo:75,  mo:109,   desc:'Fourniture parafoudre NF C15-100, protection surtension, pose' },
-    'Telerupteur':                                { f:126,  fo:34,  mo:92,   desc:'Fourniture telerupteur, pose, raccordement multi-points' },
-    'Minuterie':                                  { f:126,  fo:40,  mo:86,   desc:'Fourniture minuterie reglable, pose, raccordement, reglage' },
-    'Mini tableau NF C 15-100':                   { f:213,  fo:69,  mo:144,  desc:'Coffret encastre, modules fournis, conforme NF C15-100' },
-    'Tableau complet 1 rangee (6 a 13 modules)':  { f:747,  fo:322, mo:425,  desc:'Coffret + appareillage Legrand/Schneider, pose cablage etiquetage, NF C15-100' },
-    'Tableau complet 2 rangees (14 a 26 modules)':{ f:1208, fo:518, mo:690,  desc:'Coffret 2 rangees, appareillage complet, schema fourni, NF C15-100' },
-    'Tableau complet 3 rangees (27+ modules)':    { f:2128, fo:862, mo:1265, desc:'Coffret 3 rangees, installation complete, schema electrique, NF C15-100' },
-    'Ajout module tableau existant':              { f:103,   fo:23,  mo:80,   desc:'Ajout disjoncteur/differentiel sur tableau existant, etiquetage' },
-    'Etiquetage et mise en ordre tableau':        { f:69,   fo:6,   mo:63,   desc:'Identification circuits, etiquettes professionnelles, schema mis a jour' },
-    'Verification et rapport tableau':            { f:92,   fo:0,   mo:92,   desc:'Controle visuel et electrique, rapport conformite fourni' },
+    'Disjoncteur 10A (eclairage)':                { f:140,  fo:28,  mo:112,  desc:'Fourniture Legrand/Schneider, pose, raccordement, etiquetage' },
+    'Disjoncteur 16A (prises)':                   { f:150,  fo:31,  mo:119,  desc:'Fourniture Legrand/Schneider, pose, raccordement, test' },
+    'Disjoncteur 20A (cuisine)':                  { f:150,  fo:31,  mo:119,  desc:'Fourniture Legrand/Schneider, calibre cuisine, pose complete' },
+    'Disjoncteur 32A (four / plaque)':            { f:160,  fo:35,  mo:125,  desc:'Fourniture 32A, pose, raccordement, adapte gros electromenager' },
+    'Disjoncteur differentiel 30mA type AC':      { f:200,  fo:55,  mo:145,  desc:'Fourniture differentiel 30mA, protection personnes, pose complete' },
+    'Interrupteur differentiel 63A type A':       { f:250,  fo:85,  mo:165,  desc:'Fourniture 63A type A, protection renforcee, pose et reglage' },
+    'Interrupteur differentiel 40A type A':       { f:230,  fo:70,  mo:160,  desc:'Fourniture 40A type A, protection circuits sensibles' },
+    'Contacteur jour/nuit':                       { f:120,  fo:35,  mo:85,   desc:'Fourniture contacteur, programmation HC/HP, raccordement' },
+    'Parafoudre type 2':                          { f:160,  fo:65,  mo:95,   desc:'Fourniture parafoudre NF C15-100, protection surtension, pose' },
+    'Telerupteur':                                { f:110,  fo:30,  mo:80,   desc:'Fourniture telerupteur, pose, raccordement multi-points' },
+    'Minuterie':                                  { f:110,  fo:35,  mo:75,   desc:'Fourniture minuterie reglable, pose, raccordement, reglage' },
+    'Mini tableau NF C 15-100':                   { f:185,  fo:60,  mo:125,  desc:'Coffret encastre, modules fournis, conforme NF C15-100' },
+    'Tableau complet 1 rangee (6 a 13 modules)':  { f:650,  fo:280, mo:370,  desc:'Coffret + appareillage Legrand/Schneider, pose cablage etiquetage, NF C15-100' },
+    'Tableau complet 2 rangees (14 a 26 modules)':{ f:1050, fo:450, mo:600,  desc:'Coffret 2 rangees, appareillage complet, schema fourni, NF C15-100' },
+    'Tableau complet 3 rangees (27+ modules)':    { f:1850, fo:750, mo:1100, desc:'Coffret 3 rangees, installation complete, schema electrique, NF C15-100' },
+    'Ajout module tableau existant':              { f:90,   fo:20,  mo:70,   desc:'Ajout disjoncteur/differentiel sur tableau existant, etiquetage' },
+    'Etiquetage et mise en ordre tableau':        { f:60,   fo:5,   mo:55,   desc:'Identification circuits, etiquettes professionnelles, schema mis a jour' },
+    'Verification et rapport tableau':            { f:80,   fo:0,   mo:80,   desc:'Controle visuel et electrique, rapport conformite fourni' },
   },
 
   '🔌 Tableau Triphase': {
-    'Disjoncteur triph. 3P+N 16A':               { f:253,  fo:86,  mo:167,  desc:'Disjoncteur triph 16A, fourniture Legrand/Schneider, pose complete' },
-    'Disjoncteur triph. 3P+N 20A':               { f:264,  fo:92,  mo:172,  desc:'Disjoncteur triph 20A, pose, raccordement, test mise en service' },
-    'Disjoncteur triph. 3P+N 32A':               { f:288,  fo:103,  mo:184,  desc:'Disjoncteur triph 32A, fourniture, pose, raccordement complet' },
-    'Disjoncteur triph. 3P+N 40A':               { f:310,  fo:115, mo:195,  desc:'Disjoncteur triph 40A, protection moteurs/machines industrielles' },
-    'Disjoncteur triph. 3P+N 63A':               { f:345,  fo:138, mo:207,  desc:'Disjoncteur triph 63A, protection circuits puissants, pose complete' },
-    'Differentiel triph. 63A type A':            { f:437,  fo:184, mo:253,  desc:'Differentiel triph 63A type A, protection renforcee, pose' },
-    'Differentiel triph. 80A type A':            { f:483,  fo:218, mo:264,  desc:'Differentiel triph 80A, protection installation triphasee complete' },
-    'Differentiel triph. 100A type A':           { f:552,  fo:264, mo:288,  desc:'Differentiel triph 100A, protection totale installation triphasee' },
-    'Tableau triphase complet 1 rangee':         { f:1380, fo:575, mo:805,  desc:'Coffret triph, appareillage complet, cablage, etiquetage, NF C15-100' },
-    'Tableau triphase complet 2 rangees':        { f:2530, fo:1035, mo:1495, desc:'Coffret triph 2 rangees, installation complete, schema fourni' },
-    'Tableau triphase 3 rangees et plus':        { f:4025, fo:1610,mo:2415, desc:'TGBT complet, appareillage professionnel, schema, mise en service' },
-    'Mise en service tableau triphase':          { f:172,  fo:0,   mo:172,  desc:'Verification cablage, mise sous tension progressive, tests securite' },
+    'Disjoncteur triph. 3P+N 16A':               { f:220,  fo:75,  mo:145,  desc:'Disjoncteur triph 16A, fourniture Legrand/Schneider, pose complete' },
+    'Disjoncteur triph. 3P+N 20A':               { f:230,  fo:80,  mo:150,  desc:'Disjoncteur triph 20A, pose, raccordement, test mise en service' },
+    'Disjoncteur triph. 3P+N 32A':               { f:250,  fo:90,  mo:160,  desc:'Disjoncteur triph 32A, fourniture, pose, raccordement complet' },
+    'Disjoncteur triph. 3P+N 40A':               { f:270,  fo:100, mo:170,  desc:'Disjoncteur triph 40A, protection moteurs/machines industrielles' },
+    'Disjoncteur triph. 3P+N 63A':               { f:300,  fo:120, mo:180,  desc:'Disjoncteur triph 63A, protection circuits puissants, pose complete' },
+    'Differentiel triph. 63A type A':            { f:380,  fo:160, mo:220,  desc:'Differentiel triph 63A type A, protection renforcee, pose' },
+    'Differentiel triph. 80A type A':            { f:420,  fo:190, mo:230,  desc:'Differentiel triph 80A, protection installation triphasee complete' },
+    'Differentiel triph. 100A type A':           { f:480,  fo:230, mo:250,  desc:'Differentiel triph 100A, protection totale installation triphasee' },
+    'Tableau triphase complet 1 rangee':         { f:1200, fo:500, mo:700,  desc:'Coffret triph, appareillage complet, cablage, etiquetage, NF C15-100' },
+    'Tableau triphase complet 2 rangees':        { f:2200, fo:900, mo:1300, desc:'Coffret triph 2 rangees, installation complete, schema fourni' },
+    'Tableau triphase 3 rangees et plus':        { f:3500, fo:1400,mo:2100, desc:'TGBT complet, appareillage professionnel, schema, mise en service' },
+    'Mise en service tableau triphase':          { f:150,  fo:0,   mo:150,  desc:'Verification cablage, mise sous tension progressive, tests securite' },
   },
 
   '🔩 Fournitures Diverses': {
-    'Peigne horizontal 2P+N (13 modules)':       { f:40,   fo:40,  mo:0,    desc:'Peigne de raccordement horizontal 13 modules, fourniture seule' },
-    'Peigne horizontal 2P+N (26 modules)':       { f:63,   fo:63,  mo:0,    desc:'Peigne de raccordement horizontal 26 modules, fourniture seule' },
-    'Peigne horizontal 3P+N (13 modules)':       { f:63,   fo:63,  mo:0,    desc:'Peigne triph 13 modules, raccordement tableau, fourniture seule' },
-    'Peigne vertical 2P+N':                      { f:52,   fo:52,  mo:0,    desc:'Peigne vertical monophase, connexion differentiels, fourniture' },
-    'Peigne vertical 3P+N':                      { f:75,   fo:75,  mo:0,    desc:'Peigne vertical triph, connexion tableaux tripahses, fourniture' },
-    'Wago / domino connexion (lot 10)':          { f:17,   fo:17,  mo:0,    desc:'Connecteurs rapides Wago, connexion sans outil, lot 10' },
-    'Cheville + vis assortiment (lot 50)':       { f:14,   fo:14,  mo:0,    desc:'Fixations assorties, chevilles murales et vis, lot 50 pieces' },
+    'Peigne horizontal 2P+N (13 modules)':       { f:35,   fo:35,  mo:0,    desc:'Peigne de raccordement horizontal 13 modules, fourniture seule' },
+    'Peigne horizontal 2P+N (26 modules)':       { f:55,   fo:55,  mo:0,    desc:'Peigne de raccordement horizontal 26 modules, fourniture seule' },
+    'Peigne horizontal 3P+N (13 modules)':       { f:55,   fo:55,  mo:0,    desc:'Peigne triph 13 modules, raccordement tableau, fourniture seule' },
+    'Peigne vertical 2P+N':                      { f:45,   fo:45,  mo:0,    desc:'Peigne vertical monophase, connexion differentiels, fourniture' },
+    'Peigne vertical 3P+N':                      { f:65,   fo:65,  mo:0,    desc:'Peigne vertical triph, connexion tableaux tripahses, fourniture' },
+    'Wago / domino connexion (lot 10)':          { f:15,   fo:15,  mo:0,    desc:'Connecteurs rapides Wago, connexion sans outil, lot 10' },
+    'Cheville + vis assortiment (lot 50)':       { f:12,   fo:12,  mo:0,    desc:'Fixations assorties, chevilles murales et vis, lot 50 pieces' },
     'Cable rigide 1.5mm² (par ml)':              { f:2,    fo:2,   mo:0,    desc:'Cable H07V-U 1.5mm2, circuits eclairage, fourniture par ml' },
     'Cable rigide 2.5mm² (par ml)':              { f:3,    fo:3,   mo:0,    desc:'Cable H07V-U 2.5mm2, circuits prises, fourniture par ml' },
-    'Cable rigide 6mm² (par ml)':                { f:6,    fo:6,   mo:0,    desc:'Cable H07V-U 6mm2, circuits puissants, four/plaque, par ml' },
+    'Cable rigide 6mm² (par ml)':                { f:5,    fo:5,   mo:0,    desc:'Cable H07V-U 6mm2, circuits puissants, four/plaque, par ml' },
     'Cable souple 1.5mm² (par ml)':              { f:2,    fo:2,   mo:0,    desc:'Cable H07V-R souple 1.5mm2, raccordements, fourniture par ml' },
     'Cable souple 2.5mm² (par ml)':              { f:3,    fo:3,   mo:0,    desc:'Cable H07V-R souple 2.5mm2, raccordements flexibles, par ml' },
-    'Boite encastrement simple':                 { f:9,    fo:9,   mo:0,    desc:'Boite 1 poste encastree, compatible toutes marques' },
-    'Boite encastrement double':                 { f:14,   fo:14,  mo:0,    desc:'Boite 2 postes encastree, plaque double, toutes marques' },
-    'Boite derivation encastree':                { f:12,   fo:12,  mo:0,    desc:'Boite de derivation encastree IP40, bornes de connexion incluses' },
+    'Boite encastrement simple':                 { f:8,    fo:8,   mo:0,    desc:'Boite 1 poste encastree, compatible toutes marques' },
+    'Boite encastrement double':                 { f:12,   fo:12,  mo:0,    desc:'Boite 2 postes encastree, plaque double, toutes marques' },
+    'Boite derivation encastree':                { f:10,   fo:10,  mo:0,    desc:'Boite de derivation encastree IP40, bornes de connexion incluses' },
     'Gaine icta 16mm (par ml)':                  { f:2,    fo:2,   mo:0,    desc:'Gaine ICTA 16mm annellee, protection cables, fourniture par ml' },
     'Gaine icta 20mm (par ml)':                  { f:2,    fo:2,   mo:0,    desc:'Gaine ICTA 20mm annellee, tirage cable, fourniture par ml' },
-    'Goulotte 40x16 (par ml)':                   { f:9,    fo:9,   mo:0,    desc:'Goulotte PVC 40x16 blanc, pose apparent propre, par ml' },
-    'Goulotte 60x40 (par ml)':                   { f:14,   fo:14,  mo:0,    desc:'Goulotte PVC 60x40, grand volume, pose apparent soignee, par ml' },
-    'Attache / serre-cable (lot 20)':            { f:9,    fo:9,   mo:0,    desc:'Colliers de fixation assortis, maintien cables, lot 20 pieces' },
-    'Ruban isolant (lot 3)':                     { f:7,    fo:7,   mo:0,    desc:'Ruban isolant 3M professionnel, isolation connexions, lot 3' },
-    'Cosse / embout (lot 50)':                   { f:12,   fo:12,  mo:0,    desc:'Embouts de cables assortis, connexions propres et securisees' },
-    'Disjoncteur de branchement 60A':            { f:207,  fo:103,  mo:103,   desc:'Disjoncteur EDF 60A, remplacement ou installation, pose complete' },
+    'Goulotte 40x16 (par ml)':                   { f:8,    fo:8,   mo:0,    desc:'Goulotte PVC 40x16 blanc, pose apparent propre, par ml' },
+    'Goulotte 60x40 (par ml)':                   { f:12,   fo:12,  mo:0,    desc:'Goulotte PVC 60x40, grand volume, pose apparent soignee, par ml' },
+    'Attache / serre-cable (lot 20)':            { f:8,    fo:8,   mo:0,    desc:'Colliers de fixation assortis, maintien cables, lot 20 pieces' },
+    'Ruban isolant (lot 3)':                     { f:6,    fo:6,   mo:0,    desc:'Ruban isolant 3M professionnel, isolation connexions, lot 3' },
+    'Cosse / embout (lot 50)':                   { f:10,   fo:10,  mo:0,    desc:'Embouts de cables assortis, connexions propres et securisees' },
+    'Disjoncteur de branchement 60A':            { f:180,  fo:90,  mo:90,   desc:'Disjoncteur EDF 60A, remplacement ou installation, pose complete' },
   },
 
   '🔌 Prises & Interrupteurs': {
-    'Prise standard 2P+T':                       { f:103,   fo:23,  mo:80,   desc:'Prise Legrand/Schneider, pose encastree, raccordement, finition' },
-    'Prise double':                              { f:126,  fo:32,  mo:94,   desc:'Double prise 2P+T, pose encastree, raccordement, plaque fournie' },
-    'Prise specialisee cuisiniere 32A':          { f:161,  fo:40,  mo:121,  desc:'Prise 32A 3P+T, pose, raccordement ligne dediee, securisee' },
-    'Prise etanche exterieure IP44':             { f:126,  fo:32,  mo:94,   desc:'Prise IP44 etanche, protection pluie, pose exterieure complete' },
-    'Deplacement prise existante':               { f:150,  fo:29,  mo:121,  desc:'Depose prise, tirage cable, repose nouvel emplacement, finition' },
-    'Prise RJ45 reseau':                         { f:75,   fo:17,  mo:57,   desc:'Prise RJ45 cat6, pose encastree, raccordement, test connexion' },
-    'Prise USB integree':                        { f:98,   fo:29,  mo:69,   desc:'Prise avec chargeur USB integre, pose, raccordement, test' },
-    'Prise TV coaxiale':                         { f:86,   fo:21,  mo:66,   desc:'Prise coaxiale TV/SAT, pose encastree, raccordement, test signal' },
-    'Prise Green Up recharge VE':                { f:345,  fo:138, mo:207,  desc:'Prise T2 Green Up, ligne dediee 16A, protection differentielle' },
-    'Interrupteur simple':                       { f:103,   fo:23,  mo:80,   desc:'Interrupteur Legrand, pose encastree, raccordement, finition' },
-    'Interrupteur va-et-vient':                  { f:126,  fo:29,  mo:98,   desc:'Va-et-vient, 2 points de commande, pose complete, test' },
-    'Variateur intensite':                       { f:150,  fo:46,  mo:103,   desc:'Variateur LED compatible, pose, reglage, test luminosite' },
-    'Interrupteur connecte':                     { f:172,  fo:63,  mo:109,   desc:'Interrupteur WiFi/Zigbee, configuration appli, pose complete' },
-    'Bouton poussoir sonnette':                  { f:92,   fo:21,  mo:71,   desc:'Bouton poussoir, pose encastree, raccordement sonnette' },
+    'Prise standard 2P+T':                       { f:90,   fo:20,  mo:70,   desc:'Prise Legrand/Schneider, pose encastree, raccordement, finition' },
+    'Prise double':                              { f:110,  fo:28,  mo:82,   desc:'Double prise 2P+T, pose encastree, raccordement, plaque fournie' },
+    'Prise specialisee cuisiniere 32A':          { f:140,  fo:35,  mo:105,  desc:'Prise 32A 3P+T, pose, raccordement ligne dediee, securisee' },
+    'Prise etanche exterieure IP44':             { f:110,  fo:28,  mo:82,   desc:'Prise IP44 etanche, protection pluie, pose exterieure complete' },
+    'Deplacement prise existante':               { f:130,  fo:25,  mo:105,  desc:'Depose prise, tirage cable, repose nouvel emplacement, finition' },
+    'Prise RJ45 reseau':                         { f:65,   fo:15,  mo:50,   desc:'Prise RJ45 cat6, pose encastree, raccordement, test connexion' },
+    'Prise USB integree':                        { f:85,   fo:25,  mo:60,   desc:'Prise avec chargeur USB integre, pose, raccordement, test' },
+    'Prise TV coaxiale':                         { f:75,   fo:18,  mo:57,   desc:'Prise coaxiale TV/SAT, pose encastree, raccordement, test signal' },
+    'Prise Green Up recharge VE':                { f:300,  fo:120, mo:180,  desc:'Prise T2 Green Up, ligne dediee 16A, protection differentielle' },
+    'Interrupteur simple':                       { f:90,   fo:20,  mo:70,   desc:'Interrupteur Legrand, pose encastree, raccordement, finition' },
+    'Interrupteur va-et-vient':                  { f:110,  fo:25,  mo:85,   desc:'Va-et-vient, 2 points de commande, pose complete, test' },
+    'Variateur intensite':                       { f:130,  fo:40,  mo:90,   desc:'Variateur LED compatible, pose, reglage, test luminosite' },
+    'Interrupteur connecte':                     { f:150,  fo:55,  mo:95,   desc:'Interrupteur WiFi/Zigbee, configuration appli, pose complete' },
+    'Bouton poussoir sonnette':                  { f:80,   fo:18,  mo:62,   desc:'Bouton poussoir, pose encastree, raccordement sonnette' },
   },
 
   '💡 Eclairage': {
-    'Luminaire simple (plafonnier)':             { f:132,  fo:23,  mo:109,   desc:'Pose plafonnier fourni par client, raccordement DCL, fixation' },
-    'Lustre / luminaire lourd':                  { f:230,  fo:34,  mo:195,  desc:'Pose lustre lourd, fixation renforcee, raccordement, test' },
-    'Spot encastre LED (unite)':                 { f:86,   fo:29,  mo:57,   desc:'Spot LED encastre, decoupe, raccordement, test eclairage' },
-    'Bandeau LED (par ml)':                      { f:69,   fo:23,  mo:46,   desc:'Bandeau LED pose, fixation, raccordement alimentation, par ml' },
-    'Point lumineux DCL':                        { f:115,  fo:17,  mo:98,   desc:'Creation point lumineux DCL, tirage cable, boite de derivation' },
-    'Applique murale':                           { f:138,  fo:23,  mo:115,  desc:'Pose applique, fixation murale renforcee, raccordement, test' },
-    'Eclairage exterieur':                       { f:172,  fo:40,  mo:132,  desc:'Pose luminaire exterieur IP44, fixation, raccordement etanche' },
-    'Chemin lumineux 3 spots':                   { f:288,  fo:98,  mo:190,  desc:'3 spots encastres alignes, cable, alimentation, test homogeneite' },
-    'Detecteur mouvement eclairage':             { f:138,  fo:40,  mo:98,   desc:'Detecteur infrarouge, reglage sensibilite/temporisation, pose' },
-    'Eclairage securite BAES':                   { f:207,  fo:75,  mo:132,  desc:'BAES NF, pose, raccordement, test autonomie conforme ERP' },
-    'Reglette LED':                              { f:109,   fo:34,  mo:75,   desc:'Reglette LED etanche ou standard, pose, raccordement, test' },
-    'Projecteur exterieur LED':                  { f:207,  fo:63,  mo:144,  desc:'Projecteur LED IP65, fixation, raccordement etanche, reglage' },
+    'Luminaire simple (plafonnier)':             { f:115,  fo:20,  mo:95,   desc:'Pose plafonnier fourni par client, raccordement DCL, fixation' },
+    'Lustre / luminaire lourd':                  { f:200,  fo:30,  mo:170,  desc:'Pose lustre lourd, fixation renforcee, raccordement, test' },
+    'Spot encastre LED (unite)':                 { f:75,   fo:25,  mo:50,   desc:'Spot LED encastre, decoupe, raccordement, test eclairage' },
+    'Bandeau LED (par ml)':                      { f:60,   fo:20,  mo:40,   desc:'Bandeau LED pose, fixation, raccordement alimentation, par ml' },
+    'Point lumineux DCL':                        { f:100,  fo:15,  mo:85,   desc:'Creation point lumineux DCL, tirage cable, boite de derivation' },
+    'Applique murale':                           { f:120,  fo:20,  mo:100,  desc:'Pose applique, fixation murale renforcee, raccordement, test' },
+    'Eclairage exterieur':                       { f:150,  fo:35,  mo:115,  desc:'Pose luminaire exterieur IP44, fixation, raccordement etanche' },
+    'Chemin lumineux 3 spots':                   { f:250,  fo:85,  mo:165,  desc:'3 spots encastres alignes, cable, alimentation, test homogeneite' },
+    'Detecteur mouvement eclairage':             { f:120,  fo:35,  mo:85,   desc:'Detecteur infrarouge, reglage sensibilite/temporisation, pose' },
+    'Eclairage securite BAES':                   { f:180,  fo:65,  mo:115,  desc:'BAES NF, pose, raccordement, test autonomie conforme ERP' },
+    'Reglette LED':                              { f:95,   fo:30,  mo:65,   desc:'Reglette LED etanche ou standard, pose, raccordement, test' },
+    'Projecteur exterieur LED':                  { f:180,  fo:55,  mo:125,  desc:'Projecteur LED IP65, fixation, raccordement etanche, reglage' },
   },
 
   '🔗 Circuits & Cablage': {
-    'Circuit apparent 5m':                       { f:230,  fo:40,  mo:190,  desc:'Tirage cable apparent sous goulotte 5m, raccordement tableau' },
-    'Circuit encastre 5m':                       { f:345,  fo:52,  mo:293,  desc:'Tirage cable encastre sous gaine 5m, saignee, raccordement' },
-    'Cable supplementaire (par ml)':             { f:23,   fo:9,   mo:14,   desc:'Tirage cable additionnel, goulotte ou encastre, par metre' },
-    'Goulotte (par ml)':                         { f:17,   fo:6,   mo:12,   desc:'Pose goulotte PVC, fixation, passage cable, finition, par ml' },
-    'Chemin de cable (par ml)':                  { f:34,   fo:12,  mo:23,   desc:'Chemin de cable metallique, fixation plafond, par metre lineaire' },
-    'Passage cable cloison/dalle':               { f:138,  fo:6,   mo:132,  desc:'Percage cloison ou dalle, passage fourreaux, rebouchage propre' },
-    'Ligne dediee lave-linge':                   { f:253,  fo:52,  mo:201,  desc:'Circuit 20A du tableau, cable 2.5mm2, prise 2P+T, NF C15-100' },
-    'Ligne dediee chauffe-eau':                  { f:253,  fo:52,  mo:201,  desc:'Circuit 20A, cable 2.5mm2, contacteur HC/HP, conforme norme' },
-    'Ligne dediee plaque induction':             { f:288,  fo:57,  mo:230,  desc:'Circuit 32A du tableau, cable 6mm2, prise specialisee, NF C15-100' },
-    'Ligne dediee climatisation':                { f:322,  fo:63,  mo:259,  desc:'Circuit 20A, cable 2.5mm2, prise ou raccordement direct clim' },
-    'Boite de derivation':                       { f:52,   fo:12,  mo:40,   desc:'Boite de derivation IP40, connexions, fermeture, accessible' },
-    'Tirage cable sous gaine icta (par ml)':     { f:14,   fo:3,   mo:10,    desc:'Tirage cable sous gaine encastree existante, par metre' },
+    'Circuit apparent 5m':                       { f:200,  fo:35,  mo:165,  desc:'Tirage cable apparent sous goulotte 5m, raccordement tableau' },
+    'Circuit encastre 5m':                       { f:300,  fo:45,  mo:255,  desc:'Tirage cable encastre sous gaine 5m, saignee, raccordement' },
+    'Cable supplementaire (par ml)':             { f:20,   fo:8,   mo:12,   desc:'Tirage cable additionnel, goulotte ou encastre, par metre' },
+    'Goulotte (par ml)':                         { f:15,   fo:5,   mo:10,   desc:'Pose goulotte PVC, fixation, passage cable, finition, par ml' },
+    'Chemin de cable (par ml)':                  { f:30,   fo:10,  mo:20,   desc:'Chemin de cable metallique, fixation plafond, par metre lineaire' },
+    'Passage cable cloison/dalle':               { f:120,  fo:5,   mo:115,  desc:'Percage cloison ou dalle, passage fourreaux, rebouchage propre' },
+    'Ligne dediee lave-linge':                   { f:220,  fo:45,  mo:175,  desc:'Circuit 20A du tableau, cable 2.5mm2, prise 2P+T, NF C15-100' },
+    'Ligne dediee chauffe-eau':                  { f:220,  fo:45,  mo:175,  desc:'Circuit 20A, cable 2.5mm2, contacteur HC/HP, conforme norme' },
+    'Ligne dediee plaque induction':             { f:250,  fo:50,  mo:200,  desc:'Circuit 32A du tableau, cable 6mm2, prise specialisee, NF C15-100' },
+    'Ligne dediee climatisation':                { f:280,  fo:55,  mo:225,  desc:'Circuit 20A, cable 2.5mm2, prise ou raccordement direct clim' },
+    'Boite de derivation':                       { f:45,   fo:10,  mo:35,   desc:'Boite de derivation IP40, connexions, fermeture, accessible' },
+    'Tirage cable sous gaine icta (par ml)':     { f:12,   fo:3,   mo:9,    desc:'Tirage cable sous gaine encastree existante, par metre' },
   },
 
   '🛡️ Mise aux Normes & Securite': {
-    'Mise a la terre complete':                  { f:747,  fo:92,  mo:656,  desc:'Piquet terre, cable cuivre 16mm2, barre de terre, resistance <100 ohms' },
-    'Liaison equipotentielle principale':        { f:184,  fo:29,  mo:155,  desc:'Liaison equipotentielle coffret, raccordement canalisations, NF C15-100' },
-    'Liaison equipotentielle salle de bain':     { f:161,  fo:23,  mo:138,  desc:'Liaison equipo SdB, raccordement elements metalliques, zone 0/1/2' },
-    'Detecteur fumee DAAF':                      { f:98,   fo:23,  mo:75,   desc:'DAAF certifie NF, pose, test alarme, conformite loi Morange' },
-    'Detecteur CO monoxyde':                     { f:109,   fo:34,  mo:75,   desc:'Detecteur CO certifie, pose pres chaudiere, test alarme' },
-    'Diagnostic electrique obligatoire':         { f:172,  fo:0,   mo:172,  desc:'Diagnostic reglementaire DPE, rapport officiel, points controle NF C16-600' },
-    'Mise en conformite NF C15-100 (par m2)':    { f:75,   fo:17,  mo:57,   desc:'Mise aux normes installation par m2, rapport conformite fourni' },
-    'Rapport de conformite':                     { f:138,  fo:0,   mo:138,  desc:'Rapport technique detaille, points non conformes, recommandations' },
-    'Protection differentielle SDB':             { f:230,  fo:69,  mo:161,  desc:'Differentiel 30mA type A salle de bain, protection personnes' },
+    'Mise a la terre complete':                  { f:650,  fo:80,  mo:570,  desc:'Piquet terre, cable cuivre 16mm2, barre de terre, resistance <100 ohms' },
+    'Liaison equipotentielle principale':        { f:160,  fo:25,  mo:135,  desc:'Liaison equipotentielle coffret, raccordement canalisations, NF C15-100' },
+    'Liaison equipotentielle salle de bain':     { f:140,  fo:20,  mo:120,  desc:'Liaison equipo SdB, raccordement elements metalliques, zone 0/1/2' },
+    'Detecteur fumee DAAF':                      { f:85,   fo:20,  mo:65,   desc:'DAAF certifie NF, pose, test alarme, conformite loi Morange' },
+    'Detecteur CO monoxyde':                     { f:95,   fo:30,  mo:65,   desc:'Detecteur CO certifie, pose pres chaudiere, test alarme' },
+    'Diagnostic electrique obligatoire':         { f:150,  fo:0,   mo:150,  desc:'Diagnostic reglementaire DPE, rapport officiel, points controle NF C16-600' },
+    'Mise en conformite NF C15-100 (par m2)':    { f:65,   fo:15,  mo:50,   desc:'Mise aux normes installation par m2, rapport conformite fourni' },
+    'Rapport de conformite':                     { f:120,  fo:0,   mo:120,  desc:'Rapport technique detaille, points non conformes, recommandations' },
+    'Protection differentielle SDB':             { f:200,  fo:60,  mo:140,  desc:'Differentiel 30mA type A salle de bain, protection personnes' },
   },
 
   '🔥 Chauffage Electrique': {
-    'Convecteur mural standard':                 { f:230,  fo:69,  mo:161,  desc:'Pose convecteur, raccordement circuit dedie, test thermostat' },
-    'Radiateur a inertie':                       { f:402,  fo:138, mo:264,  desc:'Pose radiateur inertie, fil pilote, raccordement, programmation' },
-    'Seche-serviettes electrique':               { f:322,  fo:103,  mo:218,  desc:'Pose seche-serviettes, raccordement zone 2/3 SdB, test' },
-    'Thermostat programmable':                   { f:161,  fo:52,  mo:109,   desc:'Thermostat programmable, installation, configuration plages horaires' },
-    'Thermostat connecte / fil pilote':          { f:207,  fo:80,  mo:126,  desc:'Thermostat WiFi, installation, config appli, gestion a distance' },
-    'Remplacement convecteur vers inertie':      { f:518,  fo:172, mo:345,  desc:'Depose convecteur, pose inertie meme circuit, config fil pilote' },
-    'Depose ancien radiateur':                   { f:69,   fo:0,   mo:69,   desc:'Depose radiateur, obturation circuit, rebouchage propre' },
-    'Plancher chauffant electrique (par m2)':    { f:138,  fo:57,  mo:80,   desc:'Cable chauffant, sonde, thermostat, chape, par m2' },
-    'Chauffe-eau electrique 100L':               { f:518,  fo:207, mo:310,  desc:'Pose chauffe-eau 100L, raccordement electrique et plomberie, test' },
-    'Chauffe-eau electrique 200L':               { f:667,  fo:288, mo:379,  desc:'Pose chauffe-eau 200L, raccordement complet, groupe securite, test' },
-    'Ballon thermodynamique':                    { f:977,  fo:460, mo:518,  desc:'Pose ballon thermodynamique, raccordement electrique, mise en service' },
+    'Convecteur mural standard':                 { f:200,  fo:60,  mo:140,  desc:'Pose convecteur, raccordement circuit dedie, test thermostat' },
+    'Radiateur a inertie':                       { f:350,  fo:120, mo:230,  desc:'Pose radiateur inertie, fil pilote, raccordement, programmation' },
+    'Seche-serviettes electrique':               { f:280,  fo:90,  mo:190,  desc:'Pose seche-serviettes, raccordement zone 2/3 SdB, test' },
+    'Thermostat programmable':                   { f:140,  fo:45,  mo:95,   desc:'Thermostat programmable, installation, configuration plages horaires' },
+    'Thermostat connecte / fil pilote':          { f:180,  fo:70,  mo:110,  desc:'Thermostat WiFi, installation, config appli, gestion a distance' },
+    'Remplacement convecteur vers inertie':      { f:450,  fo:150, mo:300,  desc:'Depose convecteur, pose inertie meme circuit, config fil pilote' },
+    'Depose ancien radiateur':                   { f:60,   fo:0,   mo:60,   desc:'Depose radiateur, obturation circuit, rebouchage propre' },
+    'Plancher chauffant electrique (par m2)':    { f:120,  fo:50,  mo:70,   desc:'Cable chauffant, sonde, thermostat, chape, par m2' },
+    'Chauffe-eau electrique 100L':               { f:450,  fo:180, mo:270,  desc:'Pose chauffe-eau 100L, raccordement electrique et plomberie, test' },
+    'Chauffe-eau electrique 200L':               { f:580,  fo:250, mo:330,  desc:'Pose chauffe-eau 200L, raccordement complet, groupe securite, test' },
+    'Ballon thermodynamique':                    { f:850,  fo:400, mo:450,  desc:'Pose ballon thermodynamique, raccordement electrique, mise en service' },
   },
 
   '💨 VMC & Ventilation': {
-    'VMC simple flux autoreglable':              { f:518,  fo:172, mo:345,  desc:'VMC SF autoreglable, pose, cablage, bouches, mise en service' },
-    'VMC simple flux hygroreglable A':           { f:690,  fo:253, mo:437,  desc:'VMC hygro A, capteurs hygro, pose complete, equilibrage debit' },
-    'VMC simple flux hygroreglable B':           { f:805,  fo:322, mo:483,  desc:'VMC hygro B, bouches autoregulables, pose complete, test' },
-    'VMC double flux':                           { f:1380, fo:575, mo:805,  desc:'VMC double flux, echangeur thermique, pose, reglage, test' },
-    'Remplacement moteur VMC':                   { f:288,  fo:103,  mo:184,  desc:'Depose moteur, fourniture moteur adapte, repose, test debit' },
-    'Bouche extraction':                         { f:69,   fo:21,  mo:48,   desc:'Bouche extraction, pose, reglage debit, raccordement caisson' },
-    'Nettoyage / entretien VMC':                 { f:115,  fo:0,   mo:115,  desc:'Nettoyage caisson, bouches, gaines accessibles, test debit' },
-    'Ligne dediee VMC (disj 2A)':                { f:126,  fo:29,  mo:98,   desc:'Circuit dedie VMC 2A, disjoncteur tableau, cablage complete' },
-    'Extracteur d air simple':                   { f:172,  fo:57,  mo:115,  desc:'Extracteur SdB/cuisine, pose, raccordement, test debit conforme' },
-    'Extracteur temporise':                      { f:207,  fo:80,  mo:126,  desc:'Extracteur avec temporisation, reglage, pose complete, test' },
+    'VMC simple flux autoreglable':              { f:450,  fo:150, mo:300,  desc:'VMC SF autoreglable, pose, cablage, bouches, mise en service' },
+    'VMC simple flux hygroreglable A':           { f:600,  fo:220, mo:380,  desc:'VMC hygro A, capteurs hygro, pose complete, equilibrage debit' },
+    'VMC simple flux hygroreglable B':           { f:700,  fo:280, mo:420,  desc:'VMC hygro B, bouches autoregulables, pose complete, test' },
+    'VMC double flux':                           { f:1200, fo:500, mo:700,  desc:'VMC double flux, echangeur thermique, pose, reglage, test' },
+    'Remplacement moteur VMC':                   { f:250,  fo:90,  mo:160,  desc:'Depose moteur, fourniture moteur adapte, repose, test debit' },
+    'Bouche extraction':                         { f:60,   fo:18,  mo:42,   desc:'Bouche extraction, pose, reglage debit, raccordement caisson' },
+    'Nettoyage / entretien VMC':                 { f:100,  fo:0,   mo:100,  desc:'Nettoyage caisson, bouches, gaines accessibles, test debit' },
+    'Ligne dediee VMC (disj 2A)':                { f:110,  fo:25,  mo:85,   desc:'Circuit dedie VMC 2A, disjoncteur tableau, cablage complete' },
+    'Extracteur d air simple':                   { f:150,  fo:50,  mo:100,  desc:'Extracteur SdB/cuisine, pose, raccordement, test debit conforme' },
+    'Extracteur temporise':                      { f:180,  fo:70,  mo:110,  desc:'Extracteur avec temporisation, reglage, pose complete, test' },
   },
 
   '🏠 Equipements Speciaux': {
-    'Interphone audio':                          { f:575,  fo:207, mo:368,  desc:'Interphone audio 2 fils, platine exterieure, poste interieur, pose' },
-    'Visiophone':                                { f:1035,  fo:402, mo:632,  desc:'Visiophone couleur, camera HD, ecran interieur, pose complete' },
-    'Sonnette filaire':                          { f:150,  fo:40,  mo:109,   desc:'Sonnette filaire, bouton exterieur, carillon interieur, cablage' },
-    'Motorisation volet roulant':                { f:402,  fo:150, mo:253,  desc:'Moteur volet, commande murale, fin de course, raccordement' },
-    'Portier electrique':                        { f:690,  fo:288, mo:402,  desc:'Portier electrique, gache, interphone, cablage complet' },
-    'Detecteur mouvement exterieur':             { f:138,  fo:40,  mo:98,   desc:'Detecteur IR exterieur IP44, reglage angle/sensibilite, pose' },
-    'Camera surveillance filaire':               { f:402,  fo:150, mo:253,  desc:'Camera IP filaire, alimentation, passage cable, fixation' },
-    'Antenne TV / prise coaxiale':               { f:230,  fo:40,  mo:190,  desc:'Prise coaxiale, cable coax, raccordement antenne/tete reseau' },
-    'Forfait maintenance annuelle':              { f:402,  fo:0,   mo:402,  desc:'Visite annuelle, verification complete installation, rapport' },
+    'Interphone audio':                          { f:500,  fo:180, mo:320,  desc:'Interphone audio 2 fils, platine exterieure, poste interieur, pose' },
+    'Visiophone':                                { f:900,  fo:350, mo:550,  desc:'Visiophone couleur, camera HD, ecran interieur, pose complete' },
+    'Sonnette filaire':                          { f:130,  fo:35,  mo:95,   desc:'Sonnette filaire, bouton exterieur, carillon interieur, cablage' },
+    'Motorisation volet roulant':                { f:350,  fo:130, mo:220,  desc:'Moteur volet, commande murale, fin de course, raccordement' },
+    'Portier electrique':                        { f:600,  fo:250, mo:350,  desc:'Portier electrique, gache, interphone, cablage complet' },
+    'Detecteur mouvement exterieur':             { f:120,  fo:35,  mo:85,   desc:'Detecteur IR exterieur IP44, reglage angle/sensibilite, pose' },
+    'Camera surveillance filaire':               { f:350,  fo:130, mo:220,  desc:'Camera IP filaire, alimentation, passage cable, fixation' },
+    'Antenne TV / prise coaxiale':               { f:200,  fo:35,  mo:165,  desc:'Prise coaxiale, cable coax, raccordement antenne/tete reseau' },
+    'Forfait maintenance annuelle':              { f:350,  fo:0,   mo:350,  desc:'Visite annuelle, verification complete installation, rapport' },
   },
 
   '🔋 IRVE & Recharge VE': {
-    'Prise Green Up T2 3.7kW':                  { f:345,  fo:138, mo:207,  desc:'Prise T2 3.7kW, circuit dedie 16A, protection differentielle' },
-    'Borne IRVE 7kW monophasee':                 { f:1725, fo:690, mo:1035,  desc:'Borne 7kW, cablage dedie, protection, mise en service, attestation' },
-    'Borne IRVE 22kW triphasee':                 { f:2875, fo:1150,mo:1725, desc:'Borne 22kW triphasee, tableau dedie, cablage, mise en service' },
-    'Installation cablage IRVE':                 { f:460,  fo:92,  mo:368,  desc:'Tirage cable IRVE, chemin de cable, raccordement tableau' },
-    'Tableau IRVE dedie':                        { f:402,  fo:138, mo:264,  desc:'Tableau dedie recharge, protection adaptee, comptage energie' },
-    'Mise en service borne IRVE':                { f:115,  fo:0,   mo:115,  desc:'Configuration borne, tests charge, attestation IRVE fournie' },
+    'Prise Green Up T2 3.7kW':                  { f:300,  fo:120, mo:180,  desc:'Prise T2 3.7kW, circuit dedie 16A, protection differentielle' },
+    'Borne IRVE 7kW monophasee':                 { f:1500, fo:600, mo:900,  desc:'Borne 7kW, cablage dedie, protection, mise en service, attestation' },
+    'Borne IRVE 22kW triphasee':                 { f:2500, fo:1000,mo:1500, desc:'Borne 22kW triphasee, tableau dedie, cablage, mise en service' },
+    'Installation cablage IRVE':                 { f:400,  fo:80,  mo:320,  desc:'Tirage cable IRVE, chemin de cable, raccordement tableau' },
+    'Tableau IRVE dedie':                        { f:350,  fo:120, mo:230,  desc:'Tableau dedie recharge, protection adaptee, comptage energie' },
+    'Mise en service borne IRVE':                { f:100,  fo:0,   mo:100,  desc:'Configuration borne, tests charge, attestation IRVE fournie' },
   },
 
   '🏡 Domotique & Connecte': {
-    'Interrupteur connecte Legrand':             { f:172,  fo:63,  mo:109,   desc:'Interrupteur Legrand connecte, config appli Netatmo, pose' },
-    'Prise connectee':                           { f:138,  fo:46,  mo:92,   desc:'Prise WiFi avec mesure conso, config appli, pose complete' },
-    'Thermostat connecte Netatmo':               { f:288,  fo:138, mo:150,  desc:'Thermostat Netatmo, installation, config WiFi, test commande' },
-    'Passerelle domotique':                      { f:345,  fo:172, mo:172,  desc:'Box domotique, configuration, integration appareils, test' },
-    'Store / volet connecte':                    { f:460,  fo:207, mo:253,  desc:'Moteur connecte, commande appli/vocal, configuration complete' },
-    'Eclairage connecte (unite)':                { f:207,  fo:92,  mo:115,  desc:'Ampoule/module connecte, configuration, integration domotique' },
-    'Systeme alarme connecte':                   { f:1035,  fo:460, mo:575,  desc:'Alarme connectee, detecteurs, sirene, config appli, test' },
+    'Interrupteur connecte Legrand':             { f:150,  fo:55,  mo:95,   desc:'Interrupteur Legrand connecte, config appli Netatmo, pose' },
+    'Prise connectee':                           { f:120,  fo:40,  mo:80,   desc:'Prise WiFi avec mesure conso, config appli, pose complete' },
+    'Thermostat connecte Netatmo':               { f:250,  fo:120, mo:130,  desc:'Thermostat Netatmo, installation, config WiFi, test commande' },
+    'Passerelle domotique':                      { f:300,  fo:150, mo:150,  desc:'Box domotique, configuration, integration appareils, test' },
+    'Store / volet connecte':                    { f:400,  fo:180, mo:220,  desc:'Moteur connecte, commande appli/vocal, configuration complete' },
+    'Eclairage connecte (unite)':                { f:180,  fo:80,  mo:100,  desc:'Ampoule/module connecte, configuration, integration domotique' },
+    'Systeme alarme connecte':                   { f:900,  fo:400, mo:500,  desc:'Alarme connectee, detecteurs, sirene, config appli, test' },
   },
 
   '❄️ Climatisation & PAC': {
-    'Raccordement electrique split mono':        { f:288,  fo:46,  mo:241,  desc:'Circuit dedie 20A, cablage split, raccordement unite ext/int' },
-    'Raccordement electrique split multi':       { f:402,  fo:63,  mo:339,  desc:'Multi-split, circuits dedies, cablage complet, test mise en service' },
-    'Ligne dediee climatisation 20A':            { f:253,  fo:52,  mo:201,  desc:'Circuit 20A tableau, cable 2.5mm2, prise ou raccordement direct' },
-    'Raccordement PAC air/air':                  { f:345,  fo:57,  mo:288,  desc:'Cablage PAC air/air, alimentation, protections, mise en service' },
-    'Raccordement PAC air/eau':                  { f:460,  fo:69,  mo:391,  desc:'Raccordement electrique PAC air/eau, tableau dedie, test' },
-    'Alimentation groupe froid':                 { f:322,  fo:57,  mo:264,  desc:'Circuit dedie groupe froid, protection adaptee, raccordement' },
+    'Raccordement electrique split mono':        { f:250,  fo:40,  mo:210,  desc:'Circuit dedie 20A, cablage split, raccordement unite ext/int' },
+    'Raccordement electrique split multi':       { f:350,  fo:55,  mo:295,  desc:'Multi-split, circuits dedies, cablage complet, test mise en service' },
+    'Ligne dediee climatisation 20A':            { f:220,  fo:45,  mo:175,  desc:'Circuit 20A tableau, cable 2.5mm2, prise ou raccordement direct' },
+    'Raccordement PAC air/air':                  { f:300,  fo:50,  mo:250,  desc:'Cablage PAC air/air, alimentation, protections, mise en service' },
+    'Raccordement PAC air/eau':                  { f:400,  fo:60,  mo:340,  desc:'Raccordement electrique PAC air/eau, tableau dedie, test' },
+    'Alimentation groupe froid':                 { f:280,  fo:50,  mo:230,  desc:'Circuit dedie groupe froid, protection adaptee, raccordement' },
   },
 
   '🏊 Piscine & Spa': {
-    'Alimentation piscine complete':             { f:977,  fo:230, mo:747,  desc:'Tableau piscine, pompe, eclairage, liaison equipo, NF C15-100' },
-    'Tableau electrique piscine':                { f:518,  fo:172, mo:345,  desc:'Tableau dedie piscine, protections adaptees, conforme NF C15-100' },
-    'Pompe piscine raccordement':                { f:288,  fo:46,  mo:241,  desc:'Raccordement pompe filtration, protection, test fonctionnement' },
-    'Eclairage subaquatique':                    { f:402,  fo:138, mo:264,  desc:'Projecteur immergeable, tres basse tension, transformateur, pose' },
-    'Alimentation spa / jacuzzi':                { f:690,  fo:172, mo:518,  desc:'Circuit dedie spa, protection differentielle, raccordement etanche' },
-    'Coffret de protection piscine':             { f:368,  fo:126, mo:241,  desc:'Coffret IP65, disjoncteurs, differentiel, conforme zone piscine' },
+    'Alimentation piscine complete':             { f:850,  fo:200, mo:650,  desc:'Tableau piscine, pompe, eclairage, liaison equipo, NF C15-100' },
+    'Tableau electrique piscine':                { f:450,  fo:150, mo:300,  desc:'Tableau dedie piscine, protections adaptees, conforme NF C15-100' },
+    'Pompe piscine raccordement':                { f:250,  fo:40,  mo:210,  desc:'Raccordement pompe filtration, protection, test fonctionnement' },
+    'Eclairage subaquatique':                    { f:350,  fo:120, mo:230,  desc:'Projecteur immergeable, tres basse tension, transformateur, pose' },
+    'Alimentation spa / jacuzzi':                { f:600,  fo:150, mo:450,  desc:'Circuit dedie spa, protection differentielle, raccordement etanche' },
+    'Coffret de protection piscine':             { f:320,  fo:110, mo:210,  desc:'Coffret IP65, disjoncteurs, differentiel, conforme zone piscine' },
   },
 
   '🏗️ Chantier & Tertiaire': {
-    'Coffret de chantier 32A':                   { f:518,  fo:207, mo:310,  desc:'Coffret chantier 32A, prises 16/32A, protection differentielle' },
-    'Coffret de chantier 63A':                   { f:747,  fo:322, mo:425,  desc:'Coffret chantier 63A, prises assorties, mise en service complete' },
-    'Eclairage provisoire chantier':             { f:345,  fo:92,  mo:253,  desc:'Installation eclairage chantier, reglettes, cablage provisoire' },
-    'Tableau divisionnaire extension':           { f:632,  fo:230, mo:402,  desc:'Tableau divisionnaire, circuits dedies extension, NF C15-100' },
-    'TGBT tertiaire bureau/commerce':            { f:3220, fo:1380,mo:1840, desc:'TGBT complet local commercial, appareillage professionnel, schema' },
-    'Mise en conformite ERP':                    { f:1725, fo:230, mo:1495, desc:'Mise aux normes ERP, eclairage securite, rapport bureau de controle' },
-    'Enseigne lumineuse raccordement':           { f:402,  fo:92,  mo:310,  desc:'Circuit dedie enseigne, programmateur, raccordement, test' },
-    'Alimentation caisse enregistreuse':         { f:207,  fo:34,  mo:172,  desc:'Prise dediee caisse, circuit protege, parafoudre si necessaire' },
+    'Coffret de chantier 32A':                   { f:450,  fo:180, mo:270,  desc:'Coffret chantier 32A, prises 16/32A, protection differentielle' },
+    'Coffret de chantier 63A':                   { f:650,  fo:280, mo:370,  desc:'Coffret chantier 63A, prises assorties, mise en service complete' },
+    'Eclairage provisoire chantier':             { f:300,  fo:80,  mo:220,  desc:'Installation eclairage chantier, reglettes, cablage provisoire' },
+    'Tableau divisionnaire extension':           { f:550,  fo:200, mo:350,  desc:'Tableau divisionnaire, circuits dedies extension, NF C15-100' },
+    'TGBT tertiaire bureau/commerce':            { f:2800, fo:1200,mo:1600, desc:'TGBT complet local commercial, appareillage professionnel, schema' },
+    'Mise en conformite ERP':                    { f:1500, fo:200, mo:1300, desc:'Mise aux normes ERP, eclairage securite, rapport bureau de controle' },
+    'Enseigne lumineuse raccordement':           { f:350,  fo:80,  mo:270,  desc:'Circuit dedie enseigne, programmateur, raccordement, test' },
+    'Alimentation caisse enregistreuse':         { f:180,  fo:30,  mo:150,  desc:'Prise dediee caisse, circuit protege, parafoudre si necessaire' },
   },
 
   '🚪 Portail & Acces': {
-    'Motorisation portail battant':              { f:920,  fo:402, mo:518,  desc:'Verin portail battant, commande, telecommande, fin de course' },
-    'Motorisation portail coulissant':           { f:1035,  fo:460, mo:575,  desc:'Moteur cremaillere, telecommande, photocellules, raccordement' },
-    'Portier video exterieur':                   { f:805,  fo:322, mo:483,  desc:'Platine video HD, gache electrique, raccordement, configuration' },
-    'Digicode / badge access':                   { f:460,  fo:172, mo:288,  desc:'Digicode ou lecteur badge, gache, cablage, programmation codes' },
-    'Alimentation interphone immeuble':          { f:345,  fo:92,  mo:253,  desc:'Colonne interphone, alimentation, raccordement gache, test' },
+    'Motorisation portail battant':              { f:800,  fo:350, mo:450,  desc:'Verin portail battant, commande, telecommande, fin de course' },
+    'Motorisation portail coulissant':           { f:900,  fo:400, mo:500,  desc:'Moteur cremaillere, telecommande, photocellules, raccordement' },
+    'Portier video exterieur':                   { f:700,  fo:280, mo:420,  desc:'Platine video HD, gache electrique, raccordement, configuration' },
+    'Digicode / badge access':                   { f:400,  fo:150, mo:250,  desc:'Digicode ou lecteur badge, gache, cablage, programmation codes' },
+    'Alimentation interphone immeuble':          { f:300,  fo:80,  mo:220,  desc:'Colonne interphone, alimentation, raccordement gache, test' },
   },
 
   '⚡ Groupe & Onduleur': {
-    'Groupe electrogene raccordement':           { f:690,  fo:115, mo:575,  desc:'Raccordement groupe, inverseur de source, protections, test' },
-    'Onduleur / UPS installation':               { f:460,  fo:172, mo:288,  desc:'Pose onduleur, raccordement, configuration autonomie, test batterie' },
-    'Transfert automatique ATS':                 { f:632,  fo:230, mo:402,  desc:'ATS automatique, bascule reseau/groupe, test commutation' },
+    'Groupe electrogene raccordement':           { f:600,  fo:100, mo:500,  desc:'Raccordement groupe, inverseur de source, protections, test' },
+    'Onduleur / UPS installation':               { f:400,  fo:150, mo:250,  desc:'Pose onduleur, raccordement, configuration autonomie, test batterie' },
+    'Transfert automatique ATS':                 { f:550,  fo:200, mo:350,  desc:'ATS automatique, bascule reseau/groupe, test commutation' },
   },
 
   '📋 Administratif & Consuel': {
-    'Attestation Consuel COPREC':                { f:288,  fo:0,   mo:288,  desc:'Preparation dossier, verification installation, attestation officielle' },
-    'Demande mise en service Enedis':            { f:172,  fo:0,   mo:172,  desc:'Constitution dossier Enedis, suivi demande, coordination mise en service' },
-    'Colonne montante diagnostic':               { f:345,  fo:0,   mo:345,  desc:'Diagnostic colonne montante, rapport etat, recommandations' },
-    'Rapport de visite reglementaire':           { f:207,  fo:0,   mo:207,  desc:'Visite reglementaire, rapport detaille, points de controle' },
-    'Dossier technique installation':            { f:230,  fo:0,   mo:230,  desc:'Constitution dossier technique complet, schemas, notices, plans' },
-    'Mise a jour schema electrique':             { f:138,  fo:0,   mo:138,  desc:'Schema unifilaire mis a jour, etiquetage tableau, remis client' },
-    'Certification NF C 15-100 complete':        { f:402,  fo:0,   mo:402,  desc:'Audit complet NF C15-100, rapport conformite, attestation fournie' },
+    'Attestation Consuel COPREC':                { f:250,  fo:0,   mo:250,  desc:'Preparation dossier, verification installation, attestation officielle' },
+    'Demande mise en service Enedis':            { f:150,  fo:0,   mo:150,  desc:'Constitution dossier Enedis, suivi demande, coordination mise en service' },
+    'Colonne montante diagnostic':               { f:300,  fo:0,   mo:300,  desc:'Diagnostic colonne montante, rapport etat, recommandations' },
+    'Rapport de visite reglementaire':           { f:180,  fo:0,   mo:180,  desc:'Visite reglementaire, rapport detaille, points de controle' },
+    'Dossier technique installation':            { f:200,  fo:0,   mo:200,  desc:'Constitution dossier technique complet, schemas, notices, plans' },
+    'Mise a jour schema electrique':             { f:120,  fo:0,   mo:120,  desc:'Schema unifilaire mis a jour, etiquetage tableau, remis client' },
+    'Certification NF C 15-100 complete':        { f:350,  fo:0,   mo:350,  desc:'Audit complet NF C15-100, rapport conformite, attestation fournie' },
   },
 };
 
@@ -2516,67 +2554,45 @@ function afficherSante(data) {
 
 // ═══════════════════════════════════════════════════════════ DÉPANNAGE RAPIDE
 
-// Lire prix depuis GRILLE (toujours à jour après chargerGrilleDepuisAPI)
-function gPrix(cat, nom) {
-  const v = GRILLE[cat]?.[nom];
-  return v ? (typeof v === 'object' ? v.f : v) : 0;
-}
-
-function getDEP_FORFAITS() {
-  // Prix GRILLE +15% sauf déplacement Paris (fixe 50€)
-  // Formule exacte définie par Diahe
-  const dep = 50;
-  return {
-    'panne': {
-      label: 'Panne simple',
-      prestations: [
-        { nom: 'Deplacement Paris intra-muros',        prix: dep,  quantite: 1, desc: 'Deplacement inclus dans intervention' },
-        { nom: 'Recherche de panne simple',             prix: 138,  quantite: 1, desc: 'Diagnostic methodique, localisation panne, rapport' },
-        { nom: 'Reactivation coupure generale',         prix: 104,  quantite: 1, desc: 'Remise en service, verification securite' }
-      ]
-    },
-    'court-circuit': {
-      label: 'Court-circuit',
-      prestations: [
-        { nom: 'Deplacement Paris intra-muros',         prix: dep,  quantite: 1, desc: 'Deplacement inclus' },
-        { nom: 'Court-circuit diagnostic + reparation', prix: 144,  quantite: 1, desc: 'Localisation, isolation, reparation court-circuit' }
-      ]
-    },
-    'disjoncteur': {
-      label: 'Remplacement disjoncteur',
-      prestations: [
-        { nom: 'Deplacement Paris intra-muros',         prix: dep,  quantite: 1, desc: 'Deplacement inclus' },
-        { nom: 'Diagnostic tableau electrique',         prix: 173,  quantite: 1, desc: 'Analyse tableau, identification probleme' },
-        { nom: 'Remplacement disjoncteur NF',           prix: 173,  quantite: 1, desc: 'Fourniture Legrand/Schneider + pose + tests' }
-      ]
-    },
-    'urgence-soir': {
-      label: 'Urgence soir',
-      prestations: [
-        { nom: 'Urgence soir (20h-23h)',                prix: 207,  quantite: 1, desc: 'Deplacement urgence soir, disponible 7j/7' },
-        { nom: 'Recherche de panne simple',             prix: 138,  quantite: 1, desc: 'Diagnostic et remise en service' }
-      ]
-    },
-    'urgence-nuit': {
-      label: 'Urgence nuit / Weekend',
-      prestations: [
-        { nom: 'Urgence nuit / WE / ferie',             prix: 288,  quantite: 1, desc: 'Intervention 24h/24, nuit week-end et feries' },
-        { nom: 'Recherche de panne simple',             prix: 138,  quantite: 1, desc: 'Diagnostic et remise en service' }
-      ]
-    }
-  };
-}
-
-// Recalculer et afficher les totaux dans les cartes forfaits
-function rafraichirPrixDep() {
-  const f = getDEP_FORFAITS();
-  const ids = { 'panne':'prix-panne', 'court-circuit':'prix-cc', 'disjoncteur':'prix-disj', 'urgence-soir':'prix-soir', 'urgence-nuit':'prix-nuit' };
-  Object.entries(ids).forEach(([key, elId]) => {
-    const total = f[key].prestations.reduce((s,p) => s + p.prix * p.quantite, 0);
-    const el = document.getElementById(elId);
-    if (el) el.textContent = total + ' €';
-  });
-}
+const DEP_FORFAITS = {
+  'panne': {
+    label: 'Panne simple',
+    prestations: [
+      { nom: 'Deplacement Paris intra-muros', prix: 60, quantite: 1, desc: 'Forfait deplacement Paris - inclus dans intervention' },
+      { nom: 'Recherche de panne simple', prix: 140, quantite: 1, desc: 'Diagnostic methodique, localisation panne, rapport' },
+      { nom: 'Remise en service apres disjonction', prix: 90, quantite: 1, desc: 'Reactivation tableau, tests securite, verification' }
+    ]
+  },
+  'court-circuit': {
+    label: 'Court-circuit',
+    prestations: [
+      { nom: 'Deplacement Paris intra-muros', prix: 60, quantite: 1, desc: 'Forfait deplacement Paris' },
+      { nom: 'Court-circuit - detection et reparation', prix: 145, quantite: 1, desc: 'Localisation, isolation, reparation court-circuit' }
+    ]
+  },
+  'disjoncteur': {
+    label: 'Remplacement disjoncteur',
+    prestations: [
+      { nom: 'Deplacement Paris intra-muros', prix: 60, quantite: 1, desc: 'Forfait deplacement Paris' },
+      { nom: 'Diagnostic complet tableau', prix: 175, quantite: 1, desc: 'Analyse tableau, identification probleme' },
+      { nom: 'Remplacement disjoncteur standard', prix: 175, quantite: 1, desc: 'Fourniture et pose disjoncteur NF, tests' }
+    ]
+  },
+  'urgence-soir': {
+    label: 'Urgence soir',
+    prestations: [
+      { nom: 'Deplacement urgence soir (20h-00h)', prix: 210, quantite: 1, desc: 'Deplacement urgence hors horaires' },
+      { nom: 'Intervention et reparation', prix: 140, quantite: 1, desc: 'Diagnostic et remise en service' }
+    ]
+  },
+  'urgence-nuit': {
+    label: 'Urgence nuit / Weekend',
+    prestations: [
+      { nom: 'Deplacement urgence nuit / weekend', prix: 290, quantite: 1, desc: 'Deplacement urgence nuit ou weekend' },
+      { nom: 'Intervention et reparation', prix: 140, quantite: 1, desc: 'Diagnostic et remise en service' }
+    ]
+  }
+};
 
 let depForfaitSelectionne = null;
 let depRemiseActive = false;
@@ -2601,7 +2617,7 @@ function selectionnerForfait(el, id) {
 
 function majDepTotal() {
   if (!depForfaitSelectionne) return;
-  const forfait = getDEP_FORFAITS()[depForfaitSelectionne];
+  const forfait = DEP_FORFAITS[depForfaitSelectionne];
   let total = forfait.prestations.reduce((s, p) => s + p.prix * p.quantite, 0);
   const remise = Math.round(total * 0.07);
   if (depRemiseActive) total -= remise;
@@ -2611,7 +2627,7 @@ function majDepTotal() {
   document.getElementById('dep-remise-box').style.borderColor = depRemiseActive ? 'rgba(22,163,74,0.4)' : 'rgba(201,168,76,0.3)';
 }
 
-function toggleRemiseDep() {
+function toggleRemise() {
   depRemiseActive = !depRemiseActive;
   majDepTotal();
 }
@@ -2654,7 +2670,7 @@ async function genererDepannage() {
     return;
   }
 
-  const forfait = getDEP_FORFAITS()[depForfaitSelectionne];
+  const forfait = DEP_FORFAITS[depForfaitSelectionne];
   let prestations = forfait.prestations.map(p => ({ ...p }));
 
   // Appliquer remise 7% sur le premier poste si active
@@ -2683,7 +2699,7 @@ async function genererDepannage() {
         client: prenom + ' ' + nom,
         telephone: tel,
         adresse: adresse,
-        email: document.getElementById('dep-email').value.trim(),
+        email: '',
         description: 'Depannage electrique - ' + forfait.label,
         prestations: prestations.map(p => ({
           nom: p.nom,
@@ -2820,7 +2836,6 @@ async function verifierAuth() {
 
 function initialiserApp() {
   masquerLogin();
-  chargerGrilleDepuisAPI();
   // Charger le dashboard au démarrage
   if (typeof chargerDashboard === 'function') chargerDashboard();
   if (typeof chargerHistorique === 'function') chargerHistorique();
@@ -3000,77 +3015,236 @@ async function convertirEnFacture(numDevis) {
 }
 
 // ═══════════════════ DASHBOARD CA ═══════════════════
+let chartCA = null, chartConv = null;
+let dashPeriode = 6;
+
+function setDashPeriod(n, btn) {
+  dashPeriode = n;
+  document.querySelectorAll('#dash-period-btns button').forEach(b => {
+    b.style.background = 'rgba(255,255,255,0.7)';
+    b.style.color = 'var(--text-2)';
+    b.style.border = '1px solid var(--border)';
+  });
+  btn.style.background = 'linear-gradient(135deg,var(--accent),var(--gold))';
+  btn.style.color = '#fff';
+  btn.style.border = 'none';
+  chargerDashboard();
+}
+
 async function chargerDashboard() {
   try {
     const res = await fetch('/api/historique');
     const data = await res.json();
-
     const now = new Date();
-    const moisCourant = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
     const annee = now.getFullYear();
+    const moisCourant = `${annee}-${String(now.getMonth()+1).padStart(2,'0')}`;
 
     const factures = data.filter(d => d.type === 'facture');
     const devis = data.filter(d => d.type === 'devis');
 
-    const facMois = factures.filter(f => (f.date || '').includes(`/${String(now.getMonth()+1).padStart(2,'0')}/${annee}`) || (f.created_at || '').startsWith(moisCourant));
-    const caMois = facMois.reduce((s, f) => s + parseFloat(f.total_ht || f.totalht || 0), 0);
-    document.getElementById('dash-mois-ca').textContent = caMois.toFixed(0);
+    // ── KPI ──────────────────────────────────────────────────
+    const facMois = factures.filter(f => (f.created_at||'').startsWith(moisCourant));
+    const caMois = facMois.reduce((s,f) => s + parseFloat(f.total_ht||0), 0);
+    document.getElementById('dash-mois-ca').textContent = Math.round(caMois).toLocaleString('fr-FR');
     document.getElementById('dash-mois-nb').textContent = facMois.length;
 
-    const facAnnee = factures.filter(f => (f.created_at || '').startsWith(annee.toString()));
-    const caAnnee = facAnnee.reduce((s, f) => s + parseFloat(f.total_ht || f.totalht || 0), 0);
-    document.getElementById('dash-annee-ca').textContent = caAnnee.toFixed(0);
+    const facAnnee = factures.filter(f => (f.created_at||'').startsWith(annee.toString()));
+    const caAnnee = facAnnee.reduce((s,f) => s + parseFloat(f.total_ht||0), 0);
+    document.getElementById('dash-annee-ca').textContent = Math.round(caAnnee).toLocaleString('fr-FR');
 
-    const caDevisAttente = devis.filter(d => d.statut === 'envoyé' || d.statut === 'envoye')
-      .reduce((s, d) => s + parseFloat(d.total_ht || d.totalht || 0), 0);
-    document.getElementById('dash-devis-attente').textContent = caDevisAttente.toFixed(0);
+    const caAttente = devis.filter(d => d.statut==='envoyé'||d.statut==='envoye').reduce((s,d) => s + parseFloat(d.total_ht||0), 0);
+    document.getElementById('dash-devis-attente').textContent = Math.round(caAttente).toLocaleString('fr-FR');
 
-    const panierMoyen = facAnnee.length > 0 ? (caAnnee / facAnnee.length) : 0;
-    document.getElementById('dash-panier-moyen').textContent = panierMoyen.toFixed(0);
+    const panierMoyen = facAnnee.length > 0 ? caAnnee / facAnnee.length : 0;
+    document.getElementById('dash-panier-moyen').textContent = Math.round(panierMoyen).toLocaleString('fr-FR');
 
-    const moisList = document.getElementById('dash-mois-list');
-    moisList.innerHTML = '';
+    // ── GRAPHIQUE CA PAR MOIS ─────────────────────────────────
+    const labelsCA = [], valsCA = [], valsDevis = [];
+    const maxCA = 5000;
+    for (let i = dashPeriode - 1; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const mKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      const mLabel = d.toLocaleDateString('fr-FR', { month: 'short', year: i === 0 ? 'numeric' : undefined });
+      labelsCA.push(mLabel);
+      const mFac = factures.filter(f => (f.created_at||'').startsWith(mKey));
+      const mDev = devis.filter(d2 => (d2.created_at||'').startsWith(mKey) && (d2.statut==='signe'||d2.statut==='signé'));
+      valsCA.push(Math.round(mFac.reduce((s,f) => s + parseFloat(f.total_ht||0), 0)));
+      valsDevis.push(Math.round(mDev.reduce((s,d2) => s + parseFloat(d2.total_ht||0), 0)));
+    }
+
+    if (chartCA) { chartCA.destroy(); chartCA = null; }
+    const ctxCA = document.getElementById('chart-ca').getContext('2d');
+    chartCA = new Chart(ctxCA, {
+      type: 'bar',
+      data: {
+        labels: labelsCA,
+        datasets: [
+          {
+            label: 'CA facturé',
+            data: valsCA,
+            backgroundColor: '#d4a574',
+            borderRadius: 6,
+            borderSkipped: false,
+          },
+          {
+            label: 'Devis signés',
+            data: valsDevis,
+            backgroundColor: 'rgba(212,165,116,0.2)',
+            borderColor: '#d4a574',
+            borderWidth: 1.5,
+            borderRadius: 6,
+            borderSkipped: false,
+            borderDash: [4,4],
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString('fr-FR')} €`
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: '#9d8f7f', font: { size: 11 }, autoSkip: false, maxRotation: 30 },
+            grid: { display: false },
+            border: { display: false }
+          },
+          y: {
+            ticks: { color: '#9d8f7f', font: { size: 11 }, callback: v => v.toLocaleString('fr-FR') + ' €' },
+            grid: { color: 'rgba(218,165,32,0.08)' },
+            border: { display: false }
+          }
+        }
+      }
+    });
+
+    // ── GRAPHIQUE CONVERSION ──────────────────────────────────
+    const labelsCv = [], valsCv = [];
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const mKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-      const mLabel = d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-      const mFac = factures.filter(f => (f.created_at || '').startsWith(mKey));
-      const mCA = mFac.reduce((s,f) => s + parseFloat(f.total_ht||f.totalht||0), 0);
-      const maxCA = 5000;
-      const pct = Math.min((mCA / maxCA) * 100, 100);
-      const isCurrentMonth = i === 0;
-      moisList.innerHTML += `
-        <div style="margin-bottom:16px;">
-          <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
-            <span style="font-size:13px;color:${isCurrentMonth ? 'var(--accent)' : 'var(--text-2)'};font-weight:${isCurrentMonth ? '700' : '500'};">${mLabel}</span>
-            <span style="font-size:14px;color:var(--accent);font-weight:800;">${mCA.toFixed(0)} €</span>
-          </div>
-          <div style="background:rgba(255,255,255,0.5);border-radius:10px;height:10px;overflow:hidden;">
-            <div style="background:linear-gradient(90deg,var(--accent),var(--gold));height:100%;width:${pct}%;border-radius:10px;transition:width 0.5s;"></div>
-          </div>
-        </div>`;
+      const mLabel = d.toLocaleDateString('fr-FR', { month: 'short' });
+      const mDev = devis.filter(d2 => (d2.created_at||'').startsWith(mKey));
+      const mSig = mDev.filter(d2 => d2.statut==='signe'||d2.statut==='signé');
+      const taux = mDev.length > 0 ? Math.round((mSig.length / mDev.length) * 100) : 0;
+      labelsCv.push(mLabel);
+      valsCv.push(taux);
     }
 
+    // Stats conversion globale
+    const totalDevis = devis.length;
+    const totalSignes = devis.filter(d => d.statut==='signe'||d.statut==='signé').length;
+    const txGlobal = totalDevis > 0 ? Math.round((totalSignes/totalDevis)*100) : 0;
+    document.getElementById('dash-conv-stats').innerHTML =
+      `<span style="color:var(--accent);font-weight:700;font-size:16px;">${txGlobal}%</span> de conversion globale — ${totalSignes}/${totalDevis} devis signés`;
+
+    if (chartConv) { chartConv.destroy(); chartConv = null; }
+    const ctxCv = document.getElementById('chart-conv').getContext('2d');
+    chartConv = new Chart(ctxCv, {
+      type: 'line',
+      data: {
+        labels: labelsCv,
+        datasets: [{
+          label: 'Taux conversion',
+          data: valsCv,
+          borderColor: '#d4a574',
+          backgroundColor: 'rgba(212,165,116,0.08)',
+          borderWidth: 2,
+          pointBackgroundColor: '#d4a574',
+          pointRadius: 4,
+          fill: true,
+          tension: 0.4,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.y}%` } }
+        },
+        scales: {
+          x: { ticks: { color: '#9d8f7f', font: { size: 11 } }, grid: { display: false }, border: { display: false } },
+          y: {
+            min: 0, max: 100,
+            ticks: { color: '#9d8f7f', font: { size: 11 }, callback: v => v + '%' },
+            grid: { color: 'rgba(218,165,32,0.08)' },
+            border: { display: false }
+          }
+        }
+      }
+    });
+
+    // ── ZONES PARIS ───────────────────────────────────────────
+    const zonesMap = {};
+    [...factures, ...devis].forEach(d => {
+      const addr = (d.adresse||'').toLowerCase();
+      let zone = 'Autre';
+      if (addr.includes('75008') || addr.includes('8e') || addr.includes('8ème')) zone = 'Paris 8e';
+      else if (addr.includes('75011') || addr.includes('11e')) zone = 'Paris 11e';
+      else if (addr.includes('75016') || addr.includes('16e')) zone = 'Paris 16e';
+      else if (addr.includes('75') || addr.match(/750\d\d/)) zone = 'Paris autre';
+      else if (addr.includes('92') || addr.includes('93') || addr.includes('94') || addr.includes('95') || addr.includes('78') || addr.includes('91') || addr.includes('77')) zone = 'Banlieue';
+      zonesMap[zone] = (zonesMap[zone] || 0) + parseFloat(d.total_ht||0);
+    });
+    const zonesSort = Object.entries(zonesMap).sort((a,b) => b[1]-a[1]);
+    const maxZone = zonesSort[0]?.[1] || 1;
+    const zonesEl = document.getElementById('dash-zones');
+    zonesEl.innerHTML = zonesSort.length > 0 ? zonesSort.map(([z, ca]) => `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+        <div style="font-size:12px;color:var(--text-2);width:90px;flex-shrink:0;">${z}</div>
+        <div style="flex:1;height:8px;background:rgba(255,255,255,0.1);border-radius:4px;overflow:hidden;">
+          <div style="height:100%;width:${Math.round((ca/maxZone)*100)}%;background:linear-gradient(90deg,var(--accent),var(--gold));border-radius:4px;transition:width 0.6s;"></div>
+        </div>
+        <div style="font-size:12px;font-weight:700;color:var(--accent);width:65px;text-align:right;">${Math.round(ca).toLocaleString('fr-FR')} €</div>
+      </div>`).join('') : '<div class="panier-empty">Pas encore de données</div>';
+
+    // ── TOP PRESTATIONS ───────────────────────────────────────
+    const prestMap = {};
+    factures.forEach(f => {
+      (f.prestations||[]).forEach(p => {
+        const nom = p.nom||p.designation||'';
+        if (!nom) return;
+        const ca = parseFloat(p.prix||p.prixUnit||0) * (p.quantite||p.qte||1);
+        prestMap[nom] = (prestMap[nom] || {nb:0, ca:0});
+        prestMap[nom].nb++;
+        prestMap[nom].ca += ca;
+      });
+    });
+    const prestSort = Object.entries(prestMap).sort((a,b) => b[1].ca - a[1].ca).slice(0, 6);
+    const maxPrest = prestSort[0]?.[1].ca || 1;
+    const prestEl = document.getElementById('dash-top-prests');
+    prestEl.innerHTML = prestSort.length > 0 ? prestSort.map(([nom, v]) => `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+        <div style="font-size:12px;color:var(--text-2);width:170px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${nom} <span style="color:var(--text-3);">×${v.nb}</span></div>
+        <div style="flex:1;height:8px;background:rgba(255,255,255,0.1);border-radius:4px;overflow:hidden;">
+          <div style="height:100%;width:${Math.round((v.ca/maxPrest)*100)}%;background:linear-gradient(90deg,#1B2A4A,var(--accent));border-radius:4px;transition:width 0.6s;"></div>
+        </div>
+        <div style="font-size:12px;font-weight:700;color:var(--accent);width:70px;text-align:right;">${Math.round(v.ca).toLocaleString('fr-FR')} €</div>
+      </div>`).join('') : '<div class="panier-empty">Aucune facture encore</div>';
+
+    // ── TOP CLIENTS ───────────────────────────────────────────
     const clientMap = {};
     factures.forEach(f => {
       if (!f.client) return;
-      clientMap[f.client] = (clientMap[f.client] || 0) + parseFloat(f.total_ht || f.totalht || 0);
+      clientMap[f.client] = (clientMap[f.client]||0) + parseFloat(f.total_ht||0);
     });
     const topClients = Object.entries(clientMap).sort((a,b) => b[1]-a[1]).slice(0,5);
     const topEl = document.getElementById('dash-top-clients');
-    topEl.innerHTML = '';
-    topClients.forEach(([nom, ca], i) => {
-      topEl.innerHTML += `
-        <div style="background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
-          <div style="display:flex;align-items:center;gap:12px;">
-            <span style="background:linear-gradient(135deg,var(--accent),var(--gold));color:#fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;">${i+1}</span>
-            <span style="font-size:14px;font-weight:600;color:var(--text);">${nom}</span>
-          </div>
-          <span style="font-size:15px;font-weight:800;color:var(--accent);">${ca.toFixed(0)} €</span>
-        </div>`;
-    });
-
-    if (topClients.length === 0) topEl.innerHTML = '<div class="panier-empty">Aucune facture encore</div>';
+    topEl.innerHTML = topClients.length > 0 ? topClients.map(([nom, ca], i) => `
+      <div style="background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <span style="background:linear-gradient(135deg,var(--accent),var(--gold));color:#fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;">${i+1}</span>
+          <span style="font-size:14px;font-weight:600;color:var(--text);">${nom}</span>
+        </div>
+        <span style="font-size:15px;font-weight:800;color:var(--accent);">${Math.round(ca).toLocaleString('fr-FR')} €</span>
+      </div>`).join('') : '<div class="panier-empty">Aucune facture encore</div>';
 
   } catch(e) {
     console.error('Dashboard error:', e);
@@ -3193,56 +3367,10 @@ function resetPrix() {
   showToast('✅ Prix réinitialisés !', '🔄');
 }
 
-// ═══════════════════ GRILLE DYNAMIQUE SUPABASE ═══════════════════
-const CODE_MAP = {
-  'deplacement':          ['🚗 Deplacement & Urgences',          'Deplacement Paris intra-muros'],
-  'main_oeuvre_supp':     ['🚗 Deplacement & Urgences',          'Main oeuvre heure supplementaire'],
-  'urgence_jour':         ['🚗 Deplacement & Urgences',          'Urgence jour (8h-20h)'],
-  'urgence_soir':         ['🚗 Deplacement & Urgences',          'Urgence soir (20h-23h)'],
-  'urgence_nuit':         ['🚗 Deplacement & Urgences',          'Urgence nuit / WE / ferie'],
-  'attestation_enedis':   ['🚗 Deplacement & Urgences',          'Attestation mise en securite Enedis'],
-  'recherche_panne':      ['🔧 Depannage General',               'Recherche de panne simple'],
-  'reactivation_coupure': ['🔧 Depannage General',               'Reactivation coupure generale'],
-  'court_circuit':        ['🔧 Depannage General',               'Court-circuit diagnostic + reparation'],
-  'disjoncteur_standard': ['⚡ Tableau Monophase',               'Disjoncteur 16A (prises)'],
-  'disjoncteur_diff_63a': ['⚡ Tableau Monophase',               'Interrupteur differentiel 63A type A'],
-  'prise':                ['🔌 Prises & Interrupteurs',          'Prise standard 2P+T'],
-  'interrupteur':         ['🔌 Prises & Interrupteurs',          'Interrupteur simple'],
-  'luminaire':            ['💡 Eclairage',                       'Luminaire simple (plafonnier)'],
-  'detecteur_fumee':      ['🛡️ Mise aux Normes & Securite',     'Detecteur fumee DAAF'],
-  'interphone':           ['🏠 Equipements Speciaux',            'Interphone audio'],
-  'alarme_video':         ['🏡 Domotique & Connecte',            'Systeme alarme connecte'],
-};
-
-async function chargerGrilleDepuisAPI() {
-  try {
-    const res = await fetch('/api/grille');
-    if (!res.ok) return;
-    const data = await res.json();
-    if (!Array.isArray(data) || data.length === 0) return;
-    let n = 0;
-    data.forEach(item => {
-      const p = CODE_MAP[item.code];
-      if (!p) return;
-      const [cat, nom] = p;
-      if (!GRILLE[cat] || !GRILLE[cat][nom]) return;
-      const e = GRILLE[cat][nom];
-      if (typeof e === 'object') GRILLE[cat][nom].f = Math.round(item.prix_ht);
-      else GRILLE[cat][nom] = Math.round(item.prix_ht);
-      n++;
-    });
-    if (n > 0) { initCategories('d'); initCategories('f'); rafraichirPrixDep(); }
-    console.log(`✅ Grille Supabase: ${n} prix chargés`);
-  } catch(e) {
-    console.log('ℹ️ Grille locale utilisée');
-  }
-}
-
 // ═══════════════════ INIT ═══════════════════
 chargerPrixSauvegardes();
 initCategories('d');
 initCategories('f');
-rafraichirPrixDep();
 
 console.log('🔥 SINELEC Pro Edition loaded!');
 
@@ -3285,9 +3413,6 @@ function switchPageMenu() {
       </div>
       <div onclick="switchPage('clients', this);document.body.querySelectorAll('[style*=bottom]')[1].remove();menuPlusOpen=false;" style="padding:12px 20px;border-radius:10px;background:rgba(255,255,255,0.5);cursor:pointer;font-size:14px;font-weight:600;display:flex;align-items:center;gap:10px;">
         <span>👥</span> Clients
-      </div>
-      <div onclick="switchPage('dashboard', this);document.body.querySelectorAll('[style*=bottom]')[1].remove();menuPlusOpen=false;" style="padding:12px 20px;border-radius:10px;background:rgba(255,255,255,0.5);cursor:pointer;font-size:14px;font-weight:600;display:flex;align-items:center;gap:10px;">
-        <span>📊</span> CA & Stats
       </div>
       <div onclick="switchPage('params', this);document.body.querySelectorAll('[style*=bottom]')[1].remove();menuPlusOpen=false;" style="padding:12px 20px;border-radius:10px;background:rgba(255,255,255,0.5);cursor:pointer;font-size:14px;font-weight:600;display:flex;align-items:center;gap:10px;">
         <span>⚙️</span> Paramètres
