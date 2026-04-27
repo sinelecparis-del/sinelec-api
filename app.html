@@ -2834,16 +2834,37 @@ async function generer(type) {
   
   try {
     // Formatter les prestations pour le backend
-   const prestationsFormatted = panier.map(item => {
-      // Priorité 1 : description déjà définie (ex: venant du DPE Claude)
+    // Normalisation : retire accents, minuscules, pour matching flexible
+    const normaliser = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,' ').replace(/\s+/g,' ').trim();
+    const grilleFlat = {};
+    Object.values(GRILLE).forEach(cat => {
+      Object.entries(cat).forEach(([nom, val]) => {
+        grilleFlat[normaliser(nom)] = val.desc || '';
+      });
+    });
+
+    const prestationsFormatted = panier.map(item => {
+      // Priorité 1 : description déjà définie (venant du DPE Claude)
       let desc = item.desc || '';
-      // Priorité 2 : chercher dans la GRILLE si pas de desc
+      // Priorité 2 : recherche exacte dans la GRILLE
       if (!desc) {
         Object.values(GRILLE).forEach(cat => {
-          const nomBase = item.designation.replace(' (fourniture)', '').replace(' (MO)', '').replace(' (main d\'oeuvre)', '').trim();
+          const nomBase = item.designation.replace(' (fourniture)','').replace(' (MO)','').replace(' (main d\'oeuvre)','').trim();
           if (cat[item.designation]?.desc) desc = cat[item.designation].desc;
           else if (cat[nomBase]?.desc) desc = cat[nomBase].desc;
         });
+      }
+      // Priorité 3 : recherche normalisée (tolère accents et variantes)
+      if (!desc) {
+        const nomNorm = normaliser(item.designation);
+        desc = grilleFlat[nomNorm] || '';
+        // Si toujours rien : recherche partielle (la clé normalisée contient le nom normalisé)
+        if (!desc) {
+          const found = Object.entries(grilleFlat).find(([k]) => 
+            k.includes(nomNorm.substring(0, 20)) || nomNorm.includes(k.substring(0, 20))
+          );
+          if (found) desc = found[1];
+        }
       }
       return {
         nom: item.designation,
