@@ -1693,6 +1693,17 @@ app.post('/api/dpe', async (req, res) => {
       return res.status(400).json({ error: 'Fichier manquant (PDF ou photo)' });
     }
 
+    // ── DIAGNOSTIC ──────────────────────────────────────────────
+    console.log('DPE reçu:', {
+      mode: pdf_text ? 'PDF' : images_base64 ? `${images_base64.length} images` : '1 image',
+      pdf_length: pdf_text?.length || 0,
+      images_count: images_base64?.length || (image_base64 ? 1 : 0),
+      images_sizes: images_base64?.map(img => `${Math.round((img?.base64?.length||0)/1024)}KB`) || [],
+      single_image_size: image_base64 ? `${Math.round(image_base64.length/1024)}KB` : null,
+      first_b64_valid: images_base64?.[0]?.base64?.length > 100 || !!image_base64
+    });
+    // ────────────────────────────────────────────────────────────
+
 
     const promptBase = `Tu es un expert électricien certifié parisien avec 20 ans d'expérience. Tu analyses des DPE pour établir des devis électriques PRÉCIS et PROFESSIONNELS.
 
@@ -1821,12 +1832,12 @@ Réponds UNIQUEMENT en JSON valide, sans texte avant ni après, sans markdown, s
     console.error('Message:', e.message);
     console.error('Type:', e.constructor?.name);
     console.error('Status:', e.status);
-    console.error('Stack:', e.stack?.split('\n')[0]);
+    console.error('Cause:', e.cause?.message || e.cause);
+    console.error('Full:', JSON.stringify(e, Object.getOwnPropertyNames(e)));
     console.error('══════════════════');
     res.status(500).json({ 
       error: e.message,
-      type: e.constructor?.name,
-      status: e.status || null
+      cause: e.cause?.message || String(e.cause) || null
     });
   }
 });
