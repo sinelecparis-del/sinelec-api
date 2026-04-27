@@ -2683,7 +2683,7 @@ async function genererDepannage() {
         client: prenom + ' ' + nom,
         telephone: tel,
         adresse: adresse,
-        email: '',
+        email: document.getElementById('dep-email').value.trim(),
         description: 'Depannage electrique - ' + forfait.label,
         prestations: prestations.map(p => ({
           nom: p.nom,
