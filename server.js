@@ -1800,7 +1800,7 @@ Réponds UNIQUEMENT en JSON valide, sans texte avant ni après, sans markdown, s
 
 
     const response = await anthropic.messages.create({
-      model: 'claude-opus-4-5-20251101',
+      model: 'claude-sonnet-4-20250514',
       max_tokens: 4096,
       messages: [{ role: 'user', content: messageContent }]
     });
