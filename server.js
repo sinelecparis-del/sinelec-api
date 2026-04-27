@@ -1765,15 +1765,12 @@ Réponds UNIQUEMENT en JSON valide, sans texte avant ni après, sans markdown, s
 }`;
 
     const response = await anthropic.messages.create({
-      model: 'claude-opus-4-5',
+      model: 'claude-opus-4-6',
       max_tokens: 2000,
       messages: [{
         role: 'user',
         content: [
-          {
-            type: 'document',
-            source: { type: 'base64', media_type: 'application/pdf', data: pdf_base64 }
-          },
+          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdf_base64 } },
           { type: 'text', text: prompt }
         ]
       }]
