@@ -1736,10 +1736,25 @@ Décris les travaux réalisés de manière claire et professionnelle (2-3 phrase
 
 app.get('/api/grille', async (req, res) => {
   try {
+    // Format plat [{code, nom, prix_ht}] pour chargement dynamique frontend
+    const { data, error } = await supabase
+      .from('grille_tarifaire')
+      .select('code, nom, prix_ht')
+      .eq('actif', true);
+    if (error) throw error;
+    res.json(data || []);
+  } catch (error) {
+    console.error('Erreur /api/grille:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Route groupée — utilisée en interne (chatbot, devis auto)
+app.get('/api/grille/grouped', async (req, res) => {
+  try {
     const grille = await chargerGrilleTarifaire();
     res.json(grille || {});
   } catch (error) {
-    console.error('Erreur grille:', error);
     res.status(500).json({ error: error.message });
   }
 });
