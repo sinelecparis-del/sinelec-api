@@ -2516,45 +2516,64 @@ function afficherSante(data) {
 
 // ═══════════════════════════════════════════════════════════ DÉPANNAGE RAPIDE
 
-const DEP_FORFAITS = {
-  'panne': {
-    label: 'Panne simple',
-    prestations: [
-      { nom: 'Deplacement Paris intra-muros', prix: 60, quantite: 1, desc: 'Forfait deplacement Paris - inclus dans intervention' },
-      { nom: 'Recherche de panne simple', prix: 140, quantite: 1, desc: 'Diagnostic methodique, localisation panne, rapport' },
-      { nom: 'Remise en service apres disjonction', prix: 90, quantite: 1, desc: 'Reactivation tableau, tests securite, verification' }
-    ]
-  },
-  'court-circuit': {
-    label: 'Court-circuit',
-    prestations: [
-      { nom: 'Deplacement Paris intra-muros', prix: 60, quantite: 1, desc: 'Forfait deplacement Paris' },
-      { nom: 'Court-circuit - detection et reparation', prix: 145, quantite: 1, desc: 'Localisation, isolation, reparation court-circuit' }
-    ]
-  },
-  'disjoncteur': {
-    label: 'Remplacement disjoncteur',
-    prestations: [
-      { nom: 'Deplacement Paris intra-muros', prix: 60, quantite: 1, desc: 'Forfait deplacement Paris' },
-      { nom: 'Diagnostic complet tableau', prix: 175, quantite: 1, desc: 'Analyse tableau, identification probleme' },
-      { nom: 'Remplacement disjoncteur standard', prix: 175, quantite: 1, desc: 'Fourniture et pose disjoncteur NF, tests' }
-    ]
-  },
-  'urgence-soir': {
-    label: 'Urgence soir',
-    prestations: [
-      { nom: 'Deplacement urgence soir (20h-00h)', prix: 210, quantite: 1, desc: 'Deplacement urgence hors horaires' },
-      { nom: 'Intervention et reparation', prix: 140, quantite: 1, desc: 'Diagnostic et remise en service' }
-    ]
-  },
-  'urgence-nuit': {
-    label: 'Urgence nuit / Weekend',
-    prestations: [
-      { nom: 'Deplacement urgence nuit / weekend', prix: 290, quantite: 1, desc: 'Deplacement urgence nuit ou weekend' },
-      { nom: 'Intervention et reparation', prix: 140, quantite: 1, desc: 'Diagnostic et remise en service' }
-    ]
-  }
-};
+// Lire prix depuis GRILLE (toujours à jour après chargerGrilleDepuisAPI)
+function gPrix(cat, nom) {
+  const v = GRILLE[cat]?.[nom];
+  return v ? (typeof v === 'object' ? v.f : v) : 0;
+}
+
+function getDEP_FORFAITS() {
+  return {
+    'panne': {
+      label: 'Panne simple',
+      prestations: [
+        { nom: 'Deplacement Paris intra-muros',   prix: gPrix('🚗 Deplacement & Urgences','Deplacement Paris intra-muros'),   quantite: 1, desc: 'Deplacement inclus dans intervention' },
+        { nom: 'Recherche de panne simple',        prix: gPrix('🔧 Depannage General','Recherche de panne simple'),             quantite: 1, desc: 'Diagnostic methodique, localisation panne, rapport' },
+        { nom: 'Reactivation coupure generale',    prix: gPrix('🔧 Depannage General','Reactivation coupure generale'),          quantite: 1, desc: 'Remise en service complete, verification securite' }
+      ]
+    },
+    'court-circuit': {
+      label: 'Court-circuit',
+      prestations: [
+        { nom: 'Deplacement Paris intra-muros',               prix: gPrix('🚗 Deplacement & Urgences','Deplacement Paris intra-muros'),             quantite: 1, desc: 'Deplacement inclus' },
+        { nom: 'Court-circuit diagnostic + reparation',       prix: gPrix('🔧 Depannage General','Court-circuit diagnostic + reparation'),          quantite: 1, desc: 'Localisation, isolation, reparation court-circuit' }
+      ]
+    },
+    'disjoncteur': {
+      label: 'Remplacement disjoncteur',
+      prestations: [
+        { nom: 'Deplacement Paris intra-muros',   prix: gPrix('🚗 Deplacement & Urgences','Deplacement Paris intra-muros'),     quantite: 1, desc: 'Deplacement inclus' },
+        { nom: 'Disjoncteur 16A (prises)',         prix: gPrix('⚡ Tableau Monophase','Disjoncteur 16A (prises)'),               quantite: 1, desc: 'Fourniture Legrand/Schneider + pose + tests' },
+        { nom: 'Diagnostic complet installation',  prix: gPrix('🔧 Depannage General','Diagnostic complet installation'),        quantite: 1, desc: 'Audit installation, identification probleme' }
+      ]
+    },
+    'urgence-soir': {
+      label: 'Urgence soir',
+      prestations: [
+        { nom: 'Urgence soir (20h-23h)',           prix: gPrix('🚗 Deplacement & Urgences','Urgence soir (20h-23h)'),            quantite: 1, desc: 'Deplacement urgence soir, disponible 7j/7' },
+        { nom: 'Recherche de panne simple',        prix: gPrix('🔧 Depannage General','Recherche de panne simple'),              quantite: 1, desc: 'Diagnostic et remise en service' }
+      ]
+    },
+    'urgence-nuit': {
+      label: 'Urgence nuit / Weekend',
+      prestations: [
+        { nom: 'Urgence nuit / WE / ferie',        prix: gPrix('🚗 Deplacement & Urgences','Urgence nuit / WE / ferie'),         quantite: 1, desc: 'Intervention 24h/24, nuit week-end et feries' },
+        { nom: 'Recherche de panne simple',        prix: gPrix('🔧 Depannage General','Recherche de panne simple'),              quantite: 1, desc: 'Diagnostic et remise en service' }
+      ]
+    }
+  };
+}
+
+// Recalculer et afficher les totaux dans les cartes forfaits
+function rafraichirPrixDep() {
+  const f = getDEP_FORFAITS();
+  const ids = { 'panne':'prix-panne', 'court-circuit':'prix-cc', 'disjoncteur':'prix-disj', 'urgence-soir':'prix-soir', 'urgence-nuit':'prix-nuit' };
+  Object.entries(ids).forEach(([key, elId]) => {
+    const total = f[key].prestations.reduce((s,p) => s + p.prix * p.quantite, 0);
+    const el = document.getElementById(elId);
+    if (el) el.textContent = total + ' €';
+  });
+}
 
 let depForfaitSelectionne = null;
 let depRemiseActive = false;
@@ -2579,7 +2598,7 @@ function selectionnerForfait(el, id) {
 
 function majDepTotal() {
   if (!depForfaitSelectionne) return;
-  const forfait = DEP_FORFAITS[depForfaitSelectionne];
+  const forfait = getDEP_FORFAITS()[depForfaitSelectionne];
   let total = forfait.prestations.reduce((s, p) => s + p.prix * p.quantite, 0);
   const remise = Math.round(total * 0.07);
   if (depRemiseActive) total -= remise;
@@ -2632,7 +2651,7 @@ async function genererDepannage() {
     return;
   }
 
-  const forfait = DEP_FORFAITS[depForfaitSelectionne];
+  const forfait = getDEP_FORFAITS()[depForfaitSelectionne];
   let prestations = forfait.prestations.map(p => ({ ...p }));
 
   // Appliquer remise 7% sur le premier poste si active
@@ -3209,7 +3228,7 @@ async function chargerGrilleDepuisAPI() {
       else GRILLE[cat][nom] = Math.round(item.prix_ht);
       n++;
     });
-    if (n > 0) { initCategories('d'); initCategories('f'); }
+    if (n > 0) { initCategories('d'); initCategories('f'); rafraichirPrixDep(); }
     console.log(`✅ Grille Supabase: ${n} prix chargés`);
   } catch(e) {
     console.log('ℹ️ Grille locale utilisée');
@@ -3220,6 +3239,7 @@ async function chargerGrilleDepuisAPI() {
 chargerPrixSauvegardes();
 initCategories('d');
 initCategories('f');
+rafraichirPrixDep();
 
 console.log('🔥 SINELEC Pro Edition loaded!');
 
