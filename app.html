@@ -1288,6 +1288,12 @@ function toggleMat(i) {
       <label>Objet des travaux <span style="font-size:11px;color:var(--text-3);">(optionnel)</span></label>
       <textarea id="d-description" placeholder="Ex: Renovation electrique complete appartement 75m2" rows="2" style="resize:vertical;"></textarea>
     </div>
+
+    <div class="input-group">
+      <label>📅 Date d'intervention <span style="font-size:11px;color:var(--text-3);">(optionnel — planifie auto si date future)</span></label>
+      <input type="date" id="d-date-intervention">
+      <div id="d-date-info" style="font-size:12px;margin-top:6px;padding:8px 12px;border-radius:8px;display:none;"></div>
+    </div>
   </div>
   
   <div class="section">
@@ -2476,18 +2482,52 @@ const res = await fetch('/api/generer', {
 const data = await res.json();
 
 if (data.success) {
+  // ── Planification agenda auto si date future ──
+  const dateIntervInput = document.getElementById('d-date-intervention');
+  if (type === 'devis' && dateIntervInput?.value) {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const chosen = new Date(dateIntervInput.value + 'T00:00:00');
+    if (chosen > today) {
+      try {
+        const prenomVal = (document.getElementById('d-prenom')?.value||'').trim();
+        const nomVal = (document.getElementById('d-client')?.value||'').trim();
+        const telVal = (document.getElementById('d-tel')?.value||'').trim();
+        const adresseVal = (document.getElementById('d-adresse')?.value||'').trim();
+        const descVal = (document.getElementById('d-description')?.value||'').trim();
+        await fetch('/api/agenda', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prenom: prenomVal, nom: nomVal,
+            client: prenomVal + ' ' + nomVal,
+            telephone: telVal, adresse: adresseVal,
+            date_intervention: dateIntervInput.value,
+            heure: '09:00',
+            type_intervention: 'Installation',
+            notes: descVal || `Intervention suite devis ${data.num}`,
+            sms_rappel: true
+          })
+        });
+        showToast(`📅 Intervention planifiée + devis ${data.num} généré !`, '✅');
+      } catch(e) {
+        showToast(`✅ Devis ${data.num} généré !`, '✨');
+      }
+      dateIntervInput.value = '';
+      document.getElementById('d-date-info').style.display = 'none';
+    } else {
+      showToast(`✅ Devis ${data.num} généré !`, '✨');
+    }
+  } else {
+    showToast(`🎉 ${type === 'devis' ? 'Devis' : 'Facture'} généré !`, '✨');
+  }
+
   if (type === 'devis') {
     panierD = [];
     renderPanier('d');
+    setTimeout(() => ouvrirPopupSig(data.num), 1000);
   } else {
     panierF = [];
     renderPanier('f');
-  }
-
-  showToast(`🎉 ${type === 'devis' ? 'Devis' : 'Facture'} généré !`, '✨');
-
-  if (type === 'devis') {
-    setTimeout(() => ouvrirPopupSig(data.num), 1000);
   }
 } else {
       showStatus(prefix, 'error', '❌ Erreur : ' + (data.error || 'Erreur inconnue'));
@@ -3771,7 +3811,33 @@ function resetPrix() {
   showToast('✅ Prix réinitialisés !', '🔄');
 }
 
-// ═══════════════════ INIT ═══════════════════
+// ═══════════════════ DATE INTERVENTION AUTO-AGENDA ═══════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  const dateInput = document.getElementById('d-date-intervention');
+  if (dateInput) {
+    dateInput.addEventListener('change', function() {
+      const info = document.getElementById('d-date-info');
+      if (!this.value) { info.style.display = 'none'; return; }
+      const today = new Date(); today.setHours(0,0,0,0);
+      const chosen = new Date(this.value + 'T00:00:00');
+      info.style.display = 'block';
+      if (chosen <= today) {
+        info.style.background = 'rgba(255,255,255,0.5)';
+        info.style.border = '1px solid rgba(218,165,32,0.15)';
+        info.style.color = 'var(--text-3)';
+        info.textContent = '📋 Devis généré uniquement — pas d\'ajout à l\'agenda';
+      } else {
+        info.style.background = 'rgba(16,185,129,0.08)';
+        info.style.border = '1px solid rgba(16,185,129,0.25)';
+        info.style.color = '#10b981';
+        const label = chosen.toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' });
+        info.textContent = `📅 Intervention planifiée automatiquement le ${label}`;
+      }
+    });
+  }
+});
+
+
 chargerPrixSauvegardes();
 initCategories('d');
 initCategories('f');
