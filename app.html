@@ -2047,25 +2047,24 @@ async function autocompleteAdresse(id, value) {
   }
   
   try {
-    // OpenStreetMap Nominatim API - Limité à Île-de-France
-    // Départements IDF : 75, 77, 78, 91, 92, 93, 94, 95
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(value)}&countrycodes=fr&limit=5&addressdetails=1`;
+    // API adresse.data.gouv.fr — API officielle française, fiable et gratuite
+    // Couvre toute l'Ile-de-France : 75, 77, 78, 91, 92, 93, 94, 95
+    const url = `https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(value)}&limit=8&autocomplete=1`;
     
-    const res = await fetch(url, {
-      headers: {
-        'User-Agent': 'SINELEC-Paris-App'
-      }
-    });
-    
+    const res = await fetch(url);
     const data = await res.json();
     
-    // Filtrer uniquement Île-de-France (codes postaux 75xxx, 77xxx, 78xxx, 91xxx, 92xxx, 93xxx, 94xxx, 95xxx)
-    const idfResults = data.filter(item => {
-      const postcode = item.address?.postcode || '';
+    // Filtrer Ile-de-France uniquement
+    const idfResults = (data.features || []).filter(item => {
+      const postcode = item.properties?.postcode || '';
       const firstTwo = postcode.substring(0, 2);
       return ['75', '77', '78', '91', '92', '93', '94', '95'].includes(firstTwo);
-    });
-    
+    }).map(item => ({
+      display_name: item.properties.label,
+      postcode: item.properties.postcode,
+      city: item.properties.city,
+    }));
+
     const suggestionsDiv = document.getElementById(`${id}-suggestions`);
     
     if (idfResults.length === 0) {
