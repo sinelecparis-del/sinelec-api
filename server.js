@@ -1761,7 +1761,7 @@ TABLEAU ÉLECTRIQUE & CONFORMITÉ :
 - DAAF certifié NF : 85€/unité
 - Détecteur CO monoxyde : 95€/unité
 
-ÉTAPE 4 — RÉDIGE des descriptions PROFESSIONNELLES et PRÉCISES pour chaque recommandation, comme si tu les expliquais au client en face à face. Sois concret sur les bénéfices.
+ÉTAPE 4 — RÉDIGE des descriptions PROFESSIONNELLES, DÉTAILLÉES et BÉTON pour chaque recommandation. Niveau rapport technique assureur : liste exactement ce qui est fourni (marques, références, calibres), les vérifications effectuées, les mesures relevées, les documents remis, la conformité aux normes, la garantie. Le client doit lire la description et ne trouver aucune raison de ne pas signer. Chaque description doit répondre à : Qu'est-ce qui est inclus ? Quelles marques ? Quelles vérifications ? Quels documents remis ? Quelle garantie ? Quelle norme ?
 
 Réponds UNIQUEMENT en JSON valide, sans texte avant ni après, sans markdown, sans backticks. Respecte exactement ce format :
 {
