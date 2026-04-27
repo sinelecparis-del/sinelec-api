@@ -2796,6 +2796,7 @@ async function verifierAuth() {
 
 function initialiserApp() {
   masquerLogin();
+  chargerGrilleDepuisAPI();
   // Charger le dashboard au démarrage
   if (typeof chargerDashboard === 'function') chargerDashboard();
   if (typeof chargerHistorique === 'function') chargerHistorique();
@@ -3166,6 +3167,51 @@ function resetPrix() {
   renderPanier('d');
   renderPanier('f');
   showToast('✅ Prix réinitialisés !', '🔄');
+}
+
+// ═══════════════════ GRILLE DYNAMIQUE SUPABASE ═══════════════════
+const CODE_MAP = {
+  'deplacement':          ['🚗 Deplacement & Urgences',          'Deplacement Paris intra-muros'],
+  'main_oeuvre_supp':     ['🚗 Deplacement & Urgences',          'Main oeuvre heure supplementaire'],
+  'urgence_jour':         ['🚗 Deplacement & Urgences',          'Urgence jour (8h-20h)'],
+  'urgence_soir':         ['🚗 Deplacement & Urgences',          'Urgence soir (20h-23h)'],
+  'urgence_nuit':         ['🚗 Deplacement & Urgences',          'Urgence nuit / WE / ferie'],
+  'attestation_enedis':   ['🚗 Deplacement & Urgences',          'Attestation mise en securite Enedis'],
+  'recherche_panne':      ['🔧 Depannage General',               'Recherche de panne simple'],
+  'reactivation_coupure': ['🔧 Depannage General',               'Reactivation coupure generale'],
+  'court_circuit':        ['🔧 Depannage General',               'Court-circuit diagnostic + reparation'],
+  'disjoncteur_standard': ['⚡ Tableau Monophase',               'Disjoncteur 16A (prises)'],
+  'disjoncteur_diff_63a': ['⚡ Tableau Monophase',               'Interrupteur differentiel 63A type A'],
+  'prise':                ['🔌 Prises & Interrupteurs',          'Prise standard 2P+T'],
+  'interrupteur':         ['🔌 Prises & Interrupteurs',          'Interrupteur simple'],
+  'luminaire':            ['💡 Eclairage',                       'Luminaire simple (plafonnier)'],
+  'detecteur_fumee':      ['🛡️ Mise aux Normes & Securite',     'Detecteur fumee DAAF'],
+  'interphone':           ['🏠 Equipements Speciaux',            'Interphone audio'],
+  'alarme_video':         ['🏡 Domotique & Connecte',            'Systeme alarme connecte'],
+};
+
+async function chargerGrilleDepuisAPI() {
+  try {
+    const res = await fetch('/api/grille');
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!Array.isArray(data) || data.length === 0) return;
+    let n = 0;
+    data.forEach(item => {
+      const p = CODE_MAP[item.code];
+      if (!p) return;
+      const [cat, nom] = p;
+      if (!GRILLE[cat] || !GRILLE[cat][nom]) return;
+      const e = GRILLE[cat][nom];
+      if (typeof e === 'object') GRILLE[cat][nom].f = Math.round(item.prix_ht);
+      else GRILLE[cat][nom] = Math.round(item.prix_ht);
+      n++;
+    });
+    if (n > 0) { initCategories('d'); initCategories('f'); }
+    console.log(`✅ Grille Supabase: ${n} prix chargés`);
+  } catch(e) {
+    console.log('ℹ️ Grille locale utilisée');
+  }
 }
 
 // ═══════════════════ INIT ═══════════════════
