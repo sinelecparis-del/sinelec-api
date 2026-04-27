@@ -1695,7 +1695,7 @@ app.post('/api/dpe', async (req, res) => {
 
 Voici le contenu du DPE :
 ---
-${pdf_text.substring(0, 8000)}
+${pdf_text.substring(0, 20000)}
 ---
 
 Extrais :
