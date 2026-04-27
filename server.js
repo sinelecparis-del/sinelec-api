@@ -1688,8 +1688,11 @@ app.get('/api/clients', async (req, res) => {
 
 app.post('/api/dpe', async (req, res) => {
   try {
-    const { pdf_text, image_base64, image_type, nom_client, adresse_client } = req.body;
-    if (!pdf_text && !image_base64) return res.status(400).json({ error: 'Fichier manquant (PDF ou photo)' });
+    const { pdf_text, image_base64, image_type, images_base64, nom_client, adresse_client } = req.body;
+    if (!pdf_text && !image_base64 && !(images_base64 && images_base64.length)) {
+      return res.status(400).json({ error: 'Fichier manquant (PDF ou photo)' });
+    }
+
 
     const promptBase = `Tu es un expert électricien certifié parisien avec 20 ans d'expérience. Tu analyses des DPE pour établir des devis électriques PRÉCIS et PROFESSIONNELS.
 
@@ -1777,14 +1780,24 @@ Réponds UNIQUEMENT en JSON valide, sans texte avant ni après, sans markdown, s
 }`;
 
     let messageContent;
-    if (image_base64) {
+    if (images_base64 && images_base64.length > 1) {
       messageContent = [
-        { type: 'image', source: { type: 'base64', media_type: image_type || 'image/jpeg', data: image_base64 } },
+        ...images_base64.slice(0, 10).map(img => ({
+          type: 'image',
+          source: { type: 'base64', media_type: img.type || 'image/jpeg', data: img.base64 }
+        })),
+        { type: 'text', text: promptBase + `\n\nAnalyse ces ${images_base64.length} photos ensemble pour une analyse complète et précise du DPE et de l'installation électrique.` }
+      ];
+    } else if (image_base64 || (images_base64 && images_base64[0])) {
+      const img = image_base64 ? { base64: image_base64, type: image_type } : images_base64[0];
+      messageContent = [
+        { type: 'image', source: { type: 'base64', media_type: img.type || 'image/jpeg', data: img.base64 } },
         { type: 'text', text: promptBase }
       ];
     } else {
-      messageContent = `${promptBase}\n\nVoici le contenu complet du DPE à analyser :\n---\n${pdf_text.substring(0, 20000)}\n---\n\nAnalyse maintenant ce DPE avec la méthode en 4 étapes et génère le JSON de recommandations.`;
+      messageContent = promptBase + '\n\nVoici le contenu du DPE :\n---\n' + pdf_text.substring(0, 20000) + '\n---\n\nAnalyse ce DPE en 4 étapes et génère le JSON.';
     }
+
 
     const response = await anthropic.messages.create({
       model: 'claude-opus-4-6',
