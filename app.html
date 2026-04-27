@@ -2523,42 +2523,45 @@ function gPrix(cat, nom) {
 }
 
 function getDEP_FORFAITS() {
+  // Prix GRILLE +15% sauf déplacement Paris (fixe 50€)
+  // Formule exacte définie par Diahe
+  const dep = 50;
   return {
     'panne': {
       label: 'Panne simple',
       prestations: [
-        { nom: 'Deplacement Paris intra-muros',   prix: gPrix('🚗 Deplacement & Urgences','Deplacement Paris intra-muros'),   quantite: 1, desc: 'Deplacement inclus dans intervention' },
-        { nom: 'Recherche de panne simple',        prix: gPrix('🔧 Depannage General','Recherche de panne simple'),             quantite: 1, desc: 'Diagnostic methodique, localisation panne, rapport' },
-        { nom: 'Reactivation coupure generale',    prix: gPrix('🔧 Depannage General','Reactivation coupure generale'),          quantite: 1, desc: 'Remise en service complete, verification securite' }
+        { nom: 'Deplacement Paris intra-muros',        prix: dep,  quantite: 1, desc: 'Deplacement inclus dans intervention' },
+        { nom: 'Recherche de panne simple',             prix: 138,  quantite: 1, desc: 'Diagnostic methodique, localisation panne, rapport' },
+        { nom: 'Reactivation coupure generale',         prix: 104,  quantite: 1, desc: 'Remise en service, verification securite' }
       ]
     },
     'court-circuit': {
       label: 'Court-circuit',
       prestations: [
-        { nom: 'Deplacement Paris intra-muros',               prix: gPrix('🚗 Deplacement & Urgences','Deplacement Paris intra-muros'),             quantite: 1, desc: 'Deplacement inclus' },
-        { nom: 'Court-circuit diagnostic + reparation',       prix: gPrix('🔧 Depannage General','Court-circuit diagnostic + reparation'),          quantite: 1, desc: 'Localisation, isolation, reparation court-circuit' }
+        { nom: 'Deplacement Paris intra-muros',         prix: dep,  quantite: 1, desc: 'Deplacement inclus' },
+        { nom: 'Court-circuit diagnostic + reparation', prix: 144,  quantite: 1, desc: 'Localisation, isolation, reparation court-circuit' }
       ]
     },
     'disjoncteur': {
       label: 'Remplacement disjoncteur',
       prestations: [
-        { nom: 'Deplacement Paris intra-muros',   prix: gPrix('🚗 Deplacement & Urgences','Deplacement Paris intra-muros'),     quantite: 1, desc: 'Deplacement inclus' },
-        { nom: 'Disjoncteur 16A (prises)',         prix: gPrix('⚡ Tableau Monophase','Disjoncteur 16A (prises)'),               quantite: 1, desc: 'Fourniture Legrand/Schneider + pose + tests' },
-        { nom: 'Diagnostic complet installation',  prix: gPrix('🔧 Depannage General','Diagnostic complet installation'),        quantite: 1, desc: 'Audit installation, identification probleme' }
+        { nom: 'Deplacement Paris intra-muros',         prix: dep,  quantite: 1, desc: 'Deplacement inclus' },
+        { nom: 'Diagnostic tableau electrique',         prix: 173,  quantite: 1, desc: 'Analyse tableau, identification probleme' },
+        { nom: 'Remplacement disjoncteur NF',           prix: 173,  quantite: 1, desc: 'Fourniture Legrand/Schneider + pose + tests' }
       ]
     },
     'urgence-soir': {
       label: 'Urgence soir',
       prestations: [
-        { nom: 'Urgence soir (20h-23h)',           prix: gPrix('🚗 Deplacement & Urgences','Urgence soir (20h-23h)'),            quantite: 1, desc: 'Deplacement urgence soir, disponible 7j/7' },
-        { nom: 'Recherche de panne simple',        prix: gPrix('🔧 Depannage General','Recherche de panne simple'),              quantite: 1, desc: 'Diagnostic et remise en service' }
+        { nom: 'Urgence soir (20h-23h)',                prix: 207,  quantite: 1, desc: 'Deplacement urgence soir, disponible 7j/7' },
+        { nom: 'Recherche de panne simple',             prix: 138,  quantite: 1, desc: 'Diagnostic et remise en service' }
       ]
     },
     'urgence-nuit': {
       label: 'Urgence nuit / Weekend',
       prestations: [
-        { nom: 'Urgence nuit / WE / ferie',        prix: gPrix('🚗 Deplacement & Urgences','Urgence nuit / WE / ferie'),         quantite: 1, desc: 'Intervention 24h/24, nuit week-end et feries' },
-        { nom: 'Recherche de panne simple',        prix: gPrix('🔧 Depannage General','Recherche de panne simple'),              quantite: 1, desc: 'Diagnostic et remise en service' }
+        { nom: 'Urgence nuit / WE / ferie',             prix: 288,  quantite: 1, desc: 'Intervention 24h/24, nuit week-end et feries' },
+        { nom: 'Recherche de panne simple',             prix: 138,  quantite: 1, desc: 'Diagnostic et remise en service' }
       ]
     }
   };
