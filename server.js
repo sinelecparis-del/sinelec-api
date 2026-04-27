@@ -1682,7 +1682,125 @@ app.get('/api/clients', async (req, res) => {
 // API: RAPPORT INTERVENTION
 // ═══════════════════════════════════════════════════════════════
 
-app.post('/api/rapport', async (req, res) => {
+// ═══════════════════════════════════════════════════════════════
+// API: ANALYSE DPE → RECOMMANDATIONS ÉLECTRIQUES
+// ═══════════════════════════════════════════════════════════════
+
+app.post('/api/dpe', async (req, res) => {
+  try {
+    const { pdf_base64, nom_client, adresse_client } = req.body;
+    if (!pdf_base64) return res.status(400).json({ error: 'PDF manquant' });
+
+    const prompt = `Tu es un expert électricien parisien qui analyse les DPE (Diagnostics de Performance Énergétique) pour identifier uniquement les travaux électriques à réaliser.
+
+IMPORTANT : Tu te concentres EXCLUSIVEMENT sur l'électricité. Tu ignores complètement : isolation, fenêtres, toiture, chaudière gaz, ventilation non électrique, pompe à chaleur non électrique, et tout autre corps de métier.
+
+Analyse ce DPE et extrais :
+
+1. INFORMATIONS LOGEMENT :
+- Surface en m²
+- Classe énergie (A/B/C/D/E/F/G)
+- Année de construction si mentionnée
+- Type de chauffage électrique (convecteurs, inertie, plancher chauffant, ou "non électrique")
+- Eau chaude sanitaire électrique (chauffe-eau électrique, ballon thermodynamique, ou "non électrique")
+- Présence VMC (oui/non/type si précisé)
+- État tableau électrique mentionné (conforme/non conforme/non mentionné)
+- Présence DAAF mentionnée (oui/non/non mentionné)
+
+2. RECOMMANDATIONS ÉLECTRIQUES UNIQUEMENT :
+Pour chaque recommandation, donne :
+- Un titre court
+- Une description précise de l'intervention électrique
+- La quantité estimée (ex: nombre de convecteurs, surface)
+- La priorité (haute/moyenne/basse)
+- Les prestations SINELEC à facturer avec prix unitaires exacts :
+
+GRILLE TARIFAIRE SINELEC (utilise ces prix EXACTEMENT) :
+- Remplacement convecteur → inertie : 450€/unité
+- Convecteur mural standard : 200€/unité  
+- Radiateur à inertie : 350€/unité
+- Sèche-serviettes électrique : 280€/unité
+- Thermostat programmable : 140€/unité
+- Thermostat connecté / fil pilote : 180€/unité
+- VMC simple flux autoréglable : 450€
+- VMC simple flux hygroréglable A : 600€
+- VMC simple flux hygroréglable B : 700€
+- Chauffe-eau électrique 100L : 450€
+- Chauffe-eau électrique 200L : 580€
+- Ballon thermodynamique : 850€
+- Mise en conformité NF C15-100 (par m²) : 65€/m²
+- Tableau complet 1 rangée : 650€
+- Tableau complet 2 rangées : 1050€
+- DAAF : 85€/unité
+- Détecteur CO : 95€/unité
+- Diagnostic électrique obligatoire : 150€
+- Ligne dédiée chauffe-eau : 220€
+- Mise à la terre complète : 650€
+- Liaison équipotentielle SdB : 140€
+
+Réponds UNIQUEMENT en JSON valide, sans texte avant ni après, sans markdown, sans backticks :
+{
+  "logement": {
+    "surface": 65,
+    "classe": "F",
+    "annee_construction": 1975,
+    "chauffage_electrique": "convecteurs",
+    "eau_chaude_electrique": "chauffe-eau 200L",
+    "vmc": "absente",
+    "tableau": "non conforme",
+    "daaf": "absent"
+  },
+  "resume": "Appartement 65m² classe F avec 4 convecteurs vétustes, pas de VMC, chauffe-eau ancien de 2005.",
+  "recommandations": [
+    {
+      "id": "chauffage",
+      "titre": "Remplacement convecteurs → radiateurs à inertie",
+      "description": "4 convecteurs anciens à remplacer par des radiateurs à inertie avec fil pilote pour économies d'énergie",
+      "priorite": "haute",
+      "prestations": [
+        { "nom": "Remplacement convecteur vers inertie", "prix": 450, "quantite": 4 }
+      ]
+    }
+  ]
+}`;
+
+    const response = await anthropic.messages.create({
+      model: 'claude-opus-4-5',
+      max_tokens: 2000,
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: 'document',
+            source: { type: 'base64', media_type: 'application/pdf', data: pdf_base64 }
+          },
+          { type: 'text', text: prompt }
+        ]
+      }]
+    });
+
+    const rawText = response.content[0].text.trim();
+    // Nettoyer si markdown
+    const clean = rawText.replace(/```json|```/g, '').trim();
+    const result = JSON.parse(clean);
+
+    // Calculer les totaux
+    result.recommandations = (result.recommandations || []).map(r => ({
+      ...r,
+      total: (r.prestations || []).reduce((s, p) => s + p.prix * (p.quantite || 1), 0)
+    }));
+    result.total_general = result.recommandations.reduce((s, r) => s + r.total, 0);
+
+    await logSystem('dpe', `Analyse DPE: ${result.logement?.surface}m² classe ${result.logement?.classe} — ${result.recommandations?.length} recommandations`, { surface: result.logement?.surface, classe: result.logement?.classe }, true);
+
+    res.json({ success: true, ...result });
+  } catch(e) {
+    console.error('Erreur DPE:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+
   if (!CONFIG.features.rapports_intervention) {
     return res.status(403).json({ error: 'Feature désactivée' });
   }
