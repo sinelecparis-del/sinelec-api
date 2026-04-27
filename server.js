@@ -1800,7 +1800,7 @@ Réponds UNIQUEMENT en JSON valide, sans texte avant ni après, sans markdown, s
   }
 });
 
-
+app.post('/api/rapport', async (req, res) => {
   if (!CONFIG.features.rapports_intervention) {
     return res.status(403).json({ error: 'Feature désactivée' });
   }
