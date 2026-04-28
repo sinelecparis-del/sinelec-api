@@ -380,8 +380,7 @@ app.post('/api/generer', async (req, res) => {
       const pyPath = path.join(__dirname, `_devis_${num}.py`);
       const pdfPath = path.join(__dirname, `${num}.pdf`);
 
-      // Générer descriptions pro avec Claude
-      // Descriptions pré-définies par prestation (transmises depuis app)
+      // Utiliser les descriptions transmises depuis la GRILLE (app.html)
       let detailsData = prestations.map(p => ({
         designation: p.nom,
         qte: p.quantite,
@@ -389,50 +388,6 @@ app.post('/api/generer', async (req, res) => {
         total: p.prix * p.quantite,
         details: p.desc ? [p.desc] : []
       }));
-
-      // Générer descriptions pro avec Claude
-      try {
-        const promptDesc = 'Tu es expert électricien SINELEC Paris. Pour chaque prestation ci-dessous, génère UNE description courte (max 12 mots) qui détaille ce qui est inclus et rassure le client. Réponds UNIQUEMENT en JSON valide: [{"nom": "...", "desc": "..."}]\n\nPrestations:\n' + prestations.map(p => p.nom).join('\n');
-        const descResp = await anthropic.messages.create({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 800,
-          messages: [{ role: 'user', content: promptDesc }]
-        });
-        const descText = descResp.content[0].text;
-        const jsonMatch = descText.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
-          const descs = JSON.parse(jsonMatch[0]);
-          detailsData = detailsData.map((d, i) => ({
-            ...d,
-            details: descs[i]?.desc ? [descs[i].desc] : []
-          }));
-        }
-      } catch(e) {
-        console.error('❌ Descriptions auto erreur:', e.message, e.stack?.split('\n')[1]);
-      }
-
-      try {
-        const promptDesc = `Tu es expert électricien SINELEC Paris. Pour chaque prestation, génère UNE description courte (max 12 mots) qui justifie le prix et rassure le client. Réponds UNIQUEMENT en JSON: [{"nom": "...", "desc": "..."}]
-
-Prestations:
-${prestations.map(p => p.nom).join('\n')}`;
-        const descResp = await anthropic.messages.create({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 500,
-          messages: [{ role: 'user', content: promptDesc }]
-        });
-        const descText = descResp.content[0].text;
-        const jsonMatch = descText.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
-          const descs = JSON.parse(jsonMatch[0]);
-          detailsData = detailsData.map((d, i) => ({
-            ...d,
-            details: descs[i]?.desc ? [descs[i].desc] : []
-          }));
-        }
-      } catch(e) {
-        console.error('❌ Descriptions auto erreur:', e.message, e.stack?.split('\n')[1]);
-      }
 
       fs.writeFileSync(detailsPath, JSON.stringify(detailsData));
 
