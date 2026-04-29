@@ -29,6 +29,61 @@ function toggleRemise(prefix) {
   }
 }
 
+// Bouton remise 7% rapide — disponible sur toutes les pages
+function appliquerRemise7(prefix) {
+  if (prefix === 'dep') {
+    // Dépannage
+    const btn = document.getElementById('dep-remise-box');
+    if (!btn) return;
+    const total = parseFloat(document.getElementById('dep-total-ht')?.textContent) || 0;
+    if (total === 0) { showToast('⚠️ Ajoute d\'abord une prestation', '❌'); return; }
+    const el = document.getElementById('dep-remise-montant');
+    if (!depRemiseActive) {
+      depRemiseActive = true;
+      btn.style.background = 'rgba(22,163,74,0.08)';
+      btn.style.borderColor = 'rgba(22,163,74,0.4)';
+      const remise = Math.round(total * 0.07);
+      if (el) el.textContent = '- ' + remise + ' € économisés  ✅';
+    } else {
+      depRemiseActive = false;
+      btn.style.background = 'rgba(201,168,76,0.08)';
+      btn.style.borderColor = 'rgba(201,168,76,0.3)';
+      if (el) el.textContent = '';
+    }
+    calculerDepannage();
+    return;
+  }
+  // Devis ou Facture
+  const bar = document.getElementById(`${prefix}-remise-bar`);
+  const btn7 = document.getElementById(`${prefix}-remise-7-btn`);
+  const val = document.getElementById(`${prefix}-remise-val`);
+  const typeD = prefix === 'd' ? remiseTypeD : remiseTypeF;
+  const isActive = btn7?.getAttribute('data-active') === '1';
+  if (isActive) {
+    // Désactiver
+    bar.style.display = 'none';
+    if (val) val.value = 0;
+    btn7?.setAttribute('data-active','0');
+    btn7.style.background = 'rgba(201,168,76,0.08)';
+    btn7.style.color = 'var(--accent)';
+    btn7.textContent = '🎁 Remise 7%';
+    document.getElementById(`${prefix}-remise-btn`).textContent = '🏷️ Ajouter une remise';
+  } else {
+    // Activer
+    bar.style.display = 'flex';
+    if (prefix === 'd') remiseTypeD = 'pct'; else remiseTypeF = 'pct';
+    document.getElementById(`${prefix}-remise-type-pct`).classList.add('active');
+    document.getElementById(`${prefix}-remise-type-eur`).classList.remove('active');
+    if (val) val.value = 7;
+    btn7?.setAttribute('data-active','1');
+    btn7.style.background = 'rgba(22,163,74,0.12)';
+    btn7.style.color = '#16a34a';
+    btn7.textContent = '✅ Remise 7% active';
+    document.getElementById(`${prefix}-remise-btn`).textContent = '✕ Retirer la remise';
+  }
+  renderPanier(prefix);
+}
+
 function setRemiseType(prefix, type) {
   if (prefix === 'd') remiseTypeD = type;
   else remiseTypeF = type;
@@ -1223,6 +1278,8 @@ function toggleMat(i) {
         <span style="font-size:13px;font-weight:700;color:var(--accent);">🎁 Appliquer remise 7%</span>
         <span id="dep-remise-montant" style="font-size:13px;font-weight:700;color:var(--text-3);"></span>
       </div>
+      <button onclick="appliquerRemise7('dep')" style="width:100%;margin-top:8px;background:rgba(201,168,76,0.08);color:var(--accent);border:1.5px solid rgba(201,168,76,0.3);border-radius:10px;padding:11px;font-size:13px;font-weight:700;cursor:pointer;" id="dep-remise-7-btn">🎁 Remise 7%</button>
+      </div>
     </div>
 
     <!-- Type document -->
@@ -1342,6 +1399,7 @@ function toggleMat(i) {
     <span style="font-size:12px;color:var(--text-3);">sur le total</span>
   </div>
   <button onclick="toggleRemise('d')" style="width:100%;background:rgba(255,255,255,0.6);color:var(--text-2);border:1.5px solid var(--border);border-radius:12px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:8px;" id="d-remise-btn">🏷️ Ajouter une remise</button>
+  <button onclick="appliquerRemise7('d')" data-active="0" style="width:100%;background:rgba(201,168,76,0.08);color:var(--accent);border:1.5px solid rgba(201,168,76,0.3);border-radius:12px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:8px;" id="d-remise-7-btn">🎁 Remise 7%</button>
 
   <div class="total-bar">
     <span class="total-label">TOTAL HT</span>
@@ -1449,6 +1507,7 @@ function toggleMat(i) {
     <span style="font-size:12px;color:var(--text-3);">sur le total</span>
   </div>
   <button onclick="toggleRemise('f')" style="width:100%;background:rgba(255,255,255,0.6);color:var(--text-2);border:1.5px solid var(--border);border-radius:12px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:8px;" id="f-remise-btn">🏷️ Ajouter une remise</button>
+  <button onclick="appliquerRemise7('f')" data-active="0" style="width:100%;background:rgba(201,168,76,0.08);color:var(--accent);border:1.5px solid rgba(201,168,76,0.3);border-radius:12px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:8px;" id="f-remise-7-btn">🎁 Remise 7%</button>
 
   <div class="total-bar">
     <span class="total-label">TOTAL HT</span>
@@ -2738,7 +2797,16 @@ function renderPanier(prefix) {
         <span class="qte-val">${item.qte}</span>
         <button class="qte-btn" onclick="changeQte('${prefix}', ${idx}, 1)">+</button>
       </div>
-      <span class="panier-item-price">${subtotal.toFixed(2)} €</span>
+      <div style="display:flex;align-items:center;gap:4px;">
+        <input type="number" 
+          value="${item.prixUnit}" 
+          min="0" 
+          step="5"
+          onchange="modifierPrix('${prefix}', ${idx}, this.value)"
+          onclick="this.select()"
+          style="width:72px;text-align:right;padding:4px 6px;border-radius:8px;border:1.5px solid var(--accent);background:var(--bg-2);color:var(--accent);font-weight:700;font-size:13px;">
+        <span style="font-size:12px;color:var(--text-3);">€</span>
+      </div>
       <button class="del-btn" onclick="removeFromPanier('${prefix}', ${idx})">×</button>
     `;
     itemsDiv.appendChild(div);
@@ -2763,6 +2831,15 @@ function renderPanier(prefix) {
     if (remiseLine) remiseLine.style.display = 'none';
     if (netDiv) netDiv.style.display = 'none';
   }
+}
+
+function modifierPrix(prefix, idx, valeur) {
+  const panier = prefix === 'd' ? panierD : panierF;
+  const nouveau = parseFloat(valeur) || 0;
+  panier[idx].prixUnit = nouveau;
+  if (prefix === 'd') panierD = panier;
+  else panierF = panier;
+  renderPanier(prefix);
 }
 
 function changeQte(prefix, idx, delta) {
@@ -4366,43 +4443,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-const CODE_MAP = {
-  'deplacement':['🚗 Deplacement & Urgences','Deplacement Paris intra-muros'],
-  'main_oeuvre_supp':['🚗 Deplacement & Urgences','Main oeuvre heure supplementaire'],
-  'urgence_jour':['🚗 Deplacement & Urgences','Urgence jour (8h-20h)'],
-  'urgence_soir':['🚗 Deplacement & Urgences','Urgence soir (20h-23h)'],
-  'urgence_nuit':['🚗 Deplacement & Urgences','Urgence nuit / WE / ferie'],
-  'recherche_panne':['🔧 Depannage General','Recherche de panne simple'],
-  'reactivation_coupure':['🔧 Depannage General','Reactivation coupure generale'],
-  'court_circuit':['🔧 Depannage General','Court-circuit diagnostic + reparation'],
-  'disjoncteur_standard':['⚡ Tableau Monophase','Disjoncteur 16A (prises)'],
-  'disjoncteur_diff_63a':['⚡ Tableau Monophase','Interrupteur differentiel 63A type A'],
-  'prise':['🔌 Prises & Interrupteurs','Prise standard 2P+T'],
-  'interrupteur':['🔌 Prises & Interrupteurs','Interrupteur simple'],
-  'luminaire':['💡 Eclairage','Luminaire simple (plafonnier)'],
-  'detecteur_fumee':['🛡️ Mise aux Normes & Securite','Detecteur fumee DAAF'],
-  'interphone':['🏠 Equipements Speciaux','Interphone audio'],
-  'alarme_video':['🏡 Domotique & Connecte','Systeme alarme connecte'],
-};
-async function chargerGrilleDepuisAPI() {
-  try {
-    const res = await fetch('/api/grille');
-    if (!res.ok) return;
-    const data = await res.json();
-    if (!Array.isArray(data)||data.length===0) return;
-    let n=0;
-    data.forEach(item=>{
-      const p=CODE_MAP[item.code]; if(!p) return;
-      const [cat,nom]=p;
-      if(!GRILLE[cat]||!GRILLE[cat][nom]) return;
-      const e=GRILLE[cat][nom];
-      if(typeof e==='object') GRILLE[cat][nom].f=Math.round(item.prix_ht);
-      else GRILLE[cat][nom]=Math.round(item.prix_ht);
-      n++;
-    });
-    if(n>0){initCategories('d');initCategories('f');}
-  } catch(e){}
-}
+
 chargerPrixSauvegardes();
 
 document.addEventListener('DOMContentLoaded', () => {
