@@ -3891,7 +3891,14 @@ function afficherHistorique() {
             ` : ''}
             <button onclick="telechargerPDF('${item.num}')" class="btn-small">⬇️ PDF</button>
             <button onclick="dupliquerDoc('${item.num}')" class="btn-small" style="background:rgba(212,165,116,0.1);color:var(--accent);border:1px solid rgba(212,165,116,0.3);">📋 Dupliquer</button>
-            <button onclick="genererLienPaiement('${item.num}')" class="btn-small" style="background:rgba(16,185,129,0.1);color:#10b981;border:1px solid rgba(16,185,129,0.2);">💳 Paiement</button>
+            ${item.type === 'facture' && statut !== 'paye' ? `
+              <button onclick="marquerPaye('${item.num}','terminal')" class="btn-small" style="background:rgba(99,102,241,0.12);color:#6366f1;border:1px solid rgba(99,102,241,0.3);" title="CB Terminal SumUp">💳 Terminal</button>
+              <button onclick="marquerPaye('${item.num}','virement')" class="btn-small" style="background:rgba(16,185,129,0.1);color:#10b981;border:1px solid rgba(16,185,129,0.2);" title="Virement bancaire">🏦 Virement</button>
+              <button onclick="marquerPaye('${item.num}','especes')" class="btn-small" style="background:rgba(212,165,116,0.1);color:var(--accent);border:1px solid rgba(212,165,116,0.3);" title="Paiement espèces">💶 Espèces</button>
+            ` : ''}
+            ${item.type === 'facture' && statut !== 'paye' ? `
+              <button onclick="genererLienPaiement('${item.num}')" class="btn-small" style="background:rgba(16,185,129,0.1);color:#10b981;border:1px solid rgba(16,185,129,0.2);">🔗 Lien CB</button>
+            ` : ''}
             <button onclick="supprimerDoc('${item.num}')" class="btn-small" style="background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.2);">🗑️</button>
           </div>
         </td>
@@ -3900,7 +3907,32 @@ function afficherHistorique() {
   }).join('');
 }
 
-async function dupliquerDoc(num) {
+async function marquerPaye(num, mode) {
+  const labels = { terminal: 'CB Terminal SumUp', virement: 'Virement bancaire', especes: 'Espèces' };
+  const label = labels[mode] || mode;
+  const icones = { terminal: '💳', virement: '🏦', especes: '💶' };
+
+  if (!confirm(`Confirmer le paiement ${label} pour ${num} ?`)) return;
+
+  showToast(`⏳ Enregistrement paiement ${icones[mode]} ${label}...`, '💰');
+
+  try {
+    const resp = await fetch('/api/marquer-paye', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ num, mode_paiement: mode })
+    });
+    const data = await resp.json();
+    if (!data.success) throw new Error(data.error);
+
+    showToast(`✅ Paiement ${label} enregistré ! Email + SMS avis envoyés.`, '💰');
+    setTimeout(chargerHistorique, 1500);
+  } catch(e) {
+    showToast('❌ Erreur : ' + e.message, '⚠️');
+  }
+}
+
+
   const original = historiqueData.find(d => d.num === num);
   if (!original) return;
 
