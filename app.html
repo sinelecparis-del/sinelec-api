@@ -216,16 +216,15 @@ setInterval(verifierAlertesDevis, 300000);
 * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 body {
   font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,sans-serif;
-  background:var(--bg); color:var(--text); min-height:100vh; transition:background 0.3s;
+  background:var(--bg); color:var(--text); transition:background 0.3s;
   padding-bottom:80px;
 }
 body::before {
-  content:''; position:fixed; top:-50%; right:-50%; width:200%; height:200%;
-  background:radial-gradient(circle at 20% 50%,rgba(212,165,116,0.09) 0%,transparent 50%),
-    radial-gradient(circle at 80% 80%,rgba(218,165,32,0.07) 0%,transparent 50%);
-  pointer-events:none; z-index:0; animation:mesh 20s ease-in-out infinite;
+  content:''; position:fixed; top:0; right:0; width:100%; height:100%;
+  background:radial-gradient(circle at 20% 50%,rgba(212,165,116,0.05) 0%,transparent 40%),
+    radial-gradient(circle at 80% 80%,rgba(218,165,32,0.04) 0%,transparent 40%);
+  pointer-events:none; z-index:0;
 }
-@keyframes mesh { 0%,100% { transform:translate(0,0); } 50% { transform:translate(2%,-2%); } }
 
 /* ════════════ SIDEBAR DESKTOP ════════════ */
 .sidebar {
@@ -1325,9 +1324,19 @@ function toggleMat(i) {
       <input type="text" id="d-adresse" placeholder="Ex: 12 rue de la Paix, 75001 Paris" oninput="autocompleteAdresse('d-adresse', this.value)" autocomplete="off">
       <div id="d-adresse-suggestions"></div>
     </div>
-    <div class="input-group">
-      <label>Complément <span style="font-size:11px;color:var(--text-3);">(optionnel — étage, bât., apt.)</span></label>
-      <input type="text" id="d-complement" placeholder="Ex: Bât. B, 3ème étage, Apt. 12" autocomplete="off">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+      <div class="input-group" style="margin-bottom:0;">
+        <label>Bâtiment <span style="font-size:10px;color:var(--text-3);">(opt.)</span></label>
+        <input type="text" id="d-batiment" placeholder="Ex: Bât. B" autocomplete="off">
+      </div>
+      <div class="input-group" style="margin-bottom:0;">
+        <label>Étage <span style="font-size:10px;color:var(--text-3);">(opt.)</span></label>
+        <input type="text" id="d-etage" placeholder="Ex: 3ème" autocomplete="off">
+      </div>
+      <div class="input-group" style="margin-bottom:0;">
+        <label>Apt. / Maison <span style="font-size:10px;color:var(--text-3);">(opt.)</span></label>
+        <input type="text" id="d-apt" placeholder="Ex: Apt. 12" autocomplete="off">
+      </div>
     </div>
     <div class="input-group">
       <label>Téléphone client</label>
@@ -1445,9 +1454,19 @@ function toggleMat(i) {
       <input type="text" id="f-adresse" placeholder="Ex: 12 rue de la Paix, 75001 Paris" oninput="autocompleteAdresse('f-adresse', this.value)" autocomplete="off">
       <div id="f-adresse-suggestions"></div>
     </div>
-    <div class="input-group">
-      <label>Complément <span style="font-size:11px;color:var(--text-3);">(optionnel — étage, bât., apt.)</span></label>
-      <input type="text" id="f-complement" placeholder="Ex: Bât. B, 3ème étage, Apt. 12" autocomplete="off">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+      <div class="input-group" style="margin-bottom:0;">
+        <label>Bâtiment <span style="font-size:10px;color:var(--text-3);">(opt.)</span></label>
+        <input type="text" id="f-batiment" placeholder="Ex: Bât. B" autocomplete="off">
+      </div>
+      <div class="input-group" style="margin-bottom:0;">
+        <label>Étage <span style="font-size:10px;color:var(--text-3);">(opt.)</span></label>
+        <input type="text" id="f-etage" placeholder="Ex: 3ème" autocomplete="off">
+      </div>
+      <div class="input-group" style="margin-bottom:0;">
+        <label>Apt. / Maison <span style="font-size:10px;color:var(--text-3);">(opt.)</span></label>
+        <input type="text" id="f-apt" placeholder="Ex: Apt. 12" autocomplete="off">
+      </div>
     </div>
     <div class="input-group">
       <label>Téléphone client</label>
@@ -2963,7 +2982,11 @@ const res = await fetch('/api/generer', {
     email,
     telephone: document.getElementById(`${prefix}-tel`).value.trim(),
     adresse,
-    complement: (document.getElementById(`${prefix}-complement`)?.value || '').trim(),
+    complement: [
+      document.getElementById(`${prefix}-batiment`)?.value || '',
+      document.getElementById(`${prefix}-etage`)?.value || '',
+      document.getElementById(`${prefix}-apt`)?.value || ''
+    ].filter(Boolean).join(', '),
     codePostal: (document.getElementById(`${prefix}-cp`)?.value || '').trim(),
     ville: (document.getElementById(`${prefix}-ville`)?.value || '').trim(),
     prenom: (document.getElementById(`${prefix}-prenom`)?.value || '').trim(),
