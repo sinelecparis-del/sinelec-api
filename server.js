@@ -3000,14 +3000,6 @@ print('PDF_ACQUITTE_OK')
         // Email à Diahe
         await envoyerEmail('sinelec.paris@gmail.com', `💰 PAIEMENT ${modeLabel.toUpperCase()} — ${num} — ${factureData.client || ''} — ${montant.toFixed(0)}€`, htmlAcq, { content: pdfB64, name: `Facture-Acquittee-${num}.pdf` });
 
-        // SMS avis Google
-        const telephone = factureData.telephone || '';
-        if (telephone) {
-          const lienAvis = 'https://g.page/r/CSw-MABnFUAYEAE/review';
-          const msgAvis = `Bonjour ${prenomClient}, merci pour votre confiance ! Votre avis nous aiderait beaucoup : ${lienAvis}`;
-          try { await envoyerSMS(telephone, msgAvis); } catch(e) { console.error('SMS avis:', e.message); }
-        }
-
         [pyPath, detailsPath, pdfPath].forEach(f => { try { fs.unlinkSync(f); } catch(e) {} });
         console.log(`✅ Paiement manuel ${modeLabel} traité:`, num);
       } catch(e) {
