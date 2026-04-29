@@ -2380,7 +2380,7 @@ function getClientComplet(prefix) {
 const GRILLE = {
 
   '🚗 Deplacement & Urgences': {
-    'Deplacement Paris intra-muros':              { f:50,   fo:0,   mo:50,   desc:'Deplacement du technicien SINELEC avec vehicule equipe outillage professionnel complet : multimetre numerique, pince amperemetrique, testeur de terre, appareils de mesure homologues. Intervention dans Paris intra-muros. Inclus dans le forfait si montant intervention superieur a 200 euros HT.' },
+    'Deplacement Paris intra-muros':              { f:50,   fo:0,   mo:50,   desc:'Deplacement du technicien SINELEC avec vehicule equipe outillage professionnel complet : multimetre numerique, pince amperemetrique, testeur de terre, appareils de mesure homologues. Intervention dans Paris intra-muros.' },
     'Deplacement banlieue <20km':                 { f:80,   fo:0,   mo:80,   desc:'Deplacement professionnel, vehicule equipe, IDF <20km' },
     'Deplacement banlieue >20km (78/91/95)':      { f:100,  fo:0,   mo:100,  desc:'Deplacement grande couronne, vehicule professionnel equipe' },
     'Main oeuvre heure supplementaire':           { f:70,   fo:0,   mo:70,   desc:'Technicien qualifie, tarif horaire supplementaire' },
@@ -4474,7 +4474,12 @@ function switchPage(page, el) {
   
   if (el) el.classList.add('active');
   const pageEl = document.getElementById(`page-${page}`);
-  if (pageEl) pageEl.classList.add('active');
+  if (pageEl) {
+    pageEl.classList.add('active');
+    // Remonter en haut à chaque changement de page
+    pageEl.scrollTop = 0;
+    window.scrollTo(0, 0);
+  }
   
   // Charger données si nécessaire
   if (page === 'historique') setTimeout(chargerHistorique, 100);
