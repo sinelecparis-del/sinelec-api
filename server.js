@@ -780,6 +780,17 @@ print('PDF_OK')
         { content: pdfB64, name: `${num}.pdf` }
       );
 
+      // Copie automatique à Diahe avec le PDF
+      try {
+        const typeLabel = type === 'devis' ? '📋 DEVIS' : '💶 FACTURE';
+        await envoyerEmail(
+          'sinelec.paris@gmail.com',
+          `${typeLabel} ${num} — ${client} — ${parseFloat(total_ht).toFixed(0)}€`,
+          `<div style="font-family:Arial;padding:20px;"><h3 style="color:#1B2A4A;">📄 ${typeLabel} généré — ${num}</h3><p><b>Client :</b> ${client}</p><p><b>Adresse :</b> ${adresse || 'N/A'}</p><p><b>Montant :</b> <span style="color:#C9A84C;font-size:18px;font-weight:700;">${parseFloat(total_ht).toFixed(2)} €</span></p><p style="color:#888;font-size:12px;">Document PDF en pièce jointe</p></div>`,
+          { content: pdfB64, name: `${num}.pdf` }
+        );
+      } catch(e) { console.error('⚠️ Copie email Diahe:', e.message); }
+
       try { fs.unlinkSync(pyPath); } catch(e) {}
       try { fs.unlinkSync(detailsPath); } catch(e) {}
       try { fs.unlinkSync(pdfPath); } catch(e) {}
@@ -2815,8 +2826,202 @@ print('PDF_ACQUITTE_OK')
 });
 
 // ═══════════════════════════════════════════════════════════════
-// CRON: VEILLE TARIFAIRE AUTOMATIQUE
+// API: MARQUER PAYÉ MANUELLEMENT (terminal CB / virement / espèces)
 // ═══════════════════════════════════════════════════════════════
+app.post('/api/marquer-paye', async (req, res) => {
+  const { num, mode_paiement } = req.body; // mode: 'terminal' | 'virement' | 'especes'
+  if (!num) return res.status(400).json({ error: 'Numéro manquant' });
+
+  try {
+    const modeLabel = mode_paiement === 'terminal' ? 'CB Terminal SumUp' 
+      : mode_paiement === 'virement' ? 'Virement bancaire' 
+      : 'Espèces';
+
+    // 1. Marquer comme payée dans Supabase
+    await supabase.from('historique')
+      .update({ statut: 'paye', date_paiement: new Date().toISOString(), mode_paiement: modeLabel })
+      .eq('num', num);
+
+    // 2. Récupérer les données de la facture
+    const { data: factureData } = await supabase
+      .from('historique')
+      .select('*')
+      .eq('num', num)
+      .single();
+
+    if (!factureData) return res.status(404).json({ error: 'Facture non trouvée' });
+
+    res.json({ success: true, message: `Paiement ${modeLabel} enregistré` });
+
+    // 3. Même flux que SumUp — en background
+    setImmediate(async () => {
+      try {
+        const montant = parseFloat(factureData.total_ht || 0);
+        const dateStr = new Date().toLocaleDateString('fr-FR');
+        const clientEsc = String(factureData.client || '').replace(/'/g, ' ');
+        const adresseEsc = String(factureData.adresse || '').replace(/'/g, ' ');
+        const prenomClient = (factureData.client || 'client').split(' ')[0];
+
+        const detailsData = (factureData.prestations || []).map(p => ({
+          designation: p.nom || p.designation || '',
+          qte: p.quantite || p.qte || 1,
+          prixUnit: parseFloat(p.prix || p.prixUnit || 0),
+          total: parseFloat(p.prix || p.prixUnit || 0) * (p.quantite || p.qte || 1),
+          details: p.desc ? [p.desc] : []
+        }));
+
+        const detailsPath = path.join(__dirname, `_acq_details_${num}.json`);
+        const pyPath = path.join(__dirname, `_acq_${num}.py`);
+        const pdfPath = path.join(__dirname, `_acq_${num}.pdf`);
+
+        fs.writeFileSync(detailsPath, JSON.stringify(detailsData));
+
+        // Réutiliser le même script Python que paiement-confirme
+        const py = `# -*- coding: utf-8 -*-
+import json, base64, io, sys
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.units import cm
+from reportlab.platypus import *
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
+from reportlab.pdfgen import canvas as pdfcanvas
+from reportlab.lib.utils import ImageReader
+from reportlab.platypus.flowables import HRFlowable
+
+W, H = A4
+MARINE=colors.HexColor('#1B2A4A'); OR=colors.HexColor('#C9A84C')
+OR_PALE=colors.HexColor('#FBF7EC'); BLANC=colors.white; CREME=colors.HexColor('#FDFCF9')
+GRIS_TEXTE=colors.HexColor('#3A3A3A'); GRIS_SOFT=colors.HexColor('#777777')
+GRIS_LIGNE=colors.HexColor('#E0DDD6'); GRIS_BG=colors.HexColor('#F5F4F0')
+VERT=colors.HexColor('#16a34a'); VERT_PALE=colors.HexColor('#f0fdf4')
+
+def p(txt,sz=9,font='Helvetica',color=GRIS_TEXTE,align=TA_LEFT,sb=0,sa=2,leading=None):
+    if leading is None: leading=sz*1.35
+    return Paragraph(str(txt),ParagraphStyle('s',fontName=font,fontSize=sz,
+        textColor=color,alignment=align,spaceBefore=sb,spaceAfter=sa,leading=leading,wordWrap='CJK'))
+
+data=json.loads(open(sys.argv[1],encoding='utf-8').read())
+totalHT=sum(l['total'] for l in data)
+logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
+
+class SC(pdfcanvas.Canvas):
+    def __init__(self,fn,**kw):
+        pdfcanvas.Canvas.__init__(self,fn,**kw); self._pg=0
+        self.saveState(); self._draw_page()
+    def showPage(self):
+        self._draw_footer(); pdfcanvas.Canvas.showPage(self)
+        self._pg+=1; self.saveState(); self._draw_page()
+    def save(self):
+        self._draw_footer(); pdfcanvas.Canvas.save(self)
+    def _draw_page(self):
+        self.saveState()
+        self.setFillColor(CREME); self.rect(0,0,W,H,fill=1,stroke=0)
+        self.setFillColor(MARINE); self.rect(0,0,0.7*cm,H,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0.7*cm,0,0.08*cm,H,fill=1,stroke=0)
+        self._draw_header()
+        self.restoreState()
+    def _draw_header(self):
+        self.setFillColor(MARINE); self.rect(0.78*cm,H-5.2*cm,W-0.78*cm,5.2*cm,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0.78*cm,H-5.2*cm,W-0.78*cm,0.1*cm,fill=1,stroke=0)
+        logo_img=io.BytesIO(logo_bytes)
+        self.drawImage(ImageReader(logo_img),1.3*cm,H-4.6*cm,width=3.0*cm,height=3.0*cm,preserveAspectRatio=True,mask='auto')
+        self.setFont('Helvetica-Bold',9); self.setFillColor(colors.white)
+        self.drawString(1.0*cm,H-4.5*cm,'128 Rue La Boetie, 75008 Paris')
+        self.setFont('Helvetica',8.5); self.setFillColor(colors.HexColor('#BFC8D6'))
+        self.drawString(1.0*cm,H-4.75*cm,'Tel : 07 87 38 86 22  |  sinelec.paris@gmail.com')
+        self.drawString(1.0*cm,H-5.0*cm,'SIRET : 91015824500019')
+        self.setFont('Helvetica-Bold',32); self.setFillColor(VERT)
+        self.drawRightString(W-1.2*cm,H-1.8*cm,'FACTURE ACQUITTEE')
+        self.setStrokeColor(VERT); self.setLineWidth(1.5)
+        self.line(10*cm,H-2.2*cm,W-1.2*cm,H-2.2*cm)
+        self.setFillColor(OR); self.roundRect(W-6.5*cm,H-3.1*cm,5.3*cm,0.65*cm,0.15*cm,fill=1,stroke=0)
+        self.setFont('Helvetica-Bold',9); self.setFillColor(MARINE)
+        self.drawCentredString(W-3.85*cm,H-2.77*cm,'N\\u00b0 ${num}')
+        self.setFont('Helvetica',8); self.setFillColor(colors.HexColor('#BFC8D6'))
+        self.drawRightString(W-1.2*cm,H-3.5*cm,'Date de paiement : ${dateStr}')
+        self.setFillColor(VERT); self.roundRect(W-7.0*cm,H-4.3*cm,5.8*cm,0.7*cm,0.15*cm,fill=1,stroke=0)
+        self.setFont('Helvetica-Bold',10); self.setFillColor(colors.white)
+        self.drawCentredString(W-4.1*cm,H-3.95*cm,'${modeLabel.toUpperCase()} - MERCI !')
+    def _draw_footer(self):
+        self.saveState()
+        self.setFillColor(MARINE); self.rect(0,0,W,1.0*cm,fill=1,stroke=0)
+        self.setFillColor(VERT); self.rect(0,1.0*cm,W,0.08*cm,fill=1,stroke=0)
+        self.setFont('Helvetica',6.5); self.setFillColor(colors.HexColor('#8899BB'))
+        self.drawCentredString(W/2,0.5*cm,'SINELEC EI  \\u2022  128 Rue La Boetie, 75008 Paris  \\u2022  SIRET : 91015824500019  \\u2022  TVA non applicable art. 293B CGI')
+        self.setFont('Helvetica-Bold',7); self.setFillColor(VERT)
+        self.drawRightString(W-1.2*cm,0.28*cm,'${num} - ACQUITTEE')
+        self.restoreState()
+
+doc=SimpleDocTemplate(sys.argv[2],pagesize=A4,leftMargin=1.2*cm,rightMargin=1.0*cm,topMargin=5.6*cm,bottomMargin=1.6*cm)
+story=[]
+client_b=Table([[p('CLIENT',7,'Helvetica-Bold',OR,sa=4)],[p('${clientEsc}',10,'Helvetica-Bold',MARINE)],[p('${adresseEsc}',8.5,color=GRIS_TEXTE)]],colWidths=[18.2*cm])
+client_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('BACKGROUND',(0,0),(-1,-1),OR_PALE),('BOX',(0,0),(-1,-1),1,OR),('LINEBEFORE',(0,0),(0,-1),4,MARINE),('TOPPADDING',(0,0),(0,0),10),('BOTTOMPADDING',(0,-1),(-1,-1),10)]))
+story.append(client_b); story.append(Spacer(1,0.5*cm))
+cw=[0.7*cm,9.5*cm,1.5*cm,0.9*cm,2.4*cm,3.2*cm]
+rows=[[p('#',7.5,'Helvetica-Bold',colors.white,TA_CENTER),p('DESIGNATION',7.5,'Helvetica-Bold',colors.white),p('QTE',7.5,'Helvetica-Bold',colors.white,TA_CENTER),p('U.',7.5,'Helvetica-Bold',colors.white,TA_CENTER),p('PRIX U. HT',7.5,'Helvetica-Bold',colors.white,TA_RIGHT),p('TOTAL HT',7.5,'Helvetica-Bold',colors.white,TA_RIGHT)]]
+for i,l in enumerate(data):
+    q=int(l['qte']) if l['qte']==int(l['qte']) else l['qte']
+    rows.append([p(str(i+1),9,color=OR,align=TA_CENTER),p('<b>'+l['designation']+'</b>',9,color=MARINE),p(str(q),9,align=TA_CENTER),p('u.',9,align=TA_CENTER,color=GRIS_SOFT),p('%.2f \\u20ac'%l['prixUnit'],9,align=TA_RIGHT),p('<b>%.2f \\u20ac</b>'%l['total'],9,'Helvetica-Bold',MARINE,TA_RIGHT)])
+    for det in l.get('details',[]):
+        rows.append(['',p('   - '+det,7.5,'Helvetica-Oblique',color=GRIS_SOFT),'','','',''])
+t=Table(rows,colWidths=cw)
+ts=[('BACKGROUND',(0,0),(-1,0),MARINE),('LINEBELOW',(0,0),(-1,0),2.5,OR),('VALIGN',(0,0),(-1,-1),'TOP'),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),('LEFTPADDING',(0,0),(-1,-1),7),('RIGHTPADDING',(0,0),(-1,-1),7),('BOX',(0,0),(-1,-1),0.3,GRIS_LIGNE)]
+row_idx=1; bg=True
+for l in data:
+    nb=1+len(l.get('details',[])); c=colors.white if bg else GRIS_BG
+    ts.extend([('BACKGROUND',(0,row_idx),(-1,row_idx+nb-1),c),('LINEBELOW',(0,row_idx+nb-1),(-1,row_idx+nb-1),0.3,GRIS_LIGNE)])
+    row_idx+=nb; bg=not bg
+t.setStyle(TableStyle(ts)); story.append(t); story.append(Spacer(1,0.15*cm))
+tt=Table([['',p('Total HT',9,color=GRIS_SOFT,align=TA_RIGHT),p('%.2f \\u20ac'%totalHT,9,'Helvetica-Bold',GRIS_TEXTE,TA_RIGHT)],['',p('TVA',9,color=GRIS_SOFT,align=TA_RIGHT),p('Non applicable (art. 293B)',8,color=GRIS_SOFT,align=TA_RIGHT)]],colWidths=[9.0*cm,4.5*cm,4.7*cm])
+tt.setStyle(TableStyle([('LINEABOVE',(1,0),(-1,0),0.5,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('LEFTPADDING',(0,0),(-1,-1),6),('RIGHTPADDING',(0,0),(-1,-1),6)]))
+story.append(tt); story.append(Spacer(1,0.12*cm))
+net=Table([[p('MONTANT ACQUITTE',13,'Helvetica-Bold',colors.white),p('%.2f \\u20ac'%totalHT,16,'Helvetica-Bold',VERT,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
+net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('LINEBELOW',(0,0),(-1,-1),3,VERT),('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
+story.append(net); story.append(Spacer(1,0.3*cm))
+confirm=Table([[p('Paiement recu le ${dateStr} — ${modeLabel}',10,'Helvetica-Bold',VERT),p('Merci pour votre confiance !',9,color=GRIS_SOFT,align=TA_RIGHT)]],colWidths=[10*cm,7.8*cm])
+confirm.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),VERT_PALE),('BOX',(0,0),(-1,-1),1.5,VERT),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
+story.append(confirm)
+doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw))
+print('PDF_ACQUITTE_OK')
+`;
+        fs.writeFileSync(pyPath, py, 'utf8');
+        const { execSync } = require('child_process');
+        execSync(`python3 ${pyPath} ${detailsPath} ${pdfPath}`, { cwd: __dirname });
+        const pdfB64 = fs.readFileSync(pdfPath).toString('base64');
+
+        const htmlAcq = `<div style="font-family:Arial;padding:20px;"><h2 style="color:#16a34a;">✅ Paiement reçu — ${modeLabel}</h2><p>Bonjour <b>${prenomClient}</b>, votre facture acquittée est en pièce jointe.</p><p><b>Référence :</b> ${num} | <b>Montant :</b> ${montant.toFixed(2)} € | <b>Date :</b> ${dateStr}</p><p style="color:#16a34a;font-weight:700;">Mode de paiement : ${modeLabel}</p></div>`;
+
+        // Email au client
+        if (factureData.email) {
+          await envoyerEmail(factureData.email, `✅ Facture SINELEC ${num} — Paiement reçu`, htmlAcq, { content: pdfB64, name: `Facture-Acquittee-${num}.pdf` });
+        }
+
+        // Email à Diahe
+        await envoyerEmail('sinelec.paris@gmail.com', `💰 PAIEMENT ${modeLabel.toUpperCase()} — ${num} — ${factureData.client || ''} — ${montant.toFixed(0)}€`, htmlAcq, { content: pdfB64, name: `Facture-Acquittee-${num}.pdf` });
+
+        // SMS avis Google
+        const telephone = factureData.telephone || '';
+        if (telephone) {
+          const lienAvis = 'https://g.page/r/CSw-MABnFUAYEAE/review';
+          const msgAvis = `Bonjour ${prenomClient}, merci pour votre confiance ! Votre avis nous aiderait beaucoup : ${lienAvis}`;
+          try { await envoyerSMS(telephone, msgAvis); } catch(e) { console.error('SMS avis:', e.message); }
+        }
+
+        [pyPath, detailsPath, pdfPath].forEach(f => { try { fs.unlinkSync(f); } catch(e) {} });
+        console.log(`✅ Paiement manuel ${modeLabel} traité:`, num);
+      } catch(e) {
+        console.error('⚠️ Erreur paiement manuel:', e.message);
+      }
+    });
+
+  } catch(e) {
+    console.error('Erreur marquer-paye:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+
 
 async function veilTarifaire() {
   if (!CONFIG.features.veille_tarifaire || !CONFIG.veille.enabled) {
