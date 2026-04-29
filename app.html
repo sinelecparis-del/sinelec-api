@@ -3933,6 +3933,7 @@ async function marquerPaye(num, mode) {
 }
 
 
+async function dupliquerDoc(num) {
   const original = historiqueData.find(d => d.num === num);
   if (!original) return;
 
