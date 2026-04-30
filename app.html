@@ -5058,14 +5058,25 @@ function switchPageMenu() {
       </div>
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
-      <div class="input-group" style="margin-bottom:0;">
-        <label>Date</label>
-        <input type="date" id="lead-date">
+    <div style="margin-bottom:10px;">
+      <label style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:0.5px;">Quand ?</label>
+      <div style="display:flex;gap:8px;margin-top:6px;margin-bottom:8px;">
+        <button onclick="setLeadMaintenant()" style="flex:1;padding:8px;border-radius:10px;border:1.5px solid #ef4444;background:rgba(239,68,68,0.08);color:#ef4444;font-size:12px;font-weight:700;cursor:pointer;">
+          🔴 Maintenant
+        </button>
+        <button onclick="setLeadAujourdhui()" style="flex:1;padding:8px;border-radius:10px;border:1.5px solid var(--accent);background:rgba(212,165,116,0.08);color:var(--accent);font-size:12px;font-weight:700;cursor:pointer;">
+          📅 Aujourd'hui
+        </button>
       </div>
-      <div class="input-group" style="margin-bottom:0;">
-        <label>Heure</label>
-        <input type="time" id="lead-heure" value="09:00">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div class="input-group" style="margin-bottom:0;">
+          <label>Date</label>
+          <input type="date" id="lead-date">
+        </div>
+        <div class="input-group" style="margin-bottom:0;">
+          <label>Heure</label>
+          <input type="time" id="lead-heure" value="09:00">
+        </div>
       </div>
     </div>
 
@@ -5089,6 +5100,16 @@ function switchPageMenu() {
 
 <script>
 let leadTypeActif = 'depannage';
+
+function setLeadMaintenant() {
+  const now = new Date();
+  document.getElementById('lead-date').value = now.toISOString().split('T')[0];
+  document.getElementById('lead-heure').value = now.toTimeString().slice(0,5);
+}
+
+function setLeadAujourdhui() {
+  document.getElementById('lead-date').value = new Date().toISOString().split('T')[0];
+}
 
 function ouvrirLead() {
   document.getElementById('lead-overlay').classList.add('active');
