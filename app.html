@@ -1105,6 +1105,8 @@ function afficherListeAgenda() {
   const liste = document.getElementById('agenda-liste');
   const now = new Date(); now.setHours(0,0,0,0);
 
+  const todayStr = new Date().toISOString().split('T')[0];
+
   let intervs = [...agendaInterventions].sort((a,b) => {
     const da = new Date(a.date_intervention + 'T' + (a.heure||'00:00'));
     const db = new Date(b.date_intervention + 'T' + (b.heure||'00:00'));
@@ -1114,7 +1116,7 @@ function afficherListeAgenda() {
   if (filtreJour) {
     intervs = intervs.filter(iv => iv.date_intervention === filtreJour);
   } else {
-    intervs = intervs.filter(iv => new Date(iv.date_intervention + 'T00:00:00') >= now);
+    intervs = intervs.filter(iv => iv.date_intervention >= todayStr);
   }
 
   if (intervs.length === 0) {
