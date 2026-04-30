@@ -1656,8 +1656,62 @@ app.get('/api/clients', async (req, res) => {
 // ═══════════════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════════════════
-// API: ANALYSE DPE → RECOMMANDATIONS ÉLECTRIQUES
+// API: SCRIPT VOCAL IA
 // ═══════════════════════════════════════════════════════════════
+app.post('/api/vocal', async (req, res) => {
+  const { texte } = req.body;
+  if (!texte) return res.status(400).json({ error: 'Texte manquant' });
+
+  try {
+    const prompt = `Tu es l'assistant commercial de SINELEC, entreprise d'électricité à Paris. Un client vient de dire : "${texte}"
+
+Analyse ce que le client dit et réponds en JSON avec exactement ces champs :
+- reponse : ce que Diahe doit dire au client (1-2 phrases max, ton professionnel et direct)
+- prix : fourchette de prix à annoncer selon la GRILLE SINELEC (ex: "90 à 120€ tout compris"), null si pas applicable
+- upsell : une prestation supplémentaire à proposer naturellement, null si pas pertinent
+- negocie : quoi répondre si le client essaie de négocier le prix, null si pas applicable
+
+GRILLE SINELEC (prix tout compris déplacement inclus) :
+- Dépannage panne simple : 290€
+- Court-circuit : 205€
+- Recherche de panne : 120€ + déplacement 50€
+- Disjoncteur : 150€
+- Prise standard : 90€
+- Interrupteur : 90€
+- Tableau 1 rangée : 1100€
+- Tableau 2 rangées : 1500€
+- Tableau 3 rangées : 1800€
+- Mise à la terre : 650€
+- DAAF : 85€
+- VMC : 450 à 700€
+- Diagnostic électrique : 150€
+- Déplacement Paris : 50€
+- Mise en conformité : 65€/m²
+
+RÈGLES :
+- Réponds toujours en français naturel, pas de jargon
+- Prix = forfait tout compris, jamais à l'heure
+- Si le client hésite : rassure sur la qualité et la garantie
+- Si urgence : mentionne la disponibilité rapide
+- Réponds UNIQUEMENT en JSON valide sans markdown`;
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 400,
+      messages: [{ role: 'user', content: prompt }]
+    });
+
+    const raw = response.content[0].text.trim().replace(/```json|```/g, '').trim();
+    const result = JSON.parse(raw);
+    res.json({ success: true, ...result });
+
+  } catch(e) {
+    console.error('Erreur vocal:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+
 
 app.post('/api/dpe', async (req, res) => {
   try {
