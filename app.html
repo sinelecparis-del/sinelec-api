@@ -5126,6 +5126,53 @@ function majWazeLead(val) {
   } else {
     btn.style.display = 'none';
   }
+  // Autocomplétion adresse IDF
+  if (val.length > 3) rechercherAdresseIDF(val);
+  else document.getElementById('lead-adresse-suggestions').style.display = 'none';
+}
+
+let adresseTimer = null;
+async function rechercherAdresseIDF(query) {
+  if (adresseTimer) clearTimeout(adresseTimer);
+  adresseTimer = setTimeout(async () => {
+    try {
+      // Filtre IDF : départements 75, 77, 78, 91, 92, 93, 94, 95
+      const url = `https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(query)}&limit=5&postcode=75,77,78,91,92,93,94,95`;
+      const resp = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(query)}&limit=6`);
+      const data = await resp.json();
+      // Filtrer IDF uniquement
+      const idf = ['75','77','78','91','92','93','94','95'];
+      const features = (data.features || []).filter(f => {
+        const cp = (f.properties.postcode || '');
+        return idf.some(d => cp.startsWith(d));
+      });
+      afficherSuggestions(features);
+    } catch(e) {}
+  }, 300);
+}
+
+function afficherSuggestions(features) {
+  let box = document.getElementById('lead-adresse-suggestions');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'lead-adresse-suggestions';
+    box.style.cssText = 'position:absolute;z-index:9999;background:var(--bg);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.15);max-height:200px;overflow-y:auto;width:100%;';
+    const input = document.getElementById('lead-adresse');
+    input.parentNode.style.position = 'relative';
+    input.parentNode.appendChild(box);
+  }
+  if (!features.length) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  box.innerHTML = features.map(f => {
+    const label = f.properties.label || '';
+    return `<div onclick="choisirAdresse('${label.replace(/'/g,"\\'")}', this.parentNode)" style="padding:10px 14px;font-size:13px;color:var(--text);cursor:pointer;border-bottom:0.5px solid var(--border);" onmouseenter="this.style.background='var(--bg-2)'" onmouseleave="this.style.background=''">${label}</div>`;
+  }).join('');
+}
+
+function choisirAdresse(adresse, box) {
+  document.getElementById('lead-adresse').value = adresse;
+  box.style.display = 'none';
+  majWazeLead(adresse);
 }
 
 async function enregistrerLead(creerDevis) {
