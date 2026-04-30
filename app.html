@@ -1708,10 +1708,13 @@ function demarrerReconnaissance() {
 }
 
 async function analyserAvecClaude(texte) {
-  document.getElementById('vocal-reponse').textContent = '⏳ Claude analyse...';
+  document.getElementById('vocal-reponse').textContent = '⏳ Analyse...';
   document.getElementById('vocal-prix-zone').style.display = 'none';
   document.getElementById('vocal-upsell-zone').style.display = 'none';
   document.getElementById('vocal-negocie-zone').style.display = 'none';
+
+  // Pause le mic pendant l'analyse + lecture
+  if (recognition) { try { recognition.stop(); } catch(e) {} }
 
   try {
     const resp = await fetch('/api/vocal', {
@@ -1737,12 +1740,20 @@ async function analyserAvecClaude(texte) {
       document.getElementById('vocal-negocie-zone').style.display = 'block';
     }
 
-    // Reset buffer après analyse
     vocalBuffer = '';
-    document.getElementById('vocal-transcript').textContent = 'En attente de la prochaine phrase...';
+    document.getElementById('vocal-transcript').textContent = '🔕 Micro en pause 8 secondes — lis et parle...';
+
+    // Reprendre l'écoute après 8 secondes
+    setTimeout(() => {
+      if (vocalActif) {
+        document.getElementById('vocal-transcript').textContent = '👂 En écoute...';
+        demarrerReconnaissance();
+      }
+    }, 8000);
 
   } catch(e) {
-    document.getElementById('vocal-reponse').textContent = '❌ Erreur : ' + e.message;
+    document.getElementById('vocal-reponse').textContent = '❌ ' + e.message;
+    if (vocalActif) setTimeout(demarrerReconnaissance, 1000);
   }
 }
 </script>
