@@ -5004,6 +5004,14 @@ function switchPage(page, el) {
   if (mc) mc.scrollTop = 0;
   window.scrollTo(0, 0);
   document.body.scrollTop = 0;
+  document.documentElement.scrollTop = 0;
+  setTimeout(() => {
+    window.scrollTo(0, 0);
+    document.body.scrollTop = 0;
+    document.documentElement.scrollTop = 0;
+    if (mc) mc.scrollTop = 0;
+    if (pageEl) pageEl.scrollIntoView({ behavior: 'instant', block: 'start' });
+  }, 50);
   
   // Charger données si nécessaire
   if (page === 'historique') setTimeout(chargerHistorique, 100);
