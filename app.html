@@ -2445,9 +2445,9 @@ const GRILLE = {
     'Telerupteur':                                { f:110,  fo:30,  mo:80,   desc:'Fourniture telerupteur, pose, raccordement multi-points' },
     'Minuterie':                                  { f:110,  fo:35,  mo:75,   desc:'Fourniture minuterie reglable, pose, raccordement, reglage' },
     'Mini tableau NF C 15-100':                   { f:185,  fo:60,  mo:125,  desc:'Coffret encastre, modules fournis, conforme NF C15-100' },
-    'Tableau complet 1 rangee (6 a 13 modules)':  { f:650,  fo:280, mo:370,  desc:'Fourniture et pose d un tableau electrique neuf 1 rangee (6 a 13 modules) appareillage Schneider Electric ou Legrand serie professionnelle. Comprend : interrupteur differentiel 40A 30mA type A (protection renforcee contre contacts indirects et courants de fuite), disjoncteurs divisionnaires calibres par circuit (10A eclairage, 16A prises, 20A lave-linge/cuisine), peigne de raccordement horizontal, bornage repere, cablage interieur soigne. Etiquetage integrale chaque circuit avec designation. Schema electrique unifilaire etabli et remis au client. Verification electrique complete avant mise en service. Conforme NF C 15-100. Garantie 2 ans pieces et main d oeuvre.' },
-    'Tableau complet 2 rangees (14 a 26 modules)':{ f:1050, fo:450, mo:600,  desc:'Fourniture et pose d un tableau electrique neuf 2 rangees (14 a 26 modules) appareillage Schneider Electric ou Legrand serie professionnelle. Comprend : interrupteurs differentiels 40A et 63A 30mA type A (protection maximale personnes et equipements), disjoncteurs divisionnaires calibres par circuit (10A eclairage, 16A prises, 20A lave-linge et four, 32A plaque induction), peignes de raccordement 2 rangees, cablage interieur repere soigne, etiquetage professionnel integrale de chaque circuit. Schema electrique unifilaire etabli et remis au client. Verification complete de chaque circuit avant mise en service. Conforme NF C 15-100. Garantie 2 ans pieces et main d oeuvre.' },
-    'Tableau complet 3 rangees (27+ modules)':    { f:1850, fo:750, mo:1100, desc:'Fourniture et pose d un tableau electrique neuf 3 rangees (27 modules et plus) appareillage Schneider Electric ou Legrand serie professionnelle. Comprend : interrupteurs differentiels 40A/63A 30mA type A multiples par groupes de circuits, disjoncteurs divisionnaires calibres pour chaque depart, parafoudre type 2, peignes de raccordement, cablage interieur repere et soigne. Etiquetage professionnel de chaque circuit, schema electrique unifilaire complet etabli et remis au client. Verification et test de chaque circuit avant mise en service. Conforme NF C 15-100. Garantie 2 ans pieces et main d oeuvre.' },
+    'Tableau complet 1 rangee (6 a 13 modules)':  { f:1100, fo:380, mo:720,  desc:'Fourniture et pose d un tableau electrique neuf 1 rangee (6 a 13 modules) appareillage Schneider Electric ou Legrand serie professionnelle. Comprend : interrupteur differentiel 40A 30mA type A (protection renforcee contre contacts indirects et courants de fuite), disjoncteurs divisionnaires calibres par circuit (10A eclairage, 16A prises, 20A lave-linge/cuisine), peigne de raccordement horizontal, bornage repere, cablage interieur soigne. Etiquetage integrale chaque circuit avec designation. Schema electrique unifilaire etabli et remis au client. Verification electrique complete avant mise en service. Conforme NF C 15-100. Garantie 2 ans pieces et main d oeuvre.' },
+    'Tableau complet 2 rangees (14 a 26 modules)':{ f:1500, fo:550, mo:950,  desc:'Fourniture et pose d un tableau electrique neuf 2 rangees (14 a 26 modules) appareillage Schneider Electric ou Legrand serie professionnelle. Comprend : interrupteurs differentiels 40A et 63A 30mA type A (protection maximale personnes et equipements), disjoncteurs divisionnaires calibres par circuit (10A eclairage, 16A prises, 20A lave-linge et four, 32A plaque induction), peignes de raccordement 2 rangees, cablage interieur repere soigne, etiquetage professionnel integrale de chaque circuit. Schema electrique unifilaire etabli et remis au client. Verification complete de chaque circuit avant mise en service. Conforme NF C 15-100. Garantie 2 ans pieces et main d oeuvre.' },
+    'Tableau complet 3 rangees (27+ modules)':    { f:1800, fo:700, mo:1100, desc:'Fourniture et pose d un tableau electrique neuf 3 rangees (27 modules et plus) appareillage Schneider Electric ou Legrand serie professionnelle. Comprend : interrupteurs differentiels 40A/63A 30mA type A multiples par groupes de circuits, disjoncteurs divisionnaires calibres pour chaque depart, parafoudre type 2, peignes de raccordement, cablage interieur repere et soigne. Etiquetage professionnel de chaque circuit, schema electrique unifilaire complet etabli et remis au client. Verification et test de chaque circuit avant mise en service. Conforme NF C 15-100. Garantie 2 ans pieces et main d oeuvre.' },
     'Ajout module tableau existant':              { f:90,   fo:20,  mo:70,   desc:'Ajout disjoncteur/differentiel sur tableau existant, etiquetage' },
     'Etiquetage et mise en ordre tableau':        { f:60,   fo:5,   mo:55,   desc:'Identification circuits, etiquettes professionnelles, schema mis a jour' },
     'Verification et rapport tableau':            { f:80,   fo:0,   mo:80,   desc:'Controle visuel et electrique, rapport conformite fourni' },
@@ -2809,24 +2809,35 @@ function renderPanier(prefix) {
     
     const div = document.createElement('div');
     div.className = 'panier-item';
+    div.style.flexDirection = 'column';
+    div.style.alignItems = 'stretch';
+    div.style.gap = '8px';
+    
     div.innerHTML = `
-      <span class="panier-item-name">${item.designation}</span>
-      <div class="qte-ctrl">
-        <button class="qte-btn" onclick="changeQte('${prefix}', ${idx}, -1)">−</button>
-        <span class="qte-val">${item.qte}</span>
-        <button class="qte-btn" onclick="changeQte('${prefix}', ${idx}, 1)">+</button>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="panier-item-name">${item.designation}</span>
+        <div class="qte-ctrl">
+          <button class="qte-btn" onclick="changeQte('${prefix}', ${idx}, -1)">−</button>
+          <span class="qte-val">${item.qte}</span>
+          <button class="qte-btn" onclick="changeQte('${prefix}', ${idx}, 1)">+</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:4px;">
+          <input type="number" 
+            value="${item.prixUnit}" 
+            min="0" 
+            step="5"
+            onchange="modifierPrix('${prefix}', ${idx}, this.value)"
+            onclick="this.select()"
+            style="width:72px;text-align:right;padding:4px 6px;border-radius:8px;border:1.5px solid var(--accent);background:var(--bg-2);color:var(--accent);font-weight:700;font-size:13px;">
+          <span style="font-size:12px;color:var(--text-3);">€</span>
+        </div>
+        <button class="del-btn" onclick="removeFromPanier('${prefix}', ${idx})">×</button>
       </div>
-      <div style="display:flex;align-items:center;gap:4px;">
-        <input type="number" 
-          value="${item.prixUnit}" 
-          min="0" 
-          step="5"
-          onchange="modifierPrix('${prefix}', ${idx}, this.value)"
-          onclick="this.select()"
-          style="width:72px;text-align:right;padding:4px 6px;border-radius:8px;border:1.5px solid var(--accent);background:var(--bg-2);color:var(--accent);font-weight:700;font-size:13px;">
-        <span style="font-size:12px;color:var(--text-3);">€</span>
-      </div>
-      <button class="del-btn" onclick="removeFromPanier('${prefix}', ${idx})">×</button>
+      <textarea
+        placeholder="Description / contexte chantier (optionnel — apparaît dans le PDF)"
+        oninput="modifierDesc('${prefix}', ${idx}, this.value)"
+        style="width:100%;font-size:11px;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-2);color:var(--text-2);resize:vertical;min-height:44px;line-height:1.5;font-family:inherit;"
+      >${item.desc || ''}</textarea>
     `;
     itemsDiv.appendChild(div);
   });
@@ -2850,6 +2861,13 @@ function renderPanier(prefix) {
     if (remiseLine) remiseLine.style.display = 'none';
     if (netDiv) netDiv.style.display = 'none';
   }
+}
+
+function modifierDesc(prefix, idx, valeur) {
+  const panier = prefix === 'd' ? panierD : panierF;
+  panier[idx].desc = valeur;
+  if (prefix === 'd') panierD = panier;
+  else panierF = panier;
 }
 
 function modifierPrix(prefix, idx, valeur) {
