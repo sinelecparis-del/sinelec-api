@@ -1151,8 +1151,13 @@ function afficherListeAgenda() {
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
         <span style="background:${color}22;color:${color};border:1px solid ${color}44;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;">${iv.type_intervention}</span>
         <span style="font-size:12px;color:var(--text-2);font-weight:600;">${labelDate} à ${iv.heure}</span>
-        ${iv.telephone ? `<span style="font-size:12px;color:var(--text-3);">📞 ${iv.telephone}</span>` : ''}
+        ${iv.telephone ? `<a href="tel:${iv.telephone}" style="font-size:12px;color:#3b82f6;font-weight:600;text-decoration:none;">📞 ${iv.telephone}</a>` : ''}
       </div>
+      ${iv.adresse ? `<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+        <a href="https://waze.com/ul?q=${encodeURIComponent(iv.adresse)}&navigate=yes" target="_blank" style="background:#1da462;color:#fff;border-radius:8px;padding:5px 12px;font-size:11px;font-weight:700;text-decoration:none;">🔵 Waze</a>
+        <a href="https://maps.google.com/?q=${encodeURIComponent(iv.adresse)}" target="_blank" style="background:#4285f4;color:#fff;border-radius:8px;padding:5px 12px;font-size:11px;font-weight:700;text-decoration:none;">🗺️ Maps</a>
+        <span style="font-size:12px;color:var(--text-3);align-self:center;">${iv.adresse}</span>
+      </div>` : ''}
       ${iv.notes ? `<div style="font-size:12px;color:var(--text-3);margin-top:8px;font-style:italic;">💬 ${iv.notes}</div>` : ''}
       <div style="display:flex;gap:8px;margin-top:12px;">
         <button onclick="ouvrirFormulaireAgenda('${iv.id}')" class="btn-small" style="font-size:11px;padding:6px 12px;">✏️ Modifier</button>
