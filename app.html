@@ -3073,7 +3073,15 @@ function selectCategory(prefix, cat, btn) {
 function addToPanier(prefix, nom, prix, categorie) {
   const panier = prefix === 'd' ? panierD : panierF;
   const existing = panier.find(p => p.designation === nom);
-  
+
+  // Chercher la description dans la GRILLE
+  let descGrille = '';
+  Object.values(GRILLE).forEach(cat => {
+    const nomBase = nom.replace(' (fourniture)','').replace(' (MO)','').trim();
+    if (cat[nom]?.desc) descGrille = cat[nom].desc;
+    else if (cat[nomBase]?.desc) descGrille = cat[nomBase].desc;
+  });
+
   if (existing) {
     existing.qte++;
   } else {
@@ -3081,13 +3089,14 @@ function addToPanier(prefix, nom, prix, categorie) {
       designation: nom,
       prixUnit: prix,
       qte: 1,
-      categorie: categorie || 'Autre'
+      categorie: categorie || 'Autre',
+      desc: descGrille
     });
   }
-  
+
   if (prefix === 'd') panierD = panier;
   else panierF = panier;
-  
+
   renderPanier(prefix);
   showToast(`✅ ${nom} ajouté !`, '🛒');
 }
@@ -3368,7 +3377,6 @@ if (data.success) {
   if (type === 'devis') {
     panierD = [];
     renderPanier('d');
-    setTimeout(() => ouvrirPopupSig(data.num), 1000);
   } else {
     panierF = [];
     renderPanier('f');
@@ -4213,6 +4221,7 @@ function afficherHistorique() {
           <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
             ${item.type === 'devis' ? `
               <button onclick="convertirEnFacture('${item.num}')" class="btn-small" style="background:rgba(16,185,129,0.15);color:var(--success);border:1px solid rgba(16,185,129,0.3);">→ Facture</button>
+              <button onclick="ouvrirPopupSig('${item.num}')" class="btn-small" style="background:rgba(212,165,116,0.1);color:var(--accent);border:1px solid rgba(212,165,116,0.3);">✍️ Signer</button>
             ` : ''}
             <button onclick="telechargerPDF('${item.num}')" class="btn-small">⬇️ PDF</button>
             <button onclick="dupliquerDoc('${item.num}')" class="btn-small" style="background:rgba(212,165,116,0.1);color:var(--accent);border:1px solid rgba(212,165,116,0.3);">📋 Dupliquer</button>
