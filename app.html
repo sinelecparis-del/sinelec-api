@@ -5141,15 +5141,15 @@ function selectLeadType(el, type) {
 function majWazeLead(val) {
   const btn = document.getElementById('lead-waze-btn');
   const link = document.getElementById('lead-waze-link');
-  if (val.length > 5) {
+  if (btn && val && val.length > 5) {
     btn.style.display = 'block';
-    link.onclick = () => window.open(`https://waze.com/ul?q=${encodeURIComponent(val)}&navigate=yes`, '_blank');
-  } else {
+    if (link) link.onclick = () => window.open(`https://waze.com/ul?q=${encodeURIComponent(val)}&navigate=yes`, '_blank');
+  } else if (btn) {
     btn.style.display = 'none';
   }
-  // Autocomplétion adresse IDF
-  if (val.length > 3) rechercherAdresseIDF(val);
-  else document.getElementById('lead-adresse-suggestions').style.display = 'none';
+  const box = document.getElementById('lead-adresse-suggestions');
+  if (val && val.length > 3) rechercherAdresseIDF(val);
+  else if (box) box.style.display = 'none';
 }
 
 let adresseTimer = null;
@@ -5211,9 +5211,18 @@ async function enregistrerLead(creerDevis) {
       await fetch('/api/agenda', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ client: nom, adresse, telephone: tel, type: leadTypeActif, date, heure, notes, statut: 'lead' })
+        body: JSON.stringify({
+          client: nom,
+          telephone: tel,
+          adresse: adresse,
+          date_intervention: date,
+          heure: heure,
+          type_intervention: leadTypeActif,
+          notes: notes,
+          statut: 'lead'
+        })
       });
-    } catch(e) {}
+    } catch(e) { console.error('Agenda lead:', e.message); }
   }
 
   showToast(`✅ Lead enregistré — ${nom}`, '📞');
