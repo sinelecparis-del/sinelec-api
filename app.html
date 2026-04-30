@@ -690,6 +690,10 @@ body::before {
       <span class="sidebar-item-icon">📋</span>
       <span>Historique</span>
     </div>
+    <div class="sidebar-item" onclick="switchPage('vocal', this)">
+      <span class="sidebar-item-icon">🎙️</span>
+      <span>Script Vocal</span>
+    </div>
     <div class="sidebar-item" onclick="switchPage('chat', this)">
       <span class="sidebar-item-icon">🤖</span>
       <span>Chat AI</span>
@@ -1545,6 +1549,203 @@ function toggleMat(i) {
   <div class="status" id="f-status"></div>
 </div>
 </div>
+
+<!-- PAGE SCRIPT VOCAL -->
+<div id="page-vocal" class="page">
+<div class="content" style="max-width:700px;">
+
+  <!-- STATUT MIC -->
+  <div id="vocal-status" class="section" style="text-align:center;padding:20px;">
+    <div id="vocal-icon" style="font-size:56px;margin-bottom:12px;transition:all 0.3s;">🎙️</div>
+    <div id="vocal-label" style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px;">Script Vocal IA</div>
+    <div id="vocal-sub" style="font-size:12px;color:var(--text-3);margin-bottom:20px;">Pose la tablette à côté du téléphone en haut-parleur<br>Claude analyse et te dit quoi répondre en temps réel</div>
+    <button id="vocal-btn" onclick="toggleVocal()" style="background:linear-gradient(135deg,var(--accent),var(--gold));color:#fff;border:none;border-radius:16px;padding:16px 40px;font-size:16px;font-weight:700;cursor:pointer;box-shadow:0 4px 20px rgba(212,165,116,0.4);">
+      📞 Décrocher
+    </button>
+  </div>
+
+  <!-- TRANSCRIPTION EN DIRECT -->
+  <div class="section" id="vocal-transcript-zone" style="display:none;">
+    <div class="section-title">👂 Le client dit...</div>
+    <div id="vocal-transcript" style="background:var(--bg-2);border-radius:10px;padding:12px;min-height:60px;font-size:13px;color:var(--text-2);line-height:1.6;border:1px solid var(--border);font-style:italic;">
+      En attente de la voix...
+    </div>
+  </div>
+
+  <!-- RÉPONSE IA -->
+  <div id="vocal-reponse-zone" style="display:none;">
+
+    <!-- CE QUE TU DIS -->
+    <div class="section" style="border:2px solid var(--accent);">
+      <div class="section-title" style="color:var(--accent);">💬 Tu réponds...</div>
+      <div id="vocal-reponse" style="font-size:15px;font-weight:600;color:var(--text);line-height:1.7;min-height:50px;">
+        ...
+      </div>
+    </div>
+
+    <!-- PRIX + UPSELL -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div class="section" id="vocal-prix-zone" style="display:none;">
+        <div class="section-title">💰 Prix à annoncer</div>
+        <div id="vocal-prix" style="font-size:22px;font-weight:900;color:var(--accent);">—</div>
+      </div>
+      <div class="section" id="vocal-upsell-zone" style="display:none;">
+        <div class="section-title">⬆️ Upsell possible</div>
+        <div id="vocal-upsell" style="font-size:12px;color:var(--text-2);line-height:1.5;">—</div>
+      </div>
+    </div>
+
+    <!-- SI LE CLIENT NÉGOCIE -->
+    <div class="section" id="vocal-negocie-zone" style="display:none;border-left:3px solid #ef4444;">
+      <div class="section-title" style="color:#ef4444;">🔒 S'il négocie...</div>
+      <div id="vocal-negocie" style="font-size:13px;color:var(--text-2);line-height:1.5;">—</div>
+    </div>
+
+  </div>
+
+  <!-- BOUTON RACCROCHER -->
+  <div id="vocal-fin-zone" style="display:none;text-align:center;padding:16px;">
+    <button onclick="raccrocherVocal()" style="background:rgba(239,68,68,0.1);color:#ef4444;border:1.5px solid rgba(239,68,68,0.3);border-radius:12px;padding:12px 32px;font-size:14px;font-weight:700;cursor:pointer;">
+      📵 Raccrocher
+    </button>
+  </div>
+
+</div>
+</div>
+
+<script>
+// ═══════════════════ SCRIPT VOCAL IA ═══════════════════
+let vocalActif = false;
+let recognition = null;
+let vocalBuffer = '';
+let vocalTimer = null;
+
+function initScriptVocal() {
+  // Vérifier support navigateur
+  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+    document.getElementById('vocal-sub').textContent = '⚠️ Ton navigateur ne supporte pas la reconnaissance vocale. Utilise Chrome sur Android.';
+    document.getElementById('vocal-btn').style.display = 'none';
+  }
+}
+
+function toggleVocal() {
+  if (vocalActif) {
+    raccrocherVocal();
+  } else {
+    decrocherVocal();
+  }
+}
+
+function decrocherVocal() {
+  vocalActif = true;
+  const btn = document.getElementById('vocal-btn');
+  btn.textContent = '⏸️ En écoute...';
+  btn.style.background = 'linear-gradient(135deg,#ef4444,#dc2626)';
+  document.getElementById('vocal-icon').textContent = '🔴';
+  document.getElementById('vocal-label').textContent = 'Écoute en cours...';
+  document.getElementById('vocal-sub').textContent = 'Parle normalement — Claude analyse';
+  document.getElementById('vocal-transcript-zone').style.display = 'block';
+  document.getElementById('vocal-reponse-zone').style.display = 'block';
+  document.getElementById('vocal-fin-zone').style.display = 'block';
+  demarrerReconnaissance();
+}
+
+function raccrocherVocal() {
+  vocalActif = false;
+  if (recognition) { try { recognition.stop(); } catch(e) {} recognition = null; }
+  if (vocalTimer) clearTimeout(vocalTimer);
+  const btn = document.getElementById('vocal-btn');
+  btn.textContent = '📞 Décrocher';
+  btn.style.background = 'linear-gradient(135deg,var(--accent),var(--gold))';
+  document.getElementById('vocal-icon').textContent = '🎙️';
+  document.getElementById('vocal-label').textContent = 'Script Vocal IA';
+  document.getElementById('vocal-sub').textContent = 'Pose la tablette à côté du téléphone en haut-parleur';
+  document.getElementById('vocal-transcript-zone').style.display = 'none';
+  document.getElementById('vocal-reponse-zone').style.display = 'none';
+  document.getElementById('vocal-fin-zone').style.display = 'none';
+  document.getElementById('vocal-transcript').textContent = 'En attente de la voix...';
+  vocalBuffer = '';
+}
+
+function demarrerReconnaissance() {
+  const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SpeechRec();
+  recognition.lang = 'fr-FR';
+  recognition.continuous = true;
+  recognition.interimResults = true;
+
+  recognition.onresult = (event) => {
+    let interim = '';
+    let final = '';
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      if (event.results[i].isFinal) {
+        final += event.results[i][0].transcript + ' ';
+      } else {
+        interim += event.results[i][0].transcript;
+      }
+    }
+    if (final) vocalBuffer += final;
+    document.getElementById('vocal-transcript').textContent = (vocalBuffer + interim) || 'En attente...';
+
+    // Analyser après 2 secondes sans parler
+    if (vocalTimer) clearTimeout(vocalTimer);
+    if (vocalBuffer.trim().length > 10) {
+      vocalTimer = setTimeout(() => analyserAvecClaude(vocalBuffer.trim()), 1500);
+    }
+  };
+
+  recognition.onerror = (e) => {
+    if (e.error === 'no-speech' && vocalActif) {
+      setTimeout(demarrerReconnaissance, 500);
+    }
+  };
+
+  recognition.onend = () => {
+    if (vocalActif) setTimeout(demarrerReconnaissance, 300);
+  };
+
+  recognition.start();
+}
+
+async function analyserAvecClaude(texte) {
+  document.getElementById('vocal-reponse').textContent = '⏳ Claude analyse...';
+  document.getElementById('vocal-prix-zone').style.display = 'none';
+  document.getElementById('vocal-upsell-zone').style.display = 'none';
+  document.getElementById('vocal-negocie-zone').style.display = 'none';
+
+  try {
+    const resp = await fetch('/api/vocal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ texte })
+    });
+    const data = await resp.json();
+    if (!data.success) throw new Error(data.error);
+
+    document.getElementById('vocal-reponse').textContent = data.reponse || '—';
+
+    if (data.prix) {
+      document.getElementById('vocal-prix').textContent = data.prix;
+      document.getElementById('vocal-prix-zone').style.display = 'block';
+    }
+    if (data.upsell) {
+      document.getElementById('vocal-upsell').textContent = data.upsell;
+      document.getElementById('vocal-upsell-zone').style.display = 'block';
+    }
+    if (data.negocie) {
+      document.getElementById('vocal-negocie').textContent = data.negocie;
+      document.getElementById('vocal-negocie-zone').style.display = 'block';
+    }
+
+    // Reset buffer après analyse
+    vocalBuffer = '';
+    document.getElementById('vocal-transcript').textContent = 'En attente de la prochaine phrase...';
+
+  } catch(e) {
+    document.getElementById('vocal-reponse').textContent = '❌ Erreur : ' + e.message;
+  }
+}
+</script>
 
 <!-- PAGE CHAT -->
 <div id="page-chat" class="page">
@@ -4559,7 +4760,7 @@ function switchPage(page, el) {
   if (page === 'clients') setTimeout(chargerClients, 100);
   if (page === 'params') setTimeout(afficherParams, 100);
   if (page === 'rapport') setTimeout(initSignature, 100);
-  if (page === 'agenda') setTimeout(chargerAgenda, 100);
+  if (page === 'vocal') setTimeout(initScriptVocal, 100);
   if (page === 'sante') setTimeout(chargerSante, 100);
 }
 
