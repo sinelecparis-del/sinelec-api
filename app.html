@@ -4994,6 +4994,7 @@ function switchPage(page, el) {
   
   // Charger données si nécessaire
   if (page === 'historique') setTimeout(chargerHistorique, 100);
+  if (page === 'agenda') setTimeout(chargerAgenda, 100);
   if (page === 'dashboard') setTimeout(chargerDashboard, 100);
   if (page === 'clients') setTimeout(chargerClients, 100);
   if (page === 'params') setTimeout(afficherParams, 100);
