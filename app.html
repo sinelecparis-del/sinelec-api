@@ -1039,15 +1039,105 @@ function semainePrecedente() { agendaSemaineOffset--; chargerAgenda(); }
 function semaineSuivante() { agendaSemaineOffset++; chargerAgenda(); }
 
 async function chargerAgenda() {
+  const liste = document.getElementById('agenda-liste');
+  if (liste) liste.innerHTML = '<div class="panier-empty">Chargement...</div>';
+
   try {
     const res = await fetch('/api/agenda');
+    if (!res.ok) throw new Error(`Erreur ${res.status}`);
     const data = await res.json();
     agendaInterventions = Array.isArray(data) ? data : [];
     afficherCalendrier();
     afficherListeAgenda();
   } catch(e) {
-    document.getElementById('agenda-liste').innerHTML = '<div class="panier-empty">Erreur de chargement</div>';
+    console.error('chargerAgenda:', e);
+    if (liste) liste.innerHTML = `<div class="panier-empty" style="color:var(--error);">❌ ${e.message}</div>`;
   }
+}
+
+function getTodayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function afficherListeAgenda() {
+  const liste = document.getElementById('agenda-liste');
+  if (!liste) return;
+
+  const todayStr = getTodayStr();
+  const tomorrowDate = new Date(); tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+  const tomorrowStr = `${tomorrowDate.getFullYear()}-${String(tomorrowDate.getMonth()+1).padStart(2,'0')}-${String(tomorrowDate.getDate()).padStart(2,'0')}`;
+
+  let intervs = [...agendaInterventions].sort((a, b) => {
+    const da = a.date_intervention + 'T' + (a.heure || '00:00');
+    const db = b.date_intervention + 'T' + (b.heure || '00:00');
+    return da.localeCompare(db);
+  });
+
+  if (filtreJour) {
+    intervs = intervs.filter(iv => iv.date_intervention === filtreJour);
+  } else {
+    intervs = intervs.filter(iv => (iv.date_intervention || '') >= todayStr);
+  }
+
+  if (intervs.length === 0) {
+    liste.innerHTML = `<div class="panier-empty">${filtreJour ? 'Aucune intervention ce jour' : 'Aucune intervention à venir'}</div>`;
+    return;
+  }
+
+  const typeColors = {
+    'depannage': '#ef4444', 'installation': '#10b981', 'devis': '#3b82f6',
+    'renovation': '#f59e0b', 'tableau': '#f59e0b', 'vmc': '#8b5cf6',
+    'Dépannage': '#ef4444', 'Installation': '#10b981', 'Devis': '#3b82f6',
+    'Tableau': '#f59e0b', 'VMC': '#8b5cf6', 'Mise en conformité': '#06b6d4'
+  };
+
+  const statutStyle = {
+    'planifié': 'badge-info', 'lead': 'badge-warning',
+    'en cours': 'badge-warning', 'terminé': 'badge-success', 'annulé': 'badge-error'
+  };
+
+  liste.innerHTML = intervs.map(iv => {
+    const dateStr = iv.date_intervention || '';
+    const labelDate = dateStr === todayStr ? '🔴 Aujourd\'hui'
+      : dateStr === tomorrowStr ? '🟡 Demain'
+      : new Date(dateStr + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+
+    const color = typeColors[iv.type_intervention] || '#9d8f7f';
+    const nom = iv.client || ((iv.prenom || '') + ' ' + (iv.nom || '')).trim() || 'Client';
+    const adresseEnc = iv.adresse ? encodeURIComponent(iv.adresse) : '';
+
+    return `
+    <div style="background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+        <div>
+          <div style="font-size:15px;font-weight:700;color:var(--text);">${nom}</div>
+          ${iv.adresse ? `<div style="font-size:12px;color:var(--text-3);margin-top:2px;">${iv.adresse}</div>` : ''}
+        </div>
+        <span class="badge ${statutStyle[iv.statut] || 'badge-info'}" style="font-size:10px;flex-shrink:0;margin-left:8px;">${iv.statut || 'planifié'}</span>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+        <span style="background:${color}22;color:${color};border:1px solid ${color}44;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;">${iv.type_intervention || 'inter.'}</span>
+        <span style="font-size:12px;color:var(--text-2);font-weight:600;">${labelDate} à ${iv.heure || '--:--'}</span>
+      </div>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+        ${iv.telephone ? `<a href="tel:${iv.telephone}" style="background:rgba(59,130,246,0.1);color:#3b82f6;border:1px solid rgba(59,130,246,0.3);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;text-decoration:none;">📞 ${iv.telephone}</a>` : ''}
+        ${iv.adresse ? `<a href="https://waze.com/ul?q=${adresseEnc}&navigate=yes" target="_blank" style="background:#1da46222;color:#1da462;border:1px solid #1da46244;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;text-decoration:none;">🔵 Waze</a>` : ''}
+        ${iv.adresse ? `<a href="https://maps.google.com/?q=${adresseEnc}" target="_blank" style="background:rgba(66,133,244,0.1);color:#4285f4;border:1px solid rgba(66,133,244,0.3);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;text-decoration:none;">🗺️ Maps</a>` : ''}
+      </div>
+
+      ${iv.notes ? `<div style="font-size:12px;color:var(--text-3);margin-bottom:10px;font-style:italic;">💬 ${iv.notes}</div>` : ''}
+
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <button onclick="ouvrirFormulaireAgenda('${iv.id}')" class="btn-small" style="font-size:11px;">✏️ Modifier</button>
+        <button onclick="voirMateriel('${iv.type_intervention}')" class="btn-small" style="font-size:11px;background:rgba(201,168,76,0.1);color:var(--accent);border-color:rgba(201,168,76,0.3);">📦 Matériel</button>
+        <button onclick="changerStatutIntervention('${iv.id}','terminé')" class="btn-small" style="font-size:11px;background:rgba(16,185,129,0.1);color:#10b981;border-color:rgba(16,185,129,0.3);">✅ Terminé</button>
+        <button onclick="supprimerIntervention('${iv.id}')" class="btn-small" style="font-size:11px;background:rgba(239,68,68,0.1);color:#ef4444;border-color:rgba(239,68,68,0.2);">🗑️</button>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 function getLundiDeSemaine(offset) {
