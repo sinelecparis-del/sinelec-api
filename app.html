@@ -4991,6 +4991,8 @@ function switchPage(page, el) {
     pageEl.classList.add('active');
     pageEl.scrollTop = 0;
   }
+  const mc = document.querySelector('.main-content');
+  if (mc) mc.scrollTop = 0;
   
   // Charger données si nécessaire
   if (page === 'historique') setTimeout(chargerHistorique, 100);
