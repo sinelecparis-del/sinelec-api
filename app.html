@@ -1114,7 +1114,7 @@ function afficherListeAgenda() {
   if (filtreJour) {
     intervs = intervs.filter(iv => iv.date_intervention === filtreJour);
   } else {
-    intervs = intervs.filter(iv => new Date(iv.date_intervention) >= now);
+    intervs = intervs.filter(iv => new Date(iv.date_intervention + 'T00:00:00') >= now);
   }
 
   if (intervs.length === 0) {
