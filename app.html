@@ -5002,6 +5002,8 @@ function switchPage(page, el) {
   }
   const mc = document.querySelector('.main-content');
   if (mc) mc.scrollTop = 0;
+  window.scrollTo(0, 0);
+  document.body.scrollTop = 0;
   
   // Charger données si nécessaire
   if (page === 'historique') setTimeout(chargerHistorique, 100);
