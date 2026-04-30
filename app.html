@@ -226,7 +226,27 @@ body::before {
   pointer-events:none; z-index:0;
 }
 
-/* ════════════ SIDEBAR DESKTOP ════════════ */
+/* ════ BOUTON FLOTTANT LEAD ════ */
+.fab-lead {
+  position: fixed;
+  bottom: 90px;
+  right: 16px;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #D4A017, #f5c842);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  box-shadow: 0 4px 16px rgba(212,160,23,0.5);
+  z-index: 8000;
+  transition: all 0.2s;
+}
+.fab-lead:hover { transform: scale(1.1); }
+@media (min-width: 768px) { .fab-lead { bottom: 24px; right: 80px; } }
 .sidebar {
   position:fixed; left:0; top:0; width:var(--sidebar-width); height:100vh;
   background:var(--glass); backdrop-filter:blur(24px) saturate(180%);
@@ -2279,12 +2299,58 @@ function creerDevisDPE() {
 <!-- PAGE CLIENTS -->
 <div id="page-clients" class="page">
 <div class="content" style="max-width:900px;">
-  <div class="section">
-    <div class="section-title">👥 Liste des clients</div>
-    <div id="clients-list" style="min-height:200px;">
-      Chargement...
+
+  <!-- LISTE CLIENTS -->
+  <div id="clients-liste-zone">
+    <div class="section">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div class="section-title" style="margin-bottom:0;">👥 Clients</div>
+        <input type="text" id="clients-search" placeholder="🔍 Rechercher..." oninput="filtrerClients(this.value)"
+          style="padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg-2);font-size:13px;width:200px;">
+      </div>
+      <div id="clients-list" style="min-height:100px;">Chargement...</div>
     </div>
   </div>
+
+  <!-- FICHE CLIENT DÉTAIL -->
+  <div id="clients-fiche-zone" style="display:none;">
+    <button onclick="retourClients()" style="background:none;border:none;color:var(--accent);font-size:14px;font-weight:700;cursor:pointer;margin-bottom:16px;">← Retour</button>
+    
+    <div class="section">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;">
+        <div>
+          <div id="fiche-nom" style="font-size:20px;font-weight:800;color:var(--text);"></div>
+          <div id="fiche-adresse" style="font-size:13px;color:var(--text-3);margin-top:4px;"></div>
+          <div id="fiche-tel" style="font-size:13px;color:var(--text-3);margin-top:2px;"></div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button id="fiche-waze-btn" onclick="ouvrirWazeFiche()" style="display:none;background:#1da462;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;">🔵 Waze</button>
+          <button onclick="nouveauDevisClient()" style="background:var(--accent);color:#fff;border:none;border-radius:10px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;">📋 Nouveau devis</button>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px;">
+        <div style="background:var(--bg-2);border-radius:10px;padding:12px;text-align:center;">
+          <div id="fiche-nb-inter" style="font-size:22px;font-weight:700;color:var(--accent);">0</div>
+          <div style="font-size:11px;color:var(--text-3);">Interventions</div>
+        </div>
+        <div style="background:var(--bg-2);border-radius:10px;padding:12px;text-align:center;">
+          <div id="fiche-ca-total" style="font-size:22px;font-weight:700;color:var(--accent);">0 €</div>
+          <div style="font-size:11px;color:var(--text-3);">CA total</div>
+        </div>
+        <div style="background:var(--bg-2);border-radius:10px;padding:12px;text-align:center;">
+          <div id="fiche-derniere" style="font-size:14px;font-weight:700;color:var(--accent);">—</div>
+          <div style="font-size:11px;color:var(--text-3);">Dernière inter.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">📋 Historique des interventions</div>
+      <div id="fiche-historique" style="min-height:60px;"></div>
+    </div>
+  </div>
+
 </div>
 </div>
 
@@ -4587,32 +4653,164 @@ async function chargerDashboard() {
 }
 
 // ═══════════════════ CLIENTS ═══════════════════
+let clientsData = [];
+let ficheClientActif = null;
+let ficheAdresseActuelle = '';
+
 async function chargerClients() {
   const container = document.getElementById('clients-list');
+  if (!container) return;
   container.innerHTML = '<div class="panier-empty">Chargement...</div>';
-  
+
   try {
-    const res = await fetch('/api/clients');
-    const data = await res.json();
-    
-    if (data.length === 0) {
-      container.innerHTML = '<div class="panier-empty">Aucun client trouvé</div>';
+    // Charger clients ET historique en parallèle
+    const [resClients, resHisto] = await Promise.all([
+      fetch('/api/clients'),
+      fetch('/api/historique')
+    ]);
+    const clients = await resClients.json();
+    const histo = await resHisto.json();
+
+    // Enrichir chaque client avec ses vraies données depuis l'historique
+    clientsData = clients.map(c => {
+      const nomClient = (c.nom || '').toLowerCase();
+      const interventions = (histo || []).filter(h => {
+        const hClient = ((h.client || '') + ' ' + (h.prenom || '')).toLowerCase();
+        return hClient.includes(nomClient.split(' ')[0]) || nomClient.includes((h.client || '').toLowerCase().split(' ')[0]);
+      });
+      const factures = interventions.filter(h => h.type === 'facture' || h.num?.startsWith('F'));
+      const caTotal = factures.reduce((s, h) => s + parseFloat(h.total_ht || 0), 0);
+      const derniere = interventions.length > 0 ? interventions[0].created_at : null;
+      return { ...c, _interventions: interventions, _ca: caTotal, _derniere: derniere };
+    });
+
+    if (clientsData.length === 0) {
+      container.innerHTML = '<div class="panier-empty">Aucun client enregistré</div>';
       return;
     }
-    
-    container.innerHTML = data.map(client => `
-      <div style="background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:16px;padding:18px 20px;margin-bottom:12px;">
-        <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px;">${client.nom}</div>
-        <div style="font-size:13px;color:var(--text-2);">${client.adresse || 'N/A'}</div>
-        <div style="display:flex;gap:16px;margin-top:10px;font-size:12px;">
-          <span style="color:var(--accent);font-weight:700;">${client.ca_total || 0} € CA</span>
-          <span style="color:var(--text-3);">${client.nb_interventions || 0} intervention(s)</span>
+
+    renderListeClients(clientsData);
+  } catch(e) {
+    container.innerHTML = '<div style="color:var(--error);text-align:center;padding:40px;">❌ ' + e.message + '</div>';
+  }
+}
+
+function renderListeClients(liste) {
+  const container = document.getElementById('clients-list');
+  if (!container) return;
+
+  if (liste.length === 0) {
+    container.innerHTML = '<div class="panier-empty">Aucun résultat</div>';
+    return;
+  }
+
+  container.innerHTML = liste.map(c => `
+    <div onclick="ouvrirFicheClient('${c.id}')" style="background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:all 0.2s;" onmouseenter="this.style.borderColor='var(--accent)'" onmouseleave="this.style.borderColor='var(--border)'">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div>
+          <div style="font-size:14px;font-weight:700;color:var(--text);">${c.nom || 'Sans nom'}</div>
+          <div style="font-size:12px;color:var(--text-3);margin-top:2px;">${c.adresse || 'Adresse non renseignée'}</div>
+          ${c.telephone ? `<div style="font-size:12px;color:var(--text-3);">📞 ${c.telephone}</div>` : ''}
+        </div>
+        <div style="text-align:right;flex-shrink:0;margin-left:12px;">
+          <div style="font-size:15px;font-weight:800;color:var(--accent);">${(c._ca||0).toFixed(0)} €</div>
+          <div style="font-size:11px;color:var(--text-3);">${c._interventions?.length||0} inter.</div>
         </div>
       </div>
-    `).join('');
-  } catch(e) {
-    container.innerHTML = '<div style="color:var(--error);text-align:center;padding:40px;">❌ Erreur de chargement</div>';
+    </div>
+  `).join('');
+}
+
+function filtrerClients(query) {
+  if (!clientsData.length) return;
+  const q = query.toLowerCase();
+  const filtre = q ? clientsData.filter(c =>
+    (c.nom||'').toLowerCase().includes(q) ||
+    (c.adresse||'').toLowerCase().includes(q) ||
+    (c.telephone||'').includes(q)
+  ) : clientsData;
+  renderListeClients(filtre);
+}
+
+function ouvrirFicheClient(id) {
+  const client = clientsData.find(c => String(c.id) === String(id));
+  if (!client) return;
+  ficheClientActif = client;
+  ficheAdresseActuelle = client.adresse || '';
+
+  document.getElementById('clients-liste-zone').style.display = 'none';
+  document.getElementById('clients-fiche-zone').style.display = 'block';
+
+  document.getElementById('fiche-nom').textContent = client.nom || 'Client';
+  document.getElementById('fiche-adresse').textContent = client.adresse || '';
+  document.getElementById('fiche-tel').textContent = client.telephone ? '📞 ' + client.telephone : '';
+
+  // Waze si adresse
+  const wazeBtn = document.getElementById('fiche-waze-btn');
+  if (client.adresse) wazeBtn.style.display = 'block';
+  else wazeBtn.style.display = 'none';
+
+  // Stats
+  document.getElementById('fiche-nb-inter').textContent = client._interventions?.length || 0;
+  document.getElementById('fiche-ca-total').textContent = (client._ca||0).toFixed(0) + ' €';
+  document.getElementById('fiche-derniere').textContent = client._derniere
+    ? new Date(client._derniere).toLocaleDateString('fr-FR')
+    : '—';
+
+  // Historique interventions + pannes
+  const histo = client._interventions || [];
+  const ficheHisto = document.getElementById('fiche-historique');
+
+  if (histo.length === 0) {
+    ficheHisto.innerHTML = '<div class="panier-empty">Aucune intervention enregistrée</div>';
+    return;
   }
+
+  ficheHisto.innerHTML = histo.map(h => {
+    const statut = h.statut === 'paye' ? '✅ Payé' : h.type === 'facture' ? '⏳ En attente' : '📋 Devis';
+    const couleur = h.statut === 'paye' ? '#16a34a' : h.type === 'facture' ? '#f59e0b' : 'var(--accent)';
+    const date = h.created_at ? new Date(h.created_at).toLocaleDateString('fr-FR') : '—';
+    const prestations = (h.prestations || []).map(p => p.nom || p.designation || '').filter(Boolean).join(', ');
+
+    return `
+      <div style="background:var(--bg-2);border-radius:12px;padding:12px 14px;margin-bottom:8px;border-left:3px solid ${couleur};">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <div style="font-size:12px;font-weight:700;color:var(--text);">${h.num || '—'} · ${date}</div>
+          <div style="font-size:11px;font-weight:700;color:${couleur};">${statut}</div>
+        </div>
+        ${prestations ? `<div style="font-size:11px;color:var(--text-3);margin-bottom:4px;">🔧 ${prestations}</div>` : ''}
+        <div style="font-size:13px;font-weight:700;color:var(--accent);">${parseFloat(h.total_ht||0).toFixed(0)} €</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function retourClients() {
+  document.getElementById('clients-fiche-zone').style.display = 'none';
+  document.getElementById('clients-liste-zone').style.display = 'block';
+  ficheClientActif = null;
+}
+
+function ouvrirWazeFiche() {
+  if (ficheAdresseActuelle) {
+    window.open(`https://waze.com/ul?q=${encodeURIComponent(ficheAdresseActuelle)}&navigate=yes`, '_blank');
+  }
+}
+
+function nouveauDevisClient() {
+  if (!ficheClientActif) return;
+  const c = ficheClientActif;
+  const parts = (c.nom || '').split(' ');
+  const prenomEl = document.getElementById('d-prenom');
+  const nomEl = document.getElementById('d-client');
+  const adEl = document.getElementById('d-adresse');
+  const telEl = document.getElementById('d-telephone');
+  if (prenomEl) prenomEl.value = parts[0] || '';
+  if (nomEl) nomEl.value = parts.slice(1).join(' ');
+  if (adEl) adEl.value = c.adresse || '';
+  if (telEl) telEl.value = c.telephone || '';
+  switchPage('devis', document.querySelector('.sidebar-item[onclick*="devis"]'));
+  showToast(`📋 Devis pré-rempli pour ${c.nom}`, '✅');
 }
 
 // ═══════════════════ PARAMÈTRES ═══════════════════
@@ -4822,6 +5020,154 @@ function switchPageMenu() {
 </script>
 
 </div><!-- fin main-content -->
+
+<!-- BOUTON FLOTTANT LEAD -->
+<button class="fab-lead" onclick="ouvrirLead()" title="Nouveau lead">📞</button>
+
+<!-- POPUP FICHE LEAD -->
+<div id="lead-overlay" class="popup-overlay" onclick="if(event.target===this)fermerLead()">
+  <div style="background:var(--glass);backdrop-filter:blur(30px);border:1px solid var(--border);border-radius:20px;padding:24px;max-width:420px;width:92%;box-shadow:0 20px 60px rgba(0,0,0,0.3);max-height:90vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+      <div style="font-size:17px;font-weight:800;color:var(--accent);">📞 Nouveau lead</div>
+      <button onclick="fermerLead()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-3);">×</button>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+      <div class="input-group" style="margin-bottom:0;">
+        <label>Prénom Nom</label>
+        <input type="text" id="lead-nom" placeholder="DUPONT Sophie" oninput="this.value=this.value.toUpperCase()" autocomplete="off">
+      </div>
+      <div class="input-group" style="margin-bottom:0;">
+        <label>Téléphone</label>
+        <input type="tel" id="lead-tel" placeholder="06 12 34 56 78" autocomplete="off">
+      </div>
+    </div>
+
+    <div class="input-group">
+      <label>Adresse (IDF uniquement)</label>
+      <input type="text" id="lead-adresse" placeholder="12 rue de la Paix, 75001 Paris" autocomplete="off" oninput="majWazeLead(this.value)">
+    </div>
+
+    <div class="input-group">
+      <label>Type d'intervention</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+        <div class="lead-type-btn" data-type="depannage" onclick="selectLeadType(this,'depannage')" style="padding:8px;border-radius:10px;border:2px solid var(--accent);background:rgba(212,165,116,0.1);text-align:center;font-size:12px;font-weight:600;cursor:pointer;color:var(--accent);">⚡ Dépannage</div>
+        <div class="lead-type-btn" data-type="installation" onclick="selectLeadType(this,'installation')" style="padding:8px;border-radius:10px;border:1px solid var(--border);background:var(--bg-2);text-align:center;font-size:12px;font-weight:500;cursor:pointer;color:var(--text-2);">🔧 Installation</div>
+        <div class="lead-type-btn" data-type="devis" onclick="selectLeadType(this,'devis')" style="padding:8px;border-radius:10px;border:1px solid var(--border);background:var(--bg-2);text-align:center;font-size:12px;font-weight:500;cursor:pointer;color:var(--text-2);">📋 Devis</div>
+        <div class="lead-type-btn" data-type="renovation" onclick="selectLeadType(this,'renovation')" style="padding:8px;border-radius:10px;border:1px solid var(--border);background:var(--bg-2);text-align:center;font-size:12px;font-weight:500;cursor:pointer;color:var(--text-2);">🏠 Rénovation</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+      <div class="input-group" style="margin-bottom:0;">
+        <label>Date</label>
+        <input type="date" id="lead-date">
+      </div>
+      <div class="input-group" style="margin-bottom:0;">
+        <label>Heure</label>
+        <input type="time" id="lead-heure" value="09:00">
+      </div>
+    </div>
+
+    <div class="input-group">
+      <label>Notes rapides</label>
+      <textarea id="lead-notes" placeholder="Ex: tableau qui disjoncte, code accès 1234, urgent..." style="resize:none;height:60px;"></textarea>
+    </div>
+
+    <div id="lead-waze-btn" style="display:none;margin-bottom:10px;">
+      <button id="lead-waze-link" style="background:#1da462;color:#fff;border:none;border-radius:10px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;width:100%;">
+        🔵 Ouvrir dans Waze
+      </button>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <button onclick="enregistrerLead(false)" style="padding:12px;border-radius:12px;border:1px solid var(--border);background:var(--bg-2);font-size:13px;font-weight:600;cursor:pointer;color:var(--text);">💾 Enregistrer</button>
+      <button onclick="enregistrerLead(true)" style="padding:12px;border-radius:12px;border:none;background:var(--accent);font-size:13px;font-weight:700;cursor:pointer;color:#fff;">📋 + Devis</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let leadTypeActif = 'depannage';
+
+function ouvrirLead() {
+  document.getElementById('lead-overlay').classList.add('active');
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('lead-date').value = today;
+  setTimeout(() => document.getElementById('lead-nom').focus(), 100);
+}
+
+function fermerLead() {
+  document.getElementById('lead-overlay').classList.remove('active');
+  ['lead-nom','lead-tel','lead-adresse','lead-notes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('lead-waze-btn').style.display = 'none';
+}
+
+function selectLeadType(el, type) {
+  leadTypeActif = type;
+  document.querySelectorAll('.lead-type-btn').forEach(b => {
+    b.style.border = '1px solid var(--border)';
+    b.style.background = 'var(--bg-2)';
+    b.style.color = 'var(--text-2)';
+    b.style.fontWeight = '500';
+  });
+  el.style.border = '2px solid var(--accent)';
+  el.style.background = 'rgba(212,165,116,0.1)';
+  el.style.color = 'var(--accent)';
+  el.style.fontWeight = '600';
+}
+
+function majWazeLead(val) {
+  const btn = document.getElementById('lead-waze-btn');
+  const link = document.getElementById('lead-waze-link');
+  if (val.length > 5) {
+    btn.style.display = 'block';
+    link.onclick = () => window.open(`https://waze.com/ul?q=${encodeURIComponent(val)}&navigate=yes`, '_blank');
+  } else {
+    btn.style.display = 'none';
+  }
+}
+
+async function enregistrerLead(creerDevis) {
+  const nom = document.getElementById('lead-nom').value.trim();
+  const tel = document.getElementById('lead-tel').value.trim();
+  const adresse = document.getElementById('lead-adresse').value.trim();
+  const date = document.getElementById('lead-date').value;
+  const heure = document.getElementById('lead-heure').value;
+  const notes = document.getElementById('lead-notes').value.trim();
+
+  if (!nom) { showToast('⚠️ Nom obligatoire', '❌'); return; }
+
+  if (date) {
+    try {
+      await fetch('/api/agenda', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client: nom, adresse, telephone: tel, type: leadTypeActif, date, heure, notes, statut: 'lead' })
+      });
+    } catch(e) {}
+  }
+
+  showToast(`✅ Lead enregistré — ${nom}`, '📞');
+
+  if (creerDevis) {
+    const parts = nom.split(' ');
+    const prenomEl = document.getElementById('d-prenom');
+    const nomEl = document.getElementById('d-client');
+    const adEl = document.getElementById('d-adresse');
+    const telEl = document.getElementById('d-telephone');
+    if (prenomEl) prenomEl.value = parts[0] || '';
+    if (nomEl) nomEl.value = parts.slice(1).join(' ');
+    if (adEl) adEl.value = adresse;
+    if (telEl) telEl.value = tel;
+    fermerLead();
+    switchPage('devis', document.querySelector('.sidebar-item[onclick*="devis"]'));
+    showToast('📋 Client pré-rempli dans le devis', '✅');
+  } else {
+    fermerLead();
+  }
+}
+</script>
 
 <!-- POPUP MODE FACTURATION -->
 <div class="mode-popup-overlay" id="mode-popup-overlay" onclick="if(event.target===this)fermerModePopup()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:flex-end;justify-content:center;backdrop-filter:blur(4px);">
