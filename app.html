@@ -4472,7 +4472,7 @@ function setDashPeriod(n, btn) {
 
 async function chargerDashboard() {
   try {
-    const res = await fetch('/api/historique');
+    const res = await fetch('/api/ca-complet');
     const data = await res.json();
     const now = new Date();
     const annee = now.getFullYear();
