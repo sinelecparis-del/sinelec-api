@@ -1621,8 +1621,6 @@ app.get('/api/historique', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-    return res.status(403).json({ error: 'Feature désactivée' });
-  }
 
   try {
     const { type } = req.query;
