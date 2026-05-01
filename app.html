@@ -1126,11 +1126,10 @@ function afficherHistorique() {
       }
 
       if (type === 'facture' && !estPaye && !estAnnule) {
-        const estTermineFact = ['termine','terminé','done'].includes(statutNorm);
-        if (!estTermineFact) {
-          btns.push(`<button onclick="marquerTermine('${item.num}')" ${btnStyle('rgba(16,185,129,0.1)','#10b981','rgba(16,185,129,0.3)')}>✅ Terminé</button>`);
-          btns.push(`<button onclick="annulerFacture('${item.num}')" ${btnStyle('rgba(239,68,68,0.08)','#ef4444','rgba(239,68,68,0.2)')}>❌ Annuler</button>`);
-        }
+        // ✅ Terminé = paye sans SMS | ❌ Annuler = annule sans SMS
+        // Toujours visibles si facture non payée
+        btns.push(`<button onclick="marquerTermine('${item.num}')" ${btnStyle('rgba(16,185,129,0.1)','#10b981','rgba(16,185,129,0.3)')}>✅ Terminé</button>`);
+        btns.push(`<button onclick="annulerFacture('${item.num}')" ${btnStyle('rgba(239,68,68,0.08)','#ef4444','rgba(239,68,68,0.2)')}>❌ Annuler</button>`);
         btns.push(`<button onclick="marquerPaye('${item.num}','terminal')" ${btnStyle('rgba(99,102,241,0.1)','#6366f1','rgba(99,102,241,0.3)')}>💳 Terminal</button>`);
         btns.push(`<button onclick="marquerPaye('${item.num}','virement')" ${btnStyle('rgba(16,185,129,0.1)','#10b981','rgba(16,185,129,0.3)')}>🏦 Virement</button>`);
         btns.push(`<button onclick="marquerPaye('${item.num}','especes')" ${btnStyle('rgba(212,165,116,0.1)','var(--accent)','rgba(212,165,116,0.3)')}>💶 Espèces</button>`);
