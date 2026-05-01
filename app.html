@@ -1022,18 +1022,7 @@ async function autocompleteAdresse(id, value) {
 let historiqueData = [];
 let histoFiltreActif = 'tous';
 
-async function chargerHistorique() {
-  afficherSkeleton('histo-cards', 4);
-  const container = document.getElementById('histo-cards');
-  if (container) container.innerHTML = '<div class="panier-empty">Chargement...</div>';
-  try {
-    const res = await fetch('/api/ca-complet');
-    historiqueData = await res.json();
-    afficherHistorique();
-  } catch(e) {
-    if (container) container.innerHTML = `<div class="panier-empty" style="color:var(--error);">❌ Erreur chargement</div>`;
-  }
-}
+// chargerHistorique défini plus bas avec polling
 
 function filtrerHistorique(type) {
   histoFiltreActif = type;
@@ -1103,7 +1092,11 @@ function afficherHistorique() {
     } else {
       // FACTURE
       const estTermine = ['termine', 'terminé', 'done'].includes(statutNorm);
-      if (estPaye) {
+      const estAnnule = ['annule','annulé','cancelled'].includes(statutNorm);
+      if (estAnnule) {
+        statutBg = '#f3f4f6'; statutColor = '#6b7280';
+        statutIcon = '❌'; statutLabel = 'Annulée';
+      } else if (estPaye) {
         statutBg = '#f0fdf4'; statutColor = '#16a34a';
         statutIcon = '💰'; statutLabel = 'Payée';
       } else if (estTermine) {
@@ -1133,11 +1126,11 @@ function afficherHistorique() {
         btns.push(`<button onclick="ouvrirPopupSig('${item.num}')" ${btnStyle('rgba(212,165,116,0.1)','var(--accent)','rgba(212,165,116,0.3)')}>✍️ Signer</button>`);
       }
 
-      if (type === 'facture' && !estPaye) {
-        // Bouton Terminé si pas encore marqué terminé
+      if (type === 'facture' && !estPaye && !estAnnule) {
         const estTermineFact = ['termine','terminé','done'].includes(statutNorm);
         if (!estTermineFact) {
-          btns.push(`<button onclick="marquerTermine('${item.num}')" ${btnStyle('rgba(16,185,129,0.08)','#10b981','rgba(16,185,129,0.25)')}>✅ Terminé</button>`);
+          btns.push(`<button onclick="marquerTermine('${item.num}')" ${btnStyle('rgba(16,185,129,0.1)','#10b981','rgba(16,185,129,0.3)')}>✅ Terminé</button>`);
+          btns.push(`<button onclick="annulerFacture('${item.num}')" ${btnStyle('rgba(239,68,68,0.08)','#ef4444','rgba(239,68,68,0.2)')}>❌ Annuler</button>`);
         }
         btns.push(`<button onclick="marquerPaye('${item.num}','terminal')" ${btnStyle('rgba(99,102,241,0.1)','#6366f1','rgba(99,102,241,0.3)')}>💳 Terminal</button>`);
         btns.push(`<button onclick="marquerPaye('${item.num}','virement')" ${btnStyle('rgba(16,185,129,0.1)','#10b981','rgba(16,185,129,0.3)')}>🏦 Virement</button>`);
@@ -1195,19 +1188,84 @@ function afficherHistorique() {
 
 // ─── MARQUER TERMINÉ (sans SMS paiement) ─────────────────────
 async function marquerTermine(num) {
+  // Marque payé — AUCUN SMS
   try {
-    await fetch('/api/historique/' + num + '/statut', {
+    const res = await fetch('/api/historique/' + num + '/statut', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ statut: 'termine' })
+      body: JSON.stringify({ statut: 'paye' })
     });
-    showToast('✅ Travaux marqués terminés', '🔧');
-    // Mettre à jour localement sans rechargement complet
-    const item = historiqueData.find(i => i.num === num);
-    if (item) item.statut = 'termine';
+    const data = await res.json();
+    if (data.success) {
+      showToast('✅ Facture marquée payée', '💰');
+      shootConfetti();
+      const item = historiqueData.find(i => i.num === num);
+      if (item) item.statut = 'paye';
+      afficherHistorique();
+    } else {
+      showToast('❌ ' + (data.error || 'Erreur'), '⚠️');
+    }
+  } catch(e) { showToast('❌ Erreur réseau', '⚠️'); }
+}
+
+// ─── ANNULER FACTURE ──────────────────────────────────────────
+async function annulerFacture(num) {
+  try {
+    const res = await fetch('/api/historique/' + num + '/statut', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ statut: 'annule' })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('❌ Facture annulée', '🗑️');
+      const item = historiqueData.find(i => i.num === num);
+      if (item) item.statut = 'annule';
+      afficherHistorique();
+    }
+  } catch(e) { showToast('❌ Erreur', '⚠️'); }
+}
+
+// ─── POLLING SIGNATURE ────────────────────────────────────────
+let pollingSignatureInterval = null;
+
+function demarrerPollingSignature() {
+  if (pollingSignatureInterval) return;
+  pollingSignatureInterval = setInterval(async () => {
+    const pageActive = document.querySelector('.page.active')?.id;
+    if (pageActive !== 'page-historique') return;
+    const devisEnAttente = historiqueData.filter(d =>
+      d.type === 'devis' && d.source !== 'obat' &&
+      !['signe','signé'].includes((d.statut||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase())
+    );
+    if (!devisEnAttente.length) return;
+    try {
+      for (const devis of devisEnAttente) {
+        const res = await fetch('/api/historique/' + devis.num + '/check-signature');
+        if (!res.ok) continue;
+        const data = await res.json();
+        if (data.statut === 'signe') {
+          devis.statut = 'signe';
+          afficherHistorique();
+          showToast(`✅ ${devis.client} a signé le devis ${devis.num} !`, '✍️');
+          shootConfetti();
+        }
+      }
+    } catch(e) {}
+  }, 6000);
+}
+
+// Polling signature — chargerHistorique redéfini ci-dessous
+async function chargerHistorique() {
+  afficherSkeleton('histo-cards', 4);
+  const container = document.getElementById('histo-cards');
+  try {
+    const res = await fetch('/api/ca-complet');
+    historiqueData = await res.json();
     afficherHistorique();
+    demarrerPollingSignature(); // démarrer le polling
   } catch(e) {
-    showToast('❌ Erreur', '⚠️');
+    if (container) container.innerHTML = `<div class="panier-empty" style="color:var(--error);">❌ Erreur chargement</div>`;
   }
 }
 
@@ -1222,7 +1280,6 @@ async function majDateIntervention(num, date) {
     const data = await res.json();
     if (data.success) {
       showToast('📅 Date intervention enregistrée', '✅');
-      // Mettre à jour en local sans rechargement
       const item = historiqueData.find(i => i.num === num);
       if (item) item.date_intervention = date || null;
     }
@@ -1302,14 +1359,25 @@ async function convertirEnFacture(numDevis) {
 
 async function marquerPaye(num, mode) {
   const labels = { terminal:'CB Terminal SumUp', virement:'Virement bancaire', especes:'Espèces' };
-  if (!confirm(`Confirmer paiement ${labels[mode]} pour ${num} ?`)) return;
   showToast('⏳ Enregistrement...', '💰');
   try {
-    const res = await fetch('/api/marquer-paye', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ num, mode_paiement:mode }) });
+    const res = await fetch('/api/marquer-paye', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ num, mode_paiement: mode })
+    });
     const data = await res.json();
-    if (data.success) { showToast(`✅ Paiement ${labels[mode]} enregistré !`, '💰'); setTimeout(chargerHistorique, 1500); }
-    else showToast('❌ ' + data.error, '⚠️');
-  } catch(e) { showToast('❌ Erreur', '⚠️'); }
+    if (data.success) {
+      showToast('💰 ' + (labels[mode] || mode) + ' enregistré !', '✅');
+      shootConfetti();
+      const item = historiqueData.find(i => i.num === num);
+      if (item) item.statut = 'paye';
+      afficherHistorique();
+      setTimeout(chargerHistorique, 2000);
+    } else {
+      showToast('❌ ' + (data.error || 'Erreur'), '⚠️');
+    }
+  } catch(e) { showToast('❌ Erreur réseau', '⚠️'); }
 }
 
 async function genererLienPaiement(num) {
