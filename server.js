@@ -590,7 +590,7 @@ app.get('/api/rentabilite/:mois', authMiddleware, async (req, res) => {
 
     // Charges du mois
     const { data: charges } = await supabase.from('charges').select('*').eq('mois', mois);
-    const charges_total = (charges || []).reduce((s, c) => s + parseFloat(c.montant || 0), 0);
+    const charges_manuelles = (charges || []).reduce((s, c) => s + parseFloat(c.montant || 0), 0);
 
     // Par catégorie
     const par_categorie = {};
@@ -598,8 +598,13 @@ app.get('/api/rentabilite/:mois', authMiddleware, async (req, res) => {
       par_categorie[c.categorie] = (par_categorie[c.categorie] || 0) + parseFloat(c.montant || 0);
     });
 
-    // Estimation URSSAF si pas saisie (~22% du CA pour AE)
-    const urssaf_estimee = !(par_categorie['urssaf']) ? Math.round(ca_total * 0.22) : 0;
+    // URSSAF auto 22% — uniquement si pas déjà saisie manuellement
+    const urssaf_saisie = par_categorie['urssaf'] || 0;
+    const urssaf_auto = urssaf_saisie > 0 ? 0 : Math.round(ca_total * 0.22);
+    const urssaf_estimee = urssaf_auto; // pour l'alerte front
+
+    // Charges totales = manuelles + URSSAF auto si absente
+    const charges_total = charges_manuelles + urssaf_auto;
 
     const benefice_net = ca_total - charges_total;
     const taux_marge = ca_total > 0 ? Math.round((benefice_net / ca_total) * 100) : 0;
@@ -607,6 +612,7 @@ app.get('/api/rentabilite/:mois', authMiddleware, async (req, res) => {
     res.json({
       mois, ca_total: Math.round(ca_total), charges_total: Math.round(charges_total),
       benefice_net: Math.round(benefice_net), taux_marge,
+      urssaf_auto: Math.round(urssaf_auto), urssaf_saisie: Math.round(urssaf_saisie),
       urssaf_estimee, par_categorie, charges: charges || []
     });
   } catch(e) { res.status(500).json({ error: e.message }); }
