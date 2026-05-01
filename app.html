@@ -4479,6 +4479,10 @@ async function chargerDashboard() {
     const moisCourant = `${annee}-${String(now.getMonth()+1).padStart(2,'0')}`;
 
     const factures = data.filter(d => d.type === 'facture');
+// Normaliser les dates Obat
+factures.forEach(f => {
+  if (!f.created_at && f.date_facture) f.created_at = f.date_facture + 'T00:00:00.000Z';
+});
     const devis = data.filter(d => d.type === 'devis');
 
     // ── KPI ──────────────────────────────────────────────────
