@@ -1695,7 +1695,9 @@ app.get('/api/ca-complet', async (req, res) => {
   } catch(e) {
     res.status(500).json({ error: e.message });
   }
-});, async (req, res) => {
+});
+
+app.get('/api/clients', async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('clients')
