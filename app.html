@@ -499,18 +499,28 @@ body {
 <div id="page-depannage" class="page">
 <div class="content" style="max-width:700px;">
 
-  <!-- Infos client rapides -->
+  <!-- Client -->
   <div class="section">
     <div class="section-title">👤 Client</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+      <div class="input-group" style="margin-bottom:0;">
+        <label>Prénom</label>
+        <input type="text" id="dep-prenom" placeholder="MARIE" oninput="this.value=this.value.toUpperCase()" autocomplete="off" style="width:100%;background:rgba(255,255,255,0.65);border:1.5px solid rgba(218,165,32,0.15);border-radius:12px;padding:13px 16px;font-size:15px;color:var(--text);outline:none;">
+      </div>
       <div class="input-group" style="margin-bottom:0;">
         <label>Nom</label>
         <input type="text" id="dep-client" placeholder="DUPONT" oninput="this.value=this.value.toUpperCase();autocompleteClient('dep',this.value,'nom')" autocomplete="off" style="width:100%;background:rgba(255,255,255,0.65);border:1.5px solid rgba(218,165,32,0.15);border-radius:12px;padding:13px 16px;font-size:15px;color:var(--text);outline:none;">
         <div id="dep-client-suggestions" style="background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:12px;margin-top:6px;max-height:200px;overflow-y:auto;display:none;position:relative;z-index:999;"></div>
       </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
       <div class="input-group" style="margin-bottom:0;">
         <label>Téléphone</label>
         <input type="tel" id="dep-tel" placeholder="06 12 34 56 78" style="width:100%;background:rgba(255,255,255,0.65);border:1.5px solid rgba(218,165,32,0.15);border-radius:12px;padding:13px 16px;font-size:15px;color:var(--text);outline:none;">
+      </div>
+      <div class="input-group" style="margin-bottom:0;">
+        <label>Email</label>
+        <input type="email" id="dep-email" placeholder="client@email.com" style="width:100%;background:rgba(255,255,255,0.65);border:1.5px solid rgba(218,165,32,0.15);border-radius:12px;padding:13px 16px;font-size:15px;color:var(--text);outline:none;">
       </div>
     </div>
     <div class="input-group" style="margin-bottom:0;">
@@ -520,23 +530,51 @@ body {
     </div>
   </div>
 
-  <!-- Forfaits dépannage rapide -->
+  <!-- 5 Forfaits -->
   <div class="section">
-    <div class="section-title">⚡ Forfaits Dépannage</div>
-    <div id="dep-panier-selects" style="display:flex;flex-direction:column;gap:8px;"></div>
+    <div class="section-title">⚡ Forfait</div>
+    <div style="display:flex;flex-direction:column;gap:10px;" id="dep-forfaits"></div>
   </div>
 
-  <!-- Panier dépannage -->
-  <div class="section" id="dep-panier-section" style="display:none;">
-    <div class="section-title">🛒 Sélection</div>
-    <div id="dep-panier-items"></div>
-    <div class="total-bar" style="margin-top:12px;">
-      <span class="total-label">TOTAL HT</span>
-      <span class="total-amount" id="dep-total">0 €</span>
+  <!-- Remise 7% -->
+  <div id="dep-remise-box" style="display:none;background:var(--glass);border:1.5px solid var(--border);border-radius:16px;padding:16px;margin-bottom:16px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="toggleDepRemise()">
+      <div>
+        <div style="font-size:14px;font-weight:700;color:var(--text);">🏷️ Remise 7%</div>
+        <div style="font-size:12px;color:var(--text-3);">Si le client chipote</div>
+      </div>
+      <div id="dep-remise-toggle" style="width:44px;height:24px;border-radius:12px;background:var(--border);position:relative;transition:all 0.3s;flex-shrink:0;">
+        <div style="width:20px;height:20px;border-radius:50%;background:#fff;position:absolute;top:2px;left:2px;transition:all 0.3s;box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+      <span style="font-size:13px;color:var(--text-3);">Total après remise</span>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <span id="dep-prix-barre" style="font-size:14px;color:var(--text-3);text-decoration:line-through;display:none;"></span>
+        <span id="dep-total-display" style="font-size:22px;font-weight:900;color:var(--accent);">0 €</span>
+      </div>
     </div>
   </div>
 
-  <button class="btn-gen" onclick="genererDepannageRapide()">⚡ Générer le devis PDF</button>
+  <!-- Choix Devis / Facture -->
+  <div id="dep-type-box" style="display:none;background:var(--glass);border:1.5px solid var(--border);border-radius:16px;padding:16px;margin-bottom:16px;">
+    <div style="font-size:13px;font-weight:700;color:var(--text-2);margin-bottom:10px;">Type de document</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <button id="dep-btn-devis" onclick="setDepType('devis')"
+        style="padding:14px;border-radius:12px;border:2px solid var(--accent);background:linear-gradient(135deg,var(--accent),var(--gold));color:#fff;font-size:14px;font-weight:800;cursor:pointer;">
+        📋 Devis
+      </button>
+      <button id="dep-btn-facture" onclick="setDepType('facture')"
+        style="padding:14px;border-radius:12px;border:1.5px solid var(--border);background:rgba(255,255,255,0.6);color:var(--text-2);font-size:14px;font-weight:700;cursor:pointer;">
+        💶 Facture
+      </button>
+    </div>
+  </div>
+
+  <!-- Bouton générer -->
+  <button class="btn-gen" id="dep-btn-gen" onclick="genererDepannageRapide()" style="display:none;">
+    ⚡ Générer maintenant
+  </button>
 
 </div>
 </div>
@@ -2112,136 +2150,235 @@ setTimeout(verifierAlertesDevis, 2000);
 setInterval(verifierAlertesDevis, 300000);
 
 // ═══════════════════════════════════════════════════
-// DÉPANNAGE RAPIDE
+// DÉPANNAGE RAPIDE — 5 FORFAITS
 // ═══════════════════════════════════════════════════
-const DEPANNAGE_FORFAITS = [
-  { icon:'🚗', nom:'Déplacement Paris',          prix:50,  desc:'Déplacement technicien SINELEC Paris intra-muros, véhicule équipé' },
-  { icon:'🔍', nom:'Recherche de panne',          prix:120, desc:'Diagnostic méthodique, localisation panne, rapport intervention' },
-  { icon:'⚡', nom:'Court-circuit',               prix:125, desc:'Localisation et réparation court-circuit, remise en service' },
-  { icon:'🔌', nom:'Remise en service disjonction',prix:90, desc:'Identification cause, remise en service, vérification sécurité' },
-  { icon:'🔧', nom:'Réparation prise',            prix:90,  desc:'Remplacement prise défectueuse, raccordement, test' },
-  { icon:'💡', nom:'Réparation interrupteur',     prix:90,  desc:'Remplacement interrupteur défectueux, raccordement, test' },
-  { icon:'🌡️', nom:'Dépannage chauffage élec',   prix:220, desc:'Diagnostic et réparation radiateur/convecteur électrique' },
-  { icon:'🪟', nom:'Dépannage volet roulant',     prix:180, desc:'Diagnostic moteur volet roulant électrique, remise en service' },
-  { icon:'📊', nom:'Diagnostic complet',          prix:150, desc:'Audit complet installation, rapport détaillé, préconisations' },
-  { icon:'💧', nom:'Fuite de courant',            prix:130, desc:'Localisation fuite de courant, isolation défaut, remise en service' },
-  { icon:'📋', nom:'Attestation Enedis',          prix:189, desc:'Attestation mise en sécurité / rétablissement Enedis' },
-  { icon:'🚨', nom:'Urgence jour (maj. tarifaire)',prix:130,desc:'Majoration urgence intervention jour même' },
+const DEP_FORFAITS = [
+  {
+    id: 'panne', icon: '🔌', urgence: false,
+    nom: 'Dépannage panne simple',
+    prix: 290,
+    desc: 'Intervention complète sur panne électrique : déplacement technicien SINELEC, diagnostic, localisation de la panne, réparation et remise en service. Fournitures courantes incluses. Garantie intervention.'
+  },
+  {
+    id: 'court', icon: '⚡', urgence: false,
+    nom: 'Court-circuit',
+    prix: 205,
+    desc: 'Localisation et réparation court-circuit : identification du défaut, isolation du circuit, remplacement des éléments endommagés, remise en service sécurisée. Déplacement et fournitures inclus.'
+  },
+  {
+    id: 'disjoncteur', icon: '🔧', urgence: false,
+    nom: 'Disjoncteur standard',
+    prix: 410,
+    desc: 'Remplacement disjoncteur standard : dépose ancien appareil, fourniture et pose disjoncteur neuf conforme NF C 15-100, raccordement, test et vérification. Déplacement inclus.'
+  },
+  {
+    id: 'urgence_soir', icon: '🌙', urgence: true,
+    nom: 'Urgence soir (20h–00h)',
+    prix: 350,
+    desc: 'Intervention urgence en soirée (20h à minuit) : déplacement prioritaire, diagnostic et dépannage électrique. Tarif urgence horaire soir appliqué. Sécurisation installation garantie.'
+  },
+  {
+    id: 'urgence_nuit', icon: '🌑', urgence: true,
+    nom: 'Urgence nuit / weekend',
+    prix: 430,
+    desc: 'Intervention urgence nuit ou weekend : déplacement exceptionnel, diagnostic et dépannage électrique toute heure. Tarif urgence nuit/weekend appliqué. Sécurisation et remise en service garanties.'
+  },
 ];
 
-let depPanier = [];
+let depForfaitSelectionne = null;
+let depRemiseActive = false;
+let depType = 'devis';
 
 function initDepannage() {
-  const container = document.getElementById('dep-panier-selects');
+  depForfaitSelectionne = null;
+  depRemiseActive = false;
+  depType = 'devis';
+
+  const container = document.getElementById('dep-forfaits');
   if (!container) return;
-  container.innerHTML = DEPANNAGE_FORFAITS.map((f, i) => `
-    <div onclick="toggleDepForfait(${i})" id="dep-f-${i}"
-      style="background:rgba(255,255,255,0.6);border:1.5px solid var(--border);border-radius:14px;padding:14px 16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:all 0.2s;">
-      <div style="display:flex;align-items:center;gap:12px;">
-        <span style="font-size:22px;">${f.icon}</span>
-        <div>
-          <div style="font-size:14px;font-weight:700;color:var(--text);">${f.nom}</div>
-          <div style="font-size:11px;color:var(--text-3);">${f.desc.substring(0,45)}...</div>
+
+  container.innerHTML = DEP_FORFAITS.map(f => `
+    <div id="dep-f-${f.id}" onclick="selectionnerDepForfait('${f.id}')"
+      style="background:rgba(255,255,255,0.6);border:1.5px solid ${f.urgence ? 'rgba(239,68,68,0.2)' : 'var(--border)'};border-radius:16px;padding:16px;cursor:pointer;transition:all 0.2s;">
+
+      <!-- Header forfait -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0;" id="dep-header-${f.id}">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:24px;">${f.icon}</span>
+          <div>
+            <div style="font-size:14px;font-weight:800;color:${f.urgence ? '#dc2626' : 'var(--text)'};">${f.nom}</div>
+            <div style="font-size:11px;color:var(--text-3);">Forfait tout compris · déplacement inclus</div>
+          </div>
         </div>
+        <span style="font-size:18px;font-weight:900;color:${f.urgence ? '#dc2626' : 'var(--accent)'};white-space:nowrap;">${f.prix} €</span>
       </div>
-      <span style="font-size:15px;font-weight:800;color:var(--accent);white-space:nowrap;margin-left:8px;">${f.prix} €</span>
+
+      <!-- Description modifiable (cachée par défaut) -->
+      <div id="dep-desc-box-${f.id}" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+        <div style="font-size:11px;font-weight:700;color:var(--text-3);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">✏️ Description (modifiable)</div>
+        <textarea id="dep-desc-${f.id}"
+          style="width:100%;background:rgba(255,255,255,0.8);border:1.5px solid rgba(218,165,32,0.2);border-radius:10px;padding:10px 12px;font-size:13px;color:var(--text);outline:none;resize:vertical;min-height:80px;font-family:'Plus Jakarta Sans',sans-serif;line-height:1.5;"
+          onclick="event.stopPropagation()">${f.desc}</textarea>
+      </div>
     </div>`).join('');
 }
 
-function toggleDepForfait(idx) {
-  const f = DEPANNAGE_FORFAITS[idx];
-  const el = document.getElementById(`dep-f-${idx}`);
-  const existIdx = depPanier.findIndex(p => p.nom === f.nom);
-
-  if (existIdx >= 0) {
-    // Retirer
-    depPanier.splice(existIdx, 1);
-    if (el) { el.style.borderColor = 'var(--border)'; el.style.background = 'rgba(255,255,255,0.6)'; }
-  } else {
-    // Ajouter
-    depPanier.push({ nom: f.nom, prix: f.prix, quantite: 1, desc: f.desc });
-    if (el) { el.style.borderColor = 'rgba(16,185,129,0.5)'; el.style.background = 'rgba(16,185,129,0.06)'; }
-  }
-  renderDepPanier();
-}
-
-function renderDepPanier() {
-  const section = document.getElementById('dep-panier-section');
-  const items = document.getElementById('dep-panier-items');
-  const total = document.getElementById('dep-total');
-  if (!items) return;
-
-  if (!depPanier.length) {
-    if (section) section.style.display = 'none';
+function selectionnerDepForfait(id) {
+  // Si déjà sélectionné → désélectionner
+  if (depForfaitSelectionne === id) {
+    depForfaitSelectionne = null;
+    const el = document.getElementById(`dep-f-${id}`);
+    const descBox = document.getElementById(`dep-desc-box-${id}`);
+    if (el) { el.style.borderColor = DEP_FORFAITS.find(f=>f.id===id)?.urgence ? 'rgba(239,68,68,0.2)' : 'var(--border)'; el.style.background = 'rgba(255,255,255,0.6)'; }
+    if (descBox) descBox.style.display = 'none';
+    document.getElementById('dep-remise-box').style.display = 'none';
+    document.getElementById('dep-type-box').style.display = 'none';
+    document.getElementById('dep-btn-gen').style.display = 'none';
     return;
   }
-  if (section) section.style.display = 'block';
 
-  const totalHT = depPanier.reduce((s, p) => s + p.prix * p.quantite, 0);
-  if (total) total.textContent = totalHT.toLocaleString('fr-FR') + ' €';
+  // Désélectionner l'ancien
+  if (depForfaitSelectionne) {
+    const old = document.getElementById(`dep-f-${depForfaitSelectionne}`);
+    const oldDesc = document.getElementById(`dep-desc-box-${depForfaitSelectionne}`);
+    const oldForfait = DEP_FORFAITS.find(f => f.id === depForfaitSelectionne);
+    if (old) { old.style.borderColor = oldForfait?.urgence ? 'rgba(239,68,68,0.2)' : 'var(--border)'; old.style.background = 'rgba(255,255,255,0.6)'; }
+    if (oldDesc) oldDesc.style.display = 'none';
+  }
 
-  items.innerHTML = depPanier.map((p, i) => `
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(218,165,32,0.08);">
-      <div style="flex:1;">
-        <div style="font-size:13px;font-weight:700;color:var(--text);">${p.nom}</div>
-      </div>
-      <div style="display:flex;align-items:center;gap:10px;">
-        <div class="qte-ctrl">
-          <button class="qte-btn" onclick="depQte(${i},-1)">−</button>
-          <span class="qte-val">${p.quantite}</span>
-          <button class="qte-btn" onclick="depQte(${i},+1)">+</button>
-        </div>
-        <span style="font-size:14px;font-weight:800;color:var(--accent);min-width:60px;text-align:right;">${(p.prix*p.quantite).toLocaleString('fr-FR')} €</span>
-        <button onclick="depSupprimer(${i})" class="del-btn">×</button>
-      </div>
-    </div>`).join('');
+  // Sélectionner le nouveau
+  depForfaitSelectionne = id;
+  const forfait = DEP_FORFAITS.find(f => f.id === id);
+  const el = document.getElementById(`dep-f-${id}`);
+  const descBox = document.getElementById(`dep-desc-box-${id}`);
+
+  if (el) {
+    el.style.borderColor = forfait?.urgence ? 'rgba(220,38,38,0.6)' : 'rgba(16,185,129,0.5)';
+    el.style.background = forfait?.urgence ? 'rgba(239,68,68,0.05)' : 'rgba(16,185,129,0.05)';
+  }
+  if (descBox) descBox.style.display = 'block';
+
+  // Afficher remise, type, bouton
+  majDepTotal();
+  document.getElementById('dep-remise-box').style.display = 'block';
+  document.getElementById('dep-type-box').style.display = 'block';
+  document.getElementById('dep-btn-gen').style.display = 'block';
 }
 
-function depQte(idx, delta) {
-  depPanier[idx].quantite = Math.max(1, depPanier[idx].quantite + delta);
-  renderDepPanier();
-}
+function majDepTotal() {
+  const forfait = DEP_FORFAITS.find(f => f.id === depForfaitSelectionne);
+  if (!forfait) return;
+  const prixBase = forfait.prix;
+  const prixFinal = depRemiseActive ? Math.round(prixBase * 0.93) : prixBase;
 
-function depSupprimer(idx) {
-  const nom = depPanier[idx].nom;
-  depPanier.splice(idx, 1);
-  // Reset la couleur du bouton correspondant
-  DEPANNAGE_FORFAITS.forEach((f, i) => {
-    if (f.nom === nom) {
-      const el = document.getElementById(`dep-f-${i}`);
-      if (el) { el.style.borderColor = 'var(--border)'; el.style.background = 'rgba(255,255,255,0.6)'; }
+  const totalDisplay = document.getElementById('dep-total-display');
+  const prixBarre = document.getElementById('dep-prix-barre');
+
+  if (totalDisplay) totalDisplay.textContent = prixFinal.toLocaleString('fr-FR') + ' €';
+  if (prixBarre) {
+    if (depRemiseActive) {
+      prixBarre.textContent = prixBase + ' €';
+      prixBarre.style.display = 'inline';
+    } else {
+      prixBarre.style.display = 'none';
     }
-  });
-  renderDepPanier();
+  }
+}
+
+function toggleDepRemise() {
+  depRemiseActive = !depRemiseActive;
+  const toggle = document.getElementById('dep-remise-toggle');
+  const dot = toggle?.querySelector('div');
+  if (depRemiseActive) {
+    if (toggle) toggle.style.background = '#10b981';
+    if (dot) dot.style.left = 'calc(100% - 22px)';
+  } else {
+    if (toggle) toggle.style.background = 'var(--border)';
+    if (dot) dot.style.left = '2px';
+  }
+  majDepTotal();
+}
+
+function setDepType(type) {
+  depType = type;
+  const btnDevis = document.getElementById('dep-btn-devis');
+  const btnFacture = document.getElementById('dep-btn-facture');
+  const btnGen = document.getElementById('dep-btn-gen');
+
+  if (type === 'devis') {
+    btnDevis.style.background = 'linear-gradient(135deg,var(--accent),var(--gold))';
+    btnDevis.style.color = '#fff';
+    btnDevis.style.border = '2px solid var(--accent)';
+    btnFacture.style.background = 'rgba(255,255,255,0.6)';
+    btnFacture.style.color = 'var(--text-2)';
+    btnFacture.style.border = '1.5px solid var(--border)';
+    if (btnGen) btnGen.textContent = '📋 Générer le devis';
+  } else {
+    btnFacture.style.background = 'linear-gradient(135deg,var(--accent),var(--gold))';
+    btnFacture.style.color = '#fff';
+    btnFacture.style.border = '2px solid var(--accent)';
+    btnDevis.style.background = 'rgba(255,255,255,0.6)';
+    btnDevis.style.color = 'var(--text-2)';
+    btnDevis.style.border = '1.5px solid var(--border)';
+    if (btnGen) btnGen.textContent = '💶 Générer la facture';
+  }
 }
 
 async function genererDepannageRapide() {
-  const client = document.getElementById('dep-client')?.value.trim();
-  const tel    = document.getElementById('dep-tel')?.value.trim();
-  const adresse= document.getElementById('dep-adresse')?.value.trim();
+  const prenom  = document.getElementById('dep-prenom')?.value.trim() || '';
+  const nom     = document.getElementById('dep-client')?.value.trim();
+  const tel     = document.getElementById('dep-tel')?.value.trim() || '';
+  const email   = document.getElementById('dep-email')?.value.trim() || '';
+  const adresse = document.getElementById('dep-adresse')?.value.trim() || '';
 
-  if (!client) { showToast('⚠️ Nom client obligatoire', '❌'); return; }
-  if (!depPanier.length) { showToast('⚠️ Sélectionnez au moins un forfait', '❌'); return; }
+  if (!nom) { showToast('⚠️ Nom client obligatoire', '❌'); return; }
+  if (!depForfaitSelectionne) { showToast('⚠️ Sélectionnez un forfait', '❌'); return; }
 
-  // Convertir au format prestations
-  const prestations = depPanier.map(p => ({
-    nom: p.nom, prix: p.prix, quantite: p.quantite, desc: p.desc
-  }));
+  const forfait = DEP_FORFAITS.find(f => f.id === depForfaitSelectionne);
+  const prixFinal = depRemiseActive ? Math.round(forfait.prix * 0.93) : forfait.prix;
 
-  // Pré-remplir la page devis et générer
-  switchPage('devis', document.querySelector('.sidebar-item[onclick*="devis"]'));
-  setTimeout(() => {
-    document.getElementById('d-client').value  = client;
-    document.getElementById('d-tel').value     = tel || '';
-    document.getElementById('d-adresse').value = adresse || '';
-    // Injecter dans le panier devis
-    panierD = prestations.map(p => ({ designation: p.nom, prixUnit: p.prix, qte: p.quantite, desc: p.desc, categorie: 'Dépannage' }));
-    renderPanier('d');
-    showToast('⚡ Prêt à générer !', '📄');
-  }, 400);
+  // Description modifiée par l'utilisateur
+  const descModifiee = document.getElementById(`dep-desc-${forfait.id}`)?.value || forfait.desc;
+
+  const prestations = [{ nom: forfait.nom, prix: prixFinal, quantite: 1, desc: descModifiee }];
+
+  const btn = document.getElementById('dep-btn-gen');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Génération...'; }
+
+  try {
+    const res = await fetch('/api/generer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: depType,
+        client: [prenom, nom].filter(Boolean).join(' '),
+        prenom, telephone: tel, email, adresse, prestations,
+        partenaire: false, part_diahe: 100, part_partenaire: 0
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(`✅ ${depType === 'devis' ? 'Devis' : 'Facture'} ${data.num} généré !`, '⚡');
+      shootConfetti();
+      // Reset
+      depForfaitSelectionne = null;
+      depRemiseActive = false;
+      initDepannage();
+      document.getElementById('dep-prenom').value = '';
+      document.getElementById('dep-client').value = '';
+      document.getElementById('dep-tel').value = '';
+      document.getElementById('dep-email').value = '';
+      document.getElementById('dep-adresse').value = '';
+      document.getElementById('dep-remise-box').style.display = 'none';
+      document.getElementById('dep-type-box').style.display = 'none';
+      document.getElementById('dep-btn-gen').style.display = 'none';
+    } else {
+      showToast('❌ ' + (data.error || 'Erreur'), '⚠️');
+    }
+  } catch(e) { showToast('❌ Erreur réseau', '⚠️'); }
+
+  if (btn) { btn.disabled = false; btn.textContent = depType === 'devis' ? '📋 Générer le devis' : '💶 Générer la facture'; }
 }
-
-// Initialiser dépannage quand on ouvre la page
 // ═══════════════════════════════════════════════════
 let partenaireActifD = false;
 
