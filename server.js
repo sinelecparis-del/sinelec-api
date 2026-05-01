@@ -1080,6 +1080,85 @@ cron.schedule('0 * * * *', verifierSante);
 setTimeout(() => { verifierSante().catch(() => {}); }, 120000);
 
 // ═══════════════════════════════════════════════════
+// CRON RELANCE FACTURES J+7 / J+14 — 8h chaque matin
+// ═══════════════════════════════════════════════════
+async function relancerFacturesImpayees() {
+  try {
+    const maintenant = new Date();
+    const { data: factures } = await supabase
+      .from('historique')
+      .select('*')
+      .eq('type', 'facture')
+      .not('statut', 'in', '("paye","payé","payée","annule","annulé")')
+      .not('telephone', 'is', null);
+
+    if (!factures || !factures.length) return;
+
+    let relancees = 0;
+
+    for (const f of factures) {
+      if (!f.telephone || !f.date_envoi) continue;
+
+      const joursSinceEnvoi = Math.floor((maintenant - new Date(f.date_envoi)) / (1000 * 60 * 60 * 24));
+      const nbRelances = f.nb_relances || 0;
+
+      // J+7 : première relance
+      // J+14 : deuxième et dernière relance
+      const doitRelancer =
+        (joursSinceEnvoi >= 7 && joursSinceEnvoi < 14 && nbRelances === 0) ||
+        (joursSinceEnvoi >= 14 && nbRelances === 1);
+
+      if (!doitRelancer) continue;
+
+      const montant = parseFloat(f.total_ht || 0).toFixed(0);
+      const prenom = (f.client || '').split(' ')[0];
+      const relanceNum = nbRelances + 1;
+
+      const msg = relanceNum === 1
+        ? `Bonjour ${prenom}, votre facture SINELEC n°${f.num} d'un montant de ${montant}€ est en attente de règlement. Pour payer par CB : sinelec-api-production.up.railway.app/payer/${f.num} — Merci, Diahe SINELEC 07 87 38 86 22`
+        : `Bonjour ${prenom}, rappel final : votre facture SINELEC n°${f.num} de ${montant}€ reste impayée. Merci de régulariser rapidement. Contact : 07 87 38 86 22 — SINELEC`;
+
+      try {
+        await envoyerSMS(f.telephone, msg);
+        // Mettre à jour nb_relances et date_derniere_relance
+        await supabase.from('historique').update({
+          nb_relances: relanceNum,
+          date_derniere_relance: new Date().toISOString()
+        }).eq('num', f.num);
+        relancees++;
+        console.log(`📱 Relance J+${joursSinceEnvoi} envoyée → ${f.client} (${f.num})`);
+      } catch(e) {
+        console.error(`Relance ${f.num}:`, e.message);
+      }
+    }
+
+    if (relancees > 0) {
+      // Notifier Diahe par email
+      await envoyerEmail(
+        'sinelec.paris@gmail.com',
+        `📱 ${relancees} relance(s) facture envoyée(s) — SINELEC`,
+        `<h3>Relances automatiques du jour</h3><p>${relancees} client(s) relancé(s) pour facture impayée.</p>`
+      );
+    }
+
+    console.log(`✅ Relances factures : ${relancees} envoyées`);
+  } catch(e) {
+    console.error('Cron relances:', e.message);
+  }
+}
+
+// Lancer chaque matin à 9h05
+cron.schedule('5 9 * * *', relancerFacturesImpayees);
+
+// Route manuelle pour tester
+app.post('/api/relances/lancer', authMiddleware, async (req, res) => {
+  try {
+    await relancerFacturesImpayees();
+    res.json({ success: true, message: 'Relances lancées' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════
 // DÉMARRAGE
 // ═══════════════════════════════════════════════════
 
