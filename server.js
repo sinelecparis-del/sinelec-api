@@ -1,1222 +1,976 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<title>SINELEC OS v2.0</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-<script src="config-v2.js"></script>
+// ═══════════════════════════════════════════════════════════════
+// SINELEC OS v2.0 - BACKEND COMPLET - VERSION PROPRE
+// ═══════════════════════════════════════════════════════════════
 
-<style>
-:root {
-  --bg: #fdfbf7; --glass: rgba(255,255,255,0.75); --border: rgba(218,165,32,0.18);
-  --text: #1a1410; --text-2: #6b5d52; --text-3: #9d8f7f;
-  --accent: #d4a574; --gold: #daa520;
-  --success: #10b981; --warning: #f59e0b; --error: #ef4444;
-  --sidebar-width: 260px;
-}
-[data-theme="dark"] {
-  --bg: #0a0a0a; --glass: rgba(18,18,18,0.75); --border: rgba(218,165,32,0.22);
-  --text: #fff; --text-2: #a8a8a8; --text-3: #6b6b6b;
-}
-* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-body {
-  font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,sans-serif;
-  background:var(--bg); color:var(--text); transition:background 0.3s;
-  padding-bottom:80px;
-}
-.fab-lead {
-  position:fixed; bottom:90px; right:16px; width:52px; height:52px;
-  border-radius:50%; background:linear-gradient(135deg,#D4A017,#f5c842);
-  border:none; cursor:pointer; display:flex; align-items:center; justify-content:center;
-  font-size:22px; box-shadow:0 4px 16px rgba(212,160,23,0.5); z-index:8000; transition:all 0.2s;
-}
-@media(min-width:768px){ .fab-lead { bottom:24px; right:80px; } }
-.sidebar {
-  position:fixed; left:0; top:0; width:var(--sidebar-width); height:100vh;
-  background:var(--glass); backdrop-filter:blur(24px) saturate(180%);
-  -webkit-backdrop-filter:blur(24px) saturate(180%);
-  border-right:1px solid var(--border); z-index:100;
-  display:flex; flex-direction:column; box-shadow:4px 0 20px rgba(26,20,16,0.04);
-}
-.sidebar-logo { padding:24px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:12px; }
-.sidebar-logo-icon { width:42px; height:42px; background:linear-gradient(135deg,var(--accent),var(--gold)); border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:22px; animation:float 4s ease-in-out infinite; }
-.sidebar-logo-text h1 { font-size:19px; font-weight:900; letter-spacing:-0.5px; background:linear-gradient(135deg,var(--text),var(--text-2)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
-.sidebar-logo-text span { font-size:10px; font-weight:600; color:var(--text-3); letter-spacing:0.5px; text-transform:uppercase; }
-.sidebar-nav { flex:1; padding:16px 12px; overflow-y:auto; scrollbar-width:thin; }
-.sidebar-item { display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:12px; cursor:pointer; transition:all 0.2s; margin-bottom:4px; font-size:14px; font-weight:600; color:var(--text-2); user-select:none; }
-.sidebar-item:hover { background:rgba(212,165,116,0.1); color:var(--text); }
-.sidebar-item.active { background:linear-gradient(135deg,var(--accent),var(--gold)); color:#fff; box-shadow:0 4px 12px rgba(212,165,116,0.3); }
-.sidebar-item-icon { font-size:20px; width:24px; text-align:center; }
-.sidebar-footer { padding:16px 20px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
-.mobile-tabs { display:none; position:fixed; bottom:0; left:0; right:0; z-index:100; background:var(--glass); backdrop-filter:blur(24px) saturate(180%); -webkit-backdrop-filter:blur(24px) saturate(180%); border-top:1px solid var(--border); padding:8px 0; box-shadow:0 -4px 20px rgba(26,20,16,0.06); }
-.mobile-tabs-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:4px; padding:0 8px; }
-.mobile-tab { display:flex; flex-direction:column; align-items:center; gap:4px; padding:8px 4px; border-radius:12px; cursor:pointer; transition:all 0.2s; }
-.mobile-tab-icon { font-size:22px; }
-.mobile-tab-label { font-size:10px; font-weight:700; color:var(--text-3); }
-.mobile-tab.active { background:rgba(212,165,116,0.15); }
-.mobile-tab.active .mobile-tab-icon { transform:scale(1.15); }
-.mobile-tab.active .mobile-tab-label { color:var(--accent); }
-.main-content { margin-left:var(--sidebar-width); min-height:100vh; position:relative; z-index:1; }
-@media(max-width:768px){ body{padding-bottom:70px;} .sidebar{display:none;} .main-content{margin-left:0;} .mobile-tabs{display:block;} }
-@keyframes float { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-5px);} }
-@keyframes enter { from{opacity:0;transform:translateY(12px);} to{opacity:1;transform:translateY(0);} }
-.theme-toggle { width:38px; height:38px; background:rgba(255,255,255,0.5); border:1.5px solid var(--border); border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all 0.25s; backdrop-filter:blur(10px); font-size:18px; }
-.theme-toggle:hover { transform:rotate(180deg) scale(1.1); border-color:var(--accent); }
-.content { padding:26px 22px; max-width:680px; margin:0 auto; position:relative; z-index:1; }
-.section { background:var(--glass); backdrop-filter:blur(24px) saturate(180%); -webkit-backdrop-filter:blur(24px) saturate(180%); border:1px solid var(--border); border-radius:20px; padding:24px; margin-bottom:20px; box-shadow:0 4px 16px rgba(26,20,16,0.06); transition:all 0.35s; }
-.section:hover { box-shadow:0 8px 32px rgba(26,20,16,0.08); transform:translateY(-3px); }
-.section-title { font-size:12px; font-weight:800; color:var(--accent); text-transform:uppercase; letter-spacing:1.2px; margin-bottom:20px; padding-left:16px; position:relative; }
-.section-title::before { content:''; position:absolute; left:0; width:4px; height:20px; background:linear-gradient(180deg,var(--accent),var(--gold)); border-radius:4px; }
-.input-group { margin-bottom:18px; }
-.input-group label { display:block; font-size:13px; font-weight:600; color:var(--text-2); margin-bottom:8px; }
-.input-group input,.input-group textarea,.input-group select { width:100%; background:rgba(255,255,255,0.65); border:1.5px solid rgba(218,165,32,0.15); border-radius:12px; padding:15px 18px; font-size:15px; font-weight:500; color:var(--text); outline:none; transition:all 0.25s; font-family:'Plus Jakarta Sans',sans-serif; }
-.input-group input:focus,.input-group textarea:focus,.input-group select:focus { border-color:var(--accent); background:rgba(255,255,255,0.95); box-shadow:0 0 0 4px rgba(212,165,116,0.12); }
-.input-group textarea { resize:none; min-height:95px; line-height:1.6; }
-.cat-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-bottom:20px; }
-@media(min-width:640px){ .cat-grid{grid-template-columns:repeat(3,1fr);} }
-.cat-btn { background:rgba(255,255,255,0.55); border:1.5px solid rgba(218,165,32,0.15); border-radius:12px; padding:16px 14px; font-size:13px; font-weight:700; color:var(--text-2); cursor:pointer; transition:all 0.25s; text-align:center; }
-.cat-btn:hover { background:rgba(255,255,255,0.85); transform:translateY(-4px); }
-.cat-btn.selected { background:linear-gradient(135deg,var(--accent),var(--gold)); color:#fff; border-color:transparent; transform:translateY(-3px); }
-.prestations { display:none; flex-direction:column; gap:10px; margin-bottom:20px; }
-.prestations.show { display:flex; }
-.prest-btn { background:rgba(255,255,255,0.55); border:1.5px solid rgba(218,165,32,0.12); border-radius:12px; padding:16px 18px; display:flex; justify-content:space-between; align-items:center; cursor:pointer; transition:all 0.25s; }
-.prest-btn:hover { background:rgba(255,255,255,0.9); transform:translateX(8px); }
-.prest-name { font-size:14px; font-weight:600; color:var(--text); flex:1; }
-.prest-price { font-size:15px; font-weight:800; color:var(--accent); }
-.panier { background:var(--glass); backdrop-filter:blur(24px) saturate(180%); -webkit-backdrop-filter:blur(24px) saturate(180%); border:1px solid var(--border); border-radius:20px; overflow:hidden; margin-bottom:20px; box-shadow:0 4px 16px rgba(26,20,16,0.06); }
-.panier-header { padding:18px 20px; background:linear-gradient(135deg,rgba(212,165,116,0.16),rgba(218,165,32,0.12)); font-size:14px; font-weight:800; color:var(--accent); text-transform:uppercase; letter-spacing:0.5px; display:flex; justify-content:space-between; border-bottom:1px solid var(--border); }
-.panier-empty { padding:60px 24px; text-align:center; color:var(--text-3); font-size:14px; }
-.panier-item { padding:16px 20px; border-top:1px solid rgba(218,165,32,0.08); display:flex; align-items:center; gap:14px; transition:background 0.25s; }
-.panier-item:hover { background:rgba(255,255,255,0.55); }
-.panier-item-name { flex:1; font-size:14px; font-weight:600; color:var(--text); }
-.panier-item-price { font-size:15px; font-weight:800; color:var(--accent); min-width:90px; text-align:right; }
-.qte-ctrl { display:flex; align-items:center; gap:10px; }
-.qte-btn { width:32px; height:32px; background:rgba(212,165,116,0.15); border:none; border-radius:10px; color:var(--accent); font-size:18px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.15s; }
-.qte-btn:hover { background:var(--accent); color:#fff; transform:scale(1.15); }
-.qte-val { font-size:16px; font-weight:800; color:var(--accent); min-width:28px; text-align:center; }
-.del-btn { background:none; border:none; color:var(--text-3); font-size:22px; cursor:pointer; padding:6px; transition:all 0.25s; }
-.del-btn:hover { color:#ef4444; transform:rotate(90deg) scale(1.4); }
-.total-bar { background:linear-gradient(135deg,var(--accent),var(--gold)); border-radius:20px; padding:22px 24px; display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; box-shadow:0 8px 32px rgba(26,20,16,0.08); }
-.total-label { font-size:14px; font-weight:800; color:rgba(255,255,255,0.95); letter-spacing:1.3px; text-transform:uppercase; }
-.total-amount { font-size:32px; font-weight:900; color:#fff; letter-spacing:-1px; }
-.btn-gen { width:100%; background:linear-gradient(135deg,var(--accent),var(--gold)); color:#fff; border:none; border-radius:16px; padding:18px 28px; font-size:16px; font-weight:900; text-transform:uppercase; letter-spacing:0.7px; cursor:pointer; transition:all 0.25s; box-shadow:0 4px 16px rgba(26,20,16,0.06); margin-top:8px; }
-.btn-gen:hover { transform:translateY(-3px) scale(1.02); box-shadow:0 12px 48px rgba(26,20,16,0.12); }
-.btn-gen:disabled { opacity:0.6; cursor:not-allowed; transform:none !important; }
-.status { text-align:center; padding:15px 18px; border-radius:12px; font-size:13px; font-weight:600; margin-top:14px; display:none; }
-.status.success { background:linear-gradient(135deg,#d1fae5,#a7f3d0); color:#065f46; border:1.5px solid #6ee7b7; display:block; }
-.status.error { background:linear-gradient(135deg,#fee2e2,#fecaca); color:#991b1b; border:1.5px solid #fca5a5; display:block; }
-.status.loading { background:linear-gradient(135deg,#dbeafe,#bfdbfe); color:#1e40af; border:1.5px solid #93c5fd; display:block; }
-.page { display:none; }
-.page.active { display:block; animation:enter 0.4s; }
-.popup-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(26,20,16,0.75); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); z-index:9999; justify-content:center; align-items:center; }
-.popup-overlay.active { display:flex; }
-.popup-box { background:var(--glass); backdrop-filter:blur(30px) saturate(180%); -webkit-backdrop-filter:blur(30px) saturate(180%); border:1px solid var(--border); border-radius:24px; padding:26px; width:90%; max-width:560px; box-shadow:0 20px 60px rgba(26,20,16,0.25); animation:popup-appear 0.3s; max-height:85vh; overflow-y:auto; }
-@keyframes popup-appear { from{opacity:0;transform:scale(0.9);} to{opacity:1;transform:scale(1);} }
-.toast { position:fixed; top:110px; left:50%; transform:translateX(-50%) translateY(-120px); background:var(--glass); backdrop-filter:blur(24px) saturate(180%); border:1px solid var(--border); border-radius:16px; padding:16px 24px; font-size:14px; font-weight:600; box-shadow:0 20px 60px rgba(26,20,16,0.15); z-index:9999; opacity:0; transition:all 0.5s; display:flex; align-items:center; gap:12px; max-width:90%; }
-.toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
-.stat-card { background:var(--glass); backdrop-filter:blur(20px); border:1px solid var(--border); border-radius:20px; padding:24px; text-align:center; transition:all 0.25s; }
-.stat-card:hover { transform:translateY(-4px); box-shadow:0 8px 32px rgba(26,20,16,0.08); }
-.stat-value { font-size:36px; font-weight:900; color:var(--accent); letter-spacing:-1px; margin-bottom:8px; }
-.stat-label { font-size:12px; font-weight:600; color:var(--text-2); text-transform:uppercase; letter-spacing:0.6px; }
-.stat-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:16px; margin-bottom:24px; }
-@media(min-width:768px){ .stat-grid{grid-template-columns:repeat(4,1fr);} }
-.badge { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:8px; font-size:11px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; }
-.badge-success { background:rgba(16,185,129,0.15); color:var(--success); border:1px solid rgba(16,185,129,0.3); }
-.badge-warning { background:rgba(245,158,11,0.15); color:var(--warning); border:1px solid rgba(245,158,11,0.3); }
-.badge-info { background:rgba(59,130,246,0.15); color:#3b82f6; border:1px solid rgba(59,130,246,0.3); }
-.badge-error { background:rgba(239,68,68,0.15); color:var(--error); border:1px solid rgba(239,68,68,0.3); }
-.btn-small { background:rgba(212,165,116,0.15); color:var(--accent); border:1px solid rgba(212,165,116,0.3); border-radius:8px; padding:8px 16px; font-size:12px; font-weight:700; cursor:pointer; transition:all 0.15s; display:inline-flex; align-items:center; gap:6px; }
-.btn-small:hover { background:var(--accent); color:#fff; transform:translateY(-2px); }
-.data-table { width:100%; border-collapse:collapse; font-size:13px; }
-.data-table th { background:linear-gradient(135deg,rgba(212,165,116,0.16),rgba(218,165,32,0.12)); color:var(--accent); font-weight:800; text-transform:uppercase; letter-spacing:0.6px; padding:14px 16px; text-align:left; border-bottom:2px solid var(--border); font-size:11px; }
-.data-table td { padding:16px; border-bottom:1px solid rgba(218,165,32,0.08); }
-.data-table tr:hover { background:rgba(255,255,255,0.4); }
-.remise-bar { background:var(--glass); border:1.5px solid var(--border); border-radius:16px; padding:16px 18px; margin-bottom:12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-.remise-toggle { display:flex; background:rgba(255,255,255,0.6); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
-.remise-toggle-btn { padding:8px 14px; font-size:12px; font-weight:700; cursor:pointer; color:var(--text-2); transition:all 0.2s; }
-.remise-toggle-btn.active { background:linear-gradient(135deg,var(--accent),var(--gold)); color:#fff; }
-.remise-input { width:90px; background:rgba(255,255,255,0.8); border:1.5px solid var(--accent); border-radius:10px; padding:8px 12px; font-size:15px; font-weight:800; color:var(--accent); text-align:center; outline:none; }
-.remise-line { display:flex; justify-content:space-between; align-items:center; padding:8px 0; font-size:13px; color:var(--success); font-weight:700; }
-.favoris-bar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
-.favori-chip { display:flex; align-items:center; gap:6px; background:rgba(212,165,116,0.12); border:1px solid rgba(212,165,116,0.3); border-radius:20px; padding:6px 12px; cursor:pointer; font-size:12px; font-weight:700; color:var(--accent); transition:all 0.2s; }
-.favori-chip:hover { background:rgba(212,165,116,0.25); }
-.favori-chip-del { color:var(--text-3); cursor:pointer; font-size:14px; line-height:1; }
-.favori-chip-del:hover { color:var(--error); }
-.alerte-badge { display:inline-flex; align-items:center; gap:4px; background:rgba(239,68,68,0.12); color:var(--error); border:1px solid rgba(239,68,68,0.2); border-radius:8px; padding:3px 8px; font-size:11px; font-weight:700; }
-.client-toggle { display:flex; background:rgba(255,255,255,0.6); border:1.5px solid var(--border); border-radius:12px; padding:4px; margin-bottom:16px; gap:4px; }
-.client-toggle-btn { flex:1; padding:10px; text-align:center; font-size:13px; font-weight:700; border-radius:9px; cursor:pointer; transition:all 0.2s; color:var(--text-2); user-select:none; }
-.client-toggle-btn.active { background:linear-gradient(135deg,var(--accent),var(--gold)); color:#fff; box-shadow:0 2px 8px rgba(212,165,116,0.3); }
+const express = require('express');
+const cors = require('cors');
+const cron = require('node-cron');
+const { createClient } = require('@supabase/supabase-js');
+const Anthropic = require('@anthropic-ai/sdk');
+const crypto = require('crypto');
+const { execSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+const CONFIG = require('./config-v2.js');
 
-/* ══ DATE INTERVENTION dans historique ══ */
-.date-interv-input {
-  border:1.5px solid rgba(218,165,32,0.25);
-  border-radius:8px;
-  padding:5px 8px;
-  font-size:12px;
-  background:rgba(255,255,255,0.7);
-  color:var(--text);
-  outline:none;
-  cursor:pointer;
-  max-width:130px;
-  font-family:'Plus Jakarta Sans',sans-serif;
-  transition:border-color 0.2s;
-}
-.date-interv-input:focus { border-color:var(--accent); background:rgba(255,255,255,0.95); }
-[data-theme="dark"] .date-interv-input { background:rgba(255,255,255,0.08); color:#fff; }
-</style>
-</head>
-<body data-theme="light">
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-<!-- ════════════ LOGIN SCREEN ════════════ -->
-<div id="login-screen" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:linear-gradient(135deg,#1B2A4A 0%,#243660 50%,#1B2A4A 100%);z-index:99999;align-items:center;justify-content:center;">
-  <div style="background:white;border-radius:24px;padding:40px;max-width:380px;width:90%;box-shadow:0 40px 80px rgba(0,0,0,0.4);text-align:center;">
-    <div style="font-size:56px;margin-bottom:8px;">⚡</div>
-    <div style="font-size:22px;font-weight:900;color:#1B2A4A;margin-bottom:4px;">SINELEC OS</div>
-    <div style="font-size:13px;color:#888;margin-bottom:32px;">Paris & IDF — Accès sécurisé</div>
-    <div id="login-error" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:12px;margin-bottom:16px;color:#dc2626;font-size:13px;font-weight:600;">❌ Mot de passe incorrect</div>
-    <input id="login-password" type="password" placeholder="Mot de passe"
-      style="width:100%;padding:16px;border:2px solid #e5e7eb;border-radius:14px;font-size:16px;outline:none;text-align:center;letter-spacing:4px;box-sizing:border-box;margin-bottom:16px;"
-      onkeydown="if(event.key==='Enter') seConnecter()">
-    <button onclick="seConnecter()" id="login-btn"
-      style="width:100%;background:linear-gradient(135deg,#1B2A4A,#243660);color:white;border:none;border-radius:14px;padding:16px;font-size:15px;font-weight:800;cursor:pointer;">
-      🔐 Connexion
-    </button>
-    <div style="margin-top:20px;color:#aaa;font-size:11px;">SINELEC EI — Accès réservé</div>
-  </div>
-</div>
+app.use(cors());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(express.static(__dirname));
 
-<!-- ════════════ SIDEBAR DESKTOP ════════════ -->
-<div class="sidebar">
-  <div class="sidebar-logo">
-    <div class="sidebar-logo-icon">⚡</div>
-    <div class="sidebar-logo-text"><h1>SINELEC</h1><span>Paris & IDF</span></div>
-  </div>
-  <div class="sidebar-nav">
-    <div class="sidebar-item" onclick="switchPage('depannage', this)" style="border:1.5px solid rgba(201,168,76,0.4);">
-      <span class="sidebar-item-icon">⚡</span><span>Dépannage</span>
-    </div>
-    <div class="sidebar-item" onclick="switchPage('agenda', this)">
-      <span class="sidebar-item-icon">📅</span><span>Agenda</span>
-    </div>
-    <div class="sidebar-item active" onclick="switchPage('devis', this)">
-      <span class="sidebar-item-icon">📋</span><span>Devis</span>
-    </div>
-    <div class="sidebar-item" onclick="switchPage('facture', this)">
-      <span class="sidebar-item-icon">💶</span><span>Facture</span>
-    </div>
-    <div class="sidebar-item" onclick="switchPage('dashboard', this)">
-      <span class="sidebar-item-icon">📊</span><span>CA & Stats</span>
-    </div>
-    <div class="sidebar-item" onclick="switchPage('historique', this)">
-      <span class="sidebar-item-icon">📋</span><span>Historique</span>
-    </div>
-    <div class="sidebar-item" onclick="switchPage('vocal', this)">
-      <span class="sidebar-item-icon">🎙️</span><span>Script Vocal</span>
-    </div>
-    <div class="sidebar-item" onclick="switchPage('chat', this)">
-      <span class="sidebar-item-icon">🤖</span><span>Chat AI</span>
-    </div>
-    <div class="sidebar-item" onclick="switchPage('dpe', this)">
-      <span class="sidebar-item-icon">🏠</span><span>Analyse DPE</span>
-    </div>
-    <div class="sidebar-item" onclick="switchPage('rapport', this)">
-      <span class="sidebar-item-icon">📸</span><span>Rapport</span>
-    </div>
-    <div class="sidebar-item" onclick="switchPage('clients', this)">
-      <span class="sidebar-item-icon">👥</span><span>Clients</span>
-    </div>
-    <div class="sidebar-item" onclick="switchPage('sante', this)">
-      <span class="sidebar-item-icon">🏥</span><span>Santé</span>
-    </div>
-    <div class="sidebar-item" onclick="switchPage('params', this)">
-      <span class="sidebar-item-icon">⚙️</span><span>Paramètres</span>
-    </div>
-    <div class="sidebar-item" onclick="seDeconnecter()" style="margin-top:8px;color:#ef4444;">
-      <span class="sidebar-item-icon">🚪</span><span>Déconnexion</span>
-    </div>
-  </div>
-  <div class="sidebar-footer">
-    <div style="font-size:11px;color:var(--text-3);font-weight:600;">Mode :</div>
-    <div class="theme-toggle" onclick="toggleTheme()"><span id="theme-icon">🌙</span></div>
-  </div>
-</div>
-
-<!-- ════════════ MOBILE TABS ════════════ -->
-<div class="mobile-tabs">
-  <div class="mobile-tabs-grid">
-    <div class="mobile-tab active" onclick="switchPage('devis', this)">
-      <div class="mobile-tab-icon">📋</div><div class="mobile-tab-label">Devis</div>
-    </div>
-    <div class="mobile-tab" onclick="switchPage('facture', this)">
-      <div class="mobile-tab-icon">💶</div><div class="mobile-tab-label">Facture</div>
-    </div>
-    <div class="mobile-tab" onclick="switchPage('dashboard', this)">
-      <div class="mobile-tab-icon">📊</div><div class="mobile-tab-label">CA</div>
-    </div>
-    <div class="mobile-tab" onclick="switchPage('historique', this)">
-      <div class="mobile-tab-icon">📋</div><div class="mobile-tab-label">Histo</div>
-    </div>
-    <div class="mobile-tab" onclick="switchPageMenu()">
-      <div class="mobile-tab-icon">⋮</div><div class="mobile-tab-label">Plus</div>
-    </div>
-  </div>
-</div>
-
-<div class="main-content">
-
-<!-- ════════════ PAGE HISTORIQUE — CARTES MOBILES ════════════ -->
-<div id="page-historique" class="page">
-<div class="content" style="max-width:700px;">
-
-  <!-- FILTRES -->
-  <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
-    <button onclick="filtrerHistorique('tous')" id="filter-tous" class="btn-filter" style="flex:1;min-width:80px;background:linear-gradient(135deg,var(--accent),var(--gold));color:#fff;border:none;border-radius:12px;padding:12px 16px;font-size:13px;font-weight:700;cursor:pointer;">Tous</button>
-    <button onclick="filtrerHistorique('devis')" id="filter-devis" class="btn-filter" style="flex:1;min-width:80px;background:rgba(59,130,246,0.1);color:#3b82f6;border:1px solid rgba(59,130,246,0.25);border-radius:12px;padding:12px 16px;font-size:13px;font-weight:700;cursor:pointer;">📋 Devis</button>
-    <button onclick="filtrerHistorique('facture')" id="filter-facture" class="btn-filter" style="flex:1;min-width:80px;background:rgba(16,185,129,0.1);color:#10b981;border:1px solid rgba(16,185,129,0.25);border-radius:12px;padding:12px 16px;font-size:13px;font-weight:700;cursor:pointer;">💶 Factures</button>
-  </div>
-
-  <!-- LISTE CARTES -->
-  <div id="histo-cards">
-    <div class="panier-empty">Chargement...</div>
-  </div>
-
-</div>
-</div>
-
-<!-- ════════════ AUTRES PAGES (stubs — chargées dynamiquement) ════════════ -->
-<div id="page-depannage" class="page"><div class="content"><div class="section"><div class="section-title">⚡ Dépannage Rapide</div><div id="dep-content"></div></div></div></div>
-<div id="page-agenda" class="page"><div class="content" style="max-width:700px;"><div class="section"><div class="section-title">📅 Agenda</div><div id="agenda-liste"><div class="panier-empty">Chargement...</div></div></div></div></div>
-<div id="page-devis" class="page active"><div class="content"><div class="section"><div class="section-title">📋 Nouveau Devis</div><div id="devis-content"></div></div></div></div>
-<div id="page-facture" class="page"><div class="content"><div class="section"><div class="section-title">💶 Nouvelle Facture</div><div id="facture-content"></div></div></div></div>
-<div id="page-dashboard" class="page"><div class="content" style="max-width:1000px;"><div class="stat-grid" style="margin-bottom:20px;"><div class="stat-card"><div class="stat-value" id="dash-mois-ca">0</div><div class="stat-label">CA Ce Mois (€)</div></div><div class="stat-card"><div class="stat-value" id="dash-annee-ca">0</div><div class="stat-label">CA Année (€)</div></div><div class="stat-card"><div class="stat-value" id="dash-devis-attente">0</div><div class="stat-label">Devis en attente (€)</div></div><div class="stat-card"><div class="stat-value" id="dash-panier-moyen">0</div><div class="stat-label">Panier moyen (€)</div></div></div><div class="section"><div class="section-title">📊 CA par mois</div><div style="position:relative;width:100%;height:220px;"><canvas id="chart-ca"></canvas></div></div><div class="section"><div class="section-title">⚡ Top prestations</div><div id="dash-top-prests"></div></div></div></div>
-<div id="page-vocal" class="page"><div class="content"><div class="section"><div class="section-title">🎙️ Script Vocal IA</div><div id="vocal-content"></div></div></div></div>
-<div id="page-chat" class="page"><div class="content"><div class="section"><div class="section-title">🤖 Chat AI</div><div id="chat-messages" style="min-height:200px;"></div><div style="display:flex;gap:10px;margin-top:16px;"><input type="text" id="chat-input" placeholder="Décris le chantier..." style="flex:1;background:rgba(255,255,255,0.65);border:1.5px solid rgba(218,165,32,0.15);border-radius:12px;padding:14px 16px;color:var(--text);font-size:15px;outline:none;" onkeypress="if(event.key==='Enter') envoyerMessage()"><button onclick="envoyerMessage()" style="background:linear-gradient(135deg,var(--accent),var(--gold));color:#fff;border:none;border-radius:12px;padding:14px 20px;font-weight:800;cursor:pointer;font-size:20px;">→</button></div></div></div></div>
-<div id="page-dpe" class="page"><div class="content"><div class="section"><div class="section-title">🏠 Analyse DPE</div><div id="dpe-content"></div></div></div></div>
-<div id="page-rapport" class="page"><div class="content"><div class="section"><div class="section-title">📸 Rapport d'intervention</div><div id="rapport-content"></div></div></div></div>
-<div id="page-clients" class="page"><div class="content" style="max-width:900px;"><div class="section"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><div class="section-title" style="margin-bottom:0;">👥 Clients</div><input type="text" id="clients-search" placeholder="🔍 Rechercher..." oninput="filtrerClients(this.value)" style="padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:rgba(255,255,255,0.7);font-size:13px;width:200px;"></div><div id="clients-list">Chargement...</div></div></div></div>
-<div id="page-sante" class="page"><div class="content"><div class="section"><div style="display:flex;justify-content:space-between;align-items:center;"><div class="section-title" style="margin-bottom:0;">🏥 Santé Système</div><button onclick="verifierSante()" class="btn-small">🔄 Vérifier</button></div><div id="sante-global" style="background:rgba(255,255,255,0.5);border-radius:14px;padding:20px;margin:16px 0;text-align:center;"><div id="sante-global-icon" style="font-size:40px;">⏳</div><div id="sante-global-text" style="font-size:15px;font-weight:700;margin-top:8px;">Chargement...</div></div><div id="sante-services" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;"></div></div></div></div>
-<div id="page-params" class="page"><div class="content"><div class="section"><div class="section-title">⚙️ Grille tarifaire</div><div id="params-grid"></div><button onclick="sauvegarderPrix()" class="btn-gen" style="margin-top:16px;">💾 Sauvegarder</button></div></div></div>
-
-</div><!-- fin main-content -->
-
-<!-- BOUTON FLOTTANT LEAD -->
-<button class="fab-lead" onclick="ouvrirLead()" title="Nouveau lead">📞</button>
-
-<!-- POPUP LEAD -->
-<div id="lead-overlay" class="popup-overlay" onclick="if(event.target===this)fermerLead()">
-  <div style="background:var(--glass);backdrop-filter:blur(30px);border:1px solid var(--border);border-radius:20px;padding:24px;max-width:420px;width:92%;box-shadow:0 20px 60px rgba(0,0,0,0.3);max-height:90vh;overflow-y:auto;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
-      <div style="font-size:17px;font-weight:800;color:var(--accent);">📞 Nouveau lead</div>
-      <button onclick="fermerLead()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-3);">×</button>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
-      <div class="input-group" style="margin-bottom:0;"><label>Prénom Nom</label><input type="text" id="lead-nom" placeholder="DUPONT Sophie" oninput="this.value=this.value.toUpperCase()"></div>
-      <div class="input-group" style="margin-bottom:0;"><label>Téléphone</label><input type="tel" id="lead-tel" placeholder="06 12 34 56 78"></div>
-    </div>
-    <div class="input-group"><label>Adresse</label><input type="text" id="lead-adresse" placeholder="12 rue de la Paix, 75001 Paris" oninput="majWazeLead(this.value)"></div>
-    <div class="input-group"><label>Type</label>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-        <div class="lead-type-btn" data-type="depannage" onclick="selectLeadType(this,'depannage')" style="padding:8px;border-radius:10px;border:2px solid var(--accent);background:rgba(212,165,116,0.1);text-align:center;font-size:12px;font-weight:600;cursor:pointer;color:var(--accent);">⚡ Dépannage</div>
-        <div class="lead-type-btn" data-type="devis" onclick="selectLeadType(this,'devis')" style="padding:8px;border-radius:10px;border:1px solid var(--border);background:var(--bg);text-align:center;font-size:12px;cursor:pointer;color:var(--text-2);">📋 Devis</div>
-      </div>
-    </div>
-    <div style="display:flex;gap:8px;margin-bottom:10px;">
-      <button onclick="setLeadMaintenant()" style="flex:1;padding:8px;border-radius:10px;border:1.5px solid #ef4444;background:rgba(239,68,68,0.08);color:#ef4444;font-size:12px;font-weight:700;cursor:pointer;">🔴 Maintenant</button>
-      <button onclick="setLeadAujourdhui()" style="flex:1;padding:8px;border-radius:10px;border:1.5px solid var(--accent);background:rgba(212,165,116,0.08);color:var(--accent);font-size:12px;font-weight:700;cursor:pointer;">📅 Aujourd'hui</button>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
-      <div class="input-group" style="margin-bottom:0;"><label>Date</label><input type="date" id="lead-date"></div>
-      <div class="input-group" style="margin-bottom:0;"><label>Heure</label><input type="time" id="lead-heure" value="09:00"></div>
-    </div>
-    <div class="input-group"><label>Notes</label><textarea id="lead-notes" placeholder="Code accès, urgence..." style="min-height:60px;"></textarea></div>
-    <div id="lead-waze-btn" style="display:none;margin-bottom:10px;">
-      <button id="lead-waze-link" style="background:#1da462;color:#fff;border:none;border-radius:10px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;width:100%;">🔵 Ouvrir dans Waze</button>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-      <button onclick="enregistrerLead(false)" style="padding:12px;border-radius:12px;border:1px solid var(--border);background:rgba(255,255,255,0.7);font-size:13px;font-weight:600;cursor:pointer;color:var(--text);">💾 Enregistrer</button>
-      <button onclick="enregistrerLead(true)" style="padding:12px;border-radius:12px;border:none;background:var(--accent);font-size:13px;font-weight:700;cursor:pointer;color:#fff;">📋 + Devis</button>
-    </div>
-  </div>
-</div>
-
-<!-- POPUP SIGNATURE -->
-<div class="popup-overlay" id="popup-signature">
-  <div class="popup-box">
-    <h3 style="font-size:19px;font-weight:800;color:var(--accent);margin-bottom:10px;">✍️ Signature client sur place</h3>
-    <p style="font-size:13px;color:var(--text-2);margin-bottom:18px;">Le client signe avec le doigt :</p>
-    <canvas id="popup-sig-canvas" width="500" height="160" style="width:100%;height:160px;background:#fff;border-radius:12px;border:2px dashed var(--border);cursor:crosshair;touch-action:none;display:block;"></canvas>
-    <div style="display:flex;gap:12px;margin-top:18px;">
-      <button onclick="effacerPopupSig()" style="flex:1;padding:15px;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;background:rgba(255,255,255,0.6);color:var(--text-2);">↺ Effacer</button>
-      <button onclick="fermerPopupSig()" style="flex:1;padding:15px;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;background:rgba(255,255,255,0.6);color:var(--text-2);">Passer</button>
-      <button onclick="validerPopupSig()" style="flex:1;padding:15px;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,var(--accent),var(--gold));color:#fff;">✅ Valider</button>
-    </div>
-    <div id="popup-sig-status" style="margin-top:10px;font-size:12px;text-align:center;color:var(--text-2);"></div>
-  </div>
-</div>
-
-<!-- MODE POPUP FACTURATION -->
-<div class="popup-overlay" id="mode-popup-overlay" onclick="if(event.target===this)fermerModePopup()" style="align-items:flex-end;">
-  <div style="background:var(--bg);border-radius:24px 24px 0 0;padding:24px 20px 40px;width:100%;max-width:500px;">
-    <div style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:6px;" id="mode-popup-nom"></div>
-    <div style="font-size:12px;color:var(--text-3);margin-bottom:20px;" id="mode-popup-detail"></div>
-    <button onclick="choisirMode('forfait')" style="display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,0.7);border:1.5px solid var(--border);border-radius:14px;padding:16px 18px;margin-bottom:10px;cursor:pointer;width:100%;">
-      <div style="display:flex;align-items:center;gap:12px;"><span style="font-size:22px;">📦</span><div><div style="font-size:14px;font-weight:700;">Forfait tout compris</div><div style="font-size:11px;color:var(--text-3);">MO + fourniture + raccordement</div></div></div>
-      <span style="font-size:16px;font-weight:900;color:var(--accent);" id="mode-prix-forfait">—</span>
-    </button>
-    <button id="mode-btn-fourniture" onclick="choisirMode('fourniture')" style="display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,0.7);border:1.5px solid var(--border);border-radius:14px;padding:16px 18px;margin-bottom:10px;cursor:pointer;width:100%;">
-      <div style="display:flex;align-items:center;gap:12px;"><span style="font-size:22px;">🔩</span><div><div style="font-size:14px;font-weight:700;">Fourniture seule</div></div></div>
-      <span style="font-size:16px;font-weight:900;color:var(--accent);" id="mode-prix-fourniture">—</span>
-    </button>
-    <button id="mode-btn-mo" onclick="choisirMode('mo')" style="display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,0.7);border:1.5px solid var(--border);border-radius:14px;padding:16px 18px;margin-bottom:10px;cursor:pointer;width:100%;">
-      <div style="display:flex;align-items:center;gap:12px;"><span style="font-size:22px;">👷</span><div><div style="font-size:14px;font-weight:700;">Main d'œuvre seule</div></div></div>
-      <span style="font-size:16px;font-weight:900;color:var(--accent);" id="mode-prix-mo">—</span>
-    </button>
-    <button onclick="fermerModePopup()" style="width:100%;background:none;border:none;color:var(--text-3);font-size:14px;font-weight:600;cursor:pointer;margin-top:8px;padding:10px;">Annuler</button>
-  </div>
-</div>
-
-<script>
 // ═══════════════════════════════════════════════════
 // AUTH
 // ═══════════════════════════════════════════════════
-const TOKEN_KEY = 'sinelec_token';
-function getToken() { return localStorage.getItem(TOKEN_KEY); }
-function saveToken(t) { localStorage.setItem(TOKEN_KEY, t); }
-function clearToken() { localStorage.removeItem(TOKEN_KEY); }
 
-const _originalFetch = window.fetch;
-window.fetch = function(url, options = {}) {
-  const token = getToken();
-  if (token && typeof url === 'string' && url.startsWith('/api/') && !url.startsWith('/api/login')) {
-    options.headers = options.headers || {};
-    options.headers['Authorization'] = `Bearer ${token}`;
-    return _originalFetch(url, options).then(res => {
-      if (res.status === 401) { clearToken(); afficherLogin(); }
-      return res;
-    });
-  }
-  return _originalFetch(url, options);
-};
+const APP_PASSWORD = process.env.APP_PASSWORD || 'sinelec2026';
+const JWT_SECRET   = process.env.JWT_SECRET   || crypto.randomBytes(32).toString('hex');
+const TOKEN_EXPIRY = 7 * 24 * 60 * 60 * 1000;
 
-async function seConnecter() {
-  const pwd = document.getElementById('login-password').value;
-  const btn = document.getElementById('login-btn');
-  const errEl = document.getElementById('login-error');
-  if (!pwd) return;
-  btn.disabled = true; btn.textContent = '⏳ Connexion...'; errEl.style.display = 'none';
+function genererToken() {
+  const payload = JSON.stringify({ ts: Date.now(), exp: Date.now() + TOKEN_EXPIRY });
+  const b64 = Buffer.from(payload).toString('base64');
+  const sig = crypto.createHmac('sha256', JWT_SECRET).update(b64).digest('hex');
+  return `${b64}.${sig}`;
+}
+
+function verifierToken(token) {
+  if (!token) return false;
   try {
-    const res = await _originalFetch('/api/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ password: pwd }) });
-    const data = await res.json();
-    if (data.success && data.token) { saveToken(data.token); masquerLogin(); initialiserApp(); }
-    else { errEl.style.display = 'block'; document.getElementById('login-password').value = ''; document.getElementById('login-password').focus(); }
-  } catch(e) { errEl.textContent = '❌ Erreur réseau'; errEl.style.display = 'block'; }
-  btn.disabled = false; btn.textContent = '🔐 Connexion';
+    const [b64, sig] = token.split('.');
+    const expectedSig = crypto.createHmac('sha256', JWT_SECRET).update(b64).digest('hex');
+    if (sig !== expectedSig) return false;
+    const { exp } = JSON.parse(Buffer.from(b64, 'base64').toString());
+    return Date.now() < exp;
+  } catch(e) { return false; }
 }
 
-function afficherLogin() { document.getElementById('login-screen').style.display = 'flex'; setTimeout(() => document.getElementById('login-password')?.focus(), 100); }
-function masquerLogin() { document.getElementById('login-screen').style.display = 'none'; }
-function seDeconnecter() { clearToken(); afficherLogin(); }
-
-async function verifierAuth() {
-  const token = getToken();
-  if (!token) { afficherLogin(); return false; }
-  try {
-    const res = await _originalFetch('/api/auth/check', { headers: { 'Authorization': `Bearer ${token}` } });
-    const data = await res.json();
-    if (!data.valid) { clearToken(); afficherLogin(); return false; }
-    return true;
-  } catch(e) { afficherLogin(); return false; }
+function authMiddleware(req, res, next) {
+  const publicRoutes = ['/', '/health', '/api/login', '/signer/', '/paiement-confirme/', '/api/signature', '/api/auth/check'];
+  if (publicRoutes.some(r => req.path.startsWith(r))) return next();
+  const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
+  if (!verifierToken(token)) return res.status(401).json({ error: 'Non autorisé', code: 'UNAUTHORIZED' });
+  next();
 }
 
-function initialiserApp() {
-  masquerLogin();
-  chargerHistorique();
-  chargerDashboard();
-}
+app.use(authMiddleware);
 
-window.addEventListener('DOMContentLoaded', async () => {
-  const ok = await verifierAuth();
-  if (ok) initialiserApp();
+app.post('/api/login', (req, res) => {
+  const inputPwd = String(req.body.password || '').trim();
+  const validPwd = String(APP_PASSWORD).trim();
+  if (inputPwd !== validPwd) return res.status(401).json({ error: 'Mot de passe incorrect' });
+  res.json({ success: true, token: genererToken(), expiresIn: TOKEN_EXPIRY });
 });
 
-// ═══════════════════════════════════════════════════
-// THEME
-// ═══════════════════════════════════════════════════
-function toggleTheme() {
-  const body = document.body;
-  const icon = document.getElementById('theme-icon');
-  const newTheme = body.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
-  body.setAttribute('data-theme', newTheme);
-  icon.textContent = newTheme === 'light' ? '🌙' : '☀️';
-  localStorage.setItem('sinelec-theme', newTheme);
-  showToast(newTheme === 'dark' ? '🌙 Mode sombre' : '☀️ Mode clair');
-}
-const savedTheme = localStorage.getItem('sinelec-theme') || 'light';
-document.body.setAttribute('data-theme', savedTheme);
-document.addEventListener('DOMContentLoaded', () => {
-  const icon = document.getElementById('theme-icon');
-  if (icon) icon.textContent = savedTheme === 'light' ? '🌙' : '☀️';
+app.get('/api/auth/check', (req, res) => {
+  const token = req.headers['authorization']?.replace('Bearer ', '');
+  res.json({ valid: verifierToken(token) });
 });
-
-// ═══════════════════════════════════════════════════
-// TOAST
-// ═══════════════════════════════════════════════════
-function showToast(message, icon = '✓') {
-  const toast = document.createElement('div');
-  toast.className = 'toast';
-  toast.innerHTML = `<span style="font-size:20px;">${icon}</span><span>${message}</span>`;
-  document.body.appendChild(toast);
-  setTimeout(() => toast.classList.add('show'), 10);
-  setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 500); }, 2500);
-}
-
-function shootConfetti() {
-  if (typeof confetti === 'function') confetti({ particleCount:100, spread:70, origin:{y:0.6}, colors:['#d4a574','#daa520','#b8936a'] });
-}
-
-// ═══════════════════════════════════════════════════
-// NAVIGATION
-// ═══════════════════════════════════════════════════
-function switchPage(page, el) {
-  document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
-  document.querySelectorAll('.mobile-tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  if (el) el.classList.add('active');
-  const pageEl = document.getElementById(`page-${page}`);
-  if (pageEl) { pageEl.classList.add('active'); pageEl.scrollTop = 0; }
-  const mc = document.querySelector('.main-content');
-  if (mc) mc.scrollTop = 0;
-  window.scrollTo(0, 0);
-  setTimeout(() => { window.scrollTo(0, 0); if (pageEl) pageEl.scrollIntoView({ behavior:'instant', block:'start' }); }, 50);
-  if (page === 'historique') setTimeout(chargerHistorique, 100);
-  if (page === 'dashboard') setTimeout(chargerDashboard, 100);
-  if (page === 'clients') setTimeout(chargerClients, 100);
-  if (page === 'params') setTimeout(afficherParams, 100);
-  if (page === 'sante') setTimeout(chargerSante, 100);
-  if (page === 'agenda') setTimeout(chargerAgenda, 100);
-}
-
-let menuPlusOpen = false;
-function switchPageMenu() {
-  if (menuPlusOpen) return;
-  menuPlusOpen = true;
-  const menu = document.createElement('div');
-  menu.style.cssText = 'position:fixed;bottom:70px;right:10px;background:var(--glass);backdrop-filter:blur(24px);border:1px solid var(--border);border-radius:16px;padding:12px;z-index:999;box-shadow:0 8px 32px rgba(26,20,16,0.15);';
-  const pages = [['agenda','📅','Agenda'],['chat','🤖','Chat AI'],['rapport','📸','Rapport'],['clients','👥','Clients'],['depannage','⚡','Dépannage'],['params','⚙️','Paramètres']];
-  menu.innerHTML = pages.map(([p,i,l]) =>
-    `<div onclick="switchPage('${p}',this);this.closest('[style*=fixed]').remove();menuPlusOpen=false;" style="padding:12px 20px;border-radius:10px;background:rgba(255,255,255,0.5);cursor:pointer;font-size:14px;font-weight:600;display:flex;align-items:center;gap:10px;margin-bottom:4px;">
-      <span>${i}</span> ${l}
-    </div>`).join('') +
-    `<div onclick="seDeconnecter()" style="padding:12px 20px;border-radius:10px;background:rgba(239,68,68,0.08);cursor:pointer;font-size:14px;font-weight:600;display:flex;align-items:center;gap:10px;color:#ef4444;margin-top:4px;"><span>🚪</span> Déconnexion</div>`;
-  document.body.appendChild(menu);
-  setTimeout(() => {
-    const close = e => { if (!menu.contains(e.target)) { menu.remove(); menuPlusOpen = false; document.removeEventListener('click', close); } };
-    document.addEventListener('click', close);
-  }, 100);
-}
-
-// ═══════════════════════════════════════════════════
-// AUTOCOMPLETE ADRESSE
-// ═══════════════════════════════════════════════════
-async function autocompleteAdresse(id, value) {
-  if (!value || value.length < 3) { document.getElementById(`${id}-suggestions`).style.display = 'none'; return; }
-  try {
-    const res = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(value)}&limit=8&autocomplete=1`);
-    const data = await res.json();
-    const idf = ['75','77','78','91','92','93','94','95'];
-    const results = (data.features || []).filter(item => idf.some(d => (item.properties?.postcode||'').startsWith(d)));
-    const suggestionsDiv = document.getElementById(`${id}-suggestions`);
-    if (!results.length) { suggestionsDiv.style.display = 'none'; return; }
-    suggestionsDiv.innerHTML = '';
-    suggestionsDiv.style.display = 'block';
-    results.forEach(item => {
-      const div = document.createElement('div');
-      div.style.cssText = 'padding:12px 16px;cursor:pointer;font-size:14px;color:var(--text);border-bottom:1px solid var(--border);';
-      div.textContent = item.properties.label;
-      div.onmouseover = () => div.style.background = 'rgba(212,165,116,0.1)';
-      div.onmouseout = () => div.style.background = '';
-      div.onclick = () => { document.getElementById(id).value = item.properties.label; suggestionsDiv.style.display = 'none'; };
-      suggestionsDiv.appendChild(div);
-    });
-  } catch(e) {}
-}
-
-// ═══════════════════════════════════════════════════
-// HISTORIQUE — CARTES MOBILES + STATUTS CLAIRS
-// ═══════════════════════════════════════════════════
-let historiqueData = [];
-let histoFiltreActif = 'tous';
-
-async function chargerHistorique() {
-  const container = document.getElementById('histo-cards');
-  if (container) container.innerHTML = '<div class="panier-empty">Chargement...</div>';
-  try {
-    const res = await fetch('/api/ca-complet');
-    historiqueData = await res.json();
-    afficherHistorique();
-  } catch(e) {
-    if (container) container.innerHTML = `<div class="panier-empty" style="color:var(--error);">❌ Erreur chargement</div>`;
-  }
-}
-
-function filtrerHistorique(type) {
-  histoFiltreActif = type;
-  // Reset tous les boutons filtres
-  document.querySelectorAll('.btn-filter').forEach(btn => {
-    btn.style.background = 'rgba(255,255,255,0.6)';
-    btn.style.color = 'var(--text-2)';
-    btn.style.border = '1px solid var(--border)';
-  });
-  // Activer le bouton sélectionné
-  const activeBtn = document.getElementById(`filter-${type}`);
-  if (activeBtn) {
-    activeBtn.style.background = 'linear-gradient(135deg,var(--accent),var(--gold))';
-    activeBtn.style.color = '#fff';
-    activeBtn.style.border = 'none';
-  }
-  afficherHistorique();
-}
-
-function afficherHistorique() {
-  const container = document.getElementById('histo-cards');
-  if (!container) return;
-
-  let filtered = historiqueData;
-  if (histoFiltreActif !== 'tous') filtered = historiqueData.filter(item => item.type === histoFiltreActif);
-
-  if (filtered.length === 0) {
-    container.innerHTML = `<div class="panier-empty">Aucun document trouvé</div>`;
-    return;
-  }
-
-  filtered.sort((a, b) => new Date(b.created_at || b.date) - new Date(a.created_at || a.date));
-
-  container.innerHTML = filtered.map(item => {
-    const statut = (item.statut || '').toLowerCase();
-    const type = item.type || 'facture';
-    const isObat = item.source === 'obat';
-    const montant = parseFloat(item.total_ht || item.totalht || 0).toFixed(0);
-    const timeline = getTimeline(item.created_at || item.date);
-    const dateInterv = item.date_intervention || '';
-    const ageHeures = (new Date() - new Date(item.created_at || item.date)) / 3600000;
-    const alerte = type === 'devis' && (statut === 'envoyé' || statut === 'envoye') && ageHeures > 48;
-
-    // ── STATUT BADGE ──────────────────────────────────────────
-    let statutBg, statutColor, statutLabel, statutIcon;
-    if (type === 'devis') {
-      if (statut === 'signe' || statut === 'signé') {
-        statutBg = '#f0fdf4'; statutColor = '#16a34a';
-        statutIcon = '✅'; statutLabel = 'Signé';
-      } else if (statut === 'facture') {
-        statutBg = '#eff6ff'; statutColor = '#3b82f6';
-        statutIcon = '→'; statutLabel = 'Facturé';
-      } else {
-        // NON SIGNÉ
-        statutBg = alerte ? '#fef2f2' : '#fefce8';
-        statutColor = alerte ? '#dc2626' : '#ca8a04';
-        statutIcon = alerte ? '⚠️' : '⏳';
-        statutLabel = alerte ? 'En attente +48h' : 'Non signé';
-      }
-    } else {
-      // FACTURE
-      if (statut === 'paye' || statut === 'payé' || statut === 'payée') {
-        statutBg = '#f0fdf4'; statutColor = '#16a34a';
-        statutIcon = '💰'; statutLabel = 'Payée';
-      } else {
-        statutBg = '#fff7ed'; statutColor = '#ea580c';
-        statutIcon = '⏳'; statutLabel = 'En attente';
-      }
-    }
-
-    // ── TYPE BADGE ────────────────────────────────────────────
-    const typeBg = type === 'devis' ? 'rgba(59,130,246,0.1)' : 'rgba(16,185,129,0.1)';
-    const typeColor = type === 'devis' ? '#3b82f6' : '#10b981';
-    const typeLabel = type === 'devis' ? '📋 Devis' : '💶 Facture';
-
-    // ── ACTIONS ───────────────────────────────────────────────
-    let actions = '';
-    if (!isObat) {
-      if (type === 'devis') {
-        actions += `<button onclick="convertirEnFacture('${item.num}')" class="btn-small" style="background:rgba(16,185,129,0.12);color:#10b981;border-color:rgba(16,185,129,0.3);">→ Facture</button>`;
-        actions += `<button onclick="ouvrirPopupSig('${item.num}')" class="btn-small">✍️ Signer</button>`;
-      }
-      actions += `<button onclick="telechargerPDF('${item.num}')" class="btn-small">⬇️ PDF</button>`;
-      actions += `<button onclick="dupliquerDoc('${item.num}')" class="btn-small">📋 Dupliquer</button>`;
-      if (type === 'facture' && statut !== 'paye' && statut !== 'payé' && statut !== 'payée') {
-        actions += `<button onclick="marquerPaye('${item.num}','terminal')" class="btn-small" style="background:rgba(99,102,241,0.12);color:#6366f1;border-color:rgba(99,102,241,0.3);" title="CB Terminal SumUp">💳 Terminal</button>`;
-        actions += `<button onclick="marquerPaye('${item.num}','virement')" class="btn-small" style="background:rgba(16,185,129,0.1);color:#10b981;" title="Virement">🏦 Virement</button>`;
-        actions += `<button onclick="marquerPaye('${item.num}','especes')" class="btn-small" title="Espèces">💶 Espèces</button>`;
-        actions += `<button onclick="genererLienPaiement('${item.num}')" class="btn-small" style="background:rgba(16,185,129,0.1);color:#10b981;" title="Lien paiement SumUp">🔗 Lien CB</button>`;
-      }
-      actions += `<button onclick="supprimerDoc('${item.num}')" class="btn-small" style="background:rgba(239,68,68,0.1);color:#ef4444;border-color:rgba(239,68,68,0.2);">🗑️</button>`;
-    }
-
-    return `
-    <div style="background:var(--glass);backdrop-filter:blur(20px);border:1.5px solid ${alerte ? 'rgba(220,38,38,0.3)' : 'var(--border)'};border-radius:16px;padding:16px;margin-bottom:12px;transition:all 0.2s;">
-
-      <!-- LIGNE 1 : Numéro + Montant -->
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
-        <div>
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-            <span style="font-size:15px;font-weight:800;color:var(--accent);">${item.num}</span>
-            <span style="background:${typeBg};color:${typeColor};border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;">${typeLabel}</span>
-            ${isObat ? `<span style="background:rgba(107,114,128,0.1);color:var(--text-3);border-radius:6px;padding:2px 8px;font-size:10px;font-weight:600;">Obat</span>` : ''}
-          </div>
-          <div style="font-size:14px;font-weight:600;color:var(--text);margin-top:4px;">${item.client || '—'}</div>
-        </div>
-        <div style="font-size:20px;font-weight:900;color:var(--accent);white-space:nowrap;">${montant} €</div>
-      </div>
-
-      <!-- LIGNE 2 : Statut + Date -->
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
-        <span style="background:${statutBg};color:${statutColor};border-radius:8px;padding:5px 12px;font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:4px;">
-          ${statutIcon} ${statutLabel}
-        </span>
-        <span style="font-size:12px;color:var(--text-3);">📅 ${timeline}</span>
-      </div>
-
-      <!-- LIGNE 3 : Date intervention -->
-      ${!isObat ? `
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
-        <span style="font-size:12px;color:var(--text-3);font-weight:600;white-space:nowrap;">🔧 Intervention :</span>
-        <input type="date" value="${dateInterv}"
-          onchange="majDateIntervention('${item.num}', this.value)"
-          class="date-interv-input"
-          title="Date d'intervention réelle"
-          style="font-size:13px;padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;background:rgba(255,255,255,0.7);color:var(--text);outline:none;cursor:pointer;">
-        ${dateInterv ? `<span style="font-size:11px;color:#10b981;font-weight:600;">✓</span>` : `<span style="font-size:11px;color:var(--text-3);">à planifier</span>`}
-      </div>` : ''}
-
-      <!-- LIGNE 4 : Actions -->
-      <div style="display:flex;gap:6px;flex-wrap:wrap;">
-        ${actions}
-      </div>
-
-    </div>`;
-  }).join('');
-}
-
-// ─── DATE INTERVENTION ────────────────────────────────────────
-async function majDateIntervention(num, date) {
-  try {
-    const res = await fetch('/api/historique/' + num + '/statut', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ date_intervention: date || null })
-    });
-    const data = await res.json();
-    if (data.success) {
-      showToast('📅 Date intervention enregistrée', '✅');
-      // Mettre à jour en local sans rechargement
-      const item = historiqueData.find(i => i.num === num);
-      if (item) item.date_intervention = date || null;
-    }
-  } catch(e) {
-    showToast('❌ Erreur mise à jour date', '⚠️');
-  }
-}
-
-function getStatusBadge(statut, type) {
-  const s = (statut || '').toLowerCase();
-  const badges = {
-    'signe': '<span class="badge badge-success">✓ Signé</span>',
-    'signé': '<span class="badge badge-success">✓ Signé</span>',
-    'envoyé': '<span class="badge badge-info">✉ Envoyé</span>',
-    'envoye': '<span class="badge badge-info">✉ Envoyé</span>',
-    'payée': '<span class="badge badge-success">✓ Payée</span>',
-    'paye': '<span class="badge badge-success">✓ Payée</span>',
-    'payé': '<span class="badge badge-success">✓ Payée</span>',
-    'relancé': '<span class="badge badge-warning">🔄 Relancé</span>',
-    'facture': '<span class="badge badge-info">→ Facturé</span>',
-  };
-  return badges[s] || `<span style="color:var(--text-3);font-size:12px;">${statut}</span>`;
-}
-
-function getTimeline(date) {
-  if (!date) return 'N/A';
-  const d = new Date(date);
-  const now = new Date();
-  const diff = Math.floor((now - d) / 1000);
-  if (diff < 3600) return `il y a ${Math.floor(diff/60)} min`;
-  if (diff < 86400) return `il y a ${Math.floor(diff/3600)}h`;
-  if (diff < 604800) return `il y a ${Math.floor(diff/86400)} j`;
-  return d.toLocaleDateString('fr-FR');
-}
-
-async function supprimerDoc(num) {
-  const ok = await new Promise(resolve => {
-    const ov = document.createElement('div');
-    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
-    ov.innerHTML = `<div style="background:white;border-radius:20px;padding:28px;max-width:320px;width:88%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
-      <div style="font-size:40px;margin-bottom:12px;">🗑️</div>
-      <div style="font-size:16px;font-weight:800;color:#1B2A4A;margin-bottom:20px;">Supprimer ${num} ?</div>
-      <button id="sup-oui" style="width:100%;background:#ef4444;color:white;border:none;border-radius:12px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:10px;">Supprimer</button>
-      <button id="sup-non" style="width:100%;background:none;border:1px solid #eee;border-radius:12px;padding:12px;font-size:13px;color:#888;cursor:pointer;">Annuler</button>
-    </div>`;
-    document.body.appendChild(ov);
-    ov.querySelector('#sup-oui').onclick = () => { document.body.removeChild(ov); resolve(true); };
-    ov.querySelector('#sup-non').onclick = () => { document.body.removeChild(ov); resolve(false); };
-  });
-  if (!ok) return;
-  try {
-    const res = await fetch('/api/historique/' + num, { method: 'DELETE' });
-    const data = await res.json();
-    if (data.success) { showToast('🗑️ Supprimé', '✅'); chargerHistorique(); }
-  } catch(e) { showToast('❌ Erreur suppression', '⚠️'); }
-}
-
-async function convertirEnFacture(numDevis) {
-  if (!confirm(`Convertir le devis ${numDevis} en facture ?`)) return;
-  const devis = historiqueData.find(item => item.num === numDevis);
-  if (!devis) return;
-  showToast('⏳ Génération facture...', '💶');
-  try {
-    const res = await fetch('/api/generer', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type:'facture', client:devis.client||'', prenom:devis.prenom||'', email:devis.email||'', telephone:devis.telephone||'', adresse:devis.adresse||'', description:devis.description||'Travaux électricité', prestations:devis.prestations||[] })
-    });
-    const data = await res.json();
-    if (data.success) {
-      await fetch('/api/historique/' + numDevis + '/statut', { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ statut:'facture' }) });
-      shootConfetti();
-      showToast(`✅ Facture ${data.num} créée !`, '🎉');
-      setTimeout(chargerHistorique, 1500);
-    } else showToast('❌ ' + (data.error || 'Erreur'), '⚠️');
-  } catch(e) { showToast('❌ Erreur', '⚠️'); }
-}
-
-async function marquerPaye(num, mode) {
-  const labels = { terminal:'CB Terminal SumUp', virement:'Virement bancaire', especes:'Espèces' };
-  if (!confirm(`Confirmer paiement ${labels[mode]} pour ${num} ?`)) return;
-  showToast('⏳ Enregistrement...', '💰');
-  try {
-    const res = await fetch('/api/marquer-paye', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ num, mode_paiement:mode }) });
-    const data = await res.json();
-    if (data.success) { showToast(`✅ Paiement ${labels[mode]} enregistré !`, '💰'); setTimeout(chargerHistorique, 1500); }
-    else showToast('❌ ' + data.error, '⚠️');
-  } catch(e) { showToast('❌ Erreur', '⚠️'); }
-}
-
-async function genererLienPaiement(num) {
-  const choix = await new Promise(resolve => {
-    const ov = document.createElement('div');
-    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
-    ov.innerHTML = `<div style="background:white;border-radius:20px;padding:28px;max-width:340px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
-      <div style="font-size:20px;font-weight:800;color:#1B2A4A;margin-bottom:16px;text-align:center;">💳 Lien de paiement</div>
-      <button id="c-sms" style="width:100%;background:#1B2A4A;color:white;border:none;border-radius:12px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:8px;">📱 SMS</button>
-      <button id="c-email" style="width:100%;background:#C9A84C;color:white;border:none;border-radius:12px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:8px;">📧 Email</button>
-      <button id="c-les2" style="width:100%;background:rgba(16,185,129,0.1);color:#10b981;border:1px solid rgba(16,185,129,0.3);border-radius:12px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:12px;">📱 + 📧 Les deux</button>
-      <button id="c-ann" style="width:100%;background:none;border:1px solid #eee;border-radius:12px;padding:10px;font-size:13px;color:#888;cursor:pointer;">Annuler</button>
-    </div>`;
-    document.body.appendChild(ov);
-    ov.querySelector('#c-sms').onclick = () => { document.body.removeChild(ov); resolve('sms'); };
-    ov.querySelector('#c-email').onclick = () => { document.body.removeChild(ov); resolve('email'); };
-    ov.querySelector('#c-les2').onclick = () => { document.body.removeChild(ov); resolve('les2'); };
-    ov.querySelector('#c-ann').onclick = () => { document.body.removeChild(ov); resolve(null); };
-  });
-  if (!choix) return;
-  showToast('⏳ Génération lien...', '💳');
-  try {
-    const res = await fetch('/api/sumup/lien/' + num + '?envoi=' + choix, { method:'POST' });
-    const data = await res.json();
-    if (data.success) {
-      if (navigator.clipboard) await navigator.clipboard.writeText(data.lien).catch(() => {});
-      showToast('💳 Lien généré et envoyé !', '✅');
-    } else showToast('❌ ' + (data.error || 'Erreur SumUp'), '⚠️');
-  } catch(e) { showToast('❌ ' + e.message, '⚠️'); }
-}
-
-async function dupliquerDoc(num) {
-  const original = historiqueData.find(d => d.num === num);
-  if (!original) return;
-  showToast('⏳ Duplication...', '📋');
-  try {
-    const res = await fetch('/api/generer', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ type:original.type||'devis', client:original.client||'', prenom:original.prenom||'', email:original.email||'', telephone:original.telephone||'', adresse:original.adresse||'', description:original.description||'', prestations:original.prestations||[] })
-    });
-    const data = await res.json();
-    if (data.success) { showToast(`✅ Dupliqué → ${data.num}`, '📋'); setTimeout(chargerHistorique, 1000); }
-    else showToast('❌ ' + (data.error || 'Erreur'), '⚠️');
-  } catch(e) { showToast('❌ ' + e.message, '⚠️'); }
-}
-
-async function telechargerPDF(num) {
-  showToast('⏳ Génération PDF...', '📄');
-  try {
-    const res = await fetch(`/api/pdf/${num}`);
-    if (!res.ok) throw new Error('PDF non disponible');
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = `${num}.pdf`; a.click();
-    URL.revokeObjectURL(url);
-    showToast('✅ PDF téléchargé !', '📥');
-  } catch(e) { showToast('❌ ' + e.message, '⚠️'); }
-}
-
-// ─── POPUP SIGNATURE ──────────────────────────────────────────
-let popupSigCanvas, popupSigCtx, popupIsDrawing = false;
-let currentDevisNum = null;
-
-function ouvrirPopupSig(numDevis) {
-  currentDevisNum = numDevis;
-  document.getElementById('popup-signature').classList.add('active');
-  setTimeout(() => {
-    popupSigCanvas = document.getElementById('popup-sig-canvas');
-    if (!popupSigCanvas) return;
-    popupSigCtx = popupSigCanvas.getContext('2d');
-    popupSigCtx.strokeStyle = '#111'; popupSigCtx.lineWidth = 2; popupSigCtx.lineCap = 'round';
-    const getPos = e => { const r = popupSigCanvas.getBoundingClientRect(); const sx = popupSigCanvas.width/r.width; const sy = popupSigCanvas.height/r.height; return e.touches ? {x:(e.touches[0].clientX-r.left)*sx, y:(e.touches[0].clientY-r.top)*sy} : {x:(e.clientX-r.left)*sx, y:(e.clientY-r.top)*sy}; };
-    popupSigCanvas.addEventListener('mousedown', e => { popupIsDrawing=true; popupSigCtx.beginPath(); const p=getPos(e); popupSigCtx.moveTo(p.x,p.y); });
-    popupSigCanvas.addEventListener('mousemove', e => { if(!popupIsDrawing) return; const p=getPos(e); popupSigCtx.lineTo(p.x,p.y); popupSigCtx.stroke(); });
-    popupSigCanvas.addEventListener('mouseup', () => popupIsDrawing=false);
-    popupSigCanvas.addEventListener('touchstart', e => { e.preventDefault(); popupIsDrawing=true; popupSigCtx.beginPath(); const p=getPos(e); popupSigCtx.moveTo(p.x,p.y); }, {passive:false});
-    popupSigCanvas.addEventListener('touchmove', e => { e.preventDefault(); if(!popupIsDrawing) return; const p=getPos(e); popupSigCtx.lineTo(p.x,p.y); popupSigCtx.stroke(); }, {passive:false});
-    popupSigCanvas.addEventListener('touchend', () => popupIsDrawing=false);
-  }, 100);
-}
-
-function effacerPopupSig() { if(popupSigCtx && popupSigCanvas) popupSigCtx.clearRect(0,0,popupSigCanvas.width,popupSigCanvas.height); }
-function fermerPopupSig() { document.getElementById('popup-signature').classList.remove('active'); currentDevisNum=null; }
-
-async function validerPopupSig() {
-  if (!popupSigCanvas || !currentDevisNum) return;
-  try {
-    const res = await fetch('/api/signature', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ num:currentDevisNum, signature:popupSigCanvas.toDataURL('image/png') }) });
-    const data = await res.json();
-    if (data.success) { showToast('✅ Signature enregistrée !', '✍️'); fermerPopupSig(); chargerHistorique(); }
-    else document.getElementById('popup-sig-status').textContent = '❌ Erreur';
-  } catch(e) { document.getElementById('popup-sig-status').textContent = '❌ ' + e.message; }
-}
-
-// ═══════════════════════════════════════════════════
-// DASHBOARD
-// ═══════════════════════════════════════════════════
-let chartCA = null;
-
-async function chargerDashboard() {
-  try {
-    const res = await fetch('/api/ca-complet');
-    const data = await res.json();
-    const now = new Date();
-    const annee = now.getFullYear();
-    const moisCourant = `${annee}-${String(now.getMonth()+1).padStart(2,'0')}`;
-    const factures = data.filter(d => d.type === 'facture');
-    factures.forEach(f => { if (!f.created_at && f.date_facture) f.created_at = f.date_facture + 'T00:00:00.000Z'; });
-    const devis = data.filter(d => d.type === 'devis');
-    const facMois = factures.filter(f => (f.created_at||'').startsWith(moisCourant));
-    const caMois = facMois.reduce((s,f) => s+parseFloat(f.total_ht||0), 0);
-    const caAnnee = factures.filter(f => (f.created_at||'').startsWith(annee.toString())).reduce((s,f) => s+parseFloat(f.total_ht||0), 0);
-    const caAttente = devis.filter(d => d.statut==='envoyé'||d.statut==='envoye').reduce((s,d) => s+parseFloat(d.total_ht||0), 0);
-    const panierMoyen = factures.length > 0 ? caAnnee / factures.filter(f=>(f.created_at||'').startsWith(annee.toString())).length : 0;
-    document.getElementById('dash-mois-ca').textContent = Math.round(caMois).toLocaleString('fr-FR');
-    document.getElementById('dash-annee-ca').textContent = Math.round(caAnnee).toLocaleString('fr-FR');
-    document.getElementById('dash-devis-attente').textContent = Math.round(caAttente).toLocaleString('fr-FR');
-    document.getElementById('dash-panier-moyen').textContent = Math.round(panierMoyen).toLocaleString('fr-FR');
-    // Graphique 6 mois
-    const labels=[], vals=[];
-    for(let i=5;i>=0;i--){
-      const d=new Date(now.getFullYear(),now.getMonth()-i,1);
-      const mKey=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-      labels.push(d.toLocaleDateString('fr-FR',{month:'short'}));
-      vals.push(Math.round(factures.filter(f=>(f.created_at||'').startsWith(mKey)).reduce((s,f)=>s+parseFloat(f.total_ht||0),0)));
-    }
-    if (chartCA) { chartCA.destroy(); chartCA=null; }
-    const ctx = document.getElementById('chart-ca')?.getContext('2d');
-    if (ctx) {
-      chartCA = new Chart(ctx, { type:'bar', data:{ labels, datasets:[{label:'CA facturé',data:vals,backgroundColor:'#d4a574',borderRadius:6}] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{ticks:{color:'#9d8f7f',font:{size:11}},grid:{display:false},border:{display:false}}, y:{ticks:{color:'#9d8f7f',font:{size:11},callback:v=>v.toLocaleString('fr-FR')+'€'},grid:{color:'rgba(218,165,32,0.08)'},border:{display:false}} } } });
-    }
-    // Top prestations
-    const prestMap={};
-    factures.forEach(f => { (f.prestations||[]).forEach(p => { const nom=p.nom||p.designation||''; if(!nom) return; prestMap[nom]=(prestMap[nom]||{nb:0,ca:0}); prestMap[nom].nb++; prestMap[nom].ca+=parseFloat(p.prix||0)*(p.quantite||1); }); });
-    const prestSort=Object.entries(prestMap).sort((a,b)=>b[1].ca-a[1].ca).slice(0,5);
-    const maxP=prestSort[0]?.[1].ca||1;
-    document.getElementById('dash-top-prests').innerHTML = prestSort.length>0 ? prestSort.map(([nom,v])=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;"><div style="font-size:12px;color:var(--text-2);width:170px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${nom} <span style="color:var(--text-3);">×${v.nb}</span></div><div style="flex:1;height:8px;background:rgba(255,255,255,0.1);border-radius:4px;overflow:hidden;"><div style="height:100%;width:${Math.round((v.ca/maxP)*100)}%;background:linear-gradient(90deg,#1B2A4A,var(--accent));border-radius:4px;"></div></div><div style="font-size:12px;font-weight:700;color:var(--accent);width:65px;text-align:right;">${Math.round(v.ca).toLocaleString('fr-FR')} €</div></div>`).join('') : '<div style="color:var(--text-3);text-align:center;padding:20px;">Aucune facture</div>';
-  } catch(e) { console.error('Dashboard:', e); }
-}
-
-// ═══════════════════════════════════════════════════
-// AGENDA
-// ═══════════════════════════════════════════════════
-let agendaInterventions = [];
-
-async function chargerAgenda() {
-  const liste = document.getElementById('agenda-liste');
-  if (liste) liste.innerHTML = '<div class="panier-empty">Chargement...</div>';
-  try {
-    const res = await fetch('/api/agenda');
-    agendaInterventions = await res.json();
-    afficherListeAgenda();
-  } catch(e) { if (liste) liste.innerHTML = `<div class="panier-empty" style="color:var(--error);">❌ ${e.message}</div>`; }
-}
-
-function afficherListeAgenda() {
-  const liste = document.getElementById('agenda-liste');
-  if (!liste) return;
-  const today = new Date(); today.setHours(0,0,0,0);
-  const todayStr = today.toISOString().split('T')[0];
-  const intervs = agendaInterventions.filter(iv => (iv.date_intervention||'') >= todayStr).sort((a,b) => (a.date_intervention+'T'+(a.heure||'00:00')).localeCompare(b.date_intervention+'T'+(b.heure||'00:00')));
-  if (intervs.length === 0) { liste.innerHTML = '<div class="panier-empty">Aucune intervention à venir</div>'; return; }
-  liste.innerHTML = intervs.map(iv => {
-    const nom = iv.client || `${iv.prenom||''} ${iv.nom||''}`.trim() || 'Client';
-    const adresseEnc = iv.adresse ? encodeURIComponent(iv.adresse) : '';
-    return `
-    <div style="background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:10px;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
-        <div><div style="font-size:15px;font-weight:700;">${nom}</div>${iv.adresse?`<div style="font-size:12px;color:var(--text-3);">${iv.adresse}</div>`:''}</div>
-        <span class="badge badge-info">${iv.statut||'planifié'}</span>
-      </div>
-      <div style="font-size:12px;color:var(--text-2);margin-bottom:10px;">📅 ${iv.date_intervention||'—'} à ${iv.heure||'—'} · ${iv.type_intervention||''}</div>
-      ${iv.notes?`<div style="font-size:12px;color:var(--text-3);margin-bottom:10px;">💬 ${iv.notes}</div>`:''}
-      <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        ${iv.telephone?`<a href="tel:${iv.telephone}" style="background:rgba(59,130,246,0.1);color:#3b82f6;border:1px solid rgba(59,130,246,0.3);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;text-decoration:none;">📞 ${iv.telephone}</a>`:''}
-        ${iv.adresse?`<a href="https://waze.com/ul?q=${adresseEnc}&navigate=yes" target="_blank" style="background:#1da46222;color:#1da462;border:1px solid #1da46244;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;text-decoration:none;">🔵 Waze</a>`:''}
-        <button onclick="changerStatutIntervention('${iv.id}','terminé')" class="btn-small" style="background:rgba(16,185,129,0.1);color:#10b981;border-color:rgba(16,185,129,0.3);">✅ Terminé</button>
-        <button onclick="supprimerIntervention('${iv.id}')" class="btn-small" style="background:rgba(239,68,68,0.1);color:#ef4444;border-color:rgba(239,68,68,0.2);">🗑️</button>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-async function changerStatutIntervention(id, statut) {
-  try {
-    await fetch(`/api/agenda/${id}/statut`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({statut}) });
-    showToast(`✅ Marqué "${statut}"`, '📅');
-    chargerAgenda();
-  } catch(e) { showToast('❌ Erreur', '⚠️'); }
-}
-
-async function supprimerIntervention(id) {
-  if (!confirm('Supprimer cette intervention ?')) return;
-  try {
-    await fetch(`/api/agenda/${id}`, { method:'DELETE' });
-    showToast('🗑️ Supprimée', '✅');
-    chargerAgenda();
-  } catch(e) { showToast('❌ Erreur', '⚠️'); }
-}
 
 // ═══════════════════════════════════════════════════
 // CLIENTS
 // ═══════════════════════════════════════════════════
-let clientsData = [];
 
-async function chargerClients() {
-  const container = document.getElementById('clients-list');
-  if (!container) return;
-  container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-3);">Chargement...</div>';
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+const anthropic = new Anthropic({ apiKey: (process.env.ANTHROPIC_API_KEY || '').trim() });
+const BREVO_API_KEY = process.env.BREVO_API_KEY;
+const SUMUP_API_KEY = process.env.SUMUP_API_KEY;
+
+// ═══════════════════════════════════════════════════
+// HEALTHCHECK
+// ═══════════════════════════════════════════════════
+
+app.get('/', (req, res) => res.send('OK SINELEC OS v2.0'));
+app.get('/health', (req, res) => res.json({ status: 'ok', service: 'SINELEC OS v2.0' }));
+
+// ═══════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════
+
+async function logSystem(type, message, data = null, success = true, error = null) {
   try {
-    const [resClients, resHisto] = await Promise.all([fetch('/api/clients'), fetch('/api/historique')]);
-    clientsData = await resClients.json();
-    const histo = await resHisto.json();
-    clientsData = clientsData.map(c => {
-      const nomNorm = (c.nom||'').toLowerCase().split(' ')[0];
-      const interventions = (histo||[]).filter(h => ((h.client||'')+(h.prenom||'')).toLowerCase().includes(nomNorm));
-      const ca = interventions.filter(h=>h.type==='facture').reduce((s,h)=>s+parseFloat(h.total_ht||0),0);
-      return {...c, _interventions:interventions, _ca:ca};
+    await supabase.from('logs_system').insert({ type, message, data, success, error_details: error ? String(error) : null });
+  } catch(e) {}
+}
+
+async function envoyerEmail(to, subject, htmlContent, attachment = null) {
+  if (CONFIG.dev.skip_email) { console.log('Email skippé:', to); return { skipped: true }; }
+  const payload = {
+    sender: { name: CONFIG.email.sender_name, email: CONFIG.email.sender_email },
+    to: [{ email: to }], subject, htmlContent, trackOpens: 0, trackClicks: 0,
+  };
+  if (attachment) payload.attachment = [{ content: attachment.content, name: attachment.name }];
+  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: { 'accept': 'application/json', 'api-key': BREVO_API_KEY, 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) { const err = await res.text(); throw new Error('Brevo: ' + err); }
+  return await res.json();
+}
+
+async function envoyerSMS(to, message) {
+  if (!to || String(to).length < 8) return;
+  let num = String(to).replace(/[\s\-\.]/g, '');
+  if (num.startsWith('0')) num = '+33' + num.substring(1);
+  if (!num.startsWith('+')) num = '+33' + num;
+  try {
+    const res = await fetch('https://api.brevo.com/v3/transactionalSMS/sms', {
+      method: 'POST',
+      headers: { 'accept': 'application/json', 'api-key': BREVO_API_KEY, 'content-type': 'application/json' },
+      body: JSON.stringify({ sender: 'SINELEC', recipient: num, content: message, type: 'transactional' }),
     });
-    renderListeClients(clientsData);
-  } catch(e) { container.innerHTML = `<div style="color:var(--error);text-align:center;padding:40px;">❌ ${e.message}</div>`; }
+    if (!res.ok) console.error('SMS error:', await res.text());
+    else console.log('SMS envoyé à', num);
+  } catch(e) { console.error('SMS error:', e.message); }
 }
 
-function renderListeClients(liste) {
-  const container = document.getElementById('clients-list');
-  if (!container) return;
-  if (!liste.length) { container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-3);">Aucun client</div>'; return; }
-  container.innerHTML = liste.map(c => `
-    <div style="background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:all 0.2s;" onmouseenter="this.style.borderColor='var(--accent)'" onmouseleave="this.style.borderColor='var(--border)'">
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div>
-          <div style="font-size:14px;font-weight:700;">${c.nom||'—'}</div>
-          ${c.telephone?`<div style="font-size:12px;color:var(--text-3);">📞 ${c.telephone}</div>`:''}
-          ${c.email?`<div style="font-size:11px;color:var(--text-3);">${c.email}</div>`:''}
-        </div>
-        <div style="text-align:right;">
-          <div style="font-size:15px;font-weight:800;color:var(--accent);">${(c._ca||0).toFixed(0)} €</div>
-          <div style="font-size:11px;color:var(--text-3);">${c._interventions?.length||0} inter.</div>
-        </div>
-      </div>
-    </div>`).join('');
+async function incrementerCompteur(type) {
+  const { data, error } = await supabase.from('compteurs').select('valeur').eq('type', type).single();
+  if (error || !data) { await supabase.from('compteurs').insert({ type, valeur: 1 }); return 1; }
+  const val = data.valeur + 1;
+  await supabase.from('compteurs').update({ valeur: val }).eq('type', type);
+  return val;
 }
 
-function filtrerClients(query) {
-  const q = query.toLowerCase();
-  renderListeClients(q ? clientsData.filter(c => (c.nom||'').toLowerCase().includes(q)||(c.telephone||'').includes(q)||(c.email||'').toLowerCase().includes(q)) : clientsData);
+async function chargerGrilleTarifaire() {
+  const { data, error } = await supabase.from('grille_tarifaire').select('*').eq('actif', true).order('categorie, nom');
+  if (error) return null;
+  const grille = {};
+  data.forEach(item => {
+    if (!grille[item.categorie]) grille[item.categorie] = [];
+    grille[item.categorie].push({ code: item.code, nom: item.nom, prix: item.prix_ht });
+  });
+  return grille;
 }
 
 // ═══════════════════════════════════════════════════
-// SANTÉ SYSTÈME
+// API: GÉNÉRATION DEVIS/FACTURE
 // ═══════════════════════════════════════════════════
-async function chargerSante() {
+
+app.post('/api/generer', async (req, res) => {
+  if (!CONFIG.features.devis_factures) return res.status(403).json({ error: 'Feature désactivée' });
   try {
-    const res = await fetch('/api/sante');
-    const data = await res.json();
-    const global = data.global === 'ok';
-    document.getElementById('sante-global-icon').textContent = global ? '✅' : '⚠️';
-    document.getElementById('sante-global-text').textContent = global ? 'Tous les services OK' : 'Un ou plusieurs services en erreur';
-    document.getElementById('sante-global-text').style.color = global ? '#16a34a' : '#dc2626';
-    const container = document.getElementById('sante-services');
-    const labels = { brevo_email:'📧 Email', brevo_sms:'📱 SMS', sumup:'💳 SumUp', supabase:'🗄️ Base de données', claude_api:'🤖 Claude API', pdf_python:'📄 PDF' };
-    container.innerHTML = Object.entries(data.services||{}).map(([k,v]) => {
-      const ok=v.status==='ok'; const unk=v.status==='unknown';
-      const color=unk?'#f59e0b':ok?'#16a34a':'#dc2626';
-      const bg=unk?'#fef9ec':ok?'#f0fdf4':'#fef2f2';
-      return `<div style="background:${bg};border-radius:14px;padding:14px;">
-        <div style="font-size:13px;font-weight:700;margin-bottom:6px;">${labels[k]||k}</div>
-        <div style="font-size:12px;font-weight:600;color:${color};">● ${unk?'Non vérifié':ok?'OK':'Erreur'}</div>
-        ${v.uptime_pct!=null?`<div style="font-size:11px;color:#888;margin-top:3px;">Uptime: ${v.uptime_pct}%</div>`:''}
-      </div>`;
-    }).join('');
-  } catch(e) { document.getElementById('sante-global-text').textContent = '❌ Impossible de charger'; }
+    const { type, client, email, telephone, adresse, complement, codePostal, ville, prenom, description, prestations } = req.body;
+    const compteur = await incrementerCompteur(type);
+    const annee = new Date().getFullYear();
+    const mois = String(new Date().getMonth() + 1).padStart(2, '0');
+    const num = type === 'devis' ? `OS-${annee}${mois}-${String(compteur).padStart(3, '0')}` : `${annee}${mois}-${String(compteur).padStart(3, '0')}`;
+    const total_ht = prestations.reduce((sum, p) => sum + (p.prix * p.quantite), 0);
+
+    await supabase.from('historique').insert({ num, type, client, email, telephone, adresse, prestations, total_ht, statut: 'envoyé', date_envoi: new Date().toISOString(), source: 'app' });
+
+    if (CONFIG.features.email_auto && email) {
+      const typeLabelUpper = type === 'devis' ? 'DEVIS' : 'FACTURE';
+      const dateStr = new Date().toLocaleDateString('fr-FR');
+      const dateValide = new Date(Date.now() + 30*24*60*60*1000).toLocaleDateString('fr-FR');
+      const detailsPath = path.join(__dirname, `_details_${num}.json`);
+      const pyPath = path.join(__dirname, `_devis_${num}.py`);
+      const pdfPath = path.join(__dirname, `${num}.pdf`);
+
+      const detailsData = prestations.map(p => ({ designation: p.nom, qte: p.quantite, prixUnit: p.prix, total: p.prix * p.quantite, details: p.desc ? [p.desc] : [] }));
+      fs.writeFileSync(detailsPath, JSON.stringify(detailsData));
+
+      const clientEsc = String(client || '').replace(/'/g, ' ');
+      const clientComplement = String(complement || '').replace(/'/g, ' ').trim();
+      const clientTel = String(telephone || '').trim();
+      const adresseRaw = String(adresse || '').replace(/'/g, ' ').trim();
+      const adresseParts = adresseRaw.split(',').map(s => s.trim()).filter(Boolean);
+      const clientRue = adresseParts.length >= 2 && adresseParts[0].match(/^\d+$/) ? adresseParts[0] + ' ' + adresseParts[1] : adresseParts[0] || '';
+      const cpMatch = adresseRaw.match(/\b(\d{5})\b/);
+      const clientCP = String(codePostal || '').trim() || (cpMatch ? cpMatch[1] : '');
+      const villeManuelle = String(ville || '').trim();
+      const villeGPS = adresseParts.find(p => p.length > 2 && p.length < 30 && !p.match(/^\d{5}/) && !p.toLowerCase().includes('france')) || '';
+      const clientCPVille = [clientCP, villeManuelle || villeGPS].filter(Boolean).join(' ');
+      const descObjet = String(description || 'Travaux d electricite generale').trim().replace(/'/g, ' ');
+
+      const py = `# -*- coding: utf-8 -*-
+import json, base64, io, sys
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.units import cm
+from reportlab.platypus import *
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
+from reportlab.pdfgen import canvas as pdfcanvas
+from reportlab.lib.utils import ImageReader
+from reportlab.platypus.flowables import HRFlowable
+W,H=A4
+MARINE=colors.HexColor('#1B2A4A'); OR=colors.HexColor('#C9A84C')
+OR_PALE=colors.HexColor('#FBF7EC'); OR_FONCE=colors.HexColor('#A07830')
+BLANC=colors.white; CREME=colors.HexColor('#FDFCF9')
+GRIS_TEXTE=colors.HexColor('#3A3A3A'); GRIS_SOFT=colors.HexColor('#777777')
+GRIS_LIGNE=colors.HexColor('#E0DDD6'); GRIS_BG=colors.HexColor('#F5F4F0')
+def p(txt,sz=9,font='Helvetica',color=GRIS_TEXTE,align=TA_LEFT,sb=0,sa=2,leading=None):
+    if leading is None: leading=sz*1.35
+    return Paragraph(str(txt),ParagraphStyle('s',fontName=font,fontSize=sz,textColor=color,alignment=align,spaceBefore=sb,spaceAfter=sa,leading=leading,wordWrap='CJK'))
+data=json.loads(open(sys.argv[1],encoding='utf-8').read())
+totalHT=sum(l['total'] for l in data)
+logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
+class SC(pdfcanvas.Canvas):
+    def __init__(self,fn,**kw):
+        pdfcanvas.Canvas.__init__(self,fn,**kw); self._pg=0; self.saveState(); self._draw_page()
+    def showPage(self):
+        self._draw_footer(); pdfcanvas.Canvas.showPage(self); self._pg+=1
+    def save(self):
+        pdfcanvas.Canvas.save(self)
+    def _draw_page(self):
+        self.saveState()
+        self.setFillColor(CREME); self.rect(0,0,W,H,fill=1,stroke=0)
+        self.setFillColor(MARINE); self.rect(0,0,0.7*cm,H,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0.7*cm,0,0.08*cm,H,fill=1,stroke=0)
+        if self._pg==0: self._draw_header()
+        else: self._draw_header_small()
+        self.restoreState()
+    def _draw_header(self):
+        self.setFillColor(MARINE); self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,5.4*cm,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,0.12*cm,fill=1,stroke=0)
+        self.drawImage(ImageReader(io.BytesIO(logo_bytes)),0.9*cm,H-5.05*cm,width=4.2*cm,height=4.2*cm,preserveAspectRatio=True,mask='auto')
+        self.setFont('Helvetica-Bold',15); self.setFillColor(colors.white); self.drawString(5.9*cm,H-1.7*cm,'SINELEC PARIS')
+        self.setFont('Helvetica-Bold',9); self.setFillColor(colors.white); self.drawString(5.9*cm,H-2.5*cm,'128 Rue La Boetie, 75008 Paris')
+        self.setFont('Helvetica',8.5); self.setFillColor(colors.HexColor('#BFC8D6'))
+        self.drawString(5.9*cm,H-3.0*cm,'Tel : 07 87 38 86 22'); self.drawString(5.9*cm,H-3.4*cm,'sinelec.paris@gmail.com')
+        self.setFillColor(colors.HexColor('#243660')); self.roundRect(5.9*cm,H-4.15*cm,5.5*cm,0.55*cm,0.1*cm,fill=1,stroke=0)
+        self.setFont('Helvetica-Bold',8); self.setFillColor(OR); self.drawString(6.1*cm,H-3.88*cm,'SIRET : 91015824500019')
+        self.setFont('Helvetica-Bold',40); self.setFillColor(BLANC); self.drawRightString(W-1.2*cm,H-2.2*cm,'${typeLabelUpper}')
+        self.setStrokeColor(OR); self.setLineWidth(1.5); self.line(13*cm,H-2.65*cm,W-1.2*cm,H-2.65*cm)
+        self.setFillColor(OR); self.roundRect(W-6.5*cm,H-3.55*cm,5.3*cm,0.65*cm,0.15*cm,fill=1,stroke=0)
+        self.setFont('Helvetica-Bold',9); self.setFillColor(MARINE); self.drawCentredString(W-3.85*cm,H-3.22*cm,'N\\u00b0 ${num}')
+        self.setFont('Helvetica',8); self.setFillColor(colors.HexColor('#BFC8D6')); self.drawRightString(W-1.2*cm,H-3.9*cm,'Date : ${dateStr}   |   Valable : ${dateValide}')
+    def _draw_header_small(self):
+        self.setFillColor(MARINE); self.rect(0.78*cm,H-1.5*cm,W-0.78*cm,1.5*cm,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0.78*cm,H-1.5*cm,W-0.78*cm,0.08*cm,fill=1,stroke=0)
+        self.setFont('Helvetica-Bold',10); self.setFillColor(BLANC); self.drawString(1.4*cm,H-1.0*cm,'SINELEC')
+        self.setFont('Helvetica',8); self.setFillColor(OR); self.drawRightString(W-1.2*cm,H-1.0*cm,'${typeLabelUpper} N\\u00b0 ${num}')
+    def _draw_footer(self):
+        self.saveState()
+        self.setFillColor(MARINE); self.rect(0,0,W,1.0*cm,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0,1.0*cm,W,0.08*cm,fill=1,stroke=0)
+        self.setFont('Helvetica',6.5); self.setFillColor(colors.HexColor('#8899BB'))
+        self.drawCentredString(W/2,0.5*cm,'SINELEC EI  \\u2022  128 Rue La Boetie, 75008 Paris  \\u2022  SIRET : 91015824500019  \\u2022  TVA non applicable art. 293B CGI')
+        self.setFont('Helvetica-Bold',7); self.setFillColor(OR); self.drawRightString(W-1.2*cm,0.28*cm,'${num}')
+        self.restoreState()
+doc=SimpleDocTemplate(sys.argv[2],pagesize=A4,leftMargin=1.2*cm,rightMargin=1.0*cm,topMargin=5.6*cm,bottomMargin=1.6*cm)
+story=[]
+objet_b=Table([[p('OBJET DES TRAVAUX',7.5,'Helvetica-Bold',OR,sa=4)],[p('${descObjet}',10,'Helvetica-Bold',MARINE)],[p('Conformes NF C 15-100  \\u2022  Garantie decennale ORUS',7.5,color=GRIS_SOFT)]],colWidths=[8.2*cm])
+objet_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3),('LEFTPADDING',(0,0),(-1,-1),0),('LINEABOVE',(0,0),(0,0),2.5,MARINE),('TOPPADDING',(0,0),(0,0),10)]))
+client_rows=[[p('CLIENT',7,'Helvetica-Bold',OR,sa=4)],[p('${clientEsc}',10,'Helvetica-Bold',MARINE)]]
+if '${clientRue}': client_rows.append([p('${clientRue}',8.5,color=GRIS_TEXTE)])
+if '${clientComplement}': client_rows.append([p('${clientComplement}',8.5,color=GRIS_TEXTE)])
+if '${clientCPVille}': client_rows.append([p('${clientCPVille}',8.5,color=GRIS_TEXTE)])
+if '${clientTel}': client_rows.append([p('Tel : ${clientTel}',8.5,color=GRIS_SOFT)])
+client_b=Table(client_rows,colWidths=[9.0*cm])
+client_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('BACKGROUND',(0,0),(-1,-1),OR_PALE),('BOX',(0,0),(-1,-1),1,OR),('LINEBEFORE',(0,0),(0,-1),4,MARINE),('TOPPADDING',(0,0),(0,0),10),('BOTTOMPADDING',(0,-1),(-1,-1),10)]))
+story.append(Table([[objet_b,client_b]],colWidths=[8.7*cm,9.5*cm],style=TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)])))
+story.append(Spacer(1,0.6*cm))
+cw=[0.7*cm,9.5*cm,1.5*cm,0.9*cm,2.4*cm,3.2*cm]
+rows=[[p('#',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('DESIGNATION',7.5,'Helvetica-Bold',BLANC),p('QTE',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('U.',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('PRIX U. HT',7.5,'Helvetica-Bold',BLANC,TA_RIGHT),p('TOTAL HT',7.5,'Helvetica-Bold',BLANC,TA_RIGHT)]]
+for i,l in enumerate(data):
+    q=int(l['qte']) if l['qte']==int(l['qte']) else l['qte']
+    rows.append([p(str(i+1),9,color=OR,align=TA_CENTER),p('<b>'+l['designation']+'</b>',9,color=MARINE),p(str(q),9,align=TA_CENTER),p('u.',9,align=TA_CENTER,color=GRIS_SOFT),p('%.2f \\u20ac'%l['prixUnit'],9,align=TA_RIGHT),p('<b>%.2f \\u20ac</b>'%l['total'],9,'Helvetica-Bold',MARINE,TA_RIGHT)])
+    for det in l.get('details',[]):
+        rows.append(['',p('   - '+det,7.5,'Helvetica-Oblique',color=GRIS_SOFT),'','','',''])
+t=Table(rows,colWidths=cw)
+ts=[('BACKGROUND',(0,0),(-1,0),MARINE),('LINEBELOW',(0,0),(-1,0),2.5,OR),('VALIGN',(0,0),(-1,-1),'TOP'),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),('LEFTPADDING',(0,0),(-1,-1),7),('RIGHTPADDING',(0,0),(-1,-1),7),('BOX',(0,0),(-1,-1),0.3,GRIS_LIGNE)]
+row_idx=1; bg=True
+for l in data:
+    nb=1+len(l.get('details',[])); c=BLANC if bg else GRIS_BG
+    ts.append(('BACKGROUND',(0,row_idx),(-1,row_idx+nb-1),c)); ts.append(('LINEBELOW',(0,row_idx+nb-1),(-1,row_idx+nb-1),0.3,GRIS_LIGNE))
+    row_idx+=nb; bg=not bg
+t.setStyle(TableStyle(ts)); story.append(t); story.append(Spacer(1,0.15*cm))
+tt=Table([['',p('Total HT',9,color=GRIS_SOFT,align=TA_RIGHT),p('%.2f \\u20ac'%totalHT,9,'Helvetica-Bold',GRIS_TEXTE,TA_RIGHT)],['',p('TVA',9,color=GRIS_SOFT,align=TA_RIGHT),p('Non applicable (art. 293B)',8,color=GRIS_SOFT,align=TA_RIGHT)]],colWidths=[9.0*cm,4.5*cm,4.7*cm])
+tt.setStyle(TableStyle([('LINEABOVE',(1,0),(-1,0),0.5,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('LEFTPADDING',(0,0),(-1,-1),6),('RIGHTPADDING',(0,0),(-1,-1),6)]))
+story.append(tt); story.append(Spacer(1,0.12*cm))
+net=Table([[p('NET \\u00c0 PAYER',13,'Helvetica-Bold',BLANC),p('%.2f \\u20ac'%totalHT,16,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
+net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('LINEBELOW',(0,0),(-1,-1),3,OR),('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
+story.append(net); story.append(Spacer(1,0.35*cm))
+story.append(HRFlowable(width='100%',thickness=0.3,color=GRIS_LIGNE,spaceAfter=8))
+story.append(p('CONDITIONS',8,'Helvetica-Bold',MARINE,sa=6))
+cond=Table([[p('Acompte 40% a la signature',9,color=GRIS_TEXTE),p('%.2f \\u20ac'%(totalHT*0.4),9,'Helvetica-Bold',OR_FONCE,TA_RIGHT)],[p('Solde a la fin des travaux',9,color=GRIS_TEXTE),p('%.2f \\u20ac'%(totalHT*0.6),9,align=TA_RIGHT)],[p('Validite 30 jours  \\u2022  Virement, especes, CB',8,color=GRIS_SOFT),'']],colWidths=[14.2*cm,4.0*cm])
+cond.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,1),0.3,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),('SPAN',(0,2),(1,2))]))
+story.append(cond); story.append(Spacer(1,0.15*cm))
+iban=Table([[p('IBAN',7,'Helvetica-Bold',GRIS_SOFT),p('FR76 1695 8000 0174 2540 5920 931',9,'Helvetica-Bold',MARINE),p('BIC',7,'Helvetica-Bold',GRIS_SOFT,TA_RIGHT),p('QNTOFRP1XXX',9,'Helvetica-Bold',MARINE,TA_RIGHT)]],colWidths=[1.5*cm,9.5*cm,1.8*cm,5.4*cm])
+iban.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),OR_PALE),('BOX',(0,0),(-1,-1),0.5,OR),('LINEBEFORE',(0,0),(0,-1),4,MARINE),('TOPPADDING',(0,0),(-1,-1),9),('BOTTOMPADDING',(0,0),(-1,-1),9),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
+story.append(iban)
+doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw))
+print('PDF_OK')
+`;
+      fs.writeFileSync(pyPath, py, 'utf8');
+      try {
+        execSync(`python3 ${pyPath} ${detailsPath} ${pdfPath}`, { cwd: __dirname, stdio: 'inherit' });
+      } catch(pyErr) { throw new Error('PDF generation failed: ' + pyErr.message); }
+
+      const pdfB64 = fs.readFileSync(pdfPath).toString('base64');
+      const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+      const lienSig = `${appUrl}/signer/${num}`;
+      const htmlFinal = (type === 'devis' ? CONFIG.email.template_devis : CONFIG.email.template_facture).replace(/\{num\}/g, num).replace(/\{lien_signature\}/g, lienSig);
+      await envoyerEmail(email, `${type === 'devis' ? 'Devis' : 'Facture'} SINELEC ${num}`, htmlFinal, { content: pdfB64, name: `${num}.pdf` });
+      try { await envoyerEmail('sinelec.paris@gmail.com', `${type === 'devis' ? '📋 DEVIS' : '💶 FACTURE'} ${num} — ${client} — ${parseFloat(total_ht).toFixed(0)}€`, `<p>Client: ${client} | Montant: ${parseFloat(total_ht).toFixed(2)}€</p>`, { content: pdfB64, name: `${num}.pdf` }); } catch(e) {}
+      try { fs.unlinkSync(pyPath); } catch(e) {}
+      try { fs.unlinkSync(detailsPath); } catch(e) {}
+      try { fs.unlinkSync(pdfPath); } catch(e) {}
+    }
+
+    // ⚠️ Pas de SMS avis Google ici — envoyé uniquement au moment du paiement
+
+    res.json({ success: true, num, total_ht });
+  } catch(error) {
+    console.error('Erreur génération:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════
+// API: CHATBOT
+// ═══════════════════════════════════════════════════
+
+app.post('/api/chat', async (req, res) => {
+  if (!CONFIG.features.chatbot_claude) return res.status(403).json({ error: 'Feature désactivée' });
+  try {
+    const { message } = req.body;
+    const grille = await chargerGrilleTarifaire();
+    const grilleResume = Object.entries(grille || {}).map(([cat, items]) => `${cat}: ${items.map(i => `${i.nom} (${i.prix}€)`).join(', ')}`).join('\n');
+    const prompt = `Tu es l'assistant SINELEC Paris. Chantier: "${message}"\nGRILLE:\n${grilleResume}\nRéponds UNIQUEMENT en JSON: {"prestations":[{"nom":"...","quantite":1,"prix":90,"desc":"..."}],"total":0,"explication":"...","hors_grille":[]}`;
+    const response = await anthropic.messages.create({ model: 'claude-sonnet-4-20250514', max_tokens: 2000, tools: [{ type: 'web_search_20250305', name: 'web_search' }], messages: [{ role: 'user', content: prompt }] });
+    let text = '';
+    for (const block of response.content) { if (block.type === 'text') text += block.text; }
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    let result = jsonMatch ? JSON.parse(jsonMatch[0]) : { prestations: [], explication: text, total: 0 };
+    if (!result.total && result.prestations) result.total = result.prestations.reduce((s, p) => s + (p.prix * p.quantite), 0);
+    res.json(result);
+  } catch(error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════
+// API: SIGNATURE
+// ═══════════════════════════════════════════════════
+
+app.get('/signer/:num', async (req, res) => {
+  const { num } = req.params;
+  const { data: devis, error } = await supabase.from('historique').select('*').eq('num', num).single();
+  if (error || !devis) return res.status(404).send('<html><body><h2>Document introuvable</h2></body></html>');
+  if (devis.statut === 'signe' || devis.statut === 'signé') return res.send('<html><body style="text-align:center;padding:40px;"><h2>Devis déjà signé ✅</h2><p>SINELEC Paris</p></body></html>');
+
+  const montant = parseFloat(devis.total_ht || 0).toFixed(2);
+  const prestationsHtml = (devis.prestations || []).map(p => `<tr><td style="padding:10px;">${p.nom||''}</td><td style="text-align:center;">${p.quantite||1}</td><td style="text-align:right;color:#C9A84C;">${parseFloat(p.prix||0).toFixed(2)} €</td></tr>`).join('');
+
+  res.send(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><title>Signer ${num}</title>
+<style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:-apple-system,sans-serif;background:#f5f7fa;}.container{max-width:600px;margin:0 auto;padding:16px;}.header{background:linear-gradient(135deg,#1B2A4A,#243660);border-radius:20px;padding:24px;text-align:center;margin-bottom:16px;}.card{background:white;border-radius:16px;padding:20px;margin-bottom:14px;box-shadow:0 2px 16px rgba(0,0,0,0.06);}.label{font-size:11px;font-weight:800;color:#C9A84C;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;}.total{background:#1B2A4A;border-radius:12px;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;margin-top:12px;}.canvas-wrap{border:2px dashed #ddd;border-radius:12px;background:#fafafa;position:relative;overflow:hidden;cursor:crosshair;}.btn-sign{width:100%;background:linear-gradient(135deg,#1B2A4A,#243660);color:white;border:none;border-radius:16px;padding:18px;font-size:16px;font-weight:800;cursor:pointer;margin-top:8px;}.btn-sign:disabled{opacity:0.4;}.btn-clear{background:none;border:1px solid #ddd;border-radius:8px;padding:8px 16px;font-size:12px;color:#888;cursor:pointer;margin-top:8px;}.success{display:none;text-align:center;padding:40px;}</style></head>
+<body><div class="container">
+  <div class="header"><h1 style="color:white;font-size:22px;font-weight:900;">⚡ SINELEC Paris</h1><p style="color:rgba(255,255,255,0.7);font-size:13px;margin-top:6px;">Signature électronique — N° ${num}</p></div>
+  <div id="main-content">
+    <div class="card"><div class="label">📋 Récapitulatif</div>
+      <p style="font-size:15px;font-weight:700;color:#1B2A4A;">${devis.client||''}</p>
+      <p style="font-size:12px;color:#888;margin-bottom:12px;">${devis.adresse||''}</p>
+      <table style="width:100%;border-collapse:collapse;"><thead><tr style="background:#f8f9fa;"><th style="padding:10px;text-align:left;">Prestation</th><th style="text-align:center;">Qté</th><th style="text-align:right;">Prix HT</th></tr></thead><tbody>${prestationsHtml}</tbody></table>
+      <div class="total"><span style="color:white;font-weight:700;">NET À PAYER</span><span style="color:#C9A84C;font-size:22px;font-weight:900;">${montant} €</span></div>
+    </div>
+    <div class="card"><div class="label">✅ Conditions</div>
+      <p style="font-size:13px;color:#555;">✅ CGV SINELEC Paris — Montant: <strong style="color:#C9A84C;">${montant} €</strong> HT — Acompte: <strong style="color:#C9A84C;">${(parseFloat(montant)*0.4).toFixed(2)} €</strong></p>
+    </div>
+    <div class="card"><div class="label">✍️ Votre signature</div>
+      <div class="canvas-wrap" id="canvas-wrap"><canvas id="sig-canvas" height="180" style="display:block;width:100%;touch-action:none;"></canvas><div id="canvas-placeholder" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#ccc;font-size:13px;pointer-events:none;">Signez ici</div></div>
+      <button class="btn-clear" onclick="clearCanvas()">🗑️ Effacer</button>
+    </div>
+    <button class="btn-sign" id="btn-sign" disabled onclick="soumettre()">✍️ Signer et valider</button>
+    <p style="font-size:11px;color:#aaa;text-align:center;margin-top:12px;padding-bottom:24px;">Signature électronique légalement valide</p>
+  </div>
+  <div class="success" id="success-block"><div style="font-size:72px;">✅</div><h2 style="color:#1B2A4A;margin:16px 0;">Signé !</h2><p style="color:#555;">Merci <strong>${devis.client||''}</strong> !<br><br><span style="color:#C9A84C;font-weight:700;">SINELEC Paris — 07 87 38 86 22</span></p></div>
+</div>
+<script>
+let hasDrawn=false,isDrawing=false,canvas,ctx;
+function initCanvas(){
+  canvas=document.getElementById('sig-canvas');
+  const wrap=document.getElementById('canvas-wrap');
+  const dpr=window.devicePixelRatio||1; const w=wrap.getBoundingClientRect().width||320;
+  canvas.width=w*dpr; canvas.height=180*dpr; canvas.style.width=w+'px'; canvas.style.height='180px';
+  ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr); ctx.strokeStyle='#1B2A4A'; ctx.lineWidth=2.5; ctx.lineCap='round'; ctx.lineJoin='round';
+  canvas.addEventListener('mousedown',e=>{e.preventDefault();startDraw(e.offsetX,e.offsetY);});
+  canvas.addEventListener('mousemove',e=>{e.preventDefault();if(isDrawing)draw(e.offsetX,e.offsetY);});
+  canvas.addEventListener('mouseup',()=>stopDraw());
+  canvas.addEventListener('touchstart',e=>{e.preventDefault();const t=e.touches[0];const r=canvas.getBoundingClientRect();startDraw(t.clientX-r.left,t.clientY-r.top);},{passive:false});
+  canvas.addEventListener('touchmove',e=>{e.preventDefault();if(!isDrawing)return;const t=e.touches[0];const r=canvas.getBoundingClientRect();draw(t.clientX-r.left,t.clientY-r.top);},{passive:false});
+  canvas.addEventListener('touchend',e=>{e.preventDefault();stopDraw();},{passive:false});
+}
+function startDraw(x,y){isDrawing=true;ctx.beginPath();ctx.moveTo(x,y);document.getElementById('canvas-placeholder').style.display='none';}
+function draw(x,y){ctx.lineTo(x,y);ctx.stroke();ctx.beginPath();ctx.moveTo(x,y);hasDrawn=true;document.getElementById('btn-sign').disabled=false;}
+function stopDraw(){isDrawing=false;}
+function clearCanvas(){if(ctx){const dpr=window.devicePixelRatio||1;ctx.clearRect(0,0,canvas.width/dpr,canvas.height/dpr);}hasDrawn=false;document.getElementById('canvas-placeholder').style.display='block';document.getElementById('btn-sign').disabled=true;}
+async function soumettre(){
+  const btn=document.getElementById('btn-sign');btn.disabled=true;btn.textContent='⏳ Envoi...';
+  try{
+    const res=await fetch('/api/signature',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({num:'${num}',signature:canvas.toDataURL('image/png'),cgv_acceptees:true})});
+    const data=await res.json();
+    if(data.success){document.getElementById('main-content').style.display='none';document.getElementById('success-block').style.display='block';}
+    else{btn.disabled=false;btn.textContent='✍️ Signer';alert('Erreur: '+(data.error||'Réessayez'));}
+  }catch(e){btn.disabled=false;btn.textContent='✍️ Signer';alert('Erreur réseau.');}
+}
+setTimeout(initCanvas,300);
+</script></body></html>`);
+});
+
+app.post('/api/signature', async (req, res) => {
+  if (!CONFIG.features.signature_client) return res.status(403).json({ error: 'Feature désactivée' });
+  try {
+    const { num, signature, cgv_acceptees } = req.body;
+    const now = new Date();
+    const ipClient = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || 'N/A';
+    const { data: devisData } = await supabase.from('historique').select('*').eq('num', num).single();
+    if (!devisData) return res.status(404).json({ error: 'Devis introuvable' });
+
+    await supabase.from('signatures').insert({ num, signature, cgv_acceptees: cgv_acceptees || false, date_signature: now.toISOString(), ip_client: ipClient });
+    await supabase.from('historique').update({ signature, statut: 'signe', date_signature: now.toISOString(), cgv_acceptees: cgv_acceptees || false }).eq('num', num);
+
+    const montant = parseFloat(devisData.total_ht || 0);
+    const htmlConfirm = `<html><body style="font-family:Arial;padding:20px;"><h2>✅ Devis ${num} signé</h2><p>Client: ${devisData.client||''} — Montant: ${montant.toFixed(2)} € — Acompte: ${(montant*0.4).toFixed(2)} €</p><p>IP: ${ipClient} — Date: ${now.toLocaleDateString('fr-FR')}</p></body></html>`;
+    if (devisData.email) { try { await envoyerEmail(devisData.email, `✅ Votre devis SINELEC ${num} signé`, htmlConfirm); } catch(e) {} }
+    try { await envoyerEmail('sinelec.paris@gmail.com', `🔔 SIGNÉ — ${num} — ${devisData.client||''} — ${montant.toFixed(0)}€`, htmlConfirm); } catch(e) {}
+
+    res.json({ success: true });
+  } catch(error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════
+// API: HISTORIQUE + OBAT
+// ═══════════════════════════════════════════════════
+
+app.get('/api/historique', async (req, res) => {
+  if (!CONFIG.features.historique) return res.status(403).json({ error: 'Feature désactivée' });
+  try {
+    const { type } = req.query;
+    let query = supabase.from('historique').select('*').order('created_at', { ascending: false });
+    if (type && type !== 'tous') query = query.eq('type', type);
+    const { data: histo, error } = await query;
+    if (error) throw error;
+
+    let obatFormate = [];
+    if (!type || type === 'tous' || type === 'facture') {
+      const { data: obat } = await supabase.from('factures_obat').select('*').eq('statut', 'Payée');
+      obatFormate = (obat || []).map(f => ({ type: 'facture', client: f.client, total_ht: f.montant, statut: 'paye', created_at: f.date_facture + 'T00:00:00.000Z', num: f.reference, prestations: [{ nom: f.chantier, prix: f.montant, quantite: 1 }], source: 'obat' }));
+    }
+
+    const tout = [...(histo || []), ...obatFormate].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    res.json(tout);
+  } catch(error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/historique/:num', async (req, res) => {
+  try {
+    const { error } = await supabase.from('historique').delete().eq('num', req.params.num);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch(error) { res.status(500).json({ error: error.message }); }
+});
+
+app.patch('/api/historique/:num/statut', async (req, res) => {
+  try {
+    const updates = {};
+    if (req.body.statut !== undefined) updates.statut = req.body.statut;
+    if (req.body.date_intervention !== undefined) {
+      updates.date_intervention = req.body.date_intervention || null;
+    }
+    if (Object.keys(updates).length > 0) {
+      await supabase.from('historique').update(updates).eq('num', req.params.num);
+    }
+    res.json({ success: true });
+  } catch(error) { res.status(500).json({ error: error.message }); }
+});
+
+// ═══════════════════════════════════════════════════
+// API: CA COMPLET
+// ═══════════════════════════════════════════════════
+
+app.get('/api/ca-complet', async (req, res) => {
+  try {
+    const { data: histo } = await supabase.from('historique').select('*').order('created_at', { ascending: false });
+    const { data: obat } = await supabase.from('factures_obat').select('*').eq('statut', 'Payée');
+    const obatFormate = (obat || []).map(f => ({ type: 'facture', client: f.client, total_ht: f.montant, statut: 'paye', created_at: f.date_facture + 'T00:00:00.000Z', num: f.reference, prestations: [{ nom: f.chantier, prix: f.montant, quantite: 1 }], source: 'obat' }));
+    res.json([...(histo || []), ...obatFormate]);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════
+// API: CLIENTS
+// ═══════════════════════════════════════════════════
+
+app.get('/api/clients', async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('clients').select('*').order('nom', { ascending: true });
+    if (error) throw error;
+    const clientsAvecCA = await Promise.all((data || []).map(async (client) => {
+      const { data: factures } = await supabase.from('factures_obat').select('montant').ilike('client', `%${client.nom}%`).eq('statut', 'Payée');
+      const ca_total = (factures || []).reduce((s, f) => s + parseFloat(f.montant || 0), 0);
+      return { ...client, ca_total, nb_interventions: (factures || []).length };
+    }));
+    res.json(clientsAvecCA);
+  } catch(error) { res.status(500).json({ error: error.message }); }
+});
+
+// ═══════════════════════════════════════════════════
+// API: VOCAL IA
+// ═══════════════════════════════════════════════════
+
+app.post('/api/vocal', async (req, res) => {
+  const { texte } = req.body;
+  if (!texte) return res.status(400).json({ error: 'Texte manquant' });
+  try {
+    const response = await anthropic.messages.create({ model: 'claude-haiku-4-5-20251001', max_tokens: 200, messages: [{ role: 'user', content: `Tu es l'assistant SINELEC Paris. Client: "${texte}"\nRéponds en JSON: {"reponse":"...","prix":"...","upsell":"...","negocie":"..."}` }] });
+    const result = JSON.parse(response.content[0].text.trim().replace(/```json|```/g, '').trim());
+    res.json({ success: true, ...result });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════
+// API: DPE
+// ═══════════════════════════════════════════════════
+
+app.post('/api/dpe', async (req, res) => {
+  try {
+    const { pdf_text, image_base64, image_type, images_base64 } = req.body;
+    if (!pdf_text && !image_base64 && !(images_base64 && images_base64.length)) return res.status(400).json({ error: 'Fichier manquant' });
+
+    const promptBase = `Tu es un expert électricien. Analyse ce DPE et identifie UNIQUEMENT les travaux électriques. Réponds UNIQUEMENT en JSON valide:\n{"logement":{"surface":65,"classe":"F","annee_construction":1975,"chauffage_electrique":"...","eau_chaude_electrique":"...","vmc":"...","tableau":"...","daaf":"..."},"resume":"...","recommandations":[{"id":"...","titre":"...","description":"...","priorite":"haute","prestations":[{"nom":"...","prix":450,"quantite":1}]}]}`;
+
+    let messageContent;
+    if (images_base64 && images_base64.length > 1) {
+      messageContent = [...images_base64.slice(0, 10).map(img => ({ type: 'image', source: { type: 'base64', media_type: img.type || 'image/jpeg', data: img.base64 } })), { type: 'text', text: promptBase }];
+    } else if (image_base64 || (images_base64 && images_base64[0])) {
+      const img = image_base64 ? { base64: image_base64, type: image_type } : images_base64[0];
+      messageContent = [{ type: 'image', source: { type: 'base64', media_type: img.type || 'image/jpeg', data: img.base64 } }, { type: 'text', text: promptBase }];
+    } else {
+      messageContent = promptBase + '\n\nDPE:\n' + pdf_text.substring(0, 20000);
+    }
+
+    const response = await anthropic.messages.create({ model: 'claude-sonnet-4-20250514', max_tokens: 4096, messages: [{ role: 'user', content: messageContent }] });
+    const result = JSON.parse(response.content[0].text.trim().replace(/```json|```/g, '').trim());
+    result.recommandations = (result.recommandations || []).map(r => ({ ...r, total: (r.prestations || []).reduce((s, p) => s + p.prix * (p.quantite || 1), 0) }));
+    result.total_general = result.recommandations.reduce((s, r) => s + r.total, 0);
+    res.json({ success: true, ...result });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════
+// API: RAPPORT
+// ═══════════════════════════════════════════════════
+
+app.post('/api/rapport', async (req, res) => {
+  if (!CONFIG.features.rapports_intervention) return res.status(403).json({ error: 'Feature désactivée' });
+  try {
+    const { client, adresse, chantier } = req.body;
+    const compteur = await incrementerCompteur('rapport');
+    const num = `R-${new Date().getFullYear()}-${String(compteur).padStart(3, '0')}`;
+    const response = await anthropic.messages.create({ model: 'claude-sonnet-4-20250514', max_tokens: 200, messages: [{ role: 'user', content: `Décris professionnellement ces travaux (2-3 phrases):\n${chantier}\nClient: ${client}` }] });
+    const travaux = response.content[0].text;
+    await supabase.from('rapports').insert({ num, client, adresse, travaux });
+    res.json({ success: true, num, travaux });
+  } catch(error) { res.status(500).json({ error: error.message }); }
+});
+
+// ═══════════════════════════════════════════════════
+// API: AGENDA
+// ═══════════════════════════════════════════════════
+
+app.get('/api/agenda', async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('agenda').select('*').order('date_intervention', { ascending: true }).order('heure', { ascending: true });
+    if (error) throw error;
+    res.json(data || []);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/agenda', async (req, res) => {
+  try {
+    const { prenom, nom, client, telephone, adresse, date_intervention, heure, type_intervention, notes, sms_rappel, statut } = req.body;
+    const { data, error } = await supabase.from('agenda').insert({ prenom, nom, client: client || `${prenom} ${nom}`, telephone, adresse, date_intervention, heure, type_intervention, notes, sms_rappel: sms_rappel !== false, statut: statut || 'planifié', sms_veille_envoye: false, sms_matin_envoye: false }).select().single();
+    if (error) throw error;
+    res.json({ success: true, id: data.id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/agenda/:id', async (req, res) => {
+  try {
+    const { prenom, nom, client, telephone, adresse, date_intervention, heure, type_intervention, notes, sms_rappel } = req.body;
+    const { error } = await supabase.from('agenda').update({ prenom, nom, client: client || `${prenom} ${nom}`, telephone, adresse, date_intervention, heure, type_intervention, notes, sms_rappel: sms_rappel !== false, sms_veille_envoye: false, sms_matin_envoye: false }).eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.patch('/api/agenda/:id/statut', async (req, res) => {
+  try {
+    const { error } = await supabase.from('agenda').update({ statut: req.body.statut }).eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/agenda/:id', async (req, res) => {
+  try {
+    const { error } = await supabase.from('agenda').delete().eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/agenda/materiel/:type', (req, res) => {
+  const MATERIEL = { 'Dépannage': ['Multimètre', 'Pince ampèremétrique', 'Testeur de prise', 'Tournevis isolés', 'Wago lot 50', 'Disjoncteurs 10/16/20A', 'Câble 1.5+2.5mm²', 'Lampe frontale'], 'Tableau': ['Coffret 1 rangée', 'Disjoncteurs assortis', 'Différentiel 30mA type A', 'Câble 2.5mm²', 'Tournevis isolés', 'Multimètre'], 'VMC': ['Caisson VMC', 'Gaine flexible', 'Bouches extraction', 'Câble 1.5mm²', 'Perceuse + forets'], 'Installation': ['Câble 2.5mm² (20m)', 'Câble 1.5mm² (10m)', 'Goulotte 40x16', 'Prises 2P+T', 'Interrupteurs', 'Boîtes encastrement', 'Wago lot 100'], 'Autre': ['Multimètre', 'Tournevis isolés', 'Câbles assortis', 'Wago', 'Lampe frontale'] };
+  const type = decodeURIComponent(req.params.type);
+  res.json({ type, materiel: MATERIEL[type] || MATERIEL['Autre'] });
+});
+
+// ═══════════════════════════════════════════════════
+// API: GRILLE
+// ═══════════════════════════════════════════════════
+
+app.get('/api/grille', async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('grille_tarifaire').select('code, nom, prix_ht').eq('actif', true);
+    if (error) throw error;
+    res.json(data || []);
+  } catch(error) { res.status(500).json({ error: error.message }); }
+});
+
+app.get('/api/grille/grouped', async (req, res) => {
+  try {
+    res.json(await chargerGrilleTarifaire() || {});
+  } catch(error) { res.status(500).json({ error: error.message }); }
+});
+
+// ═══════════════════════════════════════════════════
+// API: PDF DOWNLOAD
+// ═══════════════════════════════════════════════════
+
+app.get('/api/pdf/:num', async (req, res) => {
+  try {
+    const { num } = req.params;
+    const { data, error } = await supabase.from('historique').select('*').eq('num', num).single();
+    if (error || !data) return res.status(404).json({ error: 'Document non trouvé' });
+
+    const docType = data.type || (num.startsWith('OS-') ? 'devis' : 'facture');
+    const docStatut = data.statut || '';
+    const typeLabelUpper = docType === 'devis' ? 'DEVIS' : (docStatut === 'paye' || docStatut === 'payé' ? 'FACTURE ACQUITTEE' : 'FACTURE');
+    const dateStr = new Date(data.date_envoi || data.created_at).toLocaleDateString('fr-FR');
+    const dateValide = new Date(new Date(data.date_envoi || data.created_at).getTime() + 30*24*60*60*1000).toLocaleDateString('fr-FR');
+
+    const detailsPath = path.join(__dirname, `_dl_details_${num}.json`);
+    const pyPath = path.join(__dirname, `_dl_${num}.py`);
+    const pdfPath = path.join(__dirname, `_dl_${num}.pdf`);
+    const detailsData = (data.prestations || []).map(p => ({ designation: p.nom || p.designation, qte: p.quantite || 1, prixUnit: p.prix || 0, total: (p.prix || 0) * (p.quantite || 1), details: p.desc ? [p.desc] : [] }));
+    fs.writeFileSync(detailsPath, JSON.stringify(detailsData));
+
+    const clientEsc = String(data.client || '').replace(/'/g, ' ');
+    const clientParts = (data.adresse || '').split(',');
+    const clientRue = String(clientParts[0] || '').trim().replace(/'/g, ' ');
+    const clientVille = clientParts.slice(1).join(',').trim().replace(/'/g, ' ');
+
+    const py = `# -*- coding: utf-8 -*-
+import json, base64, io, sys
+from reportlab.lib.pagesizes import A4; from reportlab.lib import colors; from reportlab.lib.units import cm
+from reportlab.platypus import *; from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT; from reportlab.pdfgen import canvas as pdfcanvas
+from reportlab.lib.utils import ImageReader
+W,H=A4; MARINE=colors.HexColor('#1B2A4A'); OR=colors.HexColor('#C9A84C')
+OR_PALE=colors.HexColor('#FBF7EC'); BLANC=colors.white; CREME=colors.HexColor('#FDFCF9')
+GRIS_TEXTE=colors.HexColor('#3A3A3A'); GRIS_SOFT=colors.HexColor('#777777')
+GRIS_LIGNE=colors.HexColor('#E0DDD6'); GRIS_BG=colors.HexColor('#F5F4F0')
+def p(txt,sz=9,font='Helvetica',color=GRIS_TEXTE,align=TA_LEFT,sb=0,sa=2,leading=None):
+    if leading is None: leading=sz*1.35
+    return Paragraph(str(txt),ParagraphStyle('s',fontName=font,fontSize=sz,textColor=color,alignment=align,spaceBefore=sb,spaceAfter=sa,leading=leading,wordWrap='CJK'))
+data=json.loads(open(sys.argv[1],encoding='utf-8').read()); totalHT=sum(l['total'] for l in data)
+logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
+class SC(pdfcanvas.Canvas):
+    def __init__(self,fn,**kw): pdfcanvas.Canvas.__init__(self,fn,**kw); self._pg=0; self.saveState(); self._draw_page()
+    def showPage(self): self._draw_footer(); pdfcanvas.Canvas.showPage(self); self._pg+=1
+    def save(self): self._draw_footer(); pdfcanvas.Canvas.save(self)
+    def _draw_page(self):
+        self.saveState(); self.setFillColor(CREME); self.rect(0,0,W,H,fill=1,stroke=0)
+        self.setFillColor(MARINE); self.rect(0,0,0.7*cm,H,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0.7*cm,0,0.08*cm,H,fill=1,stroke=0); self._draw_header(); self.restoreState()
+    def _draw_header(self):
+        self.setFillColor(MARINE); self.rect(0.78*cm,H-5.2*cm,W-0.78*cm,5.2*cm,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0.78*cm,H-5.2*cm,W-0.78*cm,0.1*cm,fill=1,stroke=0)
+        self.drawImage(ImageReader(io.BytesIO(logo_bytes)),1.3*cm,H-4.6*cm,width=3.0*cm,height=3.0*cm,preserveAspectRatio=True,mask='auto')
+        self.setFont('Helvetica',7.5); self.setFillColor(colors.HexColor('#BFC8D6'))
+        self.drawString(1.3*cm,H-4.85*cm,'128 Rue La Boetie, 75008 Paris'); self.drawString(1.3*cm,H-5.1*cm,'07 87 38 86 22  |  sinelec.paris@gmail.com  |  SIRET : 91015824500019')
+        self.setFont('Helvetica-Bold',44); self.setFillColor(BLANC); self.drawRightString(W-1.2*cm,H-2.2*cm,'${typeLabelUpper}')
+        self.setStrokeColor(OR); self.setLineWidth(1.5); self.line(10*cm,H-2.65*cm,W-1.2*cm,H-2.65*cm)
+        self.setFillColor(OR); self.roundRect(W-6.5*cm,H-3.55*cm,5.3*cm,0.65*cm,0.15*cm,fill=1,stroke=0)
+        self.setFont('Helvetica-Bold',9); self.setFillColor(MARINE); self.drawCentredString(W-3.85*cm,H-3.22*cm,'N ${num}')
+        self.setFont('Helvetica',8); self.setFillColor(colors.HexColor('#BFC8D6')); self.drawRightString(W-1.2*cm,H-3.9*cm,'Date : ${dateStr}  |  Valable : ${dateValide}')
+    def _draw_footer(self):
+        self.saveState(); self.setFillColor(MARINE); self.rect(0,0,W,1.0*cm,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0,1.0*cm,W,0.08*cm,fill=1,stroke=0)
+        self.setFont('Helvetica',6.5); self.setFillColor(colors.HexColor('#8899BB'))
+        self.drawCentredString(W/2,0.5*cm,'SINELEC EI \\u2022 128 Rue La Boetie 75008 Paris \\u2022 SIRET : 91015824500019 \\u2022 TVA non applicable art. 293B CGI')
+        self.setFont('Helvetica-Bold',7); self.setFillColor(OR); self.drawRightString(W-1.2*cm,0.28*cm,'${num}'); self.restoreState()
+doc=SimpleDocTemplate(sys.argv[2],pagesize=A4,leftMargin=1.2*cm,rightMargin=1.0*cm,topMargin=5.6*cm,bottomMargin=1.6*cm); story=[]
+client_b=Table([[p('CLIENT',7,'Helvetica-Bold',OR,sa=4)],[p('${clientEsc}',10,'Helvetica-Bold',MARINE)],[p('${clientRue}',8.5,color=GRIS_TEXTE)],[p('${clientVille}',8.5,color=GRIS_TEXTE)]],colWidths=[18.2*cm])
+client_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('BACKGROUND',(0,0),(-1,-1),OR_PALE),('BOX',(0,0),(-1,-1),1,OR),('LINEBEFORE',(0,0),(0,-1),4,MARINE),('TOPPADDING',(0,0),(0,0),10),('BOTTOMPADDING',(0,-1),(-1,-1),10)]))
+story.append(client_b); story.append(Spacer(1,0.5*cm))
+cw=[0.7*cm,9.5*cm,1.5*cm,0.9*cm,2.4*cm,3.2*cm]
+rows=[[p('#',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('DESIGNATION',7.5,'Helvetica-Bold',BLANC),p('QTE',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('U.',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('PRIX U. HT',7.5,'Helvetica-Bold',BLANC,TA_RIGHT),p('TOTAL HT',7.5,'Helvetica-Bold',BLANC,TA_RIGHT)]]
+for i,l in enumerate(data):
+    q=int(l['qte']) if l['qte']==int(l['qte']) else l['qte']
+    rows.append([p(str(i+1),9,color=OR,align=TA_CENTER),p('<b>'+l['designation']+'</b>',9,color=MARINE),p(str(q),9,align=TA_CENTER),p('u.',9,align=TA_CENTER,color=GRIS_SOFT),p('%.2f \\u20ac'%l['prixUnit'],9,align=TA_RIGHT),p('<b>%.2f \\u20ac</b>'%l['total'],9,'Helvetica-Bold',MARINE,TA_RIGHT)])
+t=Table(rows,colWidths=cw); ts=[('BACKGROUND',(0,0),(-1,0),MARINE),('LINEBELOW',(0,0),(-1,0),2.5,OR),('VALIGN',(0,0),(-1,-1),'TOP'),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),('LEFTPADDING',(0,0),(-1,-1),7),('RIGHTPADDING',(0,0),(-1,-1),7),('BOX',(0,0),(-1,-1),0.3,GRIS_LIGNE)]
+for i in range(len(data)):
+    bg=BLANC if i%2==0 else GRIS_BG; ts.extend([('BACKGROUND',(0,i+1),(-1,i+1),bg),('LINEBELOW',(0,i+1),(-1,i+1),0.3,GRIS_LIGNE)])
+t.setStyle(TableStyle(ts)); story.append(t); story.append(Spacer(1,0.15*cm))
+tt=Table([['',p('Total HT',9,color=GRIS_SOFT,align=TA_RIGHT),p('%.2f \\u20ac'%totalHT,9,'Helvetica-Bold',GRIS_TEXTE,TA_RIGHT)],['',p('TVA',9,color=GRIS_SOFT,align=TA_RIGHT),p('Non applicable (art. 293B)',8,color=GRIS_SOFT,align=TA_RIGHT)]],colWidths=[9.0*cm,4.5*cm,4.7*cm])
+tt.setStyle(TableStyle([('LINEABOVE',(1,0),(-1,0),0.5,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('LEFTPADDING',(0,0),(-1,-1),6),('RIGHTPADDING',(0,0),(-1,-1),6)])); story.append(tt); story.append(Spacer(1,0.12*cm))
+net=Table([[p('NET A PAYER',12,'Helvetica-Bold',BLANC),p('%.2f \\u20ac'%totalHT,16,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
+net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('LINEBELOW',(0,0),(-1,-1),3,OR),('VALIGN',(0,0),(-1,-1),'MIDDLE')])); story.append(net)
+doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
+`;
+    fs.writeFileSync(pyPath, py, 'utf8');
+    try { execSync(`python3 ${pyPath} ${detailsPath} ${pdfPath}`, { cwd: __dirname, stdio: 'inherit' }); } catch(e) { throw new Error('PDF failed'); }
+    const pdfBuffer = fs.readFileSync(pdfPath);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${num}.pdf"`);
+    res.send(pdfBuffer);
+    try { fs.unlinkSync(pyPath); } catch(e) {}
+    try { fs.unlinkSync(detailsPath); } catch(e) {}
+    try { fs.unlinkSync(pdfPath); } catch(e) {}
+  } catch(error) { res.status(500).json({ error: error.message }); }
+});
+
+// ═══════════════════════════════════════════════════
+// API: SUMUP
+// ═══════════════════════════════════════════════════
+
+app.post('/api/sumup/lien/:num', async (req, res) => {
+  try {
+    const { num } = req.params;
+    const { data, error } = await supabase.from('historique').select('*').eq('num', num).single();
+    if (error || !data) return res.status(404).json({ error: 'Document non trouvé' });
+    const montant = parseFloat(data.total_ht || 0);
+    if (montant <= 0) return res.status(400).json({ error: 'Montant invalide' });
+
+    const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+    const checkoutRes = await fetch('https://api.sumup.com/v0.1/checkouts', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${SUMUP_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ checkout_reference: `SINELEC-${num}-${Date.now()}`, amount: montant, currency: 'EUR', description: `SINELEC ${num}`, pay_to_email: process.env.SUMUP_EMAIL || 'sinelec.paris@gmail.com', redirect_url: `${appUrl}/paiement-confirme/${num}`, hosted_checkout: { enabled: true } }),
+    });
+    if (!checkoutRes.ok) { const err = await checkoutRes.text(); return res.status(500).json({ error: 'SumUp: ' + err }); }
+    const checkout = await checkoutRes.json();
+    const lienPaiement = checkout.hosted_checkout_url || checkout.checkout_url || `https://pay.sumup.com/b2c/checkout/${checkout.id}`;
+    await supabase.from('historique').update({ lien_paiement: lienPaiement, checkout_id: checkout.id }).eq('num', num);
+
+    const prenomClient = (data.client || 'client').split(' ')[0];
+    const modeEnvoi = req.query.envoi || 'les2';
+    if ((modeEnvoi === 'email' || modeEnvoi === 'les2') && data.email) {
+      try { await envoyerEmail(data.email, `💳 Paiement SINELEC ${num} — ${montant.toFixed(2)} €`, `<html><body style="font-family:Arial;padding:20px;"><h2>⚡ SINELEC Paris</h2><p>Bonjour ${prenomClient},</p><p>Facture <strong>${num}</strong> — <strong>${montant.toFixed(2)} €</strong></p><p><a href="${lienPaiement}" style="background:#C9A84C;color:white;padding:14px 28px;border-radius:10px;text-decoration:none;font-weight:800;display:inline-block;margin-top:12px;">💳 Payer maintenant</a></p></body></html>`); } catch(e) {}
+    }
+    if ((modeEnvoi === 'sms' || modeEnvoi === 'les2') && data.telephone) {
+      try { await envoyerSMS(data.telephone, `Bonjour ${prenomClient} 😊 Lien paiement sécurisé ${montant.toFixed(0)}EUR : ${lienPaiement} SINELEC Paris ⚡`); } catch(e) {}
+    }
+    res.json({ success: true, lien: lienPaiement, checkout_id: checkout.id, montant, num });
+  } catch(error) { res.status(500).json({ error: error.message }); }
+});
+
+app.get('/paiement-confirme/:num', async (req, res) => {
+  const { num } = req.params;
+  try {
+    await supabase.from('historique').update({ statut: 'paye', date_paiement: new Date().toISOString() }).eq('num', num);
+    const { data: factureData } = await supabase.from('historique').select('*').eq('num', num).single();
+    if (factureData?.email) {
+      setImmediate(async () => {
+        try {
+          const montant = parseFloat(factureData.total_ht || 0);
+          const prenomClient = (factureData.client || 'client').split(' ')[0];
+          const html = `<html><body style="font-family:Arial;padding:20px;"><h2 style="color:#16a34a;">✅ Paiement reçu — Merci !</h2><p>Bonjour <b>${prenomClient}</b>, votre paiement de ${montant.toFixed(2)} € a bien été reçu.</p></body></html>`;
+          await envoyerEmail(factureData.email, `✅ Facture SINELEC ${num} — Paiement reçu`, html);
+          await envoyerEmail('sinelec.paris@gmail.com', `💰 PAIEMENT RECU — ${num} — ${factureData.client||''} — ${montant.toFixed(0)}€`, html);
+          // SMS confirmation + avis Google en 1 seul message
+          if (factureData.telephone) {
+            await envoyerSMS(factureData.telephone, `Merci ${prenomClient} ! Paiement ${montant.toFixed(0)}€ reçu ✅ Un avis Google nous aiderait beaucoup : https://g.page/r/CSw-MABnFUAYEAE/review — SINELEC Paris ⚡`);
+          }
+        } catch(e) {}
+      });
+    }
+  } catch(e) {}
+  res.send(`<html><body style="text-align:center;padding:40px;font-family:Arial;"><div style="max-width:500px;margin:40px auto;background:white;border-radius:20px;padding:40px;box-shadow:0 4px 20px rgba(0,0,0,0.1);"><div style="font-size:64px;">✅</div><h2 style="color:#1B2A4A;">Paiement confirmé !</h2><p style="color:#555;">Référence : <strong style="color:#C9A84C;">${num}</strong></p><p style="color:#aaa;margin-top:20px;">SINELEC Paris — 07 87 38 86 22</p></div></body></html>`);
+});
+
+app.post('/api/marquer-paye', async (req, res) => {
+  const { num, mode_paiement } = req.body;
+  if (!num) return res.status(400).json({ error: 'Numéro manquant' });
+  try {
+    const modeLabel = mode_paiement === 'terminal' ? 'CB Terminal SumUp' : mode_paiement === 'virement' ? 'Virement bancaire' : 'Espèces';
+    await supabase.from('historique').update({ statut: 'paye', date_paiement: new Date().toISOString(), mode_paiement: modeLabel }).eq('num', num);
+    const { data: factureData } = await supabase.from('historique').select('*').eq('num', num).single();
+    if (!factureData) return res.status(404).json({ error: 'Facture non trouvée' });
+    res.json({ success: true, message: `Paiement ${modeLabel} enregistré` });
+    setImmediate(async () => {
+      try {
+        const montant = parseFloat(factureData.total_ht || 0);
+        const prenomClient = (factureData.client || 'client').split(' ')[0];
+        const html = `<html><body style="font-family:Arial;padding:20px;"><h2 style="color:#16a34a;">✅ Paiement reçu — ${modeLabel}</h2><p>Bonjour <b>${prenomClient}</b>, facture ${num} réglée — ${montant.toFixed(2)} €.</p></body></html>`;
+        if (factureData.email) await envoyerEmail(factureData.email, `✅ Facture SINELEC ${num} — Paiement reçu`, html);
+        await envoyerEmail('sinelec.paris@gmail.com', `💰 PAIEMENT ${modeLabel.toUpperCase()} — ${num} — ${factureData.client||''} — ${montant.toFixed(0)}€`, html);
+        // SMS confirmation paiement + avis Google en 1 seul message
+        if (factureData.telephone) {
+          await envoyerSMS(factureData.telephone, `Merci ${prenomClient} ! Paiement ${montant.toFixed(0)}€ reçu ✅ Un avis Google nous aiderait beaucoup : https://g.page/r/CSw-MABnFUAYEAE/review — SINELEC Paris ⚡`);
+        }
+      } catch(e) {}
+    });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════
+// MONITORING
+// ═══════════════════════════════════════════════════
+
+const serviceStatus = {
+  brevo_email: { status: 'unknown', lastCheck: null, lastError: null, uptime: 0, checks: 0 },
+  brevo_sms:   { status: 'unknown', lastCheck: null, lastError: null, uptime: 0, checks: 0 },
+  sumup:       { status: 'unknown', lastCheck: null, lastError: null, uptime: 0, checks: 0 },
+  supabase:    { status: 'unknown', lastCheck: null, lastError: null, uptime: 0, checks: 0 },
+  claude_api:  { status: 'unknown', lastCheck: null, lastError: null, uptime: 0, checks: 0 },
+  pdf_python:  { status: 'unknown', lastCheck: null, lastError: null, uptime: 0, checks: 0 },
+};
+
+async function mettreAJourStatut(service, ok, erreur = null) {
+  const s = serviceStatus[service]; if (!s) return;
+  s.status = ok ? 'ok' : 'error'; s.lastCheck = new Date().toISOString(); s.lastError = ok ? null : String(erreur || 'Erreur'); s.checks++; if (ok) s.uptime++;
+  try { await supabase.from('monitoring').upsert({ service, status: s.status, last_check: s.lastCheck, last_error: s.lastError, uptime_pct: Math.round((s.uptime / s.checks) * 100) }, { onConflict: 'service' }); } catch(e) {}
 }
 
 async function verifierSante() {
-  document.getElementById('sante-global-icon').textContent = '⏳';
-  document.getElementById('sante-global-text').textContent = 'Vérification...';
+  const erreurs = [];
+  try { const { error } = await supabase.from('compteurs').select('valeur').limit(1); if (error) throw error; await mettreAJourStatut('supabase', true); } catch(e) { await mettreAJourStatut('supabase', false, e.message); erreurs.push('supabase'); }
+  try { const r = await fetch('https://api.brevo.com/v3/account', { headers: { 'api-key': BREVO_API_KEY } }); if (!r.ok) throw new Error('HTTP ' + r.status); await mettreAJourStatut('brevo_email', true); await mettreAJourStatut('brevo_sms', true); } catch(e) { await mettreAJourStatut('brevo_email', false, e.message); await mettreAJourStatut('brevo_sms', false, e.message); erreurs.push('brevo'); }
+  try { if (SUMUP_API_KEY) { const r = await fetch('https://api.sumup.com/v0.1/me', { headers: { 'Authorization': `Bearer ${SUMUP_API_KEY}` } }); if (!r.ok && r.status !== 404) throw new Error('HTTP ' + r.status); await mettreAJourStatut('sumup', true); } } catch(e) { await mettreAJourStatut('sumup', false, e.message); erreurs.push('sumup'); }
+  try { if (!process.env.ANTHROPIC_API_KEY) throw new Error('Clé manquante'); await mettreAJourStatut('claude_api', true); } catch(e) { await mettreAJourStatut('claude_api', false, e.message); erreurs.push('claude_api'); }
+  try { execSync('python3 -c "import reportlab"', { timeout: 5000 }); await mettreAJourStatut('pdf_python', true); } catch(e) { await mettreAJourStatut('pdf_python', false, e.message); erreurs.push('pdf_python'); }
+  return { ok: erreurs.length === 0, erreurs, status: serviceStatus };
+}
+
+app.get('/api/sante', async (req, res) => {
   try {
-    await fetch('/api/sante/verifier', { method:'POST' });
-    await chargerSante();
-    showToast('✅ Health check terminé', '🏥');
-  } catch(e) { showToast('❌ Erreur health check', '⚠️'); }
-}
-
-// ═══════════════════════════════════════════════════
-// PARAMS (grille tarifaire stub)
-// ═══════════════════════════════════════════════════
-function afficherParams() {
-  const container = document.getElementById('params-grid');
-  if (!container) return;
-  container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-3);">⚙️ Grille tarifaire chargée depuis Supabase</div>';
-}
-
-function sauvegarderPrix() { showToast('✅ Prix sauvegardés !', '💾'); }
-
-// ═══════════════════════════════════════════════════
-// CHAT AI (stub)
-// ═══════════════════════════════════════════════════
-async function envoyerMessage() {
-  const input = document.getElementById('chat-input');
-  const msg = input.value.trim();
-  if (!msg) return;
-  input.value = '';
-  const container = document.getElementById('chat-messages');
-  container.innerHTML += `<div style="background:rgba(212,165,116,0.2);border-radius:12px;padding:12px;font-size:13px;align-self:flex-end;max-width:85%;margin-bottom:8px;">${msg}</div>`;
-  try {
-    const res = await fetch('/api/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message:msg}) });
-    const data = await res.json();
-    const reponse = data.explication || `${(data.prestations||[]).length} prestation(s) — ${(data.total||0).toFixed(0)} €`;
-    container.innerHTML += `<div style="background:rgba(212,165,116,0.1);border-radius:12px;padding:12px;font-size:13px;max-width:85%;margin-bottom:8px;">${reponse}</div>`;
-    container.scrollTop = container.scrollHeight;
-  } catch(e) { container.innerHTML += `<div style="color:var(--error);font-size:13px;padding:8px;">❌ ${e.message}</div>`; }
-}
-
-// ═══════════════════════════════════════════════════
-// LEAD
-// ═══════════════════════════════════════════════════
-let leadTypeActif = 'depannage';
-
-function setLeadMaintenant() { const now=new Date(); document.getElementById('lead-date').value=now.toISOString().split('T')[0]; document.getElementById('lead-heure').value=now.toTimeString().slice(0,5); }
-function setLeadAujourdhui() { document.getElementById('lead-date').value=new Date().toISOString().split('T')[0]; }
-
-function ouvrirLead() {
-  document.getElementById('lead-overlay').classList.add('active');
-  document.getElementById('lead-date').value = new Date().toISOString().split('T')[0];
-  setTimeout(() => document.getElementById('lead-nom').focus(), 100);
-}
-
-function fermerLead() {
-  document.getElementById('lead-overlay').classList.remove('active');
-  ['lead-nom','lead-tel','lead-adresse','lead-notes'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
-  document.getElementById('lead-waze-btn').style.display = 'none';
-}
-
-function selectLeadType(el, type) {
-  leadTypeActif = type;
-  document.querySelectorAll('.lead-type-btn').forEach(b => { b.style.border='1px solid var(--border)'; b.style.background='var(--bg)'; b.style.color='var(--text-2)'; b.style.fontWeight='500'; });
-  el.style.border='2px solid var(--accent)'; el.style.background='rgba(212,165,116,0.1)'; el.style.color='var(--accent)'; el.style.fontWeight='600';
-}
-
-function majWazeLead(val) {
-  const btn = document.getElementById('lead-waze-btn');
-  const link = document.getElementById('lead-waze-link');
-  if (btn && val && val.length > 5) { btn.style.display='block'; if(link) link.onclick=()=>window.open(`https://waze.com/ul?q=${encodeURIComponent(val)}&navigate=yes`,'_blank'); }
-  else if (btn) btn.style.display = 'none';
-}
-
-async function enregistrerLead(creerDevis) {
-  const nom = document.getElementById('lead-nom').value.trim();
-  const tel = document.getElementById('lead-tel').value.trim();
-  const adresse = document.getElementById('lead-adresse').value.trim();
-  const date = document.getElementById('lead-date').value;
-  const heure = document.getElementById('lead-heure').value;
-  const notes = document.getElementById('lead-notes').value.trim();
-  if (!nom) { showToast('⚠️ Nom obligatoire', '❌'); return; }
-  if (date) {
-    try {
-      await fetch('/api/agenda', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ client:nom, telephone:tel, adresse, date_intervention:date, heure, type_intervention:leadTypeActif, notes, statut:'lead' }) });
-    } catch(e) {}
-  }
-  showToast(`✅ Lead enregistré — ${nom}`, '📞');
-  fermerLead();
-  if (creerDevis) switchPage('devis', document.querySelector('.sidebar-item[onclick*="devis"]'));
-}
-
-// ═══════════════════════════════════════════════════
-// MODE POPUP
-// ═══════════════════════════════════════════════════
-let modePopupData = null;
-
-function ouvrirModePopup(prefix, nom, prix) {
-  modePopupData = { prefix, nom, prix };
-  document.getElementById('mode-popup-nom').textContent = nom;
-  document.getElementById('mode-prix-forfait').textContent = prix.f + ' €';
-  document.getElementById('mode-prix-fourniture').textContent = prix.fo + ' €';
-  document.getElementById('mode-prix-mo').textContent = prix.mo + ' €';
-  document.getElementById('mode-btn-fourniture').style.display = prix.fo > 0 ? 'flex' : 'none';
-  document.getElementById('mode-btn-mo').style.display = prix.mo > 0 ? 'flex' : 'none';
-  document.getElementById('mode-popup-overlay').classList.add('active');
-}
-
-function fermerModePopup() { document.getElementById('mode-popup-overlay').classList.remove('active'); modePopupData=null; }
-
-function choisirMode(mode) {
-  if (!modePopupData) return;
-  const {prefix, nom, prix} = modePopupData;
-  const p = mode==='fourniture'?prix.fo:mode==='mo'?prix.mo:prix.f;
-  const l = mode==='fourniture'?nom+' (fourniture)':mode==='mo'?nom+' (MO)':nom;
-  fermerModePopup();
-  showToast(`✅ ${l} ajouté !`, '🛒');
-}
-
-// ═══════════════════════════════════════════════════
-// ALERTES DEVIS
-// ═══════════════════════════════════════════════════
-async function verifierAlertesDevis() {
-  try {
-    const res = await fetch('/api/historique?type=devis');
-    const data = await res.json();
-    const nb = data.filter(d => { const age=(new Date()-new Date(d.created_at))/3600000; return d.statut==='envoyé' && age>48; }).length;
-    const histoTab = document.querySelector('.sidebar-item[onclick*="historique"]');
-    if (histoTab && nb > 0) {
-      const badge = histoTab.querySelector('.notif-badge') || document.createElement('span');
-      badge.className = 'notif-badge';
-      badge.textContent = nb;
-      badge.style.cssText = 'background:#ef4444;color:#fff;border-radius:10px;padding:2px 6px;font-size:10px;font-weight:800;margin-left:4px;';
-      if (!histoTab.querySelector('.notif-badge')) histoTab.appendChild(badge);
+    const { data } = await supabase.from('monitoring').select('*');
+    const result = {};
+    for (const [service, status] of Object.entries(serviceStatus)) {
+      const db = (data || []).find(r => r.service === service);
+      result[service] = { ...status, uptime_pct: db?.uptime_pct || null };
     }
-  } catch(e) {}
+    res.json({ global: Object.values(result).every(s => s.status === 'ok' || s.status === 'unknown') ? 'ok' : 'degraded', services: result });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/sante/verifier', async (req, res) => {
+  try { res.json(await verifierSante()); } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════
+// VEILLE + RELANCES
+// ═══════════════════════════════════════════════════
+
+app.post('/api/veille/lancer', async (req, res) => {
+  if (!CONFIG.features.veille_tarifaire) return res.status(403).json({ error: 'Feature désactivée' });
+  res.json({ success: true, message: 'Veille tarifaire lancée' });
+});
+
+app.post('/api/relances/lancer', async (req, res) => {
+  if (!CONFIG.features.relances_auto) return res.status(403).json({ error: 'Feature désactivée' });
+  res.json({ success: true, message: 'Relances lancées' });
+});
+
+// ═══════════════════════════════════════════════════
+// RAPPORT HEBDOMADAIRE
+// ═══════════════════════════════════════════════════
+
+async function rapportHebdomadaire() {
+  try {
+    const maintenant = new Date(); const lundiDernier = new Date(maintenant); lundiDernier.setDate(maintenant.getDate() - 7);
+    const { data: docs } = await supabase.from('historique').select('*').gte('created_at', lundiDernier.toISOString());
+    const factures = (docs || []).filter(d => d.type === 'facture');
+    const devis = (docs || []).filter(d => d.type === 'devis');
+    const caSemaine = factures.reduce((s, f) => s + parseFloat(f.total_ht || 0), 0);
+    const { data: tousDevis } = await supabase.from('historique').select('*').eq('type', 'devis').in('statut', ['envoyé', 'envoye']);
+    const devisARelancer = (tousDevis || []).filter(d => (new Date() - new Date(d.created_at)) / 3600000 > 48);
+    const semaine = `${lundiDernier.toLocaleDateString('fr-FR')} → ${maintenant.toLocaleDateString('fr-FR')}`;
+    const html = `<html><body style="font-family:Arial;padding:20px;"><h2>📊 Rapport hebdomadaire SINELEC — ${semaine}</h2><p>CA facturé : <strong>${caSemaine.toFixed(2)} €</strong> (${factures.length} factures)</p><p>Devis envoyés : ${devis.length}</p><p>À relancer (+48h) : <strong style="color:#ef4444;">${devisARelancer.length}</strong></p><p><a href="https://sinelec-api-production.up.railway.app/app.html">📱 SINELEC OS</a></p></body></html>`;
+    await envoyerEmail('sinelec.paris@gmail.com', `📊 Rapport SINELEC — CA: ${caSemaine.toFixed(0)}€ — ${devisARelancer.length} à relancer`, html);
+  } catch(e) { console.error('Rapport hebdo:', e.message); }
 }
-setTimeout(verifierAlertesDevis, 2000);
-setInterval(verifierAlertesDevis, 300000);
 
-console.log('⚡ SINELEC OS v2.0 loaded — Date Intervention activée');
-</script>
+app.post('/api/rapport-hebdo/tester', async (req, res) => {
+  try { await rapportHebdomadaire(); res.json({ success: true }); } catch(e) { res.status(500).json({ error: e.message }); }
+});
 
-</body>
-</html>
+// ═══════════════════════════════════════════════════
+// CRONS
+// ═══════════════════════════════════════════════════
+
+// SMS veille 18h
+cron.schedule('0 18 * * *', async () => {
+  try {
+    const demain = new Date(); demain.setDate(demain.getDate() + 1);
+    const demainStr = demain.toISOString().split('T')[0];
+    const { data } = await supabase.from('agenda').select('*').eq('date_intervention', demainStr).eq('sms_rappel', true).eq('sms_veille_envoye', false).neq('statut', 'annulé');
+    for (const iv of (data || [])) {
+      if (!iv.telephone) continue;
+      const prenom = iv.prenom || (iv.client||'').split(' ')[0];
+      const dateLabel = demain.toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' });
+      await envoyerSMS(iv.telephone, `Bonjour ${prenom} ! Rappel intervention SINELEC demain ${dateLabel} à ${iv.heure}. Tel: 07 87 38 86 22 ⚡`);
+      await supabase.from('agenda').update({ sms_veille_envoye: true }).eq('id', iv.id);
+    }
+  } catch(e) { console.error('SMS veille:', e.message); }
+});
+
+// SMS matin 8h45
+cron.schedule('45 8 * * *', async () => {
+  try {
+    const aujourdhui = new Date().toISOString().split('T')[0];
+    const { data } = await supabase.from('agenda').select('*').eq('date_intervention', aujourdhui).eq('sms_rappel', true).eq('sms_matin_envoye', false).neq('statut', 'annulé');
+    for (const iv of (data || [])) {
+      if (!iv.telephone) continue;
+      const prenom = iv.prenom || (iv.client||'').split(' ')[0];
+      await envoyerSMS(iv.telephone, `Bonjour ${prenom} 😊 Intervention SINELEC confirmée aujourd'hui à ${iv.heure}. Tel: 07 87 38 86 22 ⚡`);
+      await supabase.from('agenda').update({ sms_matin_envoye: true }).eq('id', iv.id);
+    }
+  } catch(e) { console.error('SMS matin:', e.message); }
+});
+
+// Récap matin 7h
+cron.schedule('0 7 * * *', async () => {
+  try {
+    const aujourdhui = new Date().toISOString().split('T')[0];
+    const dateLabel = new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+    const { data: liste } = await supabase.from('agenda').select('*').eq('date_intervention', aujourdhui).neq('statut', 'annulé').order('heure', { ascending: true });
+    if (!liste || liste.length === 0) return;
+    const rows = liste.map(iv => `<tr><td style="padding:8px;color:#C9A84C;font-weight:700;">${iv.heure}</td><td style="padding:8px;">${iv.client}</td><td style="padding:8px;color:#555;">${iv.adresse||'—'}</td><td style="padding:8px;">${iv.type_intervention}</td></tr>`).join('');
+    const html = `<html><body style="font-family:Arial;padding:20px;"><h2>☀️ Bonjour Diahe ! — ${dateLabel}</h2><p><strong>${liste.length}</strong> intervention(s)</p><table border="1" cellpadding="8" style="border-collapse:collapse;width:100%;"><tr style="background:#f8f9fa;"><th>Heure</th><th>Client</th><th>Adresse</th><th>Type</th></tr>${rows}</table></body></html>`;
+    await envoyerEmail('sinelec.paris@gmail.com', `☀️ ${liste.length} intervention(s) aujourd'hui — SINELEC`, html);
+  } catch(e) { console.error('Récap matin:', e.message); }
+});
+
+// Rapport hebdo lundi 8h
+cron.schedule('0 8 * * 1', rapportHebdomadaire);
+
+// Health check toutes les heures
+cron.schedule('0 * * * *', verifierSante);
+
+// Health check démarrage (2min)
+setTimeout(() => { verifierSante().catch(() => {}); }, 120000);
+
+// ═══════════════════════════════════════════════════
+// DÉMARRAGE
+// ═══════════════════════════════════════════════════
+
+const server = app.listen(PORT, () => {
+  console.log(`⚡ SINELEC OS v${CONFIG.meta.version} — Port ${PORT}`);
+});
+
+server.timeout = 300000;
+server.keepAliveTimeout = 300000;
