@@ -1150,11 +1150,11 @@ async function relancerFacturesImpayees() {
 // Lancer chaque matin à 9h05
 cron.schedule('5 9 * * *', relancerFacturesImpayees);
 
-// Route manuelle pour tester
-app.post('/api/relances/lancer', authMiddleware, async (req, res) => {
+// Route GET pour tester depuis le navigateur
+app.get('/api/relances/lancer', authMiddleware, async (req, res) => {
   try {
     await relancerFacturesImpayees();
-    res.json({ success: true, message: 'Relances lancées' });
+    res.json({ success: true, message: 'Relances lancées — vérifiez vos SMS et emails' });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
