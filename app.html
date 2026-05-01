@@ -957,6 +957,8 @@ function switchPage(page, el) {
   if (page === 'sante') setTimeout(chargerSante, 100);
   if (page === 'agenda') setTimeout(chargerAgenda, 100);
   if (page === 'rentabilite') setTimeout(chargerRentabilite, 100);
+  // Page header animé
+  requestAnimationFrame(() => ajouterPageHeader(page));
 }
 
 let menuPlusOpen = false;
@@ -1011,6 +1013,7 @@ let historiqueData = [];
 let histoFiltreActif = 'tous';
 
 async function chargerHistorique() {
+  afficherSkeleton('histo-cards', 4);
   const container = document.getElementById('histo-cards');
   if (container) container.innerHTML = '<div class="panier-empty">Chargement...</div>';
   try {
@@ -1167,6 +1170,8 @@ function afficherHistorique() {
 
     </div>`;
   }).join('');
+  // Swipe to delete
+  requestAnimationFrame(() => requestAnimationFrame(initSwipeToDelete));
 }
 
 // ─── DATE INTERVENTION ────────────────────────────────────────
@@ -1382,10 +1387,17 @@ async function chargerDashboard() {
     const caAnnee = factures.filter(f => (f.created_at||'').startsWith(annee.toString())).reduce((s,f) => s+parseFloat(f.total_ht||0), 0);
     const caAttente = devis.filter(d => d.statut==='envoyé'||d.statut==='envoye').reduce((s,d) => s+parseFloat(d.total_ht||0), 0);
     const panierMoyen = factures.length > 0 ? caAnnee / factures.filter(f=>(f.created_at||'').startsWith(annee.toString())).length : 0;
-    document.getElementById('dash-mois-ca').textContent = Math.round(caMois).toLocaleString('fr-FR');
-    document.getElementById('dash-annee-ca').textContent = Math.round(caAnnee).toLocaleString('fr-FR');
-    document.getElementById('dash-devis-attente').textContent = Math.round(caAttente).toLocaleString('fr-FR');
-    document.getElementById('dash-panier-moyen').textContent = Math.round(panierMoyen).toLocaleString('fr-FR');
+    document.getElementById('dash-mois-ca').textContent = '0';
+    document.getElementById('dash-annee-ca').textContent = '0';
+    document.getElementById('dash-devis-attente').textContent = '0';
+    document.getElementById('dash-panier-moyen').textContent = '0';
+    // Compteurs animés
+    setTimeout(() => {
+      animerCompteur('dash-mois-ca', Math.round(caMois));
+      animerCompteur('dash-annee-ca', Math.round(caAnnee));
+      animerCompteur('dash-devis-attente', Math.round(caAttente));
+      animerCompteur('dash-panier-moyen', Math.round(panierMoyen));
+    }, 80);
     // Graphique 6 mois
     const labels=[], vals=[];
     for(let i=5;i>=0;i--){
@@ -1761,12 +1773,13 @@ function afficherRentabilite(data) {
   const tauxEl = document.getElementById('renta-taux');
   const caSubEl = document.getElementById('renta-ca-sub');
 
-  if (caEl) caEl.textContent = (data.ca_total || 0).toLocaleString('fr-FR') + ' €';
-  if (chargesEl) chargesEl.textContent = (data.charges_total || 0).toLocaleString('fr-FR') + ' €';
+  if (caEl) { caEl.textContent = '0 €'; setTimeout(() => animerCompteur('renta-ca', data.ca_total || 0), 80); }
+  if (chargesEl) { chargesEl.textContent = '0 €'; setTimeout(() => animerCompteur('renta-charges', data.charges_total || 0), 120); }
   if (beneficeEl) {
     const b = data.benefice_net || 0;
-    beneficeEl.textContent = b.toLocaleString('fr-FR') + ' €';
+    beneficeEl.textContent = '0 €';
     beneficeEl.style.color = b >= 0 ? 'var(--accent)' : '#ef4444';
+    setTimeout(() => animerCompteur('renta-benefice', b), 160);
   }
   if (tauxEl) tauxEl.textContent = `Taux de marge : ${data.taux_marge || 0}%`;
   if (caSubEl) caSubEl.textContent = 'Part Diahe (60/40 Alopronto)';
@@ -1886,12 +1899,7 @@ function afficherSkeleton(containerId, nb = 3) {
     </div>`).join('');
 }
 
-// Override chargerHistorique pour skeleton
-const _chargerHistoriqueOrig = chargerHistorique;
-async function chargerHistorique() {
-  afficherSkeleton('histo-cards', 4);
-  await _chargerHistoriqueOrig();
-}
+// Skeleton au chargement historique — appelé depuis chargerHistorique directement
 
 // ═══════════════════════════════════════════════════
 // BOTTOM SHEET
@@ -1998,12 +2006,7 @@ function initSwipeToDelete() {
   });
 }
 
-// Patch afficherHistorique pour swipe
-const _afficherHistoriqueOrig = afficherHistorique;
-function afficherHistorique() {
-  _afficherHistoriqueOrig();
-  requestAnimationFrame(() => requestAnimationFrame(initSwipeToDelete));
-}
+// Swipe to delete — initié depuis afficherHistorique directement
 
 // ═══════════════════════════════════════════════════
 // COMPTEURS ANIMÉS DASHBOARD
@@ -2025,41 +2028,9 @@ function animerCompteur(elementId, valeurFinale, duree = 900, suffixe = ' €') 
   });
 }
 
-// Patch chargerDashboard pour compteurs animés
-const _chargerDashboardOrig = chargerDashboard;
-async function chargerDashboard() {
-  // Skeleton sur les stat-cards
-  ['dash-mois-ca','dash-annee-ca','dash-devis-attente','dash-panier-moyen'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) { el.innerHTML = '<div class="skeleton" style="height:36px;width:80px;margin:0 auto;border-radius:8px;"></div>'; }
-  });
-  await _chargerDashboardOrig();
-  // Animer après chargement
-  setTimeout(() => {
-    const moisCA  = parseFloat(document.getElementById('dash-mois-ca')?.textContent?.replace(/\D/g,'')) || 0;
-    const anneeCA = parseFloat(document.getElementById('dash-annee-ca')?.textContent?.replace(/\D/g,'')) || 0;
-    const attente = parseFloat(document.getElementById('dash-devis-attente')?.textContent?.replace(/\D/g,'')) || 0;
-    const panier  = parseFloat(document.getElementById('dash-panier-moyen')?.textContent?.replace(/\D/g,'')) || 0;
-    animerCompteur('dash-mois-ca', moisCA);
-    animerCompteur('dash-annee-ca', anneeCA);
-    animerCompteur('dash-devis-attente', attente);
-    animerCompteur('dash-panier-moyen', panier);
-  }, 100);
-}
+// Compteurs animés — appelés depuis chargerDashboard directement
 
-// Compteurs rentabilité aussi
-const _chargerRentaOrig = chargerRentabilite;
-async function chargerRentabilite() {
-  await _chargerRentaOrig();
-  setTimeout(() => {
-    ['renta-ca','renta-charges','renta-benefice'].forEach(id => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      const val = parseFloat(el.textContent.replace(/[^\d.-]/g,'')) || 0;
-      animerCompteur(id, val);
-    });
-  }, 100);
-}
+// Compteurs rentabilité — appelés depuis chargerRentabilite directement
 
 // ═══════════════════════════════════════════════════
 // PAGE HEADERS ANIMÉS
@@ -2099,12 +2070,7 @@ function ajouterPageHeader(pageId) {
   page.insertBefore(header, page.firstChild);
 }
 
-// Injecter headers au switchPage
-const _switchPageOrig = switchPage;
-function switchPage(page, el) {
-  _switchPageOrig(page, el);
-  requestAnimationFrame(() => ajouterPageHeader(page));
-}
+// Headers injectés directement dans switchPage ci-dessus
 
 // ═══════════════════════════════════════════════════
 // PULL TO REFRESH
