@@ -1636,7 +1636,38 @@ app.patch('/api/historique/:num/statut', async (req, res) => {
 // API: CLIENTS (agrégés)
 // ═══════════════════════════════════════════════════════════════
 
-app.get('/api/clients', async (req, res) => {
+app.get('/api/clients'app.get('/api/ca-complet', async (req, res) => {
+  try {
+    // Historique SINELEC OS
+    const { data: histo } = await supabase
+      .from('historique')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    // Factures Obat importées
+    const { data: obat } = await supabase
+      .from('factures_obat')
+      .select('*')
+      .eq('statut', 'Payée');
+
+    // Convertir factures Obat au format historique
+    const obatFormate = (obat || []).map(f => ({
+      type: 'facture',
+      client: f.client,
+      total_ht: f.montant,
+      statut: 'paye',
+      created_at: f.date_facture + 'T00:00:00.000Z',
+      num: f.reference,
+      prestations: [{ nom: f.chantier, prix: f.montant, quantite: 1 }],
+      source: 'obat'
+    }));
+
+    const tout = [...(histo || []), ...obatFormate];
+    res.json(tout);
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('clients')
