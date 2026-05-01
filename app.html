@@ -3231,11 +3231,6 @@ function switchTab(tab, el) {
   
   // Charger données si nécessaire
   if (tab === 'historique') setTimeout(chargerHistorique, 100);
-  // AVANT :
-const res = await fetch('/api/historique');
-
-// APRÈS :
-const res = await fetch('/api/ca-complet');
   if (tab === 'dashboard') setTimeout(chargerDashboard, 100);
   if (tab === 'clients') setTimeout(chargerClients, 100);
   if (tab === 'params') setTimeout(afficherParams, 100);
