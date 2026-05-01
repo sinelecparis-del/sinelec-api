@@ -271,47 +271,166 @@ body {
 
 <div class="main-content">
 
-<!-- ════════════ PAGE HISTORIQUE (MODIFIÉE) ════════════ -->
+<!-- ════════════ PAGE HISTORIQUE — CARTES MOBILES ════════════ -->
 <div id="page-historique" class="page">
-<div class="content" style="max-width:1200px;">
-  <div class="section">
-    <div class="section-title">📋 Historique des devis & factures</div>
+<div class="content" style="max-width:700px;">
 
-    <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
-      <button onclick="filtrerHistorique('tous')" id="filter-tous" class="btn-filter" style="background:rgba(212,165,116,0.15);color:var(--accent);border:1px solid rgba(212,165,116,0.3);border-radius:10px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;">Tous</button>
-      <button onclick="filtrerHistorique('devis')" id="filter-devis" class="btn-filter" style="background:rgba(255,255,255,0.6);color:var(--text-2);border:1px solid var(--border);border-radius:10px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;">Devis</button>
-      <button onclick="filtrerHistorique('facture')" id="filter-facture" class="btn-filter" style="background:rgba(255,255,255,0.6);color:var(--text-2);border:1px solid var(--border);border-radius:10px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;">Factures</button>
-    </div>
-
-    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Numéro</th>
-            <th>Statut</th>
-            <th>Client</th>
-            <th>Date doc.</th>
-            <th style="white-space:nowrap;">📅 Intervention</th>
-            <th style="text-align:right;">Total HT</th>
-            <th style="text-align:center;">Actions</th>
-          </tr>
-        </thead>
-        <tbody id="histo-table-body">
-          <tr>
-            <td colspan="7" style="padding:60px 24px;text-align:center;color:var(--text-3);">Chargement...</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+  <!-- FILTRES -->
+  <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+    <button onclick="filtrerHistorique('tous')" id="filter-tous" class="btn-filter" style="flex:1;min-width:80px;background:linear-gradient(135deg,var(--accent),var(--gold));color:#fff;border:none;border-radius:12px;padding:12px 16px;font-size:13px;font-weight:700;cursor:pointer;">Tous</button>
+    <button onclick="filtrerHistorique('devis')" id="filter-devis" class="btn-filter" style="flex:1;min-width:80px;background:rgba(59,130,246,0.1);color:#3b82f6;border:1px solid rgba(59,130,246,0.25);border-radius:12px;padding:12px 16px;font-size:13px;font-weight:700;cursor:pointer;">📋 Devis</button>
+    <button onclick="filtrerHistorique('facture')" id="filter-facture" class="btn-filter" style="flex:1;min-width:80px;background:rgba(16,185,129,0.1);color:#10b981;border:1px solid rgba(16,185,129,0.25);border-radius:12px;padding:12px 16px;font-size:13px;font-weight:700;cursor:pointer;">💶 Factures</button>
   </div>
+
+  <!-- LISTE CARTES -->
+  <div id="histo-cards">
+    <div class="panier-empty">Chargement...</div>
+  </div>
+
 </div>
 </div>
 
 <!-- ════════════ AUTRES PAGES (stubs — chargées dynamiquement) ════════════ -->
-<div id="page-depannage" class="page"><div class="content"><div class="section"><div class="section-title">⚡ Dépannage Rapide</div><div id="dep-content"></div></div></div></div>
-<div id="page-agenda" class="page"><div class="content" style="max-width:700px;"><div class="section"><div class="section-title">📅 Agenda</div><div id="agenda-liste"><div class="panier-empty">Chargement...</div></div></div></div></div>
-<div id="page-devis" class="page active"><div class="content"><div class="section"><div class="section-title">📋 Nouveau Devis</div><div id="devis-content"></div></div></div></div>
-<div id="page-facture" class="page"><div class="content"><div class="section"><div class="section-title">💶 Nouvelle Facture</div><div id="facture-content"></div></div></div></div>
+<!-- ════ PAGE DÉPANNAGE ════ -->
+<div id="page-depannage" class="page"><div class="content"><div class="section"><div class="section-title">⚡ Dépannage Rapide</div><div id="dep-content" style="color:var(--text-3);text-align:center;padding:40px;">Utilisez le bouton 📞 en bas à droite pour créer un lead rapide,<br>puis générez le devis depuis la page Devis.</div></div></div></div>
+
+<!-- ════ PAGE AGENDA ════ -->
+<div id="page-agenda" class="page"><div class="content" style="max-width:700px;"><div class="section"><div class="section-title">📅 Interventions à venir</div><div id="agenda-liste"><div class="panier-empty">Chargement...</div></div></div></div></div>
+
+<!-- ════════════ PAGE DEVIS ════════════ -->
+<div id="page-devis" class="page active">
+<div class="content">
+  <!-- Infos client -->
+  <div class="section">
+    <div class="section-title">📋 Informations client</div>
+    <div class="client-toggle">
+      <div class="client-toggle-btn active" id="d-toggle-part" onclick="setClientType('d','particulier')">👤 Particulier</div>
+      <div class="client-toggle-btn" id="d-toggle-soc" onclick="setClientType('d','societe')">🏢 Société</div>
+    </div>
+    <div id="d-bloc-particulier">
+      <div class="input-group"><label>Prénom</label><input type="text" id="d-prenom" placeholder="MARIE" oninput="this.value=this.value.toUpperCase()" autocomplete="off"></div>
+      <div class="input-group"><label>Nom</label><input type="text" id="d-client" placeholder="DUPONT" oninput="this.value=this.value.toUpperCase()" autocomplete="off"></div>
+    </div>
+    <div id="d-bloc-societe" style="display:none;">
+      <div class="input-group"><label>Nom société</label><input type="text" id="d-societe" placeholder="JAS INVEST" oninput="this.value=this.value.toUpperCase()" autocomplete="off"></div>
+    </div>
+    <div class="input-group">
+      <label>Adresse</label>
+      <input type="text" id="d-adresse" placeholder="12 rue de la Paix, 75001 Paris" oninput="autocompleteAdresse('d-adresse', this.value)" autocomplete="off">
+      <div id="d-adresse-suggestions" style="background:var(--glass);border:1px solid var(--border);border-radius:12px;margin-top:6px;max-height:220px;overflow-y:auto;display:none;"></div>
+    </div>
+    <div class="input-group"><label>Téléphone</label><input type="tel" id="d-tel" placeholder="06 12 34 56 78"></div>
+    <div class="input-group"><label>Email (envoi auto)</label><input type="email" id="d-email" placeholder="client@email.com"></div>
+    <div class="input-group"><label>Objet des travaux <span style="font-size:11px;color:var(--text-3);">(optionnel)</span></label><textarea id="d-description" placeholder="Ex: Rénovation électrique complète" rows="2" style="resize:vertical;"></textarea></div>
+  </div>
+
+  <!-- Prestations -->
+  <div class="section">
+    <div class="section-title">⚡ Prestations</div>
+    <div class="cat-grid" id="d-cats"></div>
+    <div class="prestations" id="d-prests"></div>
+  </div>
+
+  <!-- Panier -->
+  <div class="panier">
+    <div class="panier-header">
+      <span>🛒 Panier</span>
+      <span id="d-count">0 prestation(s)</span>
+    </div>
+    <div id="d-panier-items"><div class="panier-empty">Aucune prestation ajoutée</div></div>
+  </div>
+
+  <!-- Remise -->
+  <div class="remise-bar" id="d-remise-bar" style="display:none;">
+    <span style="font-size:13px;font-weight:700;color:var(--text-2);">Remise</span>
+    <div class="remise-toggle">
+      <div class="remise-toggle-btn active" id="d-remise-type-pct" onclick="setRemiseType('d','pct')">%</div>
+      <div class="remise-toggle-btn" id="d-remise-type-eur" onclick="setRemiseType('d','eur')">€</div>
+    </div>
+    <input type="number" class="remise-input" id="d-remise-val" value="0" min="0" oninput="renderPanier('d')">
+  </div>
+  <button onclick="toggleRemise('d')" style="width:100%;background:rgba(255,255,255,0.6);color:var(--text-2);border:1.5px solid var(--border);border-radius:12px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:8px;" id="d-remise-btn">🏷️ Ajouter une remise</button>
+  <button onclick="appliquerRemise7('d')" data-active="0" style="width:100%;background:rgba(201,168,76,0.08);color:var(--accent);border:1.5px solid rgba(201,168,76,0.3);border-radius:12px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:8px;" id="d-remise-7-btn">🎁 Remise 7%</button>
+
+  <!-- Total -->
+  <div class="total-bar">
+    <span class="total-label">TOTAL HT</span>
+    <span class="total-amount" id="d-total">0,00 €</span>
+  </div>
+  <div class="remise-line" id="d-remise-line" style="display:none;">
+    <span>🏷️ Remise appliquée</span>
+    <span id="d-remise-montant" style="color:var(--success);">-0,00 €</span>
+  </div>
+  <div id="d-total-apres-remise" style="display:none;justify-content:space-between;align-items:center;padding:8px 0;font-size:16px;font-weight:900;">
+    <span>NET À PAYER</span>
+    <span id="d-net-payer" style="color:var(--accent);">0,00 €</span>
+  </div>
+
+  <button class="btn-gen" id="d-btn" onclick="generer('devis')">📄 Générer le devis PDF</button>
+  <div class="status" id="d-status"></div>
+</div>
+</div>
+
+<!-- ════════════ PAGE FACTURE ════════════ -->
+<div id="page-facture" class="page">
+<div class="content">
+  <div class="section">
+    <div class="section-title">💶 Informations client</div>
+    <div class="client-toggle">
+      <div class="client-toggle-btn active" id="f-toggle-part" onclick="setClientType('f','particulier')">👤 Particulier</div>
+      <div class="client-toggle-btn" id="f-toggle-soc" onclick="setClientType('f','societe')">🏢 Société</div>
+    </div>
+    <div id="f-bloc-particulier">
+      <div class="input-group"><label>Prénom</label><input type="text" id="f-prenom" placeholder="MARIE" oninput="this.value=this.value.toUpperCase()" autocomplete="off"></div>
+      <div class="input-group"><label>Nom</label><input type="text" id="f-client" placeholder="DUPONT" oninput="this.value=this.value.toUpperCase()" autocomplete="off"></div>
+    </div>
+    <div id="f-bloc-societe" style="display:none;">
+      <div class="input-group"><label>Nom société</label><input type="text" id="f-societe" placeholder="JAS INVEST" oninput="this.value=this.value.toUpperCase()" autocomplete="off"></div>
+    </div>
+    <div class="input-group">
+      <label>Adresse</label>
+      <input type="text" id="f-adresse" placeholder="12 rue de la Paix, 75001 Paris" oninput="autocompleteAdresse('f-adresse', this.value)" autocomplete="off">
+      <div id="f-adresse-suggestions" style="background:var(--glass);border:1px solid var(--border);border-radius:12px;margin-top:6px;max-height:220px;overflow-y:auto;display:none;"></div>
+    </div>
+    <div class="input-group"><label>Téléphone</label><input type="tel" id="f-tel" placeholder="06 12 34 56 78"></div>
+    <div class="input-group"><label>Email (envoi auto)</label><input type="email" id="f-email" placeholder="client@email.com"></div>
+    <div class="input-group"><label>Description des travaux</label><textarea id="f-description" placeholder="Ex: Remplacement tableau réalisé"></textarea></div>
+  </div>
+  <div class="section">
+    <div class="section-title">⚡ Prestations réalisées</div>
+    <div class="cat-grid" id="f-cats"></div>
+    <div class="prestations" id="f-prests"></div>
+  </div>
+  <div class="panier">
+    <div class="panier-header"><span>🛒 Panier</span><span id="f-count">0 prestation(s)</span></div>
+    <div id="f-panier-items"><div class="panier-empty">Aucune prestation ajoutée</div></div>
+  </div>
+  <div class="remise-bar" id="f-remise-bar" style="display:none;">
+    <span style="font-size:13px;font-weight:700;color:var(--text-2);">Remise</span>
+    <div class="remise-toggle">
+      <div class="remise-toggle-btn active" id="f-remise-type-pct" onclick="setRemiseType('f','pct')">%</div>
+      <div class="remise-toggle-btn" id="f-remise-type-eur" onclick="setRemiseType('f','eur')">€</div>
+    </div>
+    <input type="number" class="remise-input" id="f-remise-val" value="0" min="0" oninput="renderPanier('f')">
+  </div>
+  <button onclick="toggleRemise('f')" style="width:100%;background:rgba(255,255,255,0.6);color:var(--text-2);border:1.5px solid var(--border);border-radius:12px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:8px;" id="f-remise-btn">🏷️ Ajouter une remise</button>
+  <button onclick="appliquerRemise7('f')" data-active="0" style="width:100%;background:rgba(201,168,76,0.08);color:var(--accent);border:1.5px solid rgba(201,168,76,0.3);border-radius:12px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:8px;" id="f-remise-7-btn">🎁 Remise 7%</button>
+  <div class="total-bar">
+    <span class="total-label">TOTAL HT</span>
+    <span class="total-amount" id="f-total">0,00 €</span>
+  </div>
+  <div class="remise-line" id="f-remise-line" style="display:none;">
+    <span>🏷️ Remise appliquée</span>
+    <span id="f-remise-montant" style="color:var(--success);">-0,00 €</span>
+  </div>
+  <div id="f-total-apres-remise" style="display:none;justify-content:space-between;align-items:center;padding:8px 0;font-size:16px;font-weight:900;">
+    <span>NET À PAYER</span>
+    <span id="f-net-payer" style="color:var(--accent);">0,00 €</span>
+  </div>
+  <button class="btn-gen" id="f-btn" onclick="generer('facture')">💶 Générer la facture PDF</button>
+  <div class="status" id="f-status"></div>
+</div>
+</div>
 <div id="page-dashboard" class="page"><div class="content" style="max-width:1000px;"><div class="stat-grid" style="margin-bottom:20px;"><div class="stat-card"><div class="stat-value" id="dash-mois-ca">0</div><div class="stat-label">CA Ce Mois (€)</div></div><div class="stat-card"><div class="stat-value" id="dash-annee-ca">0</div><div class="stat-label">CA Année (€)</div></div><div class="stat-card"><div class="stat-value" id="dash-devis-attente">0</div><div class="stat-label">Devis en attente (€)</div></div><div class="stat-card"><div class="stat-value" id="dash-panier-moyen">0</div><div class="stat-label">Panier moyen (€)</div></div></div><div class="section"><div class="section-title">📊 CA par mois</div><div style="position:relative;width:100%;height:220px;"><canvas id="chart-ca"></canvas></div></div><div class="section"><div class="section-title">⚡ Top prestations</div><div id="dash-top-prests"></div></div></div></div>
 <div id="page-vocal" class="page"><div class="content"><div class="section"><div class="section-title">🎙️ Script Vocal IA</div><div id="vocal-content"></div></div></div></div>
 <div id="page-chat" class="page"><div class="content"><div class="section"><div class="section-title">🤖 Chat AI</div><div id="chat-messages" style="min-height:200px;"></div><div style="display:flex;gap:10px;margin-top:16px;"><input type="text" id="chat-input" placeholder="Décris le chantier..." style="flex:1;background:rgba(255,255,255,0.65);border:1.5px solid rgba(218,165,32,0.15);border-radius:12px;padding:14px 16px;color:var(--text);font-size:15px;outline:none;" onkeypress="if(event.key==='Enter') envoyerMessage()"><button onclick="envoyerMessage()" style="background:linear-gradient(135deg,var(--accent),var(--gold));color:#fff;border:none;border-radius:12px;padding:14px 20px;font-weight:800;cursor:pointer;font-size:20px;">→</button></div></div></div></div>
@@ -480,6 +599,8 @@ document.body.setAttribute('data-theme', savedTheme);
 document.addEventListener('DOMContentLoaded', () => {
   const icon = document.getElementById('theme-icon');
   if (icon) icon.textContent = savedTheme === 'light' ? '🌙' : '☀️';
+  initCategories('d');
+  initCategories('f');
 });
 
 // ═══════════════════════════════════════════════════
@@ -566,83 +687,157 @@ async function autocompleteAdresse(id, value) {
 }
 
 // ═══════════════════════════════════════════════════
-// HISTORIQUE — VERSION COMPLÈTE AVEC DATE INTERVENTION
+// HISTORIQUE — CARTES MOBILES + STATUTS CLAIRS
 // ═══════════════════════════════════════════════════
 let historiqueData = [];
 let histoFiltreActif = 'tous';
 
 async function chargerHistorique() {
+  const container = document.getElementById('histo-cards');
+  if (container) container.innerHTML = '<div class="panier-empty">Chargement...</div>';
   try {
     const res = await fetch('/api/ca-complet');
-    const data = await res.json();
-    historiqueData = data;
+    historiqueData = await res.json();
     afficherHistorique();
   } catch(e) {
-    document.getElementById('histo-table-body').innerHTML = `<tr><td colspan="7" style="padding:40px;text-align:center;color:var(--error);">❌ Erreur de chargement</td></tr>`;
+    if (container) container.innerHTML = `<div class="panier-empty" style="color:var(--error);">❌ Erreur chargement</div>`;
   }
 }
 
 function filtrerHistorique(type) {
   histoFiltreActif = type;
-  document.querySelectorAll('.btn-filter').forEach(btn => { btn.style.background = 'rgba(255,255,255,0.6)'; btn.style.color = 'var(--text-2)'; });
+  // Reset tous les boutons filtres
+  document.querySelectorAll('.btn-filter').forEach(btn => {
+    btn.style.background = 'rgba(255,255,255,0.6)';
+    btn.style.color = 'var(--text-2)';
+    btn.style.border = '1px solid var(--border)';
+  });
+  // Activer le bouton sélectionné
   const activeBtn = document.getElementById(`filter-${type}`);
-  if (activeBtn) { activeBtn.style.background = 'rgba(212,165,116,0.15)'; activeBtn.style.color = 'var(--accent)'; }
+  if (activeBtn) {
+    activeBtn.style.background = 'linear-gradient(135deg,var(--accent),var(--gold))';
+    activeBtn.style.color = '#fff';
+    activeBtn.style.border = 'none';
+  }
   afficherHistorique();
 }
 
 function afficherHistorique() {
-  const tbody = document.getElementById('histo-table-body');
+  const container = document.getElementById('histo-cards');
+  if (!container) return;
+
   let filtered = historiqueData;
   if (histoFiltreActif !== 'tous') filtered = historiqueData.filter(item => item.type === histoFiltreActif);
 
   if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" style="padding:60px 24px;text-align:center;color:var(--text-3);">Aucun ${histoFiltreActif === 'tous' ? 'document' : histoFiltreActif} trouvé</td></tr>`;
+    container.innerHTML = `<div class="panier-empty">Aucun document trouvé</div>`;
     return;
   }
 
   filtered.sort((a, b) => new Date(b.created_at || b.date) - new Date(a.created_at || a.date));
 
-  tbody.innerHTML = filtered.map(item => {
-    const statut = item.statut || (item.type === 'facture' ? 'payée' : 'envoyé');
-    const ageHeures = (new Date() - new Date(item.created_at || item.date)) / 3600000;
-    const alerte48h = item.type === 'devis' && statut === 'envoyé' && ageHeures > 48;
-    const badge = getStatusBadge(statut, item.type) + (alerte48h ? ' <span class="alerte-badge">⚠️ +48h</span>' : '');
+  container.innerHTML = filtered.map(item => {
+    const statut = (item.statut || '').toLowerCase();
+    const type = item.type || 'facture';
+    const isObat = item.source === 'obat';
+    const montant = parseFloat(item.total_ht || item.totalht || 0).toFixed(0);
     const timeline = getTimeline(item.created_at || item.date);
     const dateInterv = item.date_intervention || '';
-    const isObat = item.source === 'obat';
+    const ageHeures = (new Date() - new Date(item.created_at || item.date)) / 3600000;
+    const alerte = type === 'devis' && (statut === 'envoyé' || statut === 'envoye') && ageHeures > 48;
+
+    // ── STATUT BADGE ──────────────────────────────────────────
+    let statutBg, statutColor, statutLabel, statutIcon;
+    if (type === 'devis') {
+      if (statut === 'signe' || statut === 'signé') {
+        statutBg = '#f0fdf4'; statutColor = '#16a34a';
+        statutIcon = '✅'; statutLabel = 'Signé';
+      } else if (statut === 'facture') {
+        statutBg = '#eff6ff'; statutColor = '#3b82f6';
+        statutIcon = '→'; statutLabel = 'Facturé';
+      } else {
+        // NON SIGNÉ
+        statutBg = alerte ? '#fef2f2' : '#fefce8';
+        statutColor = alerte ? '#dc2626' : '#ca8a04';
+        statutIcon = alerte ? '⚠️' : '⏳';
+        statutLabel = alerte ? 'En attente +48h' : 'Non signé';
+      }
+    } else {
+      // FACTURE
+      if (statut === 'paye' || statut === 'payé' || statut === 'payée') {
+        statutBg = '#f0fdf4'; statutColor = '#16a34a';
+        statutIcon = '💰'; statutLabel = 'Payée';
+      } else {
+        statutBg = '#fff7ed'; statutColor = '#ea580c';
+        statutIcon = '⏳'; statutLabel = 'En attente';
+      }
+    }
+
+    // ── TYPE BADGE ────────────────────────────────────────────
+    const typeBg = type === 'devis' ? 'rgba(59,130,246,0.1)' : 'rgba(16,185,129,0.1)';
+    const typeColor = type === 'devis' ? '#3b82f6' : '#10b981';
+    const typeLabel = type === 'devis' ? '📋 Devis' : '💶 Facture';
+
+    // ── ACTIONS ───────────────────────────────────────────────
+    let actions = '';
+    if (!isObat) {
+      if (type === 'devis') {
+        actions += `<button onclick="convertirEnFacture('${item.num}')" class="btn-small" style="background:rgba(16,185,129,0.12);color:#10b981;border-color:rgba(16,185,129,0.3);">→ Facture</button>`;
+        actions += `<button onclick="ouvrirPopupSig('${item.num}')" class="btn-small">✍️ Signer</button>`;
+      }
+      actions += `<button onclick="telechargerPDF('${item.num}')" class="btn-small">⬇️ PDF</button>`;
+      actions += `<button onclick="dupliquerDoc('${item.num}')" class="btn-small">📋 Dupliquer</button>`;
+      if (type === 'facture' && statut !== 'paye' && statut !== 'payé' && statut !== 'payée') {
+        actions += `<button onclick="marquerPaye('${item.num}','terminal')" class="btn-small" style="background:rgba(99,102,241,0.12);color:#6366f1;border-color:rgba(99,102,241,0.3);" title="CB Terminal SumUp">💳 Terminal</button>`;
+        actions += `<button onclick="marquerPaye('${item.num}','virement')" class="btn-small" style="background:rgba(16,185,129,0.1);color:#10b981;" title="Virement">🏦 Virement</button>`;
+        actions += `<button onclick="marquerPaye('${item.num}','especes')" class="btn-small" title="Espèces">💶 Espèces</button>`;
+        actions += `<button onclick="genererLienPaiement('${item.num}')" class="btn-small" style="background:rgba(16,185,129,0.1);color:#10b981;" title="Lien paiement SumUp">🔗 Lien CB</button>`;
+      }
+      actions += `<button onclick="supprimerDoc('${item.num}')" class="btn-small" style="background:rgba(239,68,68,0.1);color:#ef4444;border-color:rgba(239,68,68,0.2);">🗑️</button>`;
+    }
 
     return `
-      <tr style="border-bottom:1px solid rgba(218,165,32,0.08);transition:background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.4)'" onmouseout="this.style.background=''">
-        <td style="padding:16px;font-weight:700;color:var(--accent);">${item.num}${isObat ? ' <span style="font-size:9px;color:var(--text-3);">Obat</span>' : ''}</td>
-        <td style="padding:16px;">${badge}</td>
-        <td style="padding:16px;font-weight:600;">${item.client || 'N/A'}</td>
-        <td style="padding:16px;font-size:12px;color:var(--text-2);">${timeline}</td>
-        <td style="padding:12px 8px;">
-          ${isObat ? `<span style="font-size:11px;color:var(--text-3);">—</span>` : `
-          <input type="date" value="${dateInterv}"
-            onchange="majDateIntervention('${item.num}', this.value)"
-            class="date-interv-input"
-            title="Date d'intervention réelle">`}
-        </td>
-        <td style="padding:16px;text-align:right;font-weight:800;color:var(--accent);">${parseFloat(item.total_ht || item.totalht || 0).toFixed(0)} €</td>
-        <td style="padding:16px;text-align:center;">
-          <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;">
-            ${!isObat && item.type === 'devis' ? `
-              <button onclick="convertirEnFacture('${item.num}')" class="btn-small" style="background:rgba(16,185,129,0.15);color:var(--success);border:1px solid rgba(16,185,129,0.3);">→ Facture</button>
-              <button onclick="ouvrirPopupSig('${item.num}')" class="btn-small" style="background:rgba(212,165,116,0.1);color:var(--accent);">✍️</button>
-            ` : ''}
-            ${!isObat ? `<button onclick="telechargerPDF('${item.num}')" class="btn-small">⬇️ PDF</button>` : ''}
-            ${!isObat ? `<button onclick="dupliquerDoc('${item.num}')" class="btn-small">📋</button>` : ''}
-            ${!isObat && item.type === 'facture' && statut !== 'paye' && statut !== 'payé' ? `
-              <button onclick="marquerPaye('${item.num}','terminal')" class="btn-small" style="background:rgba(99,102,241,0.12);color:#6366f1;border:1px solid rgba(99,102,241,0.3);" title="CB Terminal">💳</button>
-              <button onclick="marquerPaye('${item.num}','virement')" class="btn-small" style="background:rgba(16,185,129,0.1);color:#10b981;" title="Virement">🏦</button>
-              <button onclick="marquerPaye('${item.num}','especes')" class="btn-small" title="Espèces">💶</button>
-              <button onclick="genererLienPaiement('${item.num}')" class="btn-small" style="background:rgba(16,185,129,0.1);color:#10b981;">🔗</button>
-            ` : ''}
-            ${!isObat ? `<button onclick="supprimerDoc('${item.num}')" class="btn-small" style="background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.2);">🗑️</button>` : ''}
+    <div style="background:var(--glass);backdrop-filter:blur(20px);border:1.5px solid ${alerte ? 'rgba(220,38,38,0.3)' : 'var(--border)'};border-radius:16px;padding:16px;margin-bottom:12px;transition:all 0.2s;">
+
+      <!-- LIGNE 1 : Numéro + Montant -->
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span style="font-size:15px;font-weight:800;color:var(--accent);">${item.num}</span>
+            <span style="background:${typeBg};color:${typeColor};border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;">${typeLabel}</span>
+            ${isObat ? `<span style="background:rgba(107,114,128,0.1);color:var(--text-3);border-radius:6px;padding:2px 8px;font-size:10px;font-weight:600;">Obat</span>` : ''}
           </div>
-        </td>
-      </tr>`;
+          <div style="font-size:14px;font-weight:600;color:var(--text);margin-top:4px;">${item.client || '—'}</div>
+        </div>
+        <div style="font-size:20px;font-weight:900;color:var(--accent);white-space:nowrap;">${montant} €</div>
+      </div>
+
+      <!-- LIGNE 2 : Statut + Date -->
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+        <span style="background:${statutBg};color:${statutColor};border-radius:8px;padding:5px 12px;font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:4px;">
+          ${statutIcon} ${statutLabel}
+        </span>
+        <span style="font-size:12px;color:var(--text-3);">📅 ${timeline}</span>
+      </div>
+
+      <!-- LIGNE 3 : Date intervention -->
+      ${!isObat ? `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+        <span style="font-size:12px;color:var(--text-3);font-weight:600;white-space:nowrap;">🔧 Intervention :</span>
+        <input type="date" value="${dateInterv}"
+          onchange="majDateIntervention('${item.num}', this.value)"
+          class="date-interv-input"
+          title="Date d'intervention réelle"
+          style="font-size:13px;padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;background:rgba(255,255,255,0.7);color:var(--text);outline:none;cursor:pointer;">
+        ${dateInterv ? `<span style="font-size:11px;color:#10b981;font-weight:600;">✓</span>` : `<span style="font-size:11px;color:var(--text-3);">à planifier</span>`}
+      </div>` : ''}
+
+      <!-- LIGNE 4 : Actions -->
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        ${actions}
+      </div>
+
+    </div>`;
   }).join('');
 }
 
@@ -1159,6 +1354,393 @@ setTimeout(verifierAlertesDevis, 2000);
 setInterval(verifierAlertesDevis, 300000);
 
 console.log('⚡ SINELEC OS v2.0 loaded — Date Intervention activée');
+
+// ═══════════════════════════════════════════════════
+// REMISE
+// ═══════════════════════════════════════════════════
+let remiseTypeD = 'pct', remiseTypeF = 'pct';
+
+function toggleRemise(prefix) {
+  const bar = document.getElementById(`${prefix}-remise-bar`);
+  const btn = document.getElementById(`${prefix}-remise-btn`);
+  const visible = bar.style.display !== 'none';
+  bar.style.display = visible ? 'none' : 'flex';
+  btn.textContent = visible ? '🏷️ Ajouter une remise' : '✕ Retirer la remise';
+  if (visible) { document.getElementById(`${prefix}-remise-val`).value = 0; renderPanier(prefix); }
+}
+
+function appliquerRemise7(prefix) {
+  const bar = document.getElementById(`${prefix}-remise-bar`);
+  const btn7 = document.getElementById(`${prefix}-remise-7-btn`);
+  const val = document.getElementById(`${prefix}-remise-val`);
+  const isActive = btn7?.getAttribute('data-active') === '1';
+  if (isActive) {
+    bar.style.display = 'none';
+    if (val) val.value = 0;
+    btn7.setAttribute('data-active','0');
+    btn7.style.background = 'rgba(201,168,76,0.08)';
+    btn7.style.color = 'var(--accent)';
+    btn7.textContent = '🎁 Remise 7%';
+    document.getElementById(`${prefix}-remise-btn`).textContent = '🏷️ Ajouter une remise';
+  } else {
+    bar.style.display = 'flex';
+    if (prefix === 'd') remiseTypeD = 'pct'; else remiseTypeF = 'pct';
+    document.getElementById(`${prefix}-remise-type-pct`).classList.add('active');
+    document.getElementById(`${prefix}-remise-type-eur`).classList.remove('active');
+    if (val) val.value = 7;
+    btn7.setAttribute('data-active','1');
+    btn7.style.background = 'rgba(22,163,74,0.12)';
+    btn7.style.color = '#16a34a';
+    btn7.textContent = '✅ Remise 7% active';
+    document.getElementById(`${prefix}-remise-btn`).textContent = '✕ Retirer la remise';
+  }
+  renderPanier(prefix);
+}
+
+function setRemiseType(prefix, type) {
+  if (prefix === 'd') remiseTypeD = type; else remiseTypeF = type;
+  document.getElementById(`${prefix}-remise-type-pct`).classList.toggle('active', type === 'pct');
+  document.getElementById(`${prefix}-remise-type-eur`).classList.toggle('active', type === 'eur');
+  renderPanier(prefix);
+}
+
+function getRemise(prefix, total) {
+  const bar = document.getElementById(`${prefix}-remise-bar`);
+  if (!bar || bar.style.display === 'none') return 0;
+  const val = parseFloat(document.getElementById(`${prefix}-remise-val`)?.value) || 0;
+  const type = prefix === 'd' ? remiseTypeD : remiseTypeF;
+  return type === 'pct' ? Math.min(total * val / 100, total) : Math.min(val, total);
+}
+
+// ═══════════════════════════════════════════════════
+// GRILLE TARIFAIRE
+// ═══════════════════════════════════════════════════
+const GRILLE = {
+  '🚗 Déplacement & Urgences': {
+    'Déplacement Paris intra-muros': { f:50, fo:0, mo:50, desc:'Déplacement du technicien SINELEC avec véhicule équipé outillage professionnel complet. Intervention dans Paris intra-muros.' },
+    'Déplacement banlieue <20km': { f:80, fo:0, mo:80, desc:'Déplacement professionnel, véhicule équipé, IDF <20km.' },
+    'Urgence jour (8h-20h)': { f:130, fo:0, mo:130, desc:'Intervention urgente sous 2h en journée (8h-20h), 7j/7. Technicien qualifié, véhicule équipé. Tarif urgence jour inclus.' },
+    'Urgence soir (20h-23h)': { f:180, fo:0, mo:180, desc:'Intervention urgente en soirée (20h-23h), disponibilité 7j/7. Diagnostic et remise en service. Tarif soirée majoré inclus.' },
+    'Urgence nuit / WE / férié': { f:250, fo:0, mo:250, desc:'Intervention urgente nuit (23h-8h), week-end et jours fériés. Diagnostic, remise en service ou mise en sécurité. Tarif nuit/WE inclus.' },
+    'Attestation mise en sécurité Enedis': { f:189, fo:10, mo:179, desc:'Diagnostic complet, vérification conformité, attestation officielle Enedis.' },
+  },
+  '🔧 Dépannage Général': {
+    'Recherche de panne simple': { f:120, fo:0, mo:120, desc:'Diagnostic méthodique complet de l\'installation électrique. Localisation précise de la panne. Remise en service. Rapport d\'intervention remis au client.' },
+    'Court-circuit diagnostic + réparation': { f:125, fo:15, mo:110, desc:'Localisation précise par méthode de mesure professionnelle. Remplacement des éléments endommagés. Remise en service avec test complet.' },
+    'Réactivation coupure générale': { f:90, fo:0, mo:90, desc:'Remise en service complète, vérification sécurité, test circuits.' },
+    'Remplacement disjoncteur standard': { f:150, fo:30, mo:120, desc:'Fourniture et remplacement disjoncteur calibre adapté. Test mise en service.' },
+    'Réparation prise défectueuse': { f:90, fo:25, mo:65, desc:'Remplacement prise, câblage, test fonctionnement, finition soignée.' },
+    'Réparation interrupteur défectueux': { f:90, fo:20, mo:70, desc:'Remplacement interrupteur, raccordement, test complet.' },
+    'Diagnostic complet installation': { f:150, fo:0, mo:150, desc:'Audit complet installation électrique, rapport conformité NF C15-100.' },
+  },
+  '⚡ Tableau Électrique': {
+    'Disjoncteur 10A (éclairage)': { f:150, fo:28, mo:122, desc:'Fourniture Legrand/Schneider, pose, raccordement, étiquetage.' },
+    'Disjoncteur 16A (prises)': { f:150, fo:31, mo:119, desc:'Fourniture Legrand/Schneider, pose, raccordement, test.' },
+    'Disjoncteur 32A (four/plaque)': { f:160, fo:35, mo:125, desc:'Fourniture 32A, pose, raccordement, adapté gros électroménager.' },
+    'Disjoncteur différentiel 30mA type AC': { f:200, fo:55, mo:145, desc:'Fourniture différentiel 30mA, protection personnes, pose complète.' },
+    'Interrupteur différentiel 63A type A': { f:250, fo:85, mo:165, desc:'Fourniture 63A type A, protection renforcée, pose et réglage.' },
+    'Mini tableau NF C 15-100': { f:185, fo:60, mo:125, desc:'Coffret encastré, modules fournis, conforme NF C15-100.' },
+    'Tableau complet 1 rangée (6-13 modules)': { f:1100, fo:380, mo:720, desc:'Fourniture et pose tableau électrique neuf 1 rangée. Appareillage Schneider/Legrand. Différentiel 40A 30mA type A, disjoncteurs calibrés, étiquetage complet, schéma unifilaire remis. Conforme NF C 15-100. Garantie 2 ans.' },
+    'Tableau complet 2 rangées (14-26 modules)': { f:1500, fo:550, mo:950, desc:'Fourniture et pose tableau électrique neuf 2 rangées. Appareillage Schneider/Legrand. Différentiels 40A et 63A, disjoncteurs calibrés, étiquetage professionnel, schéma unifilaire remis. Conforme NF C 15-100. Garantie 2 ans.' },
+  },
+  '🔌 Prises & Interrupteurs': {
+    'Prise standard 2P+T': { f:90, fo:20, mo:70, desc:'Prise Legrand/Schneider, pose encastrée, raccordement, finition.' },
+    'Prise double': { f:110, fo:28, mo:82, desc:'Double prise 2P+T, pose encastrée, raccordement, plaque fournie.' },
+    'Prise spécialisée cuisinière 32A': { f:140, fo:35, mo:105, desc:'Prise 32A 3P+T, pose, raccordement ligne dédiée, sécurisée.' },
+    'Prise étanche extérieure IP44': { f:110, fo:28, mo:82, desc:'Prise IP44 étanche, protection pluie, pose extérieure complète.' },
+    'Interrupteur simple': { f:90, fo:20, mo:70, desc:'Interrupteur Legrand, pose encastrée, raccordement, finition.' },
+    'Interrupteur va-et-vient': { f:110, fo:25, mo:85, desc:'Va-et-vient, 2 points de commande, pose complète, test.' },
+    'Variateur intensité': { f:130, fo:40, mo:90, desc:'Variateur LED compatible, pose, réglage, test luminosité.' },
+    'Prise Green Up recharge VE': { f:300, fo:120, mo:180, desc:'Prise T2 Green Up, ligne dédiée 16A, protection différentielle.' },
+  },
+  '💡 Éclairage': {
+    'Luminaire simple (plafonnier)': { f:115, fo:20, mo:95, desc:'Pose plafonnier fourni par client, raccordement DCL, fixation.' },
+    'Lustre / luminaire lourd': { f:200, fo:30, mo:170, desc:'Pose lustre lourd, fixation renforcée, raccordement, test.' },
+    'Spot encastré LED (unité)': { f:75, fo:25, mo:50, desc:'Spot LED encastré, découpe, raccordement, test éclairage.' },
+    'Point lumineux DCL': { f:100, fo:15, mo:85, desc:'Création point lumineux DCL, tirage câble, boite de dérivation.' },
+    'Détecteur mouvement éclairage': { f:120, fo:35, mo:85, desc:'Détecteur infrarouge, réglage sensibilité/temporisation, pose.' },
+  },
+  '🔗 Circuits & Câblage': {
+    'Circuit apparent 5m': { f:200, fo:35, mo:165, desc:'Tirage câble apparent sous goulotte 5m, raccordement tableau.' },
+    'Circuit encastré 5m': { f:300, fo:45, mo:255, desc:'Tirage câble encastré sous gaine 5m, saignée, raccordement.' },
+    'Ligne dédiée lave-linge': { f:220, fo:45, mo:175, desc:'Circuit 20A du tableau, câble 2.5mm², prise 2P+T, NF C15-100.' },
+    'Ligne dédiée chauffe-eau': { f:220, fo:45, mo:175, desc:'Circuit 20A, câble 2.5mm², contacteur HC/HP, conforme norme.' },
+    'Ligne dédiée plaque induction': { f:250, fo:50, mo:200, desc:'Circuit 32A du tableau, câble 6mm², prise spécialisée, NF C15-100.' },
+  },
+  '🛡️ Normes & Sécurité': {
+    'Mise à la terre complète': { f:650, fo:80, mo:570, desc:'Installation prise de terre : piquet acier-cuivre 1,5m, liaison câble cuivre 16mm², barre de terre raccordée. Mesure résistance (< 100 ohms). PV de mesure remis. Conforme NF C 15-100 art. 411.' },
+    'Liaison équipotentielle principale': { f:160, fo:25, mo:135, desc:'Raccordement barre de terre de toutes les canalisations métalliques. Câble cuivre vert/jaune 6mm². Mesure de continuité (< 0,5 ohm). PV de mesures remis.' },
+    'Liaison équipotentielle salle de bain': { f:140, fo:20, mo:120, desc:'Raccordement de toutes les masses métalliques de la SdB. Câble 2,5mm². Mesure (< 0,05 ohm). Rapport remis. Obligatoire zones humides NF C 15-100.' },
+    'Détecteur fumée DAAF': { f:85, fo:20, mo:65, desc:'Fourniture et pose DAAF certifié NF et CE, pile 10 ans. Fixation plafond, test sur site. Conforme loi du 9 mars 2010. Rapport de pose remis.' },
+    'Diagnostic électrique obligatoire': { f:150, fo:0, mo:150, desc:'Contrôle 87 points selon NF C 16-600. Rapport détaillé avec liste des non-conformités, recommandations et photos.' },
+    'Mise en conformité NF C15-100 (par m²)': { f:65, fo:15, mo:50, desc:'Mise aux normes NF C 15-100 au m². Inclut circuits, protections différentielles 30mA, mise à la terre, étiquetage. Attestation de conformité remise.' },
+  },
+  '🔥 Chauffage Électrique': {
+    'Convecteur mural standard': { f:200, fo:60, mo:140, desc:'Fourniture et pose convecteur avec thermostat mécanique. Raccordement circuit dédié 16A 2,5mm². Conforme NF C 15-100. Garantie 2 ans.' },
+    'Radiateur à inertie': { f:350, fo:120, mo:230, desc:'Fourniture et pose radiateur inertie avec fil pilote 6 ordres. Raccordement circuit dédié, test toutes fonctions. Économies 25-40% vs convecteur. Garantie 2 ans.' },
+    'Sèche-serviettes électrique': { f:280, fo:90, mo:190, desc:'Pose sèche-serviettes, raccordement zone 2/3 SdB, test.' },
+    'Thermostat programmable': { f:140, fo:45, mo:95, desc:'Thermostat programmable, installation, configuration plages horaires.' },
+  },
+  '💨 VMC & Ventilation': {
+    'VMC simple flux autoréglable': { f:450, fo:150, mo:300, desc:'Fourniture et pose VMC simple flux autoréglable. Circuit dédié 2A, bouches posées, réglage débits. Conforme RT 2012 et NF C 15-100. Garantie 2 ans.' },
+    'VMC simple flux hygroréglable B': { f:700, fo:280, mo:420, desc:'Fourniture et pose VMC hygroréglable type B. Bouches hygroréglables à variation automatique (15-75 m³/h). Test débits. Rapport de mise en service remis. Conforme RT 2012. Garantie 2 ans.' },
+    'Remplacement moteur VMC': { f:250, fo:90, mo:160, desc:'Dépose moteur, fourniture moteur adapté, repose, test débit.' },
+    'Ligne dédiée VMC (disj 2A)': { f:110, fo:25, mo:85, desc:'Circuit dédié VMC 2A, disjoncteur tableau, câblage complet.' },
+  },
+  '🏠 Équipements Spéciaux': {
+    'Interphone audio': { f:500, fo:180, mo:320, desc:'Interphone audio 2 fils, platine extérieure, poste intérieur, pose complète.' },
+    'Visiophone': { f:900, fo:350, mo:550, desc:'Visiophone couleur, caméra HD, écran intérieur, pose complète.' },
+    'Motorisation volet roulant': { f:350, fo:130, mo:220, desc:'Moteur volet, commande murale, fin de course, raccordement.' },
+    'Détecteur mouvement extérieur': { f:120, fo:35, mo:85, desc:'Détecteur IR extérieur IP44, réglage angle/sensibilité, pose.' },
+    'Borne IRVE 7kW monophasée': { f:1500, fo:600, mo:900, desc:'Borne 7kW, câblage dédié, protection, mise en service, attestation IRVE.' },
+  },
+};
+
+// ═══════════════════════════════════════════════════
+// PANIER
+// ═══════════════════════════════════════════════════
+let panierD = [];
+let panierF = [];
+
+function setClientType(prefix, type) {
+  document.getElementById(`${prefix}-toggle-part`).classList.toggle('active', type === 'particulier');
+  document.getElementById(`${prefix}-toggle-soc`).classList.toggle('active', type === 'societe');
+  document.getElementById(`${prefix}-bloc-particulier`).style.display = type === 'particulier' ? 'block' : 'none';
+  document.getElementById(`${prefix}-bloc-societe`).style.display = type === 'societe' ? 'block' : 'none';
+}
+
+function getClientComplet(prefix) {
+  const isSoc = document.getElementById(`${prefix}-bloc-particulier`)?.style.display === 'none';
+  if (isSoc) return (document.getElementById(`${prefix}-societe`)?.value || '').trim();
+  const p = (document.getElementById(`${prefix}-prenom`)?.value || '').trim();
+  const n = (document.getElementById(`${prefix}-client`)?.value || '').trim();
+  return [p, n].filter(Boolean).join(' ');
+}
+
+function initCategories(prefix) {
+  const catsDiv = document.getElementById(`${prefix}-cats`);
+  if (!catsDiv) return;
+  catsDiv.innerHTML = '';
+  Object.keys(GRILLE).forEach(cat => {
+    const btn = document.createElement('div');
+    btn.className = 'cat-btn';
+    btn.textContent = cat;
+    btn.onclick = () => selectCategory(prefix, cat, btn);
+    catsDiv.appendChild(btn);
+  });
+}
+
+function selectCategory(prefix, cat, btn) {
+  document.querySelectorAll(`#${prefix}-cats .cat-btn`).forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  const prestsDiv = document.getElementById(`${prefix}-prests`);
+  if (!prestsDiv) return;
+  prestsDiv.innerHTML = '';
+  Object.entries(GRILLE[cat]).forEach(([nom, prix]) => {
+    const div = document.createElement('div');
+    div.className = 'prest-btn';
+    div.innerHTML = `<span class="prest-name">${nom}</span><span class="prest-price">${typeof prix === 'object' ? prix.f : prix} €</span>`;
+    div.onclick = () => addToPanier(prefix, nom, typeof prix === 'object' ? prix.f : prix, cat, typeof prix === 'object' ? prix.desc : '');
+    prestsDiv.appendChild(div);
+  });
+  prestsDiv.classList.add('show');
+}
+
+function addToPanier(prefix, nom, prix, categorie, desc) {
+  const panier = prefix === 'd' ? panierD : panierF;
+  const existing = panier.find(p => p.designation === nom);
+  if (existing) { existing.qte++; }
+  else { panier.push({ designation: nom, prixUnit: prix, qte: 1, categorie: categorie || 'Autre', desc: desc || '' }); }
+  if (prefix === 'd') panierD = panier; else panierF = panier;
+  renderPanier(prefix);
+  showToast(`✅ ${nom} ajouté !`, '🛒');
+}
+
+function renderPanier(prefix) {
+  const panier = prefix === 'd' ? panierD : panierF;
+  const itemsDiv = document.getElementById(`${prefix}-panier-items`);
+  const countEl = document.getElementById(`${prefix}-count`);
+  const totalEl = document.getElementById(`${prefix}-total`);
+  if (!itemsDiv || !countEl || !totalEl) return;
+
+  if (panier.length === 0) {
+    itemsDiv.innerHTML = '<div class="panier-empty">Aucune prestation ajoutée</div>';
+    countEl.textContent = '0 prestation(s)';
+    totalEl.textContent = '0,00 €';
+    const remiseLine = document.getElementById(`${prefix}-remise-line`);
+    const netDiv = document.getElementById(`${prefix}-total-apres-remise`);
+    if (remiseLine) remiseLine.style.display = 'none';
+    if (netDiv) netDiv.style.display = 'none';
+    return;
+  }
+
+  // ── CORRECTION BUG 2 : sauvegarder les descriptions éditées AVANT de rerendre
+  document.querySelectorAll(`#${prefix}-panier-items textarea[data-idx]`).forEach(ta => {
+    const idx = parseInt(ta.getAttribute('data-idx'));
+    if (!isNaN(idx) && panier[idx]) panier[idx].desc = ta.value;
+  });
+
+  let total = 0;
+  itemsDiv.innerHTML = '';
+
+  panier.forEach((item, idx) => {
+    const subtotal = item.prixUnit * item.qte;
+    total += subtotal;
+    const div = document.createElement('div');
+    div.className = 'panier-item';
+    div.style.cssText = 'flex-direction:column;align-items:stretch;gap:8px;';
+    div.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="panier-item-name">${item.designation}</span>
+        <div class="qte-ctrl">
+          <button class="qte-btn" onclick="changeQte('${prefix}',${idx},-1)">−</button>
+          <span class="qte-val">${item.qte}</span>
+          <button class="qte-btn" onclick="changeQte('${prefix}',${idx},1)">+</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:4px;">
+          <input type="number" value="${item.prixUnit}" min="0" step="5"
+            onchange="modifierPrix('${prefix}',${idx},this.value)" onclick="this.select()"
+            style="width:72px;text-align:right;padding:4px 6px;border-radius:8px;border:1.5px solid var(--accent);background:rgba(255,255,255,0.9);color:var(--accent);font-weight:700;font-size:13px;outline:none;">
+          <span style="font-size:12px;color:var(--text-3);">€</span>
+        </div>
+        <button class="del-btn" onclick="removeFromPanier('${prefix}',${idx})">×</button>
+      </div>
+      <textarea data-idx="${idx}"
+        placeholder="Description (modifiable — apparaît dans le PDF)"
+        onblur="modifierDesc('${prefix}',${idx},this.value)"
+        style="width:100%;font-size:12px;padding:8px 10px;border-radius:8px;border:1.5px solid var(--border);background:rgba(255,255,255,0.7);color:var(--text-2);resize:vertical;min-height:48px;line-height:1.5;font-family:inherit;outline:none;"
+        onfocus="this.style.borderColor='var(--accent)'"
+        onblur_reset="this.style.borderColor='var(--border)'"
+      >${item.desc || ''}</textarea>
+    `;
+    itemsDiv.appendChild(div);
+  });
+
+  countEl.textContent = `${panier.length} prestation(s)`;
+  totalEl.textContent = `${total.toFixed(2)} €`;
+
+  const remise = getRemise(prefix, total);
+  const remiseLine = document.getElementById(`${prefix}-remise-line`);
+  const remiseMontant = document.getElementById(`${prefix}-remise-montant`);
+  const netPayer = document.getElementById(`${prefix}-net-payer`);
+  const netDiv = document.getElementById(`${prefix}-total-apres-remise`);
+  if (remise > 0) {
+    if (remiseLine) remiseLine.style.display = 'flex';
+    if (remiseMontant) remiseMontant.textContent = `-${remise.toFixed(2)} €`;
+    if (netPayer) netPayer.textContent = `${(total - remise).toFixed(2)} €`;
+    if (netDiv) netDiv.style.display = 'flex';
+  } else {
+    if (remiseLine) remiseLine.style.display = 'none';
+    if (netDiv) netDiv.style.display = 'none';
+  }
+}
+
+// ── CORRECTION BUG 2 : modifierDesc sauvegarde en temps réel
+function modifierDesc(prefix, idx, valeur) {
+  const panier = prefix === 'd' ? panierD : panierF;
+  if (panier[idx] !== undefined) panier[idx].desc = valeur;
+}
+
+function modifierPrix(prefix, idx, valeur) {
+  const panier = prefix === 'd' ? panierD : panierF;
+  if (panier[idx]) panier[idx].prixUnit = parseFloat(valeur) || 0;
+  if (prefix === 'd') panierD = panier; else panierF = panier;
+  renderPanier(prefix);
+}
+
+function changeQte(prefix, idx, delta) {
+  const panier = prefix === 'd' ? panierD : panierF;
+  panier[idx].qte += delta;
+  if (panier[idx].qte <= 0) panier.splice(idx, 1);
+  if (prefix === 'd') panierD = panier; else panierF = panier;
+  renderPanier(prefix);
+}
+
+function removeFromPanier(prefix, idx) {
+  const panier = prefix === 'd' ? panierD : panierF;
+  const nom = panier[idx].designation;
+  panier.splice(idx, 1);
+  if (prefix === 'd') panierD = panier; else panierF = panier;
+  renderPanier(prefix);
+  showToast(`❌ ${nom} retiré`, '🗑️');
+}
+
+// ═══════════════════════════════════════════════════
+// GÉNÉRATION — REMISE INCLUSE + DESCRIPTIONS ÉDITÉES
+// ═══════════════════════════════════════════════════
+async function generer(type) {
+  const prefix = type === 'devis' ? 'd' : 'f';
+  const btn = document.getElementById(`${prefix}-btn`);
+  const panier = type === 'devis' ? panierD : panierF;
+
+  if (panier.length === 0) { showToast('⚠️ Ajoute des prestations !', '❌'); return; }
+
+  const client = getClientComplet(prefix);
+  const adresse = document.getElementById(`${prefix}-adresse`)?.value.trim();
+  if (!client || !adresse) { showToast('⚠️ Remplis le nom et l\'adresse !', '❌'); return; }
+
+  // ── BUG 2 CORRIGÉ : lire les textareas DOM juste avant d'envoyer
+  document.querySelectorAll(`#${prefix}-panier-items textarea[data-idx]`).forEach(ta => {
+    const idx = parseInt(ta.getAttribute('data-idx'));
+    if (!isNaN(idx) && panier[idx]) panier[idx].desc = ta.value;
+  });
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Génération...';
+
+  // ── BUG 1 CORRIGÉ : calculer la remise et l'injecter comme ligne dans les prestations
+  const totalBrut = panier.reduce((s, p) => s + p.prixUnit * p.qte, 0);
+  const remiseMontant = getRemise(prefix, totalBrut);
+
+  const prestationsAEnvoyer = panier.map(item => ({
+    nom: item.designation,
+    prix: item.prixUnit,
+    quantite: item.qte,
+    desc: item.desc || ''
+  }));
+
+  if (remiseMontant > 0) {
+    const isPct = (prefix === 'd' ? remiseTypeD : remiseTypeF) === 'pct';
+    const val = parseFloat(document.getElementById(`${prefix}-remise-val`)?.value) || 0;
+    const label = isPct ? `Remise ${val}%` : `Remise commerciale`;
+    prestationsAEnvoyer.push({
+      nom: label,
+      prix: -Math.round(remiseMontant * 100) / 100,
+      quantite: 1,
+      desc: `Remise accordée sur cette intervention`
+    });
+  }
+
+  try {
+    const res = await fetch('/api/generer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type,
+        client,
+        prenom: (document.getElementById(`${prefix}-prenom`)?.value || '').trim(),
+        email: document.getElementById(`${prefix}-email`)?.value.trim() || '',
+        telephone: document.getElementById(`${prefix}-tel`)?.value.trim() || '',
+        adresse,
+        description: document.getElementById(`${prefix}-description`)?.value.trim() || '',
+        prestations: prestationsAEnvoyer
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(`🎉 ${type === 'devis' ? 'Devis' : 'Facture'} ${data.num} généré !`, '✨');
+      if (type === 'devis') { panierD = []; renderPanier('d'); }
+      else { panierF = []; renderPanier('f'); }
+    } else {
+      showToast('❌ ' + (data.error || 'Erreur'), '⚠️');
+    }
+  } catch(e) {
+    showToast('❌ ' + e.message, '⚠️');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = type === 'devis' ? '📄 Générer le devis PDF' : '💶 Générer la facture PDF';
+  }
+}
 </script>
 
 </body>
