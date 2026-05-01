@@ -422,6 +422,9 @@ body {
     <div class="sidebar-item" onclick="switchPage('historique', this)">
       <span class="sidebar-item-icon">📋</span><span>Historique</span>
     </div>
+    <div class="sidebar-item" onclick="switchPage('avis', this)">
+      <span class="sidebar-item-icon">⭐</span><span>Réponses Avis</span>
+    </div>
     <div class="sidebar-item" onclick="switchPage('vocal', this)">
       <span class="sidebar-item-icon">🎙️</span><span>Script Vocal</span>
     </div>
@@ -847,6 +850,60 @@ body {
 </div>
 </div>
 <div id="page-dashboard" class="page"><div class="content" style="max-width:1000px;"><div class="stat-grid" style="margin-bottom:20px;"><div class="stat-card"><div class="stat-value" id="dash-mois-ca">0</div><div class="stat-label">CA Ce Mois (€)</div></div><div class="stat-card"><div class="stat-value" id="dash-annee-ca">0</div><div class="stat-label">CA Année (€)</div></div><div class="stat-card"><div class="stat-value" id="dash-devis-attente">0</div><div class="stat-label">Devis en attente (€)</div></div><div class="stat-card"><div class="stat-value" id="dash-panier-moyen">0</div><div class="stat-label">Panier moyen (€)</div></div></div><div class="section"><div class="section-title">📊 CA par mois</div><div style="position:relative;width:100%;height:220px;"><canvas id="chart-ca"></canvas></div></div><div class="section"><div class="section-title">⚡ Top prestations</div><div id="dash-top-prests"></div></div></div></div>
+<div id="page-avis" class="page">
+<div class="content" style="max-width:700px;">
+
+  <div class="section">
+    <div class="section-title">⭐ Avis reçu</div>
+    <div class="input-group">
+      <label>Nombre d'étoiles</label>
+      <div style="display:flex;gap:10px;margin-bottom:4px;" id="star-btns">
+        <button onclick="setEtoiles(5)" id="star-btn-5" style="padding:8px 14px;border-radius:10px;border:1.5px solid rgba(212,165,116,0.3);background:linear-gradient(135deg,var(--accent),var(--gold));color:#fff;font-size:13px;font-weight:700;cursor:pointer;">⭐⭐⭐⭐⭐</button>
+        <button onclick="setEtoiles(4)" id="star-btn-4" style="padding:8px 14px;border-radius:10px;border:1.5px solid var(--border);background:rgba(255,255,255,0.6);color:var(--text-2);font-size:13px;font-weight:700;cursor:pointer;">⭐⭐⭐⭐</button>
+        <button onclick="setEtoiles(3)" id="star-btn-3" style="padding:8px 14px;border-radius:10px;border:1.5px solid var(--border);background:rgba(255,255,255,0.6);color:var(--text-2);font-size:13px;font-weight:700;cursor:pointer;">⭐⭐⭐</button>
+        <button onclick="setEtoiles(1)" id="star-btn-1" style="padding:8px 14px;border-radius:10px;border:1.5px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.06);color:#ef4444;font-size:13px;font-weight:700;cursor:pointer;">⭐ Négatif</button>
+      </div>
+    </div>
+    <div class="input-group">
+      <label>Texte de l'avis</label>
+      <textarea id="avis-texte" placeholder="Colle ici le texte de l'avis Google..." rows="4"
+        style="width:100%;background:rgba(255,255,255,0.65);border:1.5px solid rgba(218,165,32,0.15);border-radius:12px;padding:14px 16px;font-size:14px;color:var(--text);outline:none;resize:vertical;font-family:'Plus Jakarta Sans',sans-serif;line-height:1.5;"></textarea>
+    </div>
+    <div class="input-group" style="margin-bottom:0;">
+      <label>Type d'intervention <span style="font-size:11px;color:var(--text-3);">(optionnel)</span></label>
+      <input type="text" id="avis-intervention" placeholder="Ex: dépannage prise, urgence nuit, tableau électrique..."
+        style="width:100%;background:rgba(255,255,255,0.65);border:1.5px solid rgba(218,165,32,0.15);border-radius:12px;padding:13px 16px;font-size:14px;color:var(--text);outline:none;">
+    </div>
+  </div>
+
+  <button class="btn-gen" id="avis-btn-gen" onclick="genererReponseAvis()">⭐ Générer la réponse SEO</button>
+
+  <div id="avis-result-section" style="display:none;">
+    <div class="section">
+      <div class="section-title">✍️ Réponse générée</div>
+      <div id="avis-result" contenteditable="true"
+        style="background:rgba(255,255,255,0.7);border:1.5px solid rgba(218,165,32,0.2);border-radius:14px;padding:16px;font-size:14px;color:var(--text);line-height:1.7;min-height:80px;outline:none;"></div>
+      <div style="font-size:11px;color:var(--text-3);margin:6px 0 12px;">✏️ Tu peux modifier le texte directement avant de copier</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <button onclick="copierReponseAvis()"
+          style="padding:13px;border-radius:12px;border:1.5px solid rgba(16,185,129,0.3);background:rgba(16,185,129,0.08);color:#10b981;font-size:13px;font-weight:700;cursor:pointer;">
+          📋 Copier
+        </button>
+        <button onclick="window.open('https://g.page/r/CSw-MABnFUAYEAE/review','_blank')"
+          style="padding:13px;border-radius:12px;border:1.5px solid rgba(212,165,116,0.3);background:rgba(212,165,116,0.08);color:var(--accent);font-size:13px;font-weight:700;cursor:pointer;">
+          🔗 Ouvrir Google
+        </button>
+      </div>
+      <button onclick="genererReponseAvis()"
+        style="width:100%;margin-top:8px;padding:11px;border-radius:12px;border:1px solid var(--border);background:none;color:var(--text-3);font-size:13px;cursor:pointer;">
+        🔄 Autre variante
+      </button>
+    </div>
+  </div>
+
+</div>
+</div>
+
 <div id="page-vocal" class="page"><div class="content"><div class="section"><div class="section-title">🎙️ Script Vocal IA</div><div id="vocal-content"></div></div></div></div>
 <div id="page-chat" class="page"><div class="content"><div class="section"><div class="section-title">🤖 Chat AI</div><div id="chat-messages" style="min-height:200px;"></div><div style="display:flex;gap:10px;margin-top:16px;"><input type="text" id="chat-input" placeholder="Décris le chantier..." style="flex:1;background:rgba(255,255,255,0.65);border:1.5px solid rgba(218,165,32,0.15);border-radius:12px;padding:14px 16px;color:var(--text);font-size:15px;outline:none;" onkeypress="if(event.key==='Enter') envoyerMessage()"><button onclick="envoyerMessage()" style="background:linear-gradient(135deg,var(--accent),var(--gold));color:#fff;border:none;border-radius:12px;padding:14px 20px;font-weight:800;cursor:pointer;font-size:20px;">→</button></div></div></div></div>
 <div id="page-dpe" class="page"><div class="content"><div class="section"><div class="section-title">🏠 Analyse DPE</div><div id="dpe-content"></div></div></div></div>
@@ -1066,7 +1123,7 @@ function switchPageMenu() {
   menuPlusOpen = true;
   const menu = document.createElement('div');
   menu.style.cssText = 'position:fixed;bottom:70px;right:10px;background:var(--glass);backdrop-filter:blur(24px);border:1px solid var(--border);border-radius:16px;padding:12px;z-index:999;box-shadow:0 8px 32px rgba(26,20,16,0.15);';
-  const pages = [['agenda','📅','Agenda'],['rentabilite','💰','Rentabilité'],['chat','🤖','Chat AI'],['rapport','📸','Rapport'],['clients','👥','Clients'],['depannage','⚡','Dépannage'],['params','⚙️','Paramètres']];
+  const pages = [['agenda','📅','Agenda'],['rentabilite','💰','Rentabilité'],['avis','⭐','Avis Google'],['chat','🤖','Chat AI'],['rapport','📸','Rapport'],['clients','👥','Clients'],['depannage','⚡','Dépannage'],['params','⚙️','Paramètres']];
   menu.innerHTML = pages.map(([p,i,l]) =>
     `<div onclick="switchPage('${p}',this);this.closest('[style*=fixed]').remove();menuPlusOpen=false;" style="padding:12px 20px;border-radius:10px;background:rgba(255,255,255,0.5);cursor:pointer;font-size:14px;font-weight:600;display:flex;align-items:center;gap:10px;margin-bottom:4px;">
       <span>${i}</span> ${l}
@@ -2384,6 +2441,93 @@ async function genererDepannageRapide() {
   if (btn) { btn.disabled = false; btn.textContent = depType === 'devis' ? '📋 Générer le devis' : '💶 Générer la facture'; }
 }
 // ═══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
+// PAGE RÉPONSES AVIS GOOGLE
+// ═══════════════════════════════════════════════════
+let avisEtoiles = 5;
+
+function setEtoiles(n) {
+  avisEtoiles = n;
+  [5,4,3,1].forEach(i => {
+    const btn = document.getElementById(`star-btn-${i}`);
+    if (!btn) return;
+    if (i === n) {
+      btn.style.background = 'linear-gradient(135deg,var(--accent),var(--gold))';
+      btn.style.color = '#fff';
+    } else {
+      btn.style.background = 'rgba(255,255,255,0.6)';
+      btn.style.color = 'var(--text-2)';
+    }
+  });
+}
+
+async function genererReponseAvis() {
+  const texte = document.getElementById('avis-texte')?.value.trim();
+  const intervention = document.getElementById('avis-intervention')?.value.trim();
+  const btn = document.getElementById('avis-btn-gen');
+  const resultSection = document.getElementById('avis-result-section');
+  const resultEl = document.getElementById('avis-result');
+
+  if (!texte) { showToast('⚠️ Colle le texte de l\'avis', '❌'); return; }
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Génération...'; }
+  if (resultSection) resultSection.style.display = 'none';
+
+  const prompt = `Tu es l'assistant de SINELEC, électricien Paris (Diahe).
+Génère une réponse professionnelle et chaleureuse à cet avis Google ${avisEtoiles} étoile(s).
+
+AVIS : "${texte}"
+${intervention ? `INTERVENTION : ${intervention}` : ''}
+
+RÈGLES :
+- 40 à 70 mots maximum
+- Intègre 2-3 mots-clés SEO naturellement parmi : électricien Paris, dépannage électrique Paris, électricien Paris 8e, urgence électrique Paris, mise aux normes NF C 15-100, électricien Île-de-France
+- ${avisEtoiles >= 4 ? 'Remercie sincèrement, valorise le point positif, invite à revenir' : 'Réponds calmement, propose de résoudre, reste professionnel'}
+- Termine par : Diahe — SINELEC ⚡
+- Donne UNIQUEMENT la réponse, sans introduction ni guillemets`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 300,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+    const data = await res.json();
+    const reponse = data.content?.[0]?.text?.trim();
+    if (reponse && resultEl) {
+      resultEl.textContent = reponse;
+      if (resultSection) resultSection.style.display = 'block';
+      showToast('✅ Réponse générée !', '⭐');
+      resultSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      showToast('❌ Erreur génération', '⚠️');
+    }
+  } catch(e) { showToast('❌ Erreur : ' + e.message, '⚠️'); }
+
+  if (btn) { btn.disabled = false; btn.textContent = '⭐ Générer la réponse SEO'; }
+}
+
+function copierReponseAvis() {
+  const el = document.getElementById('avis-result');
+  if (!el) return;
+  const texte = el.textContent || el.innerText || '';
+  navigator.clipboard.writeText(texte)
+    .then(() => showToast('📋 Copié ! Colle sur Google Maps', '✅'))
+    .catch(() => {
+      const ta = document.createElement('textarea');
+      ta.value = texte;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      showToast('📋 Copié !', '✅');
+    });
+}
+
+// ═══════════════════════════════════════════════════
 let partenaireActifD = false;
 
 function togglePartenaire(prefix) {
@@ -2726,6 +2870,7 @@ function animerCompteur(elementId, valeurFinale, duree = 900, suffixe = ' €') 
 // PAGE HEADERS ANIMÉS
 // ═══════════════════════════════════════════════════
 const PAGE_HEADERS = {
+  avis:        { icon:'⭐', title:'Réponses Avis',  sub:'Générer réponses Google SEO' },
   devis:       { icon:'📋', title:'Devis',         sub:'Nouveau document client' },
   facture:     { icon:'💶', title:'Facture',        sub:'Facturation rapide' },
   historique:  { icon:'📋', title:'Historique',     sub:'Tous vos documents' },
