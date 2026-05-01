@@ -1072,7 +1072,9 @@ function afficherHistorique() {
     const estSigne   = ['signe', 'signed'].includes(statutNorm);
     const estPaye    = ['paye', 'payed', 'paid', 'payee'].includes(statutNorm);
     const estFacture = statutNorm === 'facture';
-    const estEnvoye  = ['envoye', 'envoye', 'envoye', 'sent'].includes(statutNorm) || statutNorm === 'envoye';
+    const estEnvoye  = statutNorm === 'envoye' || statutNorm === 'envoye' || statutNorm === 'sent';
+    const estTermine = ['termine', 'terminé', 'done'].includes(statutNorm);
+    const estAnnule  = ['annule', 'annulé', 'cancelled'].includes(statutNorm);
 
     let statutBg, statutColor, statutLabel, statutIcon;
     if (type === 'devis') {
@@ -1083,7 +1085,6 @@ function afficherHistorique() {
         statutBg = '#eff6ff'; statutColor = '#3b82f6';
         statutIcon = '→'; statutLabel = 'Facturé';
       } else {
-        // NON SIGNÉ (envoye ou autre)
         statutBg = alerte ? '#fef2f2' : '#fefce8';
         statutColor = alerte ? '#dc2626' : '#ca8a04';
         statutIcon = alerte ? '⚠️' : '⏳';
@@ -1091,8 +1092,6 @@ function afficherHistorique() {
       }
     } else {
       // FACTURE
-      const estTermine = ['termine', 'terminé', 'done'].includes(statutNorm);
-      const estAnnule = ['annule','annulé','cancelled'].includes(statutNorm);
       if (estAnnule) {
         statutBg = '#f3f4f6'; statutColor = '#6b7280';
         statutIcon = '❌'; statutLabel = 'Annulée';
@@ -1261,11 +1260,19 @@ async function chargerHistorique() {
   const container = document.getElementById('histo-cards');
   try {
     const res = await fetch('/api/ca-complet');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     historiqueData = await res.json();
-    afficherHistorique();
-    demarrerPollingSignature(); // démarrer le polling
+    try {
+      afficherHistorique();
+    } catch(displayErr) {
+      console.error('afficherHistorique error:', displayErr);
+      if (container) container.innerHTML = `<div class="panier-empty" style="color:var(--error);">❌ Erreur affichage : ${displayErr.message}</div>`;
+      return;
+    }
+    demarrerPollingSignature();
   } catch(e) {
-    if (container) container.innerHTML = `<div class="panier-empty" style="color:var(--error);">❌ Erreur chargement</div>`;
+    console.error('chargerHistorique error:', e);
+    if (container) container.innerHTML = `<div class="panier-empty" style="color:var(--error);">❌ ${e.message}</div>`;
   }
 }
 
