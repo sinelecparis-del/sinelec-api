@@ -610,8 +610,12 @@ body {
       <div class="client-toggle-btn" id="d-toggle-soc" onclick="setClientType('d','societe')">🏢 Société</div>
     </div>
     <div id="d-bloc-particulier">
-      <div class="input-group"><label>Prénom</label><input type="text" id="d-prenom" placeholder="MARIE" oninput="this.value=this.value.toUpperCase()" autocomplete="off"></div>
-      <div class="input-group"><label>Nom</label><input type="text" id="d-client" placeholder="DUPONT" oninput="this.value=this.value.toUpperCase()" autocomplete="off"></div>
+      <div class="input-group"><label>Prénom</label><input type="text" id="d-prenom" placeholder="MARIE" oninput="this.value=this.value.toUpperCase();autocompleteClient('d',this.value,'prenom')" autocomplete="off"></div>
+      <div class="input-group">
+        <label>Nom</label>
+        <input type="text" id="d-client" placeholder="DUPONT" oninput="this.value=this.value.toUpperCase();autocompleteClient('d',this.value,'nom')" autocomplete="off">
+        <div id="d-client-suggestions" style="background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:12px;margin-top:6px;max-height:240px;overflow-y:auto;display:none;z-index:999;position:relative;"></div>
+      </div>
     </div>
     <div id="d-bloc-societe" style="display:none;">
       <div class="input-group"><label>Nom société</label><input type="text" id="d-societe" placeholder="JAS INVEST" oninput="this.value=this.value.toUpperCase()" autocomplete="off"></div>
@@ -708,8 +712,12 @@ body {
       <div class="client-toggle-btn" id="f-toggle-soc" onclick="setClientType('f','societe')">🏢 Société</div>
     </div>
     <div id="f-bloc-particulier">
-      <div class="input-group"><label>Prénom</label><input type="text" id="f-prenom" placeholder="MARIE" oninput="this.value=this.value.toUpperCase()" autocomplete="off"></div>
-      <div class="input-group"><label>Nom</label><input type="text" id="f-client" placeholder="DUPONT" oninput="this.value=this.value.toUpperCase()" autocomplete="off"></div>
+      <div class="input-group"><label>Prénom</label><input type="text" id="f-prenom" placeholder="MARIE" oninput="this.value=this.value.toUpperCase();autocompleteClient('f',this.value,'prenom')" autocomplete="off"></div>
+      <div class="input-group">
+        <label>Nom</label>
+        <input type="text" id="f-client" placeholder="DUPONT" oninput="this.value=this.value.toUpperCase();autocompleteClient('f',this.value,'nom')" autocomplete="off">
+        <div id="f-client-suggestions" style="background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:12px;margin-top:6px;max-height:240px;overflow-y:auto;display:none;z-index:999;position:relative;"></div>
+      </div>
     </div>
     <div id="f-bloc-societe" style="display:none;">
       <div class="input-group"><label>Nom société</label><input type="text" id="f-societe" placeholder="JAS INVEST" oninput="this.value=this.value.toUpperCase()" autocomplete="off"></div>
@@ -1598,11 +1606,66 @@ function afficherListeAgenda() {
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         ${iv.telephone?`<a href="tel:${iv.telephone}" style="background:rgba(59,130,246,0.1);color:#3b82f6;border:1px solid rgba(59,130,246,0.3);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;text-decoration:none;">📞 ${iv.telephone}</a>`:''}
         ${iv.adresse?`<a href="https://waze.com/ul?q=${adresseEnc}&navigate=yes" target="_blank" style="background:#1da46222;color:#1da462;border:1px solid #1da46244;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;text-decoration:none;">🔵 Waze</a>`:''}
+        ${iv.telephone?`<button onclick="smsDepartClient('${iv.telephone}','${(nom).replace(/'/g,"\\'")}','${(iv.adresse||'').replace(/'/g,"\\'")}' )" style="background:linear-gradient(135deg,var(--accent),var(--gold));color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;">🚗 Je pars</button>`:''}
         <button onclick="changerStatutIntervention('${iv.id}','terminé')" class="btn-small" style="background:rgba(16,185,129,0.1);color:#10b981;border-color:rgba(16,185,129,0.3);">✅ Terminé</button>
         <button onclick="supprimerIntervention('${iv.id}')" class="btn-small" style="background:rgba(239,68,68,0.1);color:#ef4444;border-color:rgba(239,68,68,0.2);">🗑️</button>
       </div>
     </div>`;
   }).join('');
+}
+
+// ─── SMS DÉPART CLIENT ────────────────────────────────────────
+async function smsDepartClient(tel, nom, adresse) {
+  const duree = await new Promise(resolve => {
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(6px);';
+    ov.innerHTML = `
+      <div style="background:var(--bg);border-radius:24px 24px 0 0;padding:24px 20px 40px;width:100%;max-width:480px;">
+        <div style="width:40px;height:4px;background:var(--border);border-radius:4px;margin:0 auto 20px;"></div>
+        <div style="text-align:center;margin-bottom:20px;">
+          <div style="font-size:32px;margin-bottom:8px;">🚗</div>
+          <div style="font-size:17px;font-weight:800;color:var(--text);">Temps d'arrivée estimé ?</div>
+          <div style="font-size:13px;color:var(--text-3);margin-top:4px;">${nom}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px;">
+          <button id="t-10" style="padding:16px 8px;border-radius:14px;border:1.5px solid var(--border);background:rgba(255,255,255,0.6);font-size:15px;font-weight:800;cursor:pointer;color:var(--text);">10 min</button>
+          <button id="t-20" style="padding:16px 8px;border-radius:14px;border:1.5px solid var(--border);background:rgba(255,255,255,0.6);font-size:15px;font-weight:800;cursor:pointer;color:var(--text);">20 min</button>
+          <button id="t-30" style="padding:16px 8px;border-radius:14px;border:1.5px solid var(--border);background:rgba(255,255,255,0.6);font-size:15px;font-weight:800;cursor:pointer;color:var(--text);">30 min</button>
+          <button id="t-45" style="padding:16px 8px;border-radius:14px;border:1.5px solid var(--border);background:rgba(255,255,255,0.6);font-size:15px;font-weight:800;cursor:pointer;color:var(--text);">45 min</button>
+          <button id="t-60" style="padding:16px 8px;border-radius:14px;border:1.5px solid var(--border);background:rgba(255,255,255,0.6);font-size:15px;font-weight:800;cursor:pointer;color:var(--text);">1h</button>
+          <button id="t-90" style="padding:16px 8px;border-radius:14px;border:1.5px solid var(--border);background:rgba(255,255,255,0.6);font-size:15px;font-weight:800;cursor:pointer;color:var(--text);">1h30</button>
+        </div>
+        <button id="t-ann" style="width:100%;padding:12px;border-radius:12px;border:1px solid var(--border);background:none;color:var(--text-3);font-size:13px;cursor:pointer;">Annuler</button>
+      </div>`;
+    document.body.appendChild(ov);
+    [10,20,30,45,60,90].forEach(n => {
+      ov.querySelector(`#t-${n}`).onclick = () => { document.body.removeChild(ov); resolve(n); };
+    });
+    ov.querySelector('#t-ann').onclick = () => { document.body.removeChild(ov); resolve(null); };
+    ov.onclick = e => { if (e.target === ov) { document.body.removeChild(ov); resolve(null); } };
+  });
+
+  if (!duree) return;
+
+  // Formater le message
+  const dureeTexte = duree >= 60
+    ? `${Math.floor(duree/60)}h${duree%60 > 0 ? duree%60 : ''}`
+    : `${duree} minutes`;
+  const msg = `Bonjour ${nom}, votre technicien SINELEC est en route et arrivera dans environ ${dureeTexte}. À tout de suite ! 🔧`;
+
+  try {
+    const res = await fetch('/api/sms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ telephone: tel, message: msg })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(`📱 SMS envoyé — arrivée dans ${dureeTexte}`, '🚗');
+    } else {
+      showToast('❌ ' + (data.error || 'Erreur SMS'), '⚠️');
+    }
+  } catch(e) { showToast('❌ Erreur réseau', '⚠️'); }
 }
 
 async function changerStatutIntervention(id, statut) {
@@ -1654,26 +1717,191 @@ function renderListeClients(liste) {
   const container = document.getElementById('clients-list');
   if (!container) return;
   if (!liste.length) { container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-3);">Aucun client</div>'; return; }
-  container.innerHTML = liste.map(c => `
-    <div style="background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:all 0.2s;" onmouseenter="this.style.borderColor='var(--accent)'" onmouseleave="this.style.borderColor='var(--border)'">
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div>
-          <div style="font-size:14px;font-weight:700;">${c.nom||'—'}</div>
-          ${c.telephone?`<div style="font-size:12px;color:var(--text-3);">📞 ${c.telephone}</div>`:''}
-          ${c.email?`<div style="font-size:11px;color:var(--text-3);">${c.email}</div>`:''}
+  container.innerHTML = liste.map(c => {
+    const nom = c.nom || '—';
+    const tel = c.telephone || '';
+    const email = c.email || '';
+    const adresse = c.adresse || '';
+    const adresseEnc = encodeURIComponent(adresse);
+    const ca = (c._ca || c.ca_total || 0).toFixed(0);
+    const nbInter = c._interventions?.length || c.nb_interventions || 0;
+    return `
+    <div style="background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:16px;margin-bottom:10px;overflow:hidden;transition:all 0.2s;">
+      <!-- Header cliquable pour ouvrir/fermer -->
+      <div onclick="toggleFicheClient('fiche-${c.id||nom.replace(/\s/g,'')}',this)" style="padding:14px 16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:15px;font-weight:800;color:var(--text);">${nom}</div>
+          <div style="font-size:12px;color:var(--text-3);margin-top:2px;">
+            ${tel ? `📞 ${tel}` : ''}
+            ${email ? `&nbsp;·&nbsp;${email}` : ''}
+          </div>
         </div>
-        <div style="text-align:right;">
-          <div style="font-size:15px;font-weight:800;color:var(--accent);">${(c._ca||0).toFixed(0)} €</div>
-          <div style="font-size:11px;color:var(--text-3);">${c._interventions?.length||0} inter.</div>
+        <div style="text-align:right;margin-left:12px;">
+          <div style="font-size:16px;font-weight:900;color:var(--accent);">${ca} €</div>
+          <div style="font-size:11px;color:var(--text-3);">${nbInter} inter.</div>
+        </div>
+        <span style="font-size:18px;color:var(--text-3);margin-left:10px;transition:transform 0.2s;" id="arrow-${c.id||nom.replace(/\s/g,'')}">▾</span>
+      </div>
+
+      <!-- Fiche détaillée -->
+      <div id="fiche-${c.id||nom.replace(/\s/g,'')}" style="display:none;padding:0 16px 16px;border-top:1px solid var(--border);">
+        <div style="padding-top:14px;display:flex;flex-direction:column;gap:10px;">
+
+          ${adresse ? `
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:20px;">📍</span>
+            <div style="flex:1;">
+              <div style="font-size:12px;color:var(--text-3);font-weight:600;margin-bottom:2px;">ADRESSE</div>
+              <div style="font-size:13px;font-weight:600;color:var(--text);">${adresse}</div>
+            </div>
+            <a href="https://waze.com/ul?q=${adresseEnc}&navigate=yes" target="_blank"
+               style="background:#1da46222;color:#1da462;border:1px solid #1da46244;border-radius:10px;padding:8px 14px;font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap;">🔵 Waze</a>
+          </div>` : ''}
+
+          ${tel ? `
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:20px;">📞</span>
+            <div style="flex:1;">
+              <div style="font-size:12px;color:var(--text-3);font-weight:600;margin-bottom:2px;">TÉLÉPHONE</div>
+              <div style="font-size:13px;font-weight:600;color:var(--text);">${tel}</div>
+            </div>
+            <a href="tel:${tel}" style="background:rgba(59,130,246,0.1);color:#3b82f6;border:1px solid rgba(59,130,246,0.3);border-radius:10px;padding:8px 14px;font-size:12px;font-weight:700;text-decoration:none;">📲 Appeler</a>
+          </div>` : ''}
+
+          ${email ? `
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:20px;">✉️</span>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:12px;color:var(--text-3);font-weight:600;margin-bottom:2px;">EMAIL</div>
+              <div style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${email}</div>
+            </div>
+            <a href="mailto:${email}" style="background:rgba(212,165,116,0.1);color:var(--accent);border:1px solid rgba(212,165,116,0.3);border-radius:10px;padding:8px 14px;font-size:12px;font-weight:700;text-decoration:none;">📧 Email</a>
+          </div>` : ''}
+
+          <!-- Bouton nouveau devis -->
+          <button onclick="nouveauDevisClient('${nom}','${tel}','${email}','${adresse}')"
+            style="width:100%;background:linear-gradient(135deg,var(--accent),var(--gold));color:#fff;border:none;border-radius:12px;padding:12px;font-size:13px;font-weight:800;cursor:pointer;margin-top:4px;">
+            📋 Nouveau devis pour ce client
+          </button>
+
         </div>
       </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleFicheClient(id, header) {
+  const fiche = document.getElementById(id);
+  const nomKey = id.replace('fiche-','');
+  const arrow = document.getElementById('arrow-' + nomKey);
+  if (!fiche) return;
+  const isOpen = fiche.style.display !== 'none';
+  fiche.style.display = isOpen ? 'none' : 'block';
+  if (arrow) arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+}
+
+function nouveauDevisClient(nom, tel, email, adresse) {
+  // Pré-remplir le formulaire devis et naviguer
+  switchPage('devis', document.querySelector('[onclick*="switchPage(\'devis\'"]'));
+  setTimeout(() => {
+    // Séparer prénom/nom si possible
+    const parts = nom.trim().split(' ');
+    const prenom = parts[0] || '';
+    const nomFamille = parts.slice(1).join(' ') || nom;
+    const prenomEl = document.getElementById('d-prenom');
+    const clientEl = document.getElementById('d-client');
+    const telEl    = document.getElementById('d-tel');
+    const emailEl  = document.getElementById('d-email');
+    const adresseEl= document.getElementById('d-adresse');
+    if (prenomEl) prenomEl.value = prenom;
+    if (clientEl) clientEl.value = nomFamille;
+    if (telEl && tel) telEl.value = tel;
+    if (emailEl && email) emailEl.value = email;
+    if (adresseEl && adresse) adresseEl.value = adresse;
+    showToast(`✅ Formulaire pré-rempli pour ${nom}`, '📋');
+  }, 400);
+}
+
+// ─── AUTOCOMPLÉTION CLIENT ────────────────────────────────────
+let _clientsCache = null;
+
+async function getClientsCache() {
+  if (_clientsCache) return _clientsCache;
+  try {
+    // Fusionner clients Supabase + historique app
+    const [r1, r2] = await Promise.all([fetch('/api/clients'), fetch('/api/ca-complet')]);
+    const supaClients = await r1.json();
+    const histo = await r2.json();
+    // Extraire clients uniques depuis historique
+    const histoClients = {};
+    (histo||[]).forEach(h => {
+      if (!h.client || h.source === 'obat') return;
+      const key = h.client.toLowerCase();
+      if (!histoClients[key]) histoClients[key] = { nom: h.client, telephone: h.telephone||'', email: h.email||'', adresse: h.adresse||'' };
+    });
+    // Fusionner
+    const tous = [...(supaClients||[])];
+    Object.values(histoClients).forEach(hc => {
+      if (!tous.find(c => (c.nom||'').toLowerCase() === hc.nom.toLowerCase())) tous.push(hc);
+    });
+    _clientsCache = tous;
+    return tous;
+  } catch(e) { return []; }
+}
+
+async function autocompleteClient(prefix, query, champ) {
+  const suggestEl = document.getElementById(`${prefix}-client-suggestions`);
+  if (!suggestEl) return;
+  if (!query || query.length < 2) { suggestEl.style.display = 'none'; return; }
+
+  const clients = await getClientsCache();
+  const q = query.toLowerCase();
+  const matches = clients.filter(c => (c.nom||'').toLowerCase().includes(q)).slice(0, 6);
+
+  if (!matches.length) { suggestEl.style.display = 'none'; return; }
+
+  suggestEl.style.display = 'block';
+  suggestEl.innerHTML = matches.map(c => `
+    <div onclick="selectionnerClient('${prefix}','${(c.nom||'').replace(/'/g,"\\'")}','${(c.telephone||'').replace(/'/g,"\\'")}','${(c.email||'').replace(/'/g,"\\'")}','${(c.adresse||'').replace(/'/g,"\\'")}')"
+      style="padding:12px 14px;cursor:pointer;border-bottom:1px solid var(--border);transition:background 0.15s;"
+      onmouseenter="this.style.background='rgba(212,165,116,0.1)'"
+      onmouseleave="this.style.background='transparent'">
+      <div style="font-size:14px;font-weight:700;color:var(--text);">${c.nom}</div>
+      <div style="font-size:11px;color:var(--text-3);">${c.telephone ? '📞 '+c.telephone : ''} ${c.adresse ? '· '+c.adresse.substring(0,30)+'...' : ''}</div>
     </div>`).join('');
 }
 
-function filtrerClients(query) {
-  const q = query.toLowerCase();
-  renderListeClients(q ? clientsData.filter(c => (c.nom||'').toLowerCase().includes(q)||(c.telephone||'').includes(q)||(c.email||'').toLowerCase().includes(q)) : clientsData);
+function selectionnerClient(prefix, nom, tel, email, adresse) {
+  // Pré-remplir tous les champs
+  const parts = nom.trim().split(' ');
+  const prenom = parts[0] || '';
+  const nomFamille = parts.slice(1).join(' ') || nom;
+  const prenomEl  = document.getElementById(`${prefix}-prenom`);
+  const clientEl  = document.getElementById(`${prefix}-client`);
+  const telEl     = document.getElementById(`${prefix}-tel`);
+  const emailEl   = document.getElementById(`${prefix}-email`);
+  const adresseEl = document.getElementById(`${prefix}-adresse`);
+  const suggestEl = document.getElementById(`${prefix}-client-suggestions`);
+
+  if (prenomEl)  prenomEl.value  = prenom.toUpperCase();
+  if (clientEl)  clientEl.value  = nomFamille.toUpperCase();
+  if (telEl && tel)     telEl.value    = tel;
+  if (emailEl && email) emailEl.value  = email;
+  if (adresseEl && adresse) adresseEl.value = adresse;
+  if (suggestEl) suggestEl.style.display = 'none';
+
+  showToast(`✅ ${nom} sélectionné — champs pré-remplis`, '👤');
 }
+
+// Fermer suggestions si clic ailleurs
+document.addEventListener('click', e => {
+  ['d-client-suggestions','f-client-suggestions'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && !el.contains(e.target) && e.target.id !== 'd-client' && e.target.id !== 'f-client') {
+      el.style.display = 'none';
+    }
+  });
+});
 
 // ═══════════════════════════════════════════════════
 // SANTÉ SYSTÈME
