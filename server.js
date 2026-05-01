@@ -1588,6 +1588,47 @@ app.get('/api/historique', async (req, res) => {
     const { type } = req.query;
     
     let query = supabase.from('historique').select('*').order('created_at', { ascending: false });
+    if (type && type !== 'tous') query = query.eq('type', type);
+    const { data: histo, error } = await query;
+    if (error) throw error;
+
+    // Inclure factures Obat si pas de filtre ou filtre=facture
+    let obatFormate = [];
+    if (!type || type === 'tous' || type === 'facture') {
+      const { data: obat } = await supabase
+        .from('factures_obat')
+        .select('*')
+        .eq('statut', 'Payée');
+
+      obatFormate = (obat || []).map(f => ({
+        type: 'facture',
+        client: f.client,
+        total_ht: f.montant,
+        statut: 'paye',
+        created_at: f.date_facture + 'T00:00:00.000Z',
+        num: f.reference,
+        prestations: [{ nom: f.chantier, prix: f.montant, quantite: 1 }],
+        source: 'obat'
+      }));
+    }
+
+    const tout = [...(histo || []), ...obatFormate]
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    res.json(tout);
+  } catch (error) {
+    console.error('Erreur historique:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+  if (!CONFIG.features.historique) {
+    return res.status(403).json({ error: 'Feature désactivée' });
+  }
+
+  try {
+    const { type } = req.query;
+    
+    let query = supabase.from('historique').select('*').order('created_at', { ascending: false });
     
     if (type && type !== 'tous') {
       query = query.eq('type', type);
