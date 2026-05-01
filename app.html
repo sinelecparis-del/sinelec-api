@@ -587,7 +587,17 @@ body {
   </div>
 
 </div>
-</div><div class="content" style="max-width:700px;"><div class="section"><div class="section-title">📅 Interventions à venir</div><div id="agenda-liste"><div class="panier-empty">Chargement...</div></div></div></div></div>
+</div>
+
+<!-- ════ PAGE AGENDA ════ -->
+<div id="page-agenda" class="page">
+<div class="content" style="max-width:700px;">
+  <div class="section">
+    <div class="section-title">📅 Interventions à venir</div>
+    <div id="agenda-liste"><div class="panier-empty">Aucune intervention à venir</div></div>
+  </div>
+</div>
+</div>
 
 <!-- ════════════ PAGE DEVIS ════════════ -->
 <div id="page-devis" class="page active">
@@ -890,8 +900,8 @@ async function verifierAuth() {
 
 function initialiserApp() {
   masquerLogin();
-  chargerHistorique();
-  chargerDashboard();
+  // Charger uniquement la page active au démarrage (page-devis par défaut)
+  // Les autres pages se chargent à la demande via switchPage
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
