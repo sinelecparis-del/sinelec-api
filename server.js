@@ -1636,12 +1636,7 @@ app.get('/api/historique', async (req, res) => {
     const { data, error } = await query;
     if (error) throw error;
 
-    res.json(data || []);
-  } catch (error) {
-    console.error('Erreur historique:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
+    
 
 // ═══════════════════════════════════════════════════════════════
 // API: SUPPRIMER DEVIS/FACTURE
