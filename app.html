@@ -900,8 +900,8 @@ async function verifierAuth() {
 
 function initialiserApp() {
   masquerLogin();
-  // Charger uniquement la page active au démarrage (page-devis par défaut)
-  // Les autres pages se chargent à la demande via switchPage
+  // Démarrer le polling signature immédiatement
+  setTimeout(demarrerPollingSignature, 3000);
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
@@ -1123,6 +1123,10 @@ function afficherHistorique() {
       if (type === 'devis') {
         btns.push(`<button onclick="convertirEnFacture('${item.num}')" ${btnStyle('rgba(16,185,129,0.1)','#10b981','rgba(16,185,129,0.3)')}>→ Facture</button>`);
         btns.push(`<button onclick="ouvrirPopupSig('${item.num}')" ${btnStyle('rgba(212,165,116,0.1)','var(--accent)','rgba(212,165,116,0.3)')}>✍️ Signer</button>`);
+        // Bouton manuel si devis pas encore signé
+        if (!estSigne) {
+          btns.push(`<button onclick="marquerSigne('${item.num}')" ${btnStyle('rgba(16,185,129,0.12)','#10b981','rgba(16,185,129,0.4)')}>✅ Marquer signé</button>`);
+        }
       }
 
       if (type === 'facture' && !estPaye && !estAnnule) {
@@ -1144,7 +1148,7 @@ function afficherHistorique() {
     }
 
     return `
-    <div style="background:var(--glass);backdrop-filter:blur(20px);border:1.5px solid ${alerte ? 'rgba(220,38,38,0.35)' : 'var(--border)'};border-radius:16px;padding:16px;margin-bottom:12px;">
+    <div style="background:${estPaye ? 'rgba(16,185,129,0.04)' : 'var(--glass)'};backdrop-filter:blur(20px);border:1.5px solid ${estPaye ? 'rgba(16,185,129,0.35)' : alerte ? 'rgba(220,38,38,0.35)' : 'var(--border)'};border-radius:16px;padding:16px;margin-bottom:12px;">
 
       <!-- Numéro + Montant -->
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
@@ -1230,8 +1234,7 @@ let pollingSignatureInterval = null;
 function demarrerPollingSignature() {
   if (pollingSignatureInterval) return;
   pollingSignatureInterval = setInterval(async () => {
-    const pageActive = document.querySelector('.page.active')?.id;
-    if (pageActive !== 'page-historique') return;
+    // Vérifier même si pas sur la page historique — mise à jour silencieuse
     const devisEnAttente = historiqueData.filter(d =>
       d.type === 'devis' && d.source !== 'obat' &&
       !['signe','signé'].includes((d.statut||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase())
@@ -1244,13 +1247,36 @@ function demarrerPollingSignature() {
         const data = await res.json();
         if (data.statut === 'signe') {
           devis.statut = 'signe';
-          afficherHistorique();
+          // Notifier si l'historique est ouvert
+          const pageActive = document.querySelector('.page.active')?.id;
+          if (pageActive === 'page-historique') afficherHistorique();
           showToast(`✅ ${devis.client} a signé le devis ${devis.num} !`, '✍️');
           shootConfetti();
         }
       }
     } catch(e) {}
   }, 6000);
+}
+
+// ─── MARQUER SIGNÉ MANUELLEMENT ──────────────────────────────
+async function marquerSigne(num) {
+  try {
+    const res = await fetch('/api/historique/' + num + '/statut', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ statut: 'signe' })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('✅ Devis marqué signé !', '✍️');
+      shootConfetti();
+      const item = historiqueData.find(i => i.num === num);
+      if (item) item.statut = 'signe';
+      afficherHistorique();
+    } else {
+      showToast('❌ ' + (data.error || 'Erreur'), '⚠️');
+    }
+  } catch(e) { showToast('❌ Erreur réseau', '⚠️'); }
 }
 
 // Polling signature — chargerHistorique redéfini ci-dessous
