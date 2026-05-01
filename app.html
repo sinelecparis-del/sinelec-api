@@ -15,43 +15,45 @@
 
 <style>
 :root {
-  /* ══ PALETTE PRESTIGE ══ */
-  --bg:        #080808;
-  --bg-2:      #0f0f0f;
-  --bg-3:      #141414;
-  --glass:     rgba(255,255,255,0.04);
-  --glass-2:   rgba(255,255,255,0.07);
-  --border:    rgba(255,255,255,0.08);
-  --border-2:  rgba(255,215,0,0.15);
+  /* ══ PALETTE PRESTIGE LIGHT ══ */
+  --bg:        #ffffff;
+  --bg-2:      #f9f9f9;
+  --bg-3:      #f4f4f4;
+  --glass:     rgba(255,255,255,0.85);
+  --glass-2:   rgba(255,255,255,0.95);
+  --border:    rgba(0,0,0,0.08);
+  --border-2:  rgba(232,184,75,0.3);
 
-  --text:   #ffffff;
-  --text-2: rgba(255,255,255,0.85);
-  --text-3: rgba(255,255,255,0.55);
+  --text:   #0a0a0a;
+  --text-2: rgba(0,0,0,0.65);
+  --text-3: rgba(0,0,0,0.38);
 
-  --gold:    #FFD700;
+  --gold:    #C9962A;
   --accent:  #E8B84B;
-  --accent-2:#C9962A;
-  --gold-glow: rgba(232,184,75,0.25);
+  --accent-2:#A07820;
+  --gold-glow: rgba(232,184,75,0.2);
 
-  --success: #00C896;
-  --warning: #FFB800;
-  --error:   #FF4D4D;
+  --success: #00A878;
+  --warning: #E8A000;
+  --error:   #E03030;
 
   --sidebar-width: 260px;
   --radius: 16px;
   --radius-lg: 22px;
 }
 
-/* Light mode désactivé — tout en dark prestige */
-[data-theme="light"] {
-  --bg:      #0d0d0d;
-  --bg-2:    #141414;
-  --bg-3:    #1a1a1a;
+[data-theme="dark"] {
+  --bg:      #080808;
+  --bg-2:    #0f0f0f;
+  --bg-3:    #141414;
   --glass:   rgba(255,255,255,0.04);
+  --glass-2: rgba(255,255,255,0.07);
   --border:  rgba(255,255,255,0.08);
   --text:    #ffffff;
-  --text-2:  rgba(255,255,255,0.65);
-  --text-3:  rgba(255,255,255,0.35);
+  --text-2:  rgba(255,255,255,0.75);
+  --text-3:  rgba(255,255,255,0.4);
+  --gold:    #FFD700;
+  --accent:  #E8B84B;
 }
 
 * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -60,8 +62,7 @@ body {
   font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,sans-serif;
   background: var(--bg);
   background-image:
-    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(232,184,75,0.08) 0%, transparent 60%),
-    radial-gradient(ellipse 40% 30% at 80% 80%, rgba(232,184,75,0.04) 0%, transparent 50%);
+    radial-gradient(ellipse 80% 40% at 50% -10%, rgba(232,184,75,0.06) 0%, transparent 60%);
   background-attachment: fixed;
   color: var(--text);
   transition: background 0.3s;
@@ -72,7 +73,7 @@ body {
 /* ══ SCROLLBAR PRESTIGE ══ */
 ::-webkit-scrollbar { width:4px; }
 ::-webkit-scrollbar-track { background:transparent; }
-::-webkit-scrollbar-thumb { background:rgba(232,184,75,0.3); border-radius:4px; }
+::-webkit-scrollbar-thumb { background:rgba(0,0,0,0.15); border-radius:4px; }
 
 /* ══ BOUTON LEAD ══ */
 .fab-lead {
@@ -94,10 +95,10 @@ body {
 /* ══ SIDEBAR ══ */
 .sidebar {
   position:fixed; left:0; top:0; width:var(--sidebar-width); height:100vh;
-  background: linear-gradient(180deg, #0f0f0f 0%, #0a0a0a 100%);
-  border-right: 1px solid var(--border);
+  background: #ffffff;
+  border-right: 1px solid rgba(0,0,0,0.06);
   z-index:100; display:flex; flex-direction:column;
-  box-shadow: 4px 0 40px rgba(0,0,0,0.6);
+  box-shadow: 4px 0 24px rgba(0,0,0,0.06);
 }
 
 .sidebar-logo {
@@ -129,14 +130,13 @@ body {
   display:flex; align-items:center; gap:12px;
   padding:11px 14px; border-radius:12px; cursor:pointer;
   transition:all 0.2s; margin-bottom:2px;
-  font-size:13px; font-weight:600; color:rgba(255,255,255,0.6); user-select:none;
+  font-size:13px; font-weight:600; color:rgba(0,0,0,0.5); user-select:none;
 }
-.sidebar-item:hover { background:var(--glass-2); color:rgba(255,255,255,0.9); }
+.sidebar-item:hover { background:rgba(232,184,75,0.08); color:rgba(0,0,0,0.8); }
 .sidebar-item.active {
-  background: linear-gradient(135deg, rgba(232,184,75,0.15), rgba(255,215,0,0.08));
-  color: var(--gold);
-  border:1px solid rgba(232,184,75,0.2);
-  box-shadow: inset 0 0 20px rgba(232,184,75,0.05);
+  background: linear-gradient(135deg, rgba(232,184,75,0.15), rgba(201,150,42,0.08));
+  color: var(--accent-2);
+  border:1px solid rgba(232,184,75,0.25);
 }
 .sidebar-item-icon { font-size:18px; width:22px; text-align:center; }
 
@@ -148,16 +148,16 @@ body {
 /* ══ MOBILE TABS ══ */
 .mobile-tabs {
   display:none; position:fixed; bottom:0; left:0; right:0; z-index:100;
-  background: rgba(8,8,8,0.95);
-  backdrop-filter:blur(30px); -webkit-backdrop-filter:blur(30px);
-  border-top:1px solid var(--border);
+  background: rgba(255,255,255,0.95);
+  backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px);
+  border-top:1px solid rgba(0,0,0,0.08);
   padding:8px 0;
-  box-shadow: 0 -1px 0 rgba(232,184,75,0.1);
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.06);
 }
 .mobile-tabs-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:4px; padding:0 8px; }
 .mobile-tab { display:flex; flex-direction:column; align-items:center; gap:3px; padding:8px 4px; border-radius:12px; cursor:pointer; transition:all 0.2s; }
 .mobile-tab-icon { font-size:22px; transition:transform 0.2s; }
-.mobile-tab-label { font-size:10px; font-weight:700; color:rgba(255,255,255,0.55); }
+.mobile-tab-label { font-size:10px; font-weight:700; color:rgba(0,0,0,0.4); }
 .mobile-tab.active .mobile-tab-icon { transform:scale(1.15); }
 .mobile-tab.active .mobile-tab-label { color:var(--gold); }
 
@@ -182,15 +182,14 @@ body {
 
 /* ══ SECTIONS ══ */
 .section {
-  background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%);
-  backdrop-filter: blur(20px); -webkit-backdrop-filter:blur(20px);
-  border: 1px solid var(--border);
+  background: #ffffff;
+  border: 1px solid rgba(0,0,0,0.07);
   border-radius: var(--radius-lg);
   padding:24px; margin-bottom:20px;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06), 0 1px 0 rgba(255,255,255,0.8);
   transition:all 0.3s;
 }
-.section:hover { box-shadow:0 8px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08), 0 0 0 1px rgba(232,184,75,0.08); }
+.section:hover { box-shadow:0 8px 32px rgba(0,0,0,0.1), 0 0 0 1px rgba(232,184,75,0.1); }
 
 .section-title {
   font-size:11px; font-weight:800; color:var(--accent);
@@ -206,40 +205,40 @@ body {
 
 /* ══ INPUTS ══ */
 .input-group { margin-bottom:18px; }
-.input-group label { display:block; font-size:13px; font-weight:700; color:rgba(255,255,255,0.7); margin-bottom:8px; letter-spacing:0.5px; text-transform:uppercase; }
+.input-group label { display:block; font-size:12px; font-weight:700; color:rgba(0,0,0,0.45); margin-bottom:8px; letter-spacing:0.5px; text-transform:uppercase; }
 .input-group input,
 .input-group textarea,
 .input-group select {
   width:100%;
-  background: rgba(255,255,255,0.08);
-  border: 1px solid rgba(255,255,255,0.18);
+  background: #f9f9f9;
+  border: 1.5px solid rgba(0,0,0,0.1);
   border-radius: 12px;
   padding:14px 18px;
   font-size:15px; font-weight:500;
-  color: #ffffff; outline:none;
+  color: #0a0a0a; outline:none;
   transition:all 0.25s;
   font-family:'Plus Jakarta Sans',sans-serif;
 }
 .input-group input:focus,
 .input-group textarea:focus,
 .input-group select:focus {
-  border-color: rgba(232,184,75,0.7);
-  background: rgba(255,255,255,0.12);
-  box-shadow: 0 0 0 3px rgba(232,184,75,0.1);
+  border-color: var(--accent);
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(232,184,75,0.12);
 }
 .input-group input::placeholder,
-.input-group textarea::placeholder { color:rgba(255,255,255,0.35); }
+.input-group textarea::placeholder { color:rgba(0,0,0,0.3); }
 .input-group textarea { resize:none; min-height:95px; line-height:1.6; }
-.input-group select option { background:#1a1a1a; color:#fff; }
+.input-group select option { background:#fff; color:#0a0a0a; }
 
 /* ══ CATÉGORIES GRILLE ══ */
 .cat-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:20px; }
 @media(min-width:640px){ .cat-grid{grid-template-columns:repeat(3,1fr);} }
 .cat-btn {
-  background: rgba(255,255,255,0.04);
-  border: 1px solid var(--border);
+  background: #f9f9f9;
+  border: 1px solid rgba(0,0,0,0.08);
   border-radius:12px; padding:15px 14px;
-  font-size:13px; font-weight:700; color:rgba(255,255,255,0.8);
+  font-size:13px; font-weight:700; color:rgba(0,0,0,0.7);
   cursor:pointer; transition:all 0.25s; text-align:center;
 }
 .cat-btn:hover { background:rgba(232,184,75,0.08); border-color:rgba(232,184,75,0.2); color:var(--gold); transform:translateY(-2px); }
@@ -249,18 +248,18 @@ body {
 .prestations { display:none; flex-direction:column; gap:10px; margin-bottom:20px; }
 .prestations.show { display:flex; }
 .prest-btn {
-  background:rgba(255,255,255,0.03); border:1px solid var(--border);
+  background:#ffffff; border:1px solid rgba(0,0,0,0.07);
   border-radius:12px; padding:16px 18px;
   display:flex; justify-content:space-between; align-items:center;
   cursor:pointer; transition:all 0.25s;
 }
 .prest-btn:hover { background:rgba(232,184,75,0.06); border-color:rgba(232,184,75,0.2); transform:translateX(4px); }
-.prest-name { font-size:14px; font-weight:600; color:rgba(255,255,255,0.9); flex:1; }
+.prest-name { font-size:14px; font-weight:600; color:rgba(0,0,0,0.8); flex:1; }
 .prest-price { font-size:15px; font-weight:800; color:var(--accent); }
 
 /* ══ PANIER ══ */
 .panier {
-  background:rgba(255,255,255,0.03); border:1px solid var(--border);
+  background:#ffffff; border:1px solid rgba(0,0,0,0.07);
   border-radius:var(--radius-lg); overflow:hidden; margin-bottom:20px;
   box-shadow:0 4px 24px rgba(0,0,0,0.3);
 }
@@ -278,7 +277,7 @@ body {
   display:flex; align-items:center; gap:14px; transition:background 0.2s;
 }
 .panier-item:hover { background:rgba(255,255,255,0.03); }
-.panier-item-name { flex:1; font-size:14px; font-weight:600; color:rgba(255,255,255,0.9); }
+.panier-item-name { flex:1; font-size:14px; font-weight:600; color:rgba(0,0,0,0.8); }
 .panier-item-price { font-size:15px; font-weight:800; color:var(--accent); min-width:90px; text-align:right; }
 
 /* ══ QUANTITÉ ══ */
@@ -343,11 +342,11 @@ body {
 }
 .popup-overlay.active { display:flex; }
 .popup-box {
-  background: linear-gradient(135deg, #141414, #0f0f0f);
-  border:1px solid rgba(232,184,75,0.2);
+  background: #ffffff;
+  border:1px solid rgba(0,0,0,0.08);
   border-radius:24px; padding:28px;
   width:90%; max-width:560px;
-  box-shadow: 0 32px 80px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.06);
+  box-shadow: 0 32px 80px rgba(0,0,0,0.15);
   animation:popup-appear 0.3s cubic-bezier(0.34,1.56,0.64,1);
   max-height:85vh; overflow-y:auto;
 }
@@ -357,23 +356,23 @@ body {
 .toast {
   position:fixed; top:110px; left:50%;
   transform:translateX(-50%) translateY(-120px);
-  background: linear-gradient(135deg, #1a1a1a, #141414);
-  border:1px solid rgba(232,184,75,0.25);
+  background: #ffffff;
+  border:1px solid rgba(232,184,75,0.3);
   border-radius:14px; padding:14px 22px;
   font-size:13px; font-weight:700;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.12);
   z-index:9999; opacity:0; transition:all 0.4s cubic-bezier(0.34,1.56,0.64,1);
   display:flex; align-items:center; gap:12px; max-width:90%;
-  color:var(--text);
+  color:#0a0a0a;
 }
 .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
 
 /* ══ STAT CARDS ══ */
 .stat-card {
-  background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
-  border:1px solid var(--border); border-radius:var(--radius-lg); padding:24px;
+  background: #ffffff;
+  border:1px solid rgba(0,0,0,0.07); border-radius:var(--radius-lg); padding:24px;
   text-align:center; transition:all 0.25s;
-  box-shadow:0 4px 16px rgba(0,0,0,0.3);
+  box-shadow:0 2px 12px rgba(0,0,0,0.06);
 }
 .stat-card:hover { transform:translateY(-4px); border-color:rgba(232,184,75,0.2); box-shadow:0 12px 40px rgba(0,0,0,0.5); }
 .stat-value { font-size:36px; font-weight:900; color:var(--gold); letter-spacing:-1px; margin-bottom:8px; }
@@ -405,7 +404,7 @@ body {
 .data-table tr:hover td { background:rgba(255,255,255,0.02); color:var(--text); }
 
 /* ══ REMISE ══ */
-.remise-bar { background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:14px; padding:16px 18px; margin-bottom:12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.remise-bar { background:#ffffff; border:1px solid rgba(0,0,0,0.07); border-radius:14px; padding:16px 18px; margin-bottom:12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 .remise-toggle { display:flex; background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
 .remise-toggle-btn { padding:8px 14px; font-size:12px; font-weight:700; cursor:pointer; color:var(--text-3); transition:all 0.2s; }
 .remise-toggle-btn.active { background:linear-gradient(135deg,rgba(232,184,75,0.2),rgba(255,215,0,0.1)); color:var(--gold); }
@@ -647,42 +646,38 @@ body {
 <body data-theme="light">
 
 <!-- ════════════ LOGIN SCREEN ════════════ -->
-<div id="login-screen" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:#080808;z-index:99999;align-items:center;justify-content:center;overflow:hidden;">
+<div id="login-screen" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:#ffffff;z-index:99999;align-items:center;justify-content:center;overflow:hidden;">
 
-  <!-- Fond ambiance or -->
-  <div style="position:absolute;inset:0;background:radial-gradient(ellipse 80% 60% at 50% 0%,rgba(232,184,75,0.12) 0%,transparent 70%);pointer-events:none;"></div>
-  <div style="position:absolute;bottom:-20%;left:-10%;width:500px;height:500px;background:radial-gradient(circle,rgba(232,184,75,0.05) 0%,transparent 70%);pointer-events:none;"></div>
+  <div style="position:absolute;inset:0;background:radial-gradient(ellipse 60% 40% at 50% -10%,rgba(232,184,75,0.1) 0%,transparent 70%);pointer-events:none;"></div>
 
   <div style="position:relative;z-index:1;max-width:380px;width:90%;text-align:center;">
 
-    <!-- Logo -->
-    <div style="margin-bottom:32px;">
-      <div style="width:72px;height:72px;background:linear-gradient(135deg,#E8B84B,#FFD700);border-radius:22px;display:flex;align-items:center;justify-content:center;font-size:36px;margin:0 auto 20px;box-shadow:0 8px 40px rgba(232,184,75,0.4);">⚡</div>
-      <div style="font-size:28px;font-weight:900;letter-spacing:-1px;color:#fff;margin-bottom:6px;">SINELEC OS</div>
-      <div style="font-size:12px;font-weight:600;color:rgba(255,255,255,0.35);letter-spacing:3px;text-transform:uppercase;">Paris & Île-de-France</div>
+    <div style="margin-bottom:40px;">
+      <div style="width:72px;height:72px;background:linear-gradient(135deg,#E8B84B,#C9962A);border-radius:22px;display:flex;align-items:center;justify-content:center;font-size:36px;margin:0 auto 20px;box-shadow:0 8px 32px rgba(232,184,75,0.3);">⚡</div>
+      <div style="font-size:28px;font-weight:900;letter-spacing:-1px;color:#0a0a0a;margin-bottom:6px;">SINELEC OS</div>
+      <div style="font-size:12px;font-weight:600;color:rgba(0,0,0,0.35);letter-spacing:3px;text-transform:uppercase;">Paris & Île-de-France</div>
     </div>
 
-    <!-- Card login -->
-    <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:24px;padding:32px;backdrop-filter:blur(20px);box-shadow:0 32px 80px rgba(0,0,0,0.6),inset 0 1px 0 rgba(255,255,255,0.06);">
+    <div style="background:#ffffff;border:1px solid rgba(0,0,0,0.08);border-radius:24px;padding:32px;box-shadow:0 8px 40px rgba(0,0,0,0.08);">
 
-      <div id="login-error" style="display:none;background:rgba(255,77,77,0.1);border:1px solid rgba(255,77,77,0.25);border-radius:10px;padding:12px;margin-bottom:16px;color:#FF4D4D;font-size:13px;font-weight:600;">❌ Mot de passe incorrect</div>
+      <div id="login-error" style="display:none;background:rgba(224,48,48,0.08);border:1px solid rgba(224,48,48,0.2);border-radius:10px;padding:12px;margin-bottom:16px;color:#E03030;font-size:13px;font-weight:600;">❌ Mot de passe incorrect</div>
 
-      <div style="font-size:13px;font-weight:600;color:rgba(255,255,255,0.4);margin-bottom:16px;text-align:left;letter-spacing:1px;text-transform:uppercase;">Accès sécurisé</div>
+      <div style="font-size:12px;font-weight:700;color:rgba(0,0,0,0.35);margin-bottom:16px;text-align:left;letter-spacing:1px;text-transform:uppercase;">Accès sécurisé</div>
 
       <input id="login-password" type="password" placeholder="••••••••"
-        style="width:100%;padding:16px 20px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:14px;font-size:20px;outline:none;text-align:center;letter-spacing:6px;box-sizing:border-box;margin-bottom:16px;color:#fff;font-family:'Plus Jakarta Sans',sans-serif;transition:all 0.2s;"
-        onfocus="this.style.borderColor='rgba(232,184,75,0.5)';this.style.background='rgba(255,255,255,0.08)';"
-        onblur="this.style.borderColor='rgba(255,255,255,0.1)';this.style.background='rgba(255,255,255,0.06)';"
+        style="width:100%;padding:16px 20px;background:#f9f9f9;border:1.5px solid rgba(0,0,0,0.1);border-radius:14px;font-size:20px;outline:none;text-align:center;letter-spacing:6px;box-sizing:border-box;margin-bottom:16px;color:#0a0a0a;font-family:'Plus Jakarta Sans',sans-serif;transition:all 0.2s;"
+        onfocus="this.style.borderColor='rgba(232,184,75,0.6)';this.style.background='#ffffff';this.style.boxShadow='0 0 0 3px rgba(232,184,75,0.1)';"
+        onblur="this.style.borderColor='rgba(0,0,0,0.1)';this.style.background='#f9f9f9';this.style.boxShadow='none';"
         onkeydown="if(event.key==='Enter') seConnecter()">
 
       <button onclick="seConnecter()" id="login-btn"
-        style="width:100%;background:linear-gradient(135deg,#E8B84B 0%,#FFD700 50%,#C9962A 100%);color:#000;border:none;border-radius:14px;padding:17px;font-size:15px;font-weight:900;cursor:pointer;letter-spacing:1px;text-transform:uppercase;box-shadow:0 8px 32px rgba(232,184,75,0.3);transition:all 0.3s;position:relative;overflow:hidden;">
+        style="width:100%;background:linear-gradient(135deg,#E8B84B 0%,#C9962A 100%);color:#fff;border:none;border-radius:14px;padding:17px;font-size:15px;font-weight:900;cursor:pointer;letter-spacing:1px;text-transform:uppercase;box-shadow:0 4px 20px rgba(232,184,75,0.3);transition:all 0.3s;">
         Connexion
       </button>
 
     </div>
 
-    <div style="margin-top:24px;color:rgba(255,255,255,0.2);font-size:11px;letter-spacing:1px;">SINELEC EI · Accès réservé</div>
+    <div style="margin-top:24px;color:rgba(0,0,0,0.25);font-size:11px;letter-spacing:1px;">SINELEC EI · Accès réservé</div>
   </div>
 </div>
 
@@ -3324,7 +3319,9 @@ function getRemise(prefix, total) {
 const GRILLE = {
   '🚗 Déplacement & Urgences': {
     'Déplacement Paris intra-muros': { f:50, fo:0, mo:50, desc:'Déplacement du technicien SINELEC avec véhicule équipé outillage professionnel complet. Intervention dans Paris intra-muros.' },
-    'Déplacement banlieue <20km': { f:80, fo:0, mo:80, desc:'Déplacement professionnel, véhicule équipé, IDF <20km.' },
+    'Déplacement banlieue <20km (92/93/94)': { f:80, fo:0, mo:80, desc:'Déplacement professionnel, véhicule équipé, petite couronne IDF <20km.' },
+    'Déplacement banlieue >20km (91/78/95)': { f:100, fo:0, mo:100, desc:'Déplacement professionnel, véhicule équipé, grande couronne IDF >20km.' },
+    'Main d\'œuvre heure supplémentaire': { f:70, fo:0, mo:70, desc:'Heure supplémentaire de technicien qualifié, tarif horaire.' },
     'Urgence jour (8h-20h)': { f:130, fo:0, mo:130, desc:'Intervention urgente sous 2h en journée (8h-20h), 7j/7. Technicien qualifié, véhicule équipé. Tarif urgence jour inclus.' },
     'Urgence soir (20h-23h)': { f:180, fo:0, mo:180, desc:'Intervention urgente en soirée (20h-23h), disponibilité 7j/7. Diagnostic et remise en service. Tarif soirée majoré inclus.' },
     'Urgence nuit / WE / férié': { f:250, fo:0, mo:250, desc:'Intervention urgente nuit (23h-8h), week-end et jours fériés. Diagnostic, remise en service ou mise en sécurité. Tarif nuit/WE inclus.' },
@@ -3337,7 +3334,15 @@ const GRILLE = {
     'Remplacement disjoncteur standard': { f:190, fo:30, mo:160, desc:'Fourniture et remplacement disjoncteur calibre adapté. Test mise en service.' },
     'Réparation prise défectueuse': { f:115, fo:25, mo:90, desc:'Remplacement prise, câblage, test fonctionnement, finition soignée.' },
     'Réparation interrupteur défectueux': { f:115, fo:20, mo:95, desc:'Remplacement interrupteur, raccordement, test complet.' },
+    'Réparation chauffage électrique': { f:220, fo:40, mo:180, desc:'Diagnostic et réparation radiateur/convecteur électrique, remise en service.' },
+    'Réparation volet roulant électrique': { f:180, fo:30, mo:150, desc:'Diagnostic moteur volet roulant électrique, remise en service.' },
+    'Recherche fuite de courant': { f:165, fo:0, mo:165, desc:'Localisation fuite de courant, isolation défaut, remise en service.' },
     'Diagnostic complet installation': { f:190, fo:0, mo:190, desc:'Audit complet installation électrique, rapport conformité NF C15-100.' },
+    'Disjoncteur saute (forfait jour)': { f:150, fo:20, mo:130, desc:'Diagnostic + réarmement + test complet. Forfait tout compris.' },
+    'Prise ne fonctionne plus': { f:180, fo:30, mo:150, desc:'Diagnostic + remplacement si nécessaire. Forfait tout compris.' },
+    'Lumière ne s\'allume plus': { f:160, fo:20, mo:140, desc:'Diagnostic + réparation simple. Forfait tout compris.' },
+    'Odeur brûlé / fumée': { f:200, fo:0, mo:200, desc:'Diagnostic sécurité + intervention immédiate. Forfait tout compris.' },
+    'Plus d\'électricité totale': { f:180, fo:0, mo:180, desc:'Diagnostic + rétablissement complet. Forfait tout compris.' },
   },
   '⚡ Tableau Électrique': {
     'Disjoncteur 10A (éclairage)': { f:150, fo:28, mo:122, desc:'Fourniture Legrand/Schneider, pose, raccordement, étiquetage.' },
@@ -3345,6 +3350,11 @@ const GRILLE = {
     'Disjoncteur 32A (four/plaque)': { f:160, fo:35, mo:125, desc:'Fourniture 32A, pose, raccordement, adapté gros électroménager.' },
     'Disjoncteur différentiel 30mA type AC': { f:200, fo:55, mo:145, desc:'Fourniture différentiel 30mA, protection personnes, pose complète.' },
     'Interrupteur différentiel 63A type A': { f:250, fo:85, mo:165, desc:'Fourniture 63A type A, protection renforcée, pose et réglage.' },
+    'Contacteur jour/nuit': { f:165, fo:50, mo:115, desc:'Pose contacteur jour/nuit, raccordement tableau, programmation.' },
+    'Télérupteur': { f:135, fo:40, mo:95, desc:'Pose télérupteur, câblage, test commutation.' },
+    'Minuterie': { f:120, fo:35, mo:85, desc:'Pose minuterie, réglage temporisation, test.' },
+    'Parafoudre': { f:220, fo:80, mo:140, desc:'Fourniture et pose parafoudre, protection surtensions. Conforme NF C 15-100.' },
+    'Délesteur': { f:280, fo:90, mo:190, desc:'Installation délesteur, programmation priorités, test.' },
     'Mini tableau NF C 15-100': { f:185, fo:60, mo:125, desc:'Coffret encastré, modules fournis, conforme NF C15-100.' },
     'Tableau complet 1 rangée (6-13 modules)': { f:1100, fo:380, mo:720, desc:'Fourniture et pose tableau électrique neuf 1 rangée. Appareillage Schneider/Legrand. Différentiel 40A 30mA type A, disjoncteurs calibrés, étiquetage complet, schéma unifilaire remis. Conforme NF C 15-100. Garantie 2 ans.' },
     'Tableau complet 2 rangées (14-26 modules)': { f:1500, fo:550, mo:950, desc:'Fourniture et pose tableau électrique neuf 2 rangées. Appareillage Schneider/Legrand. Différentiels 40A et 63A, disjoncteurs calibrés, étiquetage professionnel, schéma unifilaire remis. Conforme NF C 15-100. Garantie 2 ans.' },
@@ -3354,21 +3364,32 @@ const GRILLE = {
     'Prise double': { f:110, fo:28, mo:82, desc:'Double prise 2P+T, pose encastrée, raccordement, plaque fournie.' },
     'Prise spécialisée cuisinière 32A': { f:140, fo:35, mo:105, desc:'Prise 32A 3P+T, pose, raccordement ligne dédiée, sécurisée.' },
     'Prise étanche extérieure IP44': { f:110, fo:28, mo:82, desc:'Prise IP44 étanche, protection pluie, pose extérieure complète.' },
+    'Prise RJ45 réseau': { f:65, fo:15, mo:50, desc:'Prise RJ45 cat6, pose encastrée, raccordement, test débit.' },
+    'Prise USB intégrée': { f:85, fo:25, mo:60, desc:'Prise avec chargeur USB intégré, pose, raccordement.' },
+    'Déplacement prise électrique': { f:130, fo:30, mo:100, desc:'Déplacement prise existante, tirage câble, nouvelle boîte, finition.' },
     'Interrupteur simple': { f:90, fo:20, mo:70, desc:'Interrupteur Legrand, pose encastrée, raccordement, finition.' },
     'Interrupteur va-et-vient': { f:110, fo:25, mo:85, desc:'Va-et-vient, 2 points de commande, pose complète, test.' },
     'Variateur intensité': { f:130, fo:40, mo:90, desc:'Variateur LED compatible, pose, réglage, test luminosité.' },
+    'Interrupteur connecté': { f:130, fo:40, mo:90, desc:'Interrupteur connecté WiFi, configuration appli, test.' },
     'Prise Green Up recharge VE': { f:300, fo:120, mo:180, desc:'Prise T2 Green Up, ligne dédiée 16A, protection différentielle.' },
   },
   '💡 Éclairage': {
     'Luminaire simple (plafonnier)': { f:115, fo:20, mo:95, desc:'Pose plafonnier fourni par client, raccordement DCL, fixation.' },
     'Lustre / luminaire lourd': { f:200, fo:30, mo:170, desc:'Pose lustre lourd, fixation renforcée, raccordement, test.' },
     'Spot encastré LED (unité)': { f:75, fo:25, mo:50, desc:'Spot LED encastré, découpe, raccordement, test éclairage.' },
+    'Bandeau LED (par mètre)': { f:60, fo:20, mo:40, desc:'Bandeau LED, alimentation, pose, raccordement par mètre linéaire.' },
     'Point lumineux DCL': { f:100, fo:15, mo:85, desc:'Création point lumineux DCL, tirage câble, boite de dérivation.' },
+    'Éclairage extérieur': { f:150, fo:35, mo:115, desc:'Applique ou borne extérieure, câblage étanche, raccordement.' },
+    'Chemin lumineux (3 spots min)': { f:250, fo:60, mo:190, desc:'Chemin lumineux encastré, 3 spots minimum, câblage, finition.' },
     'Détecteur mouvement éclairage': { f:120, fo:35, mo:85, desc:'Détecteur infrarouge, réglage sensibilité/temporisation, pose.' },
   },
   '🔗 Circuits & Câblage': {
     'Circuit apparent 5m': { f:200, fo:35, mo:165, desc:'Tirage câble apparent sous goulotte 5m, raccordement tableau.' },
     'Circuit encastré 5m': { f:300, fo:45, mo:255, desc:'Tirage câble encastré sous gaine 5m, saignée, raccordement.' },
+    'Câble supplémentaire (par ml)': { f:20, fo:5, mo:15, desc:'Tirage câble supplémentaire au mètre linéaire.' },
+    'Goulotte apparente (par ml)': { f:28, fo:8, mo:20, desc:'Pose goulotte apparente au mètre linéaire, câble inclus.' },
+    'Saignée + câble + rebouchage (par ml)': { f:45, fo:10, mo:35, desc:'Saignée, gaine, câble, rebouchage au mètre linéaire.' },
+    'Passage câble cloison/dalle': { f:120, fo:20, mo:100, desc:'Passage câble dans cloison ou dalle, étanchéité.' },
     'Ligne dédiée lave-linge': { f:220, fo:45, mo:175, desc:'Circuit 20A du tableau, câble 2.5mm², prise 2P+T, NF C15-100.' },
     'Ligne dédiée chauffe-eau': { f:220, fo:45, mo:175, desc:'Circuit 20A, câble 2.5mm², contacteur HC/HP, conforme norme.' },
     'Ligne dédiée plaque induction': { f:250, fo:50, mo:200, desc:'Circuit 32A du tableau, câble 6mm², prise spécialisée, NF C15-100.' },
@@ -3378,7 +3399,9 @@ const GRILLE = {
     'Liaison équipotentielle principale': { f:160, fo:25, mo:135, desc:'Raccordement barre de terre de toutes les canalisations métalliques. Câble cuivre vert/jaune 6mm². Mesure de continuité (< 0,5 ohm). PV de mesures remis.' },
     'Liaison équipotentielle salle de bain': { f:140, fo:20, mo:120, desc:'Raccordement de toutes les masses métalliques de la SdB. Câble 2,5mm². Mesure (< 0,05 ohm). Rapport remis. Obligatoire zones humides NF C 15-100.' },
     'Détecteur fumée DAAF': { f:85, fo:20, mo:65, desc:'Fourniture et pose DAAF certifié NF et CE, pile 10 ans. Fixation plafond, test sur site. Conforme loi du 9 mars 2010. Rapport de pose remis.' },
+    'Détecteur monoxyde de carbone': { f:95, fo:25, mo:70, desc:'Fourniture et pose détecteur CO certifié, test sur site.' },
     'Diagnostic électrique obligatoire': { f:150, fo:0, mo:150, desc:'Contrôle 87 points selon NF C 16-600. Rapport détaillé avec liste des non-conformités, recommandations et photos.' },
+    'Attestation de conformité': { f:150, fo:0, mo:150, desc:'Contrôle + attestation de conformité installation électrique.' },
     'Mise en conformité NF C15-100 (par m²)': { f:65, fo:15, mo:50, desc:'Mise aux normes NF C 15-100 au m². Inclut circuits, protections différentielles 30mA, mise à la terre, étiquetage. Attestation de conformité remise.' },
   },
   '🔥 Chauffage Électrique': {
@@ -3386,19 +3409,31 @@ const GRILLE = {
     'Radiateur à inertie': { f:350, fo:120, mo:230, desc:'Fourniture et pose radiateur inertie avec fil pilote 6 ordres. Raccordement circuit dédié, test toutes fonctions. Économies 25-40% vs convecteur. Garantie 2 ans.' },
     'Sèche-serviettes électrique': { f:280, fo:90, mo:190, desc:'Pose sèche-serviettes, raccordement zone 2/3 SdB, test.' },
     'Thermostat programmable': { f:140, fo:45, mo:95, desc:'Thermostat programmable, installation, configuration plages horaires.' },
+    'Thermostat connecté / fil pilote': { f:180, fo:55, mo:125, desc:'Thermostat connecté WiFi ou fil pilote 6 ordres, configuration appli.' },
+    'Remplacement convecteur → inertie': { f:450, fo:150, mo:300, desc:'Dépose ancien convecteur, fourniture et pose radiateur inertie, raccordement.' },
+    'Chauffe-eau 100L': { f:450, fo:180, mo:270, desc:'Fourniture et pose chauffe-eau 100L, raccordement eau + électricité.' },
+    'Chauffe-eau 200L': { f:580, fo:220, mo:360, desc:'Fourniture et pose chauffe-eau 200L, raccordement eau + électricité.' },
   },
   '💨 VMC & Ventilation': {
     'VMC simple flux autoréglable': { f:450, fo:150, mo:300, desc:'Fourniture et pose VMC simple flux autoréglable. Circuit dédié 2A, bouches posées, réglage débits. Conforme RT 2012 et NF C 15-100. Garantie 2 ans.' },
     'VMC simple flux hygroréglable B': { f:700, fo:280, mo:420, desc:'Fourniture et pose VMC hygroréglable type B. Bouches hygroréglables à variation automatique (15-75 m³/h). Test débits. Rapport de mise en service remis. Conforme RT 2012. Garantie 2 ans.' },
     'Remplacement moteur VMC': { f:250, fo:90, mo:160, desc:'Dépose moteur, fourniture moteur adapté, repose, test débit.' },
+    'Bouche extraction VMC': { f:60, fo:15, mo:45, desc:'Fourniture et pose bouche extraction, réglage débit.' },
+    'Entretien/nettoyage VMC': { f:100, fo:0, mo:100, desc:'Nettoyage bouches, moteur, vérification débits, rapport.' },
     'Ligne dédiée VMC (disj 2A)': { f:110, fo:25, mo:85, desc:'Circuit dédié VMC 2A, disjoncteur tableau, câblage complet.' },
+    'Extracteur d\'air simple': { f:150, fo:40, mo:110, desc:'Extracteur d\'air salle de bain, pose, raccordement, test.' },
+    'Extracteur temporisé': { f:180, fo:50, mo:130, desc:'Extracteur avec temporisateur, réglage, pose, raccordement.' },
   },
   '🏠 Équipements Spéciaux': {
     'Interphone audio': { f:500, fo:180, mo:320, desc:'Interphone audio 2 fils, platine extérieure, poste intérieur, pose complète.' },
     'Visiophone': { f:900, fo:350, mo:550, desc:'Visiophone couleur, caméra HD, écran intérieur, pose complète.' },
+    'Sonnette filaire': { f:130, fo:30, mo:100, desc:'Sonnette filaire, bouton poussoir, carillon, pose et raccordement.' },
     'Motorisation volet roulant': { f:350, fo:130, mo:220, desc:'Moteur volet, commande murale, fin de course, raccordement.' },
     'Détecteur mouvement extérieur': { f:120, fo:35, mo:85, desc:'Détecteur IR extérieur IP44, réglage angle/sensibilité, pose.' },
     'Borne IRVE 7kW monophasée': { f:1500, fo:600, mo:900, desc:'Borne 7kW, câblage dédié, protection, mise en service, attestation IRVE.' },
+    'Borne IRVE 11kW triphasée': { f:1650, fo:650, mo:1000, desc:'Borne 11kW triphasé, câblage, protection, mise en service, attestation IRVE.' },
+    'Prise Green Up recharge VE': { f:300, fo:120, mo:180, desc:'Prise T2 Green Up, ligne dédiée 16A, protection différentielle.' },
+    'Alarme / vidéosurveillance': { f:155, fo:0, mo:155, desc:'Installation alarme ou caméra, raccordement électrique, test.' },
   },
 };
 
