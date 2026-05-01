@@ -1102,9 +1102,13 @@ function afficherHistorique() {
       }
     } else {
       // FACTURE
+      const estTermine = ['termine', 'terminé', 'done'].includes(statutNorm);
       if (estPaye) {
         statutBg = '#f0fdf4'; statutColor = '#16a34a';
         statutIcon = '💰'; statutLabel = 'Payée';
+      } else if (estTermine) {
+        statutBg = '#f0fdf4'; statutColor = '#10b981';
+        statutIcon = '✅'; statutLabel = 'Travaux terminés';
       } else {
         statutBg = '#fff7ed'; statutColor = '#ea580c';
         statutIcon = '⏳'; statutLabel = 'En attente paiement';
@@ -1130,6 +1134,11 @@ function afficherHistorique() {
       }
 
       if (type === 'facture' && !estPaye) {
+        // Bouton Terminé si pas encore marqué terminé
+        const estTermineFact = ['termine','terminé','done'].includes(statutNorm);
+        if (!estTermineFact) {
+          btns.push(`<button onclick="marquerTermine('${item.num}')" ${btnStyle('rgba(16,185,129,0.08)','#10b981','rgba(16,185,129,0.25)')}>✅ Terminé</button>`);
+        }
         btns.push(`<button onclick="marquerPaye('${item.num}','terminal')" ${btnStyle('rgba(99,102,241,0.1)','#6366f1','rgba(99,102,241,0.3)')}>💳 Terminal</button>`);
         btns.push(`<button onclick="marquerPaye('${item.num}','virement')" ${btnStyle('rgba(16,185,129,0.1)','#10b981','rgba(16,185,129,0.3)')}>🏦 Virement</button>`);
         btns.push(`<button onclick="marquerPaye('${item.num}','especes')" ${btnStyle('rgba(212,165,116,0.1)','var(--accent)','rgba(212,165,116,0.3)')}>💶 Espèces</button>`);
@@ -1182,6 +1191,24 @@ function afficherHistorique() {
   }).join('');
   // Swipe to delete
   requestAnimationFrame(() => requestAnimationFrame(initSwipeToDelete));
+}
+
+// ─── MARQUER TERMINÉ (sans SMS paiement) ─────────────────────
+async function marquerTermine(num) {
+  try {
+    await fetch('/api/historique/' + num + '/statut', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ statut: 'termine' })
+    });
+    showToast('✅ Travaux marqués terminés', '🔧');
+    // Mettre à jour localement sans rechargement complet
+    const item = historiqueData.find(i => i.num === num);
+    if (item) item.statut = 'termine';
+    afficherHistorique();
+  } catch(e) {
+    showToast('❌ Erreur', '⚠️');
+  }
 }
 
 // ─── DATE INTERVENTION ────────────────────────────────────────
