@@ -156,20 +156,222 @@ body {
 
 /* ══ DATE INTERVENTION dans historique ══ */
 .date-interv-input {
-  border:1.5px solid rgba(218,165,32,0.25);
-  border-radius:8px;
-  padding:5px 8px;
-  font-size:12px;
-  background:rgba(255,255,255,0.7);
-  color:var(--text);
-  outline:none;
-  cursor:pointer;
-  max-width:130px;
-  font-family:'Plus Jakarta Sans',sans-serif;
-  transition:border-color 0.2s;
+  border:1.5px solid rgba(218,165,32,0.25); border-radius:8px; padding:5px 8px;
+  font-size:12px; background:rgba(255,255,255,0.7); color:var(--text); outline:none;
+  cursor:pointer; max-width:130px; font-family:'Plus Jakarta Sans',sans-serif; transition:border-color 0.2s;
 }
 .date-interv-input:focus { border-color:var(--accent); background:rgba(255,255,255,0.95); }
 [data-theme="dark"] .date-interv-input { background:rgba(255,255,255,0.08); color:#fff; }
+
+/* ══════════════════════════════════════════
+   SKELETON LOADING
+══════════════════════════════════════════ */
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position:  400px 0; }
+}
+.skeleton {
+  border-radius: 10px;
+  background: linear-gradient(90deg,
+    rgba(212,165,116,0.08) 25%,
+    rgba(212,165,116,0.18) 50%,
+    rgba(212,165,116,0.08) 75%
+  );
+  background-size: 800px 100%;
+  animation: shimmer 1.4s infinite linear;
+}
+.skeleton-card {
+  background: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.skeleton-line  { height: 14px; margin-bottom: 10px; }
+.skeleton-title { height: 18px; width: 55%; margin-bottom: 12px; }
+.skeleton-badge { height: 26px; width: 90px; border-radius: 8px; }
+.skeleton-amount{ height: 22px; width: 70px; border-radius: 8px; margin-left: auto; }
+.skeleton-btn   { height: 38px; border-radius: 10px; }
+
+/* ══════════════════════════════════════════
+   BOTTOM SHEET
+══════════════════════════════════════════ */
+.bottom-sheet-overlay {
+  position: fixed; inset: 0;
+  background: rgba(26,20,16,0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 9000;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+.bottom-sheet-overlay.active { opacity: 1; pointer-events: all; }
+
+.bottom-sheet {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  background: var(--bg);
+  border-radius: 24px 24px 0 0;
+  z-index: 9001;
+  transform: translateY(100%);
+  transition: transform 0.38s cubic-bezier(0.32,0.72,0,1);
+  max-height: 92vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: env(safe-area-inset-bottom, 20px);
+}
+.bottom-sheet.active { transform: translateY(0); }
+.bottom-sheet-handle {
+  width: 40px; height: 4px;
+  background: var(--border);
+  border-radius: 4px;
+  margin: 12px auto 0;
+}
+.bottom-sheet-header {
+  padding: 16px 20px 12px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+.bottom-sheet-title { font-size: 17px; font-weight: 800; color: var(--accent); }
+.bottom-sheet-close {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: rgba(255,255,255,0.6); border: none; cursor: pointer;
+  font-size: 16px; display: flex; align-items: center; justify-content: center;
+  color: var(--text-3);
+}
+.bottom-sheet-body { padding: 20px; }
+
+/* ══════════════════════════════════════════
+   SWIPE TO DELETE
+══════════════════════════════════════════ */
+.swipe-container {
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  margin-bottom: 12px;
+}
+.swipe-delete-bg {
+  position: absolute;
+  right: 0; top: 0; bottom: 0;
+  width: 80px;
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 0 16px 16px 0;
+  color: #fff; font-size: 22px;
+  transition: width 0.2s;
+}
+.swipe-content {
+  position: relative;
+  transform: translateX(0);
+  transition: transform 0.25s cubic-bezier(0.32,0.72,0,1);
+  will-change: transform;
+  background: var(--glass);
+  border: 1.5px solid var(--border);
+  border-radius: 16px;
+  touch-action: pan-y;
+}
+.swipe-content.swiped { transform: translateX(-80px); }
+
+/* ══════════════════════════════════════════
+   MICRO-ANIMATIONS BOUTONS
+══════════════════════════════════════════ */
+.btn-gen:active  { transform: scale(0.97) !important; }
+.btn-small:active { transform: scale(0.94) !important; }
+.mobile-tab:active .mobile-tab-icon { transform: scale(0.88) !important; }
+
+/* ══════════════════════════════════════════
+   PAGE HEADER ANIMÉ
+══════════════════════════════════════════ */
+.page-header {
+  padding: 20px 22px 8px;
+  display: flex; align-items: center; gap: 12px;
+}
+.page-header-icon {
+  width: 44px; height: 44px;
+  background: linear-gradient(135deg, var(--accent), var(--gold));
+  border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px;
+  box-shadow: 0 4px 14px rgba(212,165,116,0.35);
+  animation: pop-in 0.4s cubic-bezier(0.34,1.56,0.64,1);
+}
+.page-header-text h2 {
+  font-size: 20px; font-weight: 900; color: var(--text); letter-spacing: -0.4px;
+  animation: slide-in 0.35s ease;
+}
+.page-header-text span {
+  font-size: 12px; color: var(--text-3); font-weight: 600;
+  animation: slide-in 0.45s ease;
+}
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.6) rotate(-10deg); }
+  to   { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+@keyframes slide-in {
+  from { opacity: 0; transform: translateX(-12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ══════════════════════════════════════════
+   COMPTEURS ANIMÉS DASHBOARD
+══════════════════════════════════════════ */
+.stat-value { transition: color 0.3s; }
+.stat-card {
+  cursor: default;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.stat-card:active { transform: scale(0.97); }
+
+/* ══════════════════════════════════════════
+   PULL TO REFRESH
+══════════════════════════════════════════ */
+.ptr-indicator {
+  position: fixed; top: 0; left: 50%;
+  transform: translateX(-50%) translateY(-60px);
+  width: 44px; height: 44px;
+  background: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+  box-shadow: 0 4px 16px rgba(26,20,16,0.12);
+  z-index: 9999;
+  transition: transform 0.3s;
+  backdrop-filter: blur(20px);
+}
+.ptr-indicator.visible {
+  transform: translateX(-50%) translateY(20px);
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.ptr-spinning { animation: spin 0.7s linear infinite; }
+
+/* ══════════════════════════════════════════
+   TRANSITION PAGES SLIDE
+══════════════════════════════════════════ */
+.page.active {
+  display: block;
+  animation: page-enter 0.32s cubic-bezier(0.32,0.72,0,1);
+}
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ══════════════════════════════════════════
+   BADGE NOTIFICATION SIDEBAR
+══════════════════════════════════════════ */
+.notif-dot {
+  width: 8px; height: 8px;
+  background: #ef4444;
+  border-radius: 50%;
+  margin-left: auto;
+  animation: pulse-dot 2s infinite;
+}
+@keyframes pulse-dot {
+  0%,100% { transform: scale(1); opacity: 1; }
+  50%      { transform: scale(1.4); opacity: 0.7; }
+}
 </style>
 </head>
 <body data-theme="light">
@@ -213,6 +415,9 @@ body {
     </div>
     <div class="sidebar-item" onclick="switchPage('dashboard', this)">
       <span class="sidebar-item-icon">📊</span><span>CA & Stats</span>
+    </div>
+    <div class="sidebar-item" onclick="switchPage('rentabilite', this)">
+      <span class="sidebar-item-icon">💰</span><span>Rentabilité</span>
     </div>
     <div class="sidebar-item" onclick="switchPage('historique', this)">
       <span class="sidebar-item-icon">📋</span><span>Historique</span>
@@ -294,8 +499,95 @@ body {
 <!-- ════ PAGE DÉPANNAGE ════ -->
 <div id="page-depannage" class="page"><div class="content"><div class="section"><div class="section-title">⚡ Dépannage Rapide</div><div id="dep-content" style="color:var(--text-3);text-align:center;padding:40px;">Utilisez le bouton 📞 en bas à droite pour créer un lead rapide,<br>puis générez le devis depuis la page Devis.</div></div></div></div>
 
-<!-- ════ PAGE AGENDA ════ -->
-<div id="page-agenda" class="page"><div class="content" style="max-width:700px;"><div class="section"><div class="section-title">📅 Interventions à venir</div><div id="agenda-liste"><div class="panier-empty">Chargement...</div></div></div></div></div>
+<!-- ════ PAGE RENTABILITÉ ════ -->
+<div id="page-rentabilite" class="page">
+<div class="content" style="max-width:700px;">
+
+  <!-- Sélecteur mois -->
+  <div class="section" style="margin-bottom:16px;">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <div class="section-title" style="margin-bottom:0;">💰 Rentabilité</div>
+      <div style="display:flex;gap:8px;align-items:center;margin-left:auto;">
+        <button onclick="moisRentaPrecedent()" class="btn-small" style="padding:6px 12px;">←</button>
+        <span id="renta-mois-label" style="font-size:14px;font-weight:700;color:var(--text);min-width:110px;text-align:center;"></span>
+        <button onclick="moisRentaSuivant()" class="btn-small" style="padding:6px 12px;">→</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+    <div class="stat-card" style="background:linear-gradient(135deg,rgba(16,185,129,0.1),rgba(16,185,129,0.05));border-color:rgba(16,185,129,0.2);">
+      <div class="stat-value" id="renta-ca" style="color:#10b981;">0 €</div>
+      <div class="stat-label">CA Diahe</div>
+      <div id="renta-ca-sub" style="font-size:11px;color:var(--text-3);margin-top:4px;"></div>
+    </div>
+    <div class="stat-card" style="background:linear-gradient(135deg,rgba(239,68,68,0.1),rgba(239,68,68,0.05));border-color:rgba(239,68,68,0.2);">
+      <div class="stat-value" id="renta-charges" style="color:#ef4444;">0 €</div>
+      <div class="stat-label">Charges</div>
+    </div>
+    <div class="stat-card" style="grid-column:1/-1;background:linear-gradient(135deg,rgba(212,165,116,0.15),rgba(218,165,32,0.1));border-color:rgba(212,165,116,0.3);">
+      <div class="stat-value" id="renta-benefice" style="color:var(--accent);font-size:40px;">0 €</div>
+      <div class="stat-label">Bénéfice net</div>
+      <div id="renta-taux" style="font-size:13px;color:var(--text-2);margin-top:6px;font-weight:600;"></div>
+    </div>
+  </div>
+
+  <!-- Alerte URSSAF -->
+  <div id="renta-urssaf-alerte" style="display:none;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:14px;padding:14px;margin-bottom:16px;">
+    <div style="font-size:13px;font-weight:700;color:#d97706;margin-bottom:4px;">⚠️ URSSAF non saisie ce mois</div>
+    <div id="renta-urssaf-text" style="font-size:12px;color:var(--text-2);"></div>
+  </div>
+
+  <!-- Détail charges par catégorie -->
+  <div class="section" style="margin-bottom:16px;">
+    <div class="section-title">📊 Charges par catégorie</div>
+    <div id="renta-categories"></div>
+  </div>
+
+  <!-- Ajouter une charge -->
+  <div class="section" style="margin-bottom:16px;">
+    <div class="section-title">➕ Ajouter une charge</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+      <div class="input-group" style="margin-bottom:0;">
+        <label>Catégorie</label>
+        <select id="charge-cat" style="width:100%;background:rgba(255,255,255,0.65);border:1.5px solid rgba(218,165,32,0.15);border-radius:12px;padding:13px 16px;font-size:14px;color:var(--text);outline:none;">
+          <option value="urssaf">🏛️ URSSAF</option>
+          <option value="carburant">⛽ Carburant</option>
+          <option value="stationnement">🅿️ Stationnement</option>
+          <option value="materiel">🔧 Matériel</option>
+          <option value="outillage">🛠️ Outillage</option>
+          <option value="telephone">📱 Téléphone/Forfait</option>
+          <option value="lsa">📍 LSA Google</option>
+          <option value="autre">📦 Autre</option>
+        </select>
+      </div>
+      <div class="input-group" style="margin-bottom:0;">
+        <label>Montant (€)</label>
+        <input type="number" id="charge-montant" placeholder="133" min="0" step="0.01" style="width:100%;background:rgba(255,255,255,0.65);border:1.5px solid rgba(218,165,32,0.15);border-radius:12px;padding:13px 16px;font-size:14px;color:var(--text);outline:none;">
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+      <div class="input-group" style="margin-bottom:0;">
+        <label>Date</label>
+        <input type="date" id="charge-date" style="width:100%;background:rgba(255,255,255,0.65);border:1.5px solid rgba(218,165,32,0.15);border-radius:12px;padding:13px 16px;font-size:14px;color:var(--text);outline:none;">
+      </div>
+      <div class="input-group" style="margin-bottom:0;">
+        <label>Note <span style="font-size:11px;color:var(--text-3);">(optionnel)</span></label>
+        <input type="text" id="charge-note" placeholder="Ex: Station Total A6" style="width:100%;background:rgba(255,255,255,0.65);border:1.5px solid rgba(218,165,32,0.15);border-radius:12px;padding:13px 16px;font-size:14px;color:var(--text);outline:none;">
+      </div>
+    </div>
+    <button onclick="ajouterCharge()" class="btn-gen">➕ Ajouter la charge</button>
+  </div>
+
+  <!-- Liste charges du mois -->
+  <div class="section">
+    <div class="section-title">🧾 Charges du mois</div>
+    <div id="renta-liste-charges"><div class="panier-empty">Aucune charge ce mois</div></div>
+  </div>
+
+</div>
+</div><div class="content" style="max-width:700px;"><div class="section"><div class="section-title">📅 Interventions à venir</div><div id="agenda-liste"><div class="panier-empty">Chargement...</div></div></div></div></div>
 
 <!-- ════════════ PAGE DEVIS ════════════ -->
 <div id="page-devis" class="page active">
@@ -364,6 +656,31 @@ body {
   <div id="d-total-apres-remise" style="display:none;justify-content:space-between;align-items:center;padding:8px 0;font-size:16px;font-weight:900;">
     <span>NET À PAYER</span>
     <span id="d-net-payer" style="color:var(--accent);">0,00 €</span>
+  </div>
+
+  <!-- Toggle partenaire Alopronto -->
+  <div id="d-partenaire-box" style="background:rgba(255,255,255,0.6);border:1.5px solid var(--border);border-radius:16px;padding:16px;margin-bottom:16px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="togglePartenaire('d')">
+      <div>
+        <div style="font-size:14px;font-weight:700;color:var(--text);">👥 Intervention Alopronto</div>
+        <div style="font-size:12px;color:var(--text-3);margin-top:2px;">Partage 60% Diahe / 40% Alopronto</div>
+      </div>
+      <div id="d-partenaire-toggle" style="width:44px;height:24px;border-radius:12px;background:var(--border);position:relative;transition:all 0.3s;flex-shrink:0;">
+        <div style="width:20px;height:20px;border-radius:50%;background:#fff;position:absolute;top:2px;left:2px;transition:all 0.3s;box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div>
+      </div>
+    </div>
+    <div id="d-partenaire-detail" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div>
+          <div style="font-size:11px;color:var(--text-3);font-weight:600;margin-bottom:4px;">PART DIAHE (%)</div>
+          <input type="number" id="d-part-diahe" value="60" min="0" max="100" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:10px;font-size:15px;font-weight:700;color:var(--accent);text-align:center;background:rgba(255,255,255,0.8);outline:none;" oninput="document.getElementById('d-part-alopronto').value=100-parseInt(this.value||0)">
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--text-3);font-weight:600;margin-bottom:4px;">PART ALOPRONTO (%)</div>
+          <input type="number" id="d-part-alopronto" value="40" min="0" max="100" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:10px;font-size:15px;font-weight:700;color:#3b82f6;text-align:center;background:rgba(255,255,255,0.8);outline:none;" oninput="document.getElementById('d-part-diahe').value=100-parseInt(this.value||0)">
+        </div>
+      </div>
+    </div>
   </div>
 
   <button class="btn-gen" id="d-btn" onclick="generer('devis')">📄 Générer le devis PDF</button>
@@ -639,6 +956,7 @@ function switchPage(page, el) {
   if (page === 'params') setTimeout(afficherParams, 100);
   if (page === 'sante') setTimeout(chargerSante, 100);
   if (page === 'agenda') setTimeout(chargerAgenda, 100);
+  if (page === 'rentabilite') setTimeout(chargerRentabilite, 100);
 }
 
 let menuPlusOpen = false;
@@ -647,7 +965,7 @@ function switchPageMenu() {
   menuPlusOpen = true;
   const menu = document.createElement('div');
   menu.style.cssText = 'position:fixed;bottom:70px;right:10px;background:var(--glass);backdrop-filter:blur(24px);border:1px solid var(--border);border-radius:16px;padding:12px;z-index:999;box-shadow:0 8px 32px rgba(26,20,16,0.15);';
-  const pages = [['agenda','📅','Agenda'],['chat','🤖','Chat AI'],['rapport','📸','Rapport'],['clients','👥','Clients'],['depannage','⚡','Dépannage'],['params','⚙️','Paramètres']];
+  const pages = [['agenda','📅','Agenda'],['rentabilite','💰','Rentabilité'],['chat','🤖','Chat AI'],['rapport','📸','Rapport'],['clients','👥','Clients'],['depannage','⚡','Dépannage'],['params','⚙️','Paramètres']];
   menu.innerHTML = pages.map(([p,i,l]) =>
     `<div onclick="switchPage('${p}',this);this.closest('[style*=fixed]').remove();menuPlusOpen=false;" style="padding:12px 20px;border-radius:10px;background:rgba(255,255,255,0.5);cursor:pointer;font-size:14px;font-weight:600;display:flex;align-items:center;gap:10px;margin-bottom:4px;">
       <span>${i}</span> ${l}
@@ -746,17 +1064,24 @@ function afficherHistorique() {
     const ageHeures = (new Date() - new Date(item.created_at || item.date)) / 3600000;
     const alerte = type === 'devis' && (statut === 'envoyé' || statut === 'envoye') && ageHeures > 48;
 
-    // ── STATUT BADGE ──────────────────────────────────────────
+    // ── STATUT BADGE — couvre toutes les variantes DB ─────────
+    // Normalisation : supprime accents + minuscules
+    const statutNorm = statut.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    const estSigne   = ['signe', 'signed'].includes(statutNorm);
+    const estPaye    = ['paye', 'payed', 'paid', 'payee'].includes(statutNorm);
+    const estFacture = statutNorm === 'facture';
+    const estEnvoye  = ['envoye', 'envoye', 'envoye', 'sent'].includes(statutNorm) || statutNorm === 'envoye';
+
     let statutBg, statutColor, statutLabel, statutIcon;
     if (type === 'devis') {
-      if (statut === 'signe' || statut === 'signé') {
+      if (estSigne) {
         statutBg = '#f0fdf4'; statutColor = '#16a34a';
         statutIcon = '✅'; statutLabel = 'Signé';
-      } else if (statut === 'facture') {
+      } else if (estFacture) {
         statutBg = '#eff6ff'; statutColor = '#3b82f6';
         statutIcon = '→'; statutLabel = 'Facturé';
       } else {
-        // NON SIGNÉ
+        // NON SIGNÉ (envoye ou autre)
         statutBg = alerte ? '#fef2f2' : '#fefce8';
         statutColor = alerte ? '#dc2626' : '#ca8a04';
         statutIcon = alerte ? '⚠️' : '⏳';
@@ -764,12 +1089,12 @@ function afficherHistorique() {
       }
     } else {
       // FACTURE
-      if (statut === 'paye' || statut === 'payé' || statut === 'payée') {
+      if (estPaye) {
         statutBg = '#f0fdf4'; statutColor = '#16a34a';
         statutIcon = '💰'; statutLabel = 'Payée';
       } else {
         statutBg = '#fff7ed'; statutColor = '#ea580c';
-        statutIcon = '⏳'; statutLabel = 'En attente';
+        statutIcon = '⏳'; statutLabel = 'En attente paiement';
       }
     }
 
@@ -778,64 +1103,67 @@ function afficherHistorique() {
     const typeColor = type === 'devis' ? '#3b82f6' : '#10b981';
     const typeLabel = type === 'devis' ? '📋 Devis' : '💶 Facture';
 
-    // ── ACTIONS ───────────────────────────────────────────────
-    let actions = '';
+    // ── ACTIONS en grille 2 colonnes ─────────────────────────
+    const btnStyle = (bg, color, border) =>
+      `style="background:${bg};color:${color};border:1px solid ${border};border-radius:10px;padding:11px 8px;font-size:12px;font-weight:700;cursor:pointer;text-align:center;"`;
+
+    let actionsHTML = '';
     if (!isObat) {
+      let btns = [];
+
       if (type === 'devis') {
-        actions += `<button onclick="convertirEnFacture('${item.num}')" class="btn-small" style="background:rgba(16,185,129,0.12);color:#10b981;border-color:rgba(16,185,129,0.3);">→ Facture</button>`;
-        actions += `<button onclick="ouvrirPopupSig('${item.num}')" class="btn-small">✍️ Signer</button>`;
+        btns.push(`<button onclick="convertirEnFacture('${item.num}')" ${btnStyle('rgba(16,185,129,0.1)','#10b981','rgba(16,185,129,0.3)')}>→ Facture</button>`);
+        btns.push(`<button onclick="ouvrirPopupSig('${item.num}')" ${btnStyle('rgba(212,165,116,0.1)','var(--accent)','rgba(212,165,116,0.3)')}>✍️ Signer</button>`);
       }
-      actions += `<button onclick="telechargerPDF('${item.num}')" class="btn-small">⬇️ PDF</button>`;
-      actions += `<button onclick="dupliquerDoc('${item.num}')" class="btn-small">📋 Dupliquer</button>`;
-      if (type === 'facture' && statut !== 'paye' && statut !== 'payé' && statut !== 'payée') {
-        actions += `<button onclick="marquerPaye('${item.num}','terminal')" class="btn-small" style="background:rgba(99,102,241,0.12);color:#6366f1;border-color:rgba(99,102,241,0.3);" title="CB Terminal SumUp">💳 Terminal</button>`;
-        actions += `<button onclick="marquerPaye('${item.num}','virement')" class="btn-small" style="background:rgba(16,185,129,0.1);color:#10b981;" title="Virement">🏦 Virement</button>`;
-        actions += `<button onclick="marquerPaye('${item.num}','especes')" class="btn-small" title="Espèces">💶 Espèces</button>`;
-        actions += `<button onclick="genererLienPaiement('${item.num}')" class="btn-small" style="background:rgba(16,185,129,0.1);color:#10b981;" title="Lien paiement SumUp">🔗 Lien CB</button>`;
+
+      if (type === 'facture' && !estPaye) {
+        btns.push(`<button onclick="marquerPaye('${item.num}','terminal')" ${btnStyle('rgba(99,102,241,0.1)','#6366f1','rgba(99,102,241,0.3)')}>💳 Terminal</button>`);
+        btns.push(`<button onclick="marquerPaye('${item.num}','virement')" ${btnStyle('rgba(16,185,129,0.1)','#10b981','rgba(16,185,129,0.3)')}>🏦 Virement</button>`);
+        btns.push(`<button onclick="marquerPaye('${item.num}','especes')" ${btnStyle('rgba(212,165,116,0.1)','var(--accent)','rgba(212,165,116,0.3)')}>💶 Espèces</button>`);
+        btns.push(`<button onclick="genererLienPaiement('${item.num}')" ${btnStyle('rgba(16,185,129,0.1)','#10b981','rgba(16,185,129,0.3)')}>🔗 Lien CB</button>`);
       }
-      actions += `<button onclick="supprimerDoc('${item.num}')" class="btn-small" style="background:rgba(239,68,68,0.1);color:#ef4444;border-color:rgba(239,68,68,0.2);">🗑️</button>`;
+
+      btns.push(`<button onclick="telechargerPDF('${item.num}')" ${btnStyle('rgba(255,255,255,0.6)','var(--text-2)','var(--border)')}>⬇️ PDF</button>`);
+      btns.push(`<button onclick="dupliquerDoc('${item.num}')" ${btnStyle('rgba(255,255,255,0.6)','var(--text-2)','var(--border)')}>📋 Dupliquer</button>`);
+      btns.push(`<button onclick="supprimerDoc('${item.num}')" ${btnStyle('rgba(239,68,68,0.08)','#ef4444','rgba(239,68,68,0.2)')}>🗑️ Supprimer</button>`);
+
+      actionsHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px;">${btns.join('')}</div>`;
     }
 
     return `
-    <div style="background:var(--glass);backdrop-filter:blur(20px);border:1.5px solid ${alerte ? 'rgba(220,38,38,0.3)' : 'var(--border)'};border-radius:16px;padding:16px;margin-bottom:12px;transition:all 0.2s;">
+    <div style="background:var(--glass);backdrop-filter:blur(20px);border:1.5px solid ${alerte ? 'rgba(220,38,38,0.35)' : 'var(--border)'};border-radius:16px;padding:16px;margin-bottom:12px;">
 
-      <!-- LIGNE 1 : Numéro + Montant -->
+      <!-- Numéro + Montant -->
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
-        <div>
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-            <span style="font-size:15px;font-weight:800;color:var(--accent);">${item.num}</span>
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px;">
+            <span style="font-size:14px;font-weight:800;color:var(--accent);">${item.num}</span>
             <span style="background:${typeBg};color:${typeColor};border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;">${typeLabel}</span>
-            ${isObat ? `<span style="background:rgba(107,114,128,0.1);color:var(--text-3);border-radius:6px;padding:2px 8px;font-size:10px;font-weight:600;">Obat</span>` : ''}
+            ${item.partenaire ? `<span style="background:rgba(59,130,246,0.1);color:#3b82f6;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;">👥 Alopronto ${item.part_partenaire||40}%</span>` : ''}
+            ${isObat ? `<span style="background:rgba(156,163,175,0.15);color:var(--text-3);border-radius:6px;padding:2px 6px;font-size:10px;">Obat</span>` : ''}
           </div>
-          <div style="font-size:14px;font-weight:600;color:var(--text);margin-top:4px;">${item.client || '—'}</div>
+          <div style="font-size:15px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${item.client || '—'}</div>
         </div>
-        <div style="font-size:20px;font-weight:900;color:var(--accent);white-space:nowrap;">${montant} €</div>
+        <div style="font-size:22px;font-weight:900;color:var(--accent);white-space:nowrap;margin-left:12px;">${montant} €</div>
       </div>
 
-      <!-- LIGNE 2 : Statut + Date -->
+      <!-- Statut + Date doc -->
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
-        <span style="background:${statutBg};color:${statutColor};border-radius:8px;padding:5px 12px;font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:4px;">
-          ${statutIcon} ${statutLabel}
-        </span>
-        <span style="font-size:12px;color:var(--text-3);">📅 ${timeline}</span>
+        <span style="background:${statutBg};color:${statutColor};border-radius:8px;padding:5px 12px;font-size:13px;font-weight:700;display:inline-flex;align-items:center;gap:4px;">${statutIcon} ${statutLabel}</span>
+        <span style="font-size:12px;color:var(--text-3);">${timeline}</span>
       </div>
 
-      <!-- LIGNE 3 : Date intervention -->
+      <!-- Date intervention -->
       ${!isObat ? `
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
         <span style="font-size:12px;color:var(--text-3);font-weight:600;white-space:nowrap;">🔧 Intervention :</span>
-        <input type="date" value="${dateInterv}"
-          onchange="majDateIntervention('${item.num}', this.value)"
-          class="date-interv-input"
-          title="Date d'intervention réelle"
-          style="font-size:13px;padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;background:rgba(255,255,255,0.7);color:var(--text);outline:none;cursor:pointer;">
-        ${dateInterv ? `<span style="font-size:11px;color:#10b981;font-weight:600;">✓</span>` : `<span style="font-size:11px;color:var(--text-3);">à planifier</span>`}
+        <input type="date" value="${dateInterv}" onchange="majDateIntervention('${item.num}',this.value)"
+          style="flex:1;font-size:13px;padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;background:rgba(255,255,255,0.7);color:var(--text);outline:none;cursor:pointer;">
+        ${dateInterv ? `<span style="color:#10b981;font-size:14px;">✓</span>` : ''}
       </div>` : ''}
 
-      <!-- LIGNE 4 : Actions -->
-      <div style="display:flex;gap:6px;flex-wrap:wrap;">
-        ${actions}
-      </div>
+      <!-- Actions grille 2 col -->
+      ${actionsHTML}
 
     </div>`;
   }).join('');
@@ -1353,7 +1681,485 @@ async function verifierAlertesDevis() {
 setTimeout(verifierAlertesDevis, 2000);
 setInterval(verifierAlertesDevis, 300000);
 
-console.log('⚡ SINELEC OS v2.0 loaded — Date Intervention activée');
+// ═══════════════════════════════════════════════════
+// PARTENAIRE ALOPRONTO
+// ═══════════════════════════════════════════════════
+let partenaireActifD = false;
+
+function togglePartenaire(prefix) {
+  partenaireActifD = !partenaireActifD;
+  const toggle = document.getElementById(`${prefix}-partenaire-toggle`);
+  const detail = document.getElementById(`${prefix}-partenaire-detail`);
+  const dot = toggle?.querySelector('div');
+  if (partenaireActifD) {
+    if (toggle) toggle.style.background = '#3b82f6';
+    if (dot) dot.style.left = 'calc(100% - 22px)';
+    if (detail) detail.style.display = 'block';
+  } else {
+    if (toggle) toggle.style.background = 'var(--border)';
+    if (dot) dot.style.left = '2px';
+    if (detail) detail.style.display = 'none';
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// MODULE RENTABILITÉ
+// ═══════════════════════════════════════════════════
+let rentaMoisCourant = new Date().toISOString().substring(0, 7);
+
+const CHARGE_ICONS = {
+  urssaf: '🏛️', carburant: '⛽', stationnement: '🅿️',
+  materiel: '🔧', outillage: '🛠️', telephone: '📱',
+  lsa: '📍', autre: '📦'
+};
+
+const CHARGE_LABELS = {
+  urssaf: 'URSSAF', carburant: 'Carburant', stationnement: 'Stationnement',
+  materiel: 'Matériel', outillage: 'Outillage', telephone: 'Téléphone/Forfait',
+  lsa: 'LSA Google', autre: 'Autre'
+};
+
+function moisRentaPrecedent() {
+  const [y, m] = rentaMoisCourant.split('-').map(Number);
+  const d = new Date(y, m - 2, 1);
+  rentaMoisCourant = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  chargerRentabilite();
+}
+
+function moisRentaSuivant() {
+  const [y, m] = rentaMoisCourant.split('-').map(Number);
+  const d = new Date(y, m, 1);
+  rentaMoisCourant = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  chargerRentabilite();
+}
+
+async function chargerRentabilite() {
+  // Label mois
+  const [y, m] = rentaMoisCourant.split('-').map(Number);
+  const label = new Date(y, m-1, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  const labelEl = document.getElementById('renta-mois-label');
+  if (labelEl) labelEl.textContent = label.charAt(0).toUpperCase() + label.slice(1);
+
+  // Date par défaut du formulaire
+  const chargeDate = document.getElementById('charge-date');
+  if (chargeDate && !chargeDate.value) chargeDate.value = new Date().toISOString().split('T')[0];
+
+  try {
+    const res = await fetch(`/api/rentabilite/${rentaMoisCourant}`);
+    const data = await res.json();
+    afficherRentabilite(data);
+  } catch(e) {
+    showToast('❌ Erreur chargement rentabilité', '⚠️');
+  }
+}
+
+function afficherRentabilite(data) {
+  // KPI
+  const caEl = document.getElementById('renta-ca');
+  const chargesEl = document.getElementById('renta-charges');
+  const beneficeEl = document.getElementById('renta-benefice');
+  const tauxEl = document.getElementById('renta-taux');
+  const caSubEl = document.getElementById('renta-ca-sub');
+
+  if (caEl) caEl.textContent = (data.ca_total || 0).toLocaleString('fr-FR') + ' €';
+  if (chargesEl) chargesEl.textContent = (data.charges_total || 0).toLocaleString('fr-FR') + ' €';
+  if (beneficeEl) {
+    const b = data.benefice_net || 0;
+    beneficeEl.textContent = b.toLocaleString('fr-FR') + ' €';
+    beneficeEl.style.color = b >= 0 ? 'var(--accent)' : '#ef4444';
+  }
+  if (tauxEl) tauxEl.textContent = `Taux de marge : ${data.taux_marge || 0}%`;
+  if (caSubEl) caSubEl.textContent = 'Part Diahe (60/40 Alopronto)';
+
+  // Alerte URSSAF
+  const alerteEl = document.getElementById('renta-urssaf-alerte');
+  const urssafTextEl = document.getElementById('renta-urssaf-text');
+  if (data.urssaf_estimee > 0) {
+    if (alerteEl) alerteEl.style.display = 'block';
+    if (urssafTextEl) urssafTextEl.textContent = `Estimation URSSAF (~22%) : ${data.urssaf_estimee.toLocaleString('fr-FR')} € à provisionner`;
+  } else {
+    if (alerteEl) alerteEl.style.display = 'none';
+  }
+
+  // Catégories
+  const catEl = document.getElementById('renta-categories');
+  if (catEl) {
+    const cats = Object.entries(data.par_categorie || {});
+    if (cats.length === 0) {
+      catEl.innerHTML = '<div style="text-align:center;color:var(--text-3);padding:20px;">Aucune charge saisie</div>';
+    } else {
+      const total = cats.reduce((s, [, v]) => s + v, 0);
+      catEl.innerHTML = cats.sort((a, b) => b[1] - a[1]).map(([cat, montant]) => `
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+          <span style="font-size:18px;width:28px;text-align:center;">${CHARGE_ICONS[cat] || '📦'}</span>
+          <div style="flex:1;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+              <span style="font-size:13px;font-weight:600;color:var(--text);">${CHARGE_LABELS[cat] || cat}</span>
+              <span style="font-size:13px;font-weight:700;color:#ef4444;">${montant.toLocaleString('fr-FR')} €</span>
+            </div>
+            <div style="height:6px;background:rgba(255,255,255,0.2);border-radius:4px;overflow:hidden;">
+              <div style="height:100%;width:${Math.round(montant/total*100)}%;background:linear-gradient(90deg,#ef4444,#f87171);border-radius:4px;"></div>
+            </div>
+          </div>
+        </div>`).join('');
+    }
+  }
+
+  // Liste charges
+  const listeEl = document.getElementById('renta-liste-charges');
+  if (listeEl) {
+    const charges = data.charges || [];
+    if (!charges.length) {
+      listeEl.innerHTML = '<div class="panier-empty">Aucune charge ce mois</div>';
+    } else {
+      listeEl.innerHTML = charges.map(c => `
+        <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid rgba(218,165,32,0.08);">
+          <span style="font-size:20px;">${CHARGE_ICONS[c.categorie] || '📦'}</span>
+          <div style="flex:1;">
+            <div style="font-size:13px;font-weight:700;color:var(--text);">${CHARGE_LABELS[c.categorie] || c.categorie}</div>
+            <div style="font-size:11px;color:var(--text-3);">${c.date} ${c.note ? '· ' + c.note : ''}</div>
+          </div>
+          <span style="font-size:14px;font-weight:800;color:#ef4444;">${parseFloat(c.montant).toLocaleString('fr-FR')} €</span>
+          <button onclick="supprimerCharge(${c.id})" style="background:none;border:none;color:var(--text-3);cursor:pointer;font-size:18px;padding:4px;" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='var(--text-3)'">×</button>
+        </div>`).join('');
+    }
+  }
+}
+
+async function ajouterCharge() {
+  const cat = document.getElementById('charge-cat')?.value;
+  const montant = document.getElementById('charge-montant')?.value;
+  const date = document.getElementById('charge-date')?.value;
+  const note = document.getElementById('charge-note')?.value;
+
+  if (!montant || parseFloat(montant) <= 0) { showToast('⚠️ Montant obligatoire', '❌'); return; }
+
+  try {
+    const res = await fetch('/api/charges', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ categorie: cat, montant: parseFloat(montant), date: date || undefined, note: note || '' })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(`✅ ${CHARGE_LABELS[cat]} ${montant}€ ajouté !`, '💰');
+      document.getElementById('charge-montant').value = '';
+      document.getElementById('charge-note').value = '';
+      chargerRentabilite();
+    } else showToast('❌ ' + data.error, '⚠️');
+  } catch(e) { showToast('❌ ' + e.message, '⚠️'); }
+}
+
+async function supprimerCharge(id) {
+  if (!confirm('Supprimer cette charge ?')) return;
+  try {
+    await fetch(`/api/charges/${id}`, { method: 'DELETE' });
+    showToast('🗑️ Charge supprimée', '✅');
+    chargerRentabilite();
+  } catch(e) { showToast('❌ Erreur', '⚠️'); }
+}
+
+console.log('⚡ SINELEC OS — Rentabilité + Alopronto activés');
+
+// ═══════════════════════════════════════════════════
+// SKELETON LOADER
+// ═══════════════════════════════════════════════════
+function afficherSkeleton(containerId, nb = 3) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = Array(nb).fill(0).map(() => `
+    <div class="skeleton-card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
+        <div style="flex:1;">
+          <div class="skeleton skeleton-title"></div>
+          <div class="skeleton skeleton-line" style="width:70%;"></div>
+        </div>
+        <div class="skeleton skeleton-amount"></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <div class="skeleton skeleton-badge"></div>
+        <div class="skeleton skeleton-badge" style="width:70px;"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div class="skeleton skeleton-btn"></div>
+        <div class="skeleton skeleton-btn"></div>
+      </div>
+    </div>`).join('');
+}
+
+// Override chargerHistorique pour skeleton
+const _chargerHistoriqueOrig = chargerHistorique;
+async function chargerHistorique() {
+  afficherSkeleton('histo-cards', 4);
+  await _chargerHistoriqueOrig();
+}
+
+// ═══════════════════════════════════════════════════
+// BOTTOM SHEET
+// ═══════════════════════════════════════════════════
+function ouvrirBottomSheet(id) {
+  const sheet = document.getElementById(id);
+  const overlay = document.getElementById(id + '-overlay');
+  if (!sheet) return;
+  if (!overlay) {
+    // Créer overlay si absent
+    const ov = document.createElement('div');
+    ov.id = id + '-overlay';
+    ov.className = 'bottom-sheet-overlay';
+    ov.onclick = () => fermerBottomSheet(id);
+    document.body.appendChild(ov);
+    requestAnimationFrame(() => ov.classList.add('active'));
+  } else {
+    overlay.classList.add('active');
+  }
+  sheet.classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+function fermerBottomSheet(id) {
+  const sheet = document.getElementById(id);
+  const overlay = document.getElementById(id + '-overlay');
+  if (sheet) sheet.classList.remove('active');
+  if (overlay) overlay.classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+// ═══════════════════════════════════════════════════
+// SWIPE TO DELETE — historique
+// ═══════════════════════════════════════════════════
+function initSwipeToDelete() {
+  // Appelée après afficherHistorique()
+  // Wrap chaque carte .swipe-content avec .swipe-container
+  // et ajoute les listeners touch
+  document.querySelectorAll('#histo-cards > div').forEach(card => {
+    // Skip si déjà wrappé
+    if (card.classList.contains('swipe-container')) return;
+
+    const num = card.querySelector('[onclick*="supprimerDoc"]')?.getAttribute('onclick')?.match(/'([^']+)'/)?.[1];
+    if (!num) return;
+
+    // Créer le container
+    const wrapper = document.createElement('div');
+    wrapper.className = 'swipe-container';
+
+    // Fond rouge
+    const bg = document.createElement('div');
+    bg.className = 'swipe-delete-bg';
+    bg.innerHTML = '🗑️';
+
+    // Wrapper la carte
+    card.parentNode.insertBefore(wrapper, card);
+    card.classList.add('swipe-content');
+    wrapper.appendChild(bg);
+    wrapper.appendChild(card);
+
+    // Touch events
+    let startX = 0, currentX = 0, swiped = false;
+
+    card.addEventListener('touchstart', e => {
+      startX = e.touches[0].clientX;
+      currentX = 0;
+    }, { passive: true });
+
+    card.addEventListener('touchmove', e => {
+      currentX = e.touches[0].clientX - startX;
+      if (currentX < 0 && currentX > -120) {
+        card.style.transition = 'none';
+        card.style.transform = `translateX(${currentX}px)`;
+        bg.style.width = Math.min(80, Math.abs(currentX)) + 'px';
+      }
+    }, { passive: true });
+
+    card.addEventListener('touchend', () => {
+      card.style.transition = '';
+      if (currentX < -60) {
+        card.classList.add('swiped');
+        bg.style.width = '80px';
+        swiped = true;
+      } else {
+        card.style.transform = '';
+        bg.style.width = '0';
+        swiped = false;
+      }
+    });
+
+    bg.addEventListener('click', () => {
+      if (swiped) supprimerDoc(num);
+    });
+
+    // Tap sur contenu → reset si swiped
+    card.addEventListener('touchstart', () => {
+      if (swiped) {
+        card.classList.remove('swiped');
+        card.style.transform = '';
+        bg.style.width = '0';
+        swiped = false;
+      }
+    }, { passive: true });
+  });
+}
+
+// Patch afficherHistorique pour swipe
+const _afficherHistoriqueOrig = afficherHistorique;
+function afficherHistorique() {
+  _afficherHistoriqueOrig();
+  requestAnimationFrame(() => requestAnimationFrame(initSwipeToDelete));
+}
+
+// ═══════════════════════════════════════════════════
+// COMPTEURS ANIMÉS DASHBOARD
+// ═══════════════════════════════════════════════════
+function animerCompteur(elementId, valeurFinale, duree = 900, suffixe = ' €') {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  const start = performance.now();
+  const valNum = parseFloat(String(valeurFinale).replace(/[^\d.-]/g, '')) || 0;
+
+  requestAnimationFrame(function tick(now) {
+    const elapsed = now - start;
+    const progress = Math.min(elapsed / duree, 1);
+    // Easing ease-out cubic
+    const ease = 1 - Math.pow(1 - progress, 3);
+    const current = Math.round(valNum * ease);
+    el.textContent = current.toLocaleString('fr-FR') + suffixe;
+    if (progress < 1) requestAnimationFrame(tick);
+  });
+}
+
+// Patch chargerDashboard pour compteurs animés
+const _chargerDashboardOrig = chargerDashboard;
+async function chargerDashboard() {
+  // Skeleton sur les stat-cards
+  ['dash-mois-ca','dash-annee-ca','dash-devis-attente','dash-panier-moyen'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.innerHTML = '<div class="skeleton" style="height:36px;width:80px;margin:0 auto;border-radius:8px;"></div>'; }
+  });
+  await _chargerDashboardOrig();
+  // Animer après chargement
+  setTimeout(() => {
+    const moisCA  = parseFloat(document.getElementById('dash-mois-ca')?.textContent?.replace(/\D/g,'')) || 0;
+    const anneeCA = parseFloat(document.getElementById('dash-annee-ca')?.textContent?.replace(/\D/g,'')) || 0;
+    const attente = parseFloat(document.getElementById('dash-devis-attente')?.textContent?.replace(/\D/g,'')) || 0;
+    const panier  = parseFloat(document.getElementById('dash-panier-moyen')?.textContent?.replace(/\D/g,'')) || 0;
+    animerCompteur('dash-mois-ca', moisCA);
+    animerCompteur('dash-annee-ca', anneeCA);
+    animerCompteur('dash-devis-attente', attente);
+    animerCompteur('dash-panier-moyen', panier);
+  }, 100);
+}
+
+// Compteurs rentabilité aussi
+const _chargerRentaOrig = chargerRentabilite;
+async function chargerRentabilite() {
+  await _chargerRentaOrig();
+  setTimeout(() => {
+    ['renta-ca','renta-charges','renta-benefice'].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const val = parseFloat(el.textContent.replace(/[^\d.-]/g,'')) || 0;
+      animerCompteur(id, val);
+    });
+  }, 100);
+}
+
+// ═══════════════════════════════════════════════════
+// PAGE HEADERS ANIMÉS
+// ═══════════════════════════════════════════════════
+const PAGE_HEADERS = {
+  devis:       { icon:'📋', title:'Devis',         sub:'Nouveau document client' },
+  facture:     { icon:'💶', title:'Facture',        sub:'Facturation rapide' },
+  historique:  { icon:'📋', title:'Historique',     sub:'Tous vos documents' },
+  dashboard:   { icon:'📊', title:'CA & Stats',     sub:'Tableau de bord' },
+  rentabilite: { icon:'💰', title:'Rentabilité',    sub:'Bénéfice net réel' },
+  agenda:      { icon:'📅', title:'Agenda',         sub:'Interventions planifiées' },
+  clients:     { icon:'👥', title:'Clients',        sub:'Base clients SINELEC' },
+  sante:       { icon:'🏥', title:'Santé système',  sub:'Monitoring services' },
+  params:      { icon:'⚙️', title:'Paramètres',    sub:'Configuration' },
+  chat:        { icon:'🤖', title:'Chat AI',        sub:'Assistant SINELEC' },
+  depannage:   { icon:'⚡', title:'Dépannage',      sub:'Intervention rapide' },
+  rapport:     { icon:'📸', title:'Rapport',        sub:'Compte-rendu chantier' },
+  dpe:         { icon:'🏠', title:'Analyse DPE',    sub:'Diagnostic énergétique' },
+  vocal:       { icon:'🎙️', title:'Script Vocal',  sub:'Assistant appels' },
+};
+
+function ajouterPageHeader(pageId) {
+  const info = PAGE_HEADERS[pageId];
+  if (!info) return;
+  const page = document.getElementById(`page-${pageId}`);
+  if (!page) return;
+  // Éviter les doublons
+  if (page.querySelector('.page-header')) return;
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-header-icon">${info.icon}</div>
+    <div class="page-header-text">
+      <h2>${info.title}</h2>
+      <span>${info.sub}</span>
+    </div>`;
+  page.insertBefore(header, page.firstChild);
+}
+
+// Injecter headers au switchPage
+const _switchPageOrig = switchPage;
+function switchPage(page, el) {
+  _switchPageOrig(page, el);
+  requestAnimationFrame(() => ajouterPageHeader(page));
+}
+
+// ═══════════════════════════════════════════════════
+// PULL TO REFRESH
+// ═══════════════════════════════════════════════════
+(function initPullToRefresh() {
+  const indicator = document.createElement('div');
+  indicator.className = 'ptr-indicator';
+  indicator.textContent = '↓';
+  document.body.appendChild(indicator);
+
+  let startY = 0, pulling = false;
+  const THRESHOLD = 80;
+
+  document.addEventListener('touchstart', e => {
+    if (window.scrollY === 0) {
+      startY = e.touches[0].clientY;
+      pulling = true;
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchmove', e => {
+    if (!pulling) return;
+    const dy = e.touches[0].clientY - startY;
+    if (dy > 20 && dy < 150) {
+      indicator.classList.add('visible');
+      indicator.style.transform = `translateX(-50%) translateY(${Math.min(dy * 0.5, 60)}px)`;
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchend', e => {
+    if (!pulling) return;
+    const dy = e.changedTouches[0].clientY - startY;
+    pulling = false;
+    if (dy > THRESHOLD) {
+      indicator.textContent = '↻';
+      indicator.classList.add('ptr-spinning');
+      // Recharger la page active
+      const activePage = document.querySelector('.page.active')?.id?.replace('page-','');
+      if (activePage === 'historique') chargerHistorique();
+      else if (activePage === 'dashboard') chargerDashboard();
+      else if (activePage === 'rentabilite') chargerRentabilite();
+      else if (activePage === 'agenda') chargerAgenda();
+      else if (activePage === 'clients') chargerClients();
+      setTimeout(() => {
+        indicator.classList.remove('ptr-spinning', 'visible');
+        indicator.textContent = '↓';
+        indicator.style.transform = '';
+        showToast('✅ Actualisé', '🔄');
+      }, 1200);
+    } else {
+      indicator.classList.remove('visible');
+      indicator.style.transform = '';
+    }
+  }, { passive: true });
+})();
 
 // ═══════════════════════════════════════════════════
 // REMISE
@@ -1723,7 +2529,12 @@ async function generer(type) {
         telephone: document.getElementById(`${prefix}-tel`)?.value.trim() || '',
         adresse,
         description: document.getElementById(`${prefix}-description`)?.value.trim() || '',
-        prestations: prestationsAEnvoyer
+        prestations: prestationsAEnvoyer,
+        // Partenaire Alopronto
+        partenaire: prefix === 'd' ? partenaireActifD : false,
+        part_diahe: prefix === 'd' ? parseInt(document.getElementById('d-part-diahe')?.value || 60) : 100,
+        part_partenaire: prefix === 'd' ? parseInt(document.getElementById('d-part-alopronto')?.value || 40) : 0,
+        nom_partenaire: 'Alopronto'
       })
     });
     const data = await res.json();
