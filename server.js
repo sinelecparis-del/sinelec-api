@@ -474,7 +474,14 @@ app.delete('/api/historique/:num', async (req, res) => {
 
 app.patch('/api/historique/:num/statut', async (req, res) => {
   try {
-    await supabase.from('historique').update({ statut: req.body.statut }).eq('num', req.params.num);
+    const updates = {};
+    if (req.body.statut !== undefined) updates.statut = req.body.statut;
+    if (req.body.date_intervention !== undefined) {
+      updates.date_intervention = req.body.date_intervention || null;
+    }
+    if (Object.keys(updates).length > 0) {
+      await supabase.from('historique').update(updates).eq('num', req.params.num);
+    }
     res.json({ success: true });
   } catch(error) { res.status(500).json({ error: error.message }); }
 });
