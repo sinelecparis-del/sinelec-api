@@ -340,8 +340,7 @@ async function chargerGrilleTarifaire() {
 
 app.post('/api/generer', async (req, res) => {
   if (!CONFIG.features.devis_factures) {
-    return res.status(403).json({ error: 'Feature désactivée' });
-  }
+    
 
   try {
     const { type, client, email, telephone, adresse, complement, codePostal, ville, prenom, siret, tvaNum, description, prestations } = req.body;
