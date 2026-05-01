@@ -1148,7 +1148,7 @@ function afficherHistorique() {
     }
 
     return `
-    <div style="background:${estPaye ? 'rgba(16,185,129,0.04)' : 'var(--glass)'};backdrop-filter:blur(20px);border:1.5px solid ${estPaye ? 'rgba(16,185,129,0.35)' : alerte ? 'rgba(220,38,38,0.35)' : 'var(--border)'};border-radius:16px;padding:16px;margin-bottom:12px;">
+    <div data-paye="${estPaye}" style="background:${estPaye ? 'rgba(16,185,129,0.04)' : 'var(--glass)'};backdrop-filter:blur(20px);border:1.5px solid ${estPaye ? 'rgba(16,185,129,0.35)' : alerte ? 'rgba(220,38,38,0.35)' : 'var(--border)'};border-radius:16px;padding:16px;margin-bottom:12px;">
 
       <!-- Numéro + Montant -->
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
@@ -2099,7 +2099,9 @@ function initSwipeToDelete() {
     // Fond rouge
     const bg = document.createElement('div');
     bg.className = 'swipe-delete-bg';
-    bg.innerHTML = '🗑️';
+    const isPaye = card.getAttribute('data-paye') === 'true';
+    bg.style.background = isPaye ? 'linear-gradient(135deg,#10b981,#059669)' : 'linear-gradient(135deg,#ef4444,#dc2626)';
+    bg.innerHTML = isPaye ? '✅' : '🗑️';
 
     // Wrapper la carte
     card.parentNode.insertBefore(wrapper, card);
