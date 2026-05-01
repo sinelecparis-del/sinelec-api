@@ -495,9 +495,51 @@ body {
 </div>
 </div>
 
-<!-- ════════════ AUTRES PAGES (stubs — chargées dynamiquement) ════════════ -->
 <!-- ════ PAGE DÉPANNAGE ════ -->
-<div id="page-depannage" class="page"><div class="content"><div class="section"><div class="section-title">⚡ Dépannage Rapide</div><div id="dep-content" style="color:var(--text-3);text-align:center;padding:40px;">Utilisez le bouton 📞 en bas à droite pour créer un lead rapide,<br>puis générez le devis depuis la page Devis.</div></div></div></div>
+<div id="page-depannage" class="page">
+<div class="content" style="max-width:700px;">
+
+  <!-- Infos client rapides -->
+  <div class="section">
+    <div class="section-title">👤 Client</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+      <div class="input-group" style="margin-bottom:0;">
+        <label>Nom</label>
+        <input type="text" id="dep-client" placeholder="DUPONT" oninput="this.value=this.value.toUpperCase();autocompleteClient('dep',this.value,'nom')" autocomplete="off" style="width:100%;background:rgba(255,255,255,0.65);border:1.5px solid rgba(218,165,32,0.15);border-radius:12px;padding:13px 16px;font-size:15px;color:var(--text);outline:none;">
+        <div id="dep-client-suggestions" style="background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:12px;margin-top:6px;max-height:200px;overflow-y:auto;display:none;position:relative;z-index:999;"></div>
+      </div>
+      <div class="input-group" style="margin-bottom:0;">
+        <label>Téléphone</label>
+        <input type="tel" id="dep-tel" placeholder="06 12 34 56 78" style="width:100%;background:rgba(255,255,255,0.65);border:1.5px solid rgba(218,165,32,0.15);border-radius:12px;padding:13px 16px;font-size:15px;color:var(--text);outline:none;">
+      </div>
+    </div>
+    <div class="input-group" style="margin-bottom:0;">
+      <label>Adresse</label>
+      <input type="text" id="dep-adresse" placeholder="12 rue de la Paix, 75001 Paris" oninput="autocompleteAdresse('dep-adresse',this.value)" autocomplete="off" style="width:100%;background:rgba(255,255,255,0.65);border:1.5px solid rgba(218,165,32,0.15);border-radius:12px;padding:13px 16px;font-size:15px;color:var(--text);outline:none;">
+      <div id="dep-adresse-suggestions" style="background:var(--glass);border:1px solid var(--border);border-radius:12px;margin-top:6px;max-height:200px;overflow-y:auto;display:none;"></div>
+    </div>
+  </div>
+
+  <!-- Forfaits dépannage rapide -->
+  <div class="section">
+    <div class="section-title">⚡ Forfaits Dépannage</div>
+    <div id="dep-panier-selects" style="display:flex;flex-direction:column;gap:8px;"></div>
+  </div>
+
+  <!-- Panier dépannage -->
+  <div class="section" id="dep-panier-section" style="display:none;">
+    <div class="section-title">🛒 Sélection</div>
+    <div id="dep-panier-items"></div>
+    <div class="total-bar" style="margin-top:12px;">
+      <span class="total-label">TOTAL HT</span>
+      <span class="total-amount" id="dep-total">0 €</span>
+    </div>
+  </div>
+
+  <button class="btn-gen" onclick="genererDepannageRapide()">⚡ Générer le devis PDF</button>
+
+</div>
+</div>
 
 <!-- ════ PAGE RENTABILITÉ ════ -->
 <div id="page-rentabilite" class="page">
@@ -968,6 +1010,7 @@ function switchPage(page, el) {
   if (mc) mc.scrollTop = 0;
   window.scrollTo(0, 0);
   setTimeout(() => { window.scrollTo(0, 0); if (pageEl) pageEl.scrollIntoView({ behavior:'instant', block:'start' }); }, 50);
+  if (page === 'depannage') setTimeout(initDepannage, 100);
   if (page === 'historique') setTimeout(chargerHistorique, 100);
   if (page === 'dashboard') setTimeout(chargerDashboard, 100);
   if (page === 'clients') setTimeout(chargerClients, 100);
@@ -2069,7 +2112,136 @@ setTimeout(verifierAlertesDevis, 2000);
 setInterval(verifierAlertesDevis, 300000);
 
 // ═══════════════════════════════════════════════════
-// PARTENAIRE ALOPRONTO
+// DÉPANNAGE RAPIDE
+// ═══════════════════════════════════════════════════
+const DEPANNAGE_FORFAITS = [
+  { icon:'🚗', nom:'Déplacement Paris',          prix:50,  desc:'Déplacement technicien SINELEC Paris intra-muros, véhicule équipé' },
+  { icon:'🔍', nom:'Recherche de panne',          prix:120, desc:'Diagnostic méthodique, localisation panne, rapport intervention' },
+  { icon:'⚡', nom:'Court-circuit',               prix:125, desc:'Localisation et réparation court-circuit, remise en service' },
+  { icon:'🔌', nom:'Remise en service disjonction',prix:90, desc:'Identification cause, remise en service, vérification sécurité' },
+  { icon:'🔧', nom:'Réparation prise',            prix:90,  desc:'Remplacement prise défectueuse, raccordement, test' },
+  { icon:'💡', nom:'Réparation interrupteur',     prix:90,  desc:'Remplacement interrupteur défectueux, raccordement, test' },
+  { icon:'🌡️', nom:'Dépannage chauffage élec',   prix:220, desc:'Diagnostic et réparation radiateur/convecteur électrique' },
+  { icon:'🪟', nom:'Dépannage volet roulant',     prix:180, desc:'Diagnostic moteur volet roulant électrique, remise en service' },
+  { icon:'📊', nom:'Diagnostic complet',          prix:150, desc:'Audit complet installation, rapport détaillé, préconisations' },
+  { icon:'💧', nom:'Fuite de courant',            prix:130, desc:'Localisation fuite de courant, isolation défaut, remise en service' },
+  { icon:'📋', nom:'Attestation Enedis',          prix:189, desc:'Attestation mise en sécurité / rétablissement Enedis' },
+  { icon:'🚨', nom:'Urgence jour (maj. tarifaire)',prix:130,desc:'Majoration urgence intervention jour même' },
+];
+
+let depPanier = [];
+
+function initDepannage() {
+  const container = document.getElementById('dep-panier-selects');
+  if (!container) return;
+  container.innerHTML = DEPANNAGE_FORFAITS.map((f, i) => `
+    <div onclick="toggleDepForfait(${i})" id="dep-f-${i}"
+      style="background:rgba(255,255,255,0.6);border:1.5px solid var(--border);border-radius:14px;padding:14px 16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:all 0.2s;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <span style="font-size:22px;">${f.icon}</span>
+        <div>
+          <div style="font-size:14px;font-weight:700;color:var(--text);">${f.nom}</div>
+          <div style="font-size:11px;color:var(--text-3);">${f.desc.substring(0,45)}...</div>
+        </div>
+      </div>
+      <span style="font-size:15px;font-weight:800;color:var(--accent);white-space:nowrap;margin-left:8px;">${f.prix} €</span>
+    </div>`).join('');
+}
+
+function toggleDepForfait(idx) {
+  const f = DEPANNAGE_FORFAITS[idx];
+  const el = document.getElementById(`dep-f-${idx}`);
+  const existIdx = depPanier.findIndex(p => p.nom === f.nom);
+
+  if (existIdx >= 0) {
+    // Retirer
+    depPanier.splice(existIdx, 1);
+    if (el) { el.style.borderColor = 'var(--border)'; el.style.background = 'rgba(255,255,255,0.6)'; }
+  } else {
+    // Ajouter
+    depPanier.push({ nom: f.nom, prix: f.prix, quantite: 1, desc: f.desc });
+    if (el) { el.style.borderColor = 'rgba(16,185,129,0.5)'; el.style.background = 'rgba(16,185,129,0.06)'; }
+  }
+  renderDepPanier();
+}
+
+function renderDepPanier() {
+  const section = document.getElementById('dep-panier-section');
+  const items = document.getElementById('dep-panier-items');
+  const total = document.getElementById('dep-total');
+  if (!items) return;
+
+  if (!depPanier.length) {
+    if (section) section.style.display = 'none';
+    return;
+  }
+  if (section) section.style.display = 'block';
+
+  const totalHT = depPanier.reduce((s, p) => s + p.prix * p.quantite, 0);
+  if (total) total.textContent = totalHT.toLocaleString('fr-FR') + ' €';
+
+  items.innerHTML = depPanier.map((p, i) => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(218,165,32,0.08);">
+      <div style="flex:1;">
+        <div style="font-size:13px;font-weight:700;color:var(--text);">${p.nom}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="qte-ctrl">
+          <button class="qte-btn" onclick="depQte(${i},-1)">−</button>
+          <span class="qte-val">${p.quantite}</span>
+          <button class="qte-btn" onclick="depQte(${i},+1)">+</button>
+        </div>
+        <span style="font-size:14px;font-weight:800;color:var(--accent);min-width:60px;text-align:right;">${(p.prix*p.quantite).toLocaleString('fr-FR')} €</span>
+        <button onclick="depSupprimer(${i})" class="del-btn">×</button>
+      </div>
+    </div>`).join('');
+}
+
+function depQte(idx, delta) {
+  depPanier[idx].quantite = Math.max(1, depPanier[idx].quantite + delta);
+  renderDepPanier();
+}
+
+function depSupprimer(idx) {
+  const nom = depPanier[idx].nom;
+  depPanier.splice(idx, 1);
+  // Reset la couleur du bouton correspondant
+  DEPANNAGE_FORFAITS.forEach((f, i) => {
+    if (f.nom === nom) {
+      const el = document.getElementById(`dep-f-${i}`);
+      if (el) { el.style.borderColor = 'var(--border)'; el.style.background = 'rgba(255,255,255,0.6)'; }
+    }
+  });
+  renderDepPanier();
+}
+
+async function genererDepannageRapide() {
+  const client = document.getElementById('dep-client')?.value.trim();
+  const tel    = document.getElementById('dep-tel')?.value.trim();
+  const adresse= document.getElementById('dep-adresse')?.value.trim();
+
+  if (!client) { showToast('⚠️ Nom client obligatoire', '❌'); return; }
+  if (!depPanier.length) { showToast('⚠️ Sélectionnez au moins un forfait', '❌'); return; }
+
+  // Convertir au format prestations
+  const prestations = depPanier.map(p => ({
+    nom: p.nom, prix: p.prix, quantite: p.quantite, desc: p.desc
+  }));
+
+  // Pré-remplir la page devis et générer
+  switchPage('devis', document.querySelector('.sidebar-item[onclick*="devis"]'));
+  setTimeout(() => {
+    document.getElementById('d-client').value  = client;
+    document.getElementById('d-tel').value     = tel || '';
+    document.getElementById('d-adresse').value = adresse || '';
+    // Injecter dans le panier devis
+    panierD = prestations.map(p => ({ designation: p.nom, prixUnit: p.prix, qte: p.quantite, desc: p.desc, categorie: 'Dépannage' }));
+    renderPanier('d');
+    showToast('⚡ Prêt à générer !', '📄');
+  }, 400);
+}
+
+// Initialiser dépannage quand on ouvre la page
 // ═══════════════════════════════════════════════════
 let partenaireActifD = false;
 
