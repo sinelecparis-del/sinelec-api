@@ -2619,9 +2619,16 @@ function afficherRentabilite(data) {
   // Alerte URSSAF
   const alerteEl = document.getElementById('renta-urssaf-alerte');
   const urssafTextEl = document.getElementById('renta-urssaf-text');
-  if (data.urssaf_estimee > 0) {
+  if (data.urssaf_auto > 0) {
     if (alerteEl) alerteEl.style.display = 'block';
-    if (urssafTextEl) urssafTextEl.textContent = `Estimation URSSAF (~22%) : ${data.urssaf_estimee.toLocaleString('fr-FR')} € à provisionner`;
+    if (urssafTextEl) urssafTextEl.textContent = `URSSAF calculée automatiquement (22% du CA) : ${data.urssaf_auto.toLocaleString('fr-FR')} € — déjà déduite du bénéfice net`;
+  } else if (data.urssaf_saisie > 0) {
+    if (alerteEl) alerteEl.style.display = 'block';
+    if (urssafTextEl) urssafTextEl.textContent = `URSSAF saisie manuellement : ${data.urssaf_saisie.toLocaleString('fr-FR')} € ✅`;
+    if (alerteEl) alerteEl.style.background = 'rgba(16,185,129,0.08)';
+    if (alerteEl) alerteEl.style.borderColor = 'rgba(16,185,129,0.2)';
+    const titleEl = alerteEl?.querySelector('div');
+    if (titleEl) { titleEl.textContent = '✅ URSSAF saisie ce mois'; titleEl.style.color = '#10b981'; }
   } else {
     if (alerteEl) alerteEl.style.display = 'none';
   }
