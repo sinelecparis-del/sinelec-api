@@ -1636,7 +1636,35 @@ app.patch('/api/historique/:num/statut', async (req, res) => {
 // API: CLIENTS (agrégés)
 // ═══════════════════════════════════════════════════════════════
 
-app.get('/api/clients'app.get('/api/ca-complet', async (req, res) => {
+app.get('/api/clients', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('clients')
+      .select('*')
+      .order('nom', { ascending: true });
+
+    if (error) throw error;
+
+    const clientsAvecCA = await Promise.all((data || []).map(async (client) => {
+      const { data: factures } = await supabase
+        .from('factures_obat')
+        .select('montant, statut')
+        .ilike('client', `%${client.nom}%`)
+        .eq('statut', 'Payée');
+
+      const ca_obat = (factures || []).reduce((s, f) => s + parseFloat(f.montant || 0), 0);
+      const nb_obat = (factures || []).length;
+      return { ...client, ca_total: ca_obat, nb_interventions: nb_obat };
+    }));
+
+    res.json(clientsAvecCA);
+  } catch (error) {
+    console.error('Erreur clients:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/ca-complet', async (req, res) => {
   try {
     // Historique SINELEC OS
     const { data: histo } = await supabase
