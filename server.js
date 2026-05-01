@@ -153,14 +153,26 @@ async function chargerGrilleTarifaire() {
 app.post('/api/generer', async (req, res) => {
   if (!CONFIG.features.devis_factures) return res.status(403).json({ error: 'Feature désactivée' });
   try {
-    const { type, client, email, telephone, adresse, complement, codePostal, ville, prenom, description, prestations } = req.body;
+    const { type, client, email, telephone, adresse, complement, codePostal, ville, prenom, description, prestations, partenaire, part_diahe, part_partenaire, nom_partenaire } = req.body;
     const compteur = await incrementerCompteur(type);
     const annee = new Date().getFullYear();
     const mois = String(new Date().getMonth() + 1).padStart(2, '0');
     const num = type === 'devis' ? `OS-${annee}${mois}-${String(compteur).padStart(3, '0')}` : `${annee}${mois}-${String(compteur).padStart(3, '0')}`;
     const total_ht = prestations.reduce((sum, p) => sum + (p.prix * p.quantite), 0);
 
-    await supabase.from('historique').insert({ num, type, client, email, telephone, adresse, prestations, total_ht, statut: 'envoyé', date_envoi: new Date().toISOString(), source: 'app' });
+    // Calcul parts partenaire
+    const isPartenaire = !!partenaire;
+    const pdiahe = isPartenaire ? (part_diahe || 60) : 100;
+    const ppartenaire = isPartenaire ? (part_partenaire || 40) : 0;
+
+    await supabase.from('historique').insert({
+      num, type, client, email, telephone, adresse, prestations, total_ht,
+      statut: 'envoye', date_envoi: new Date().toISOString(), source: 'app',
+      partenaire: isPartenaire,
+      part_diahe: pdiahe,
+      part_partenaire: ppartenaire,
+      nom_partenaire: isPartenaire ? (nom_partenaire || 'Alopronto') : null
+    });
 
     if (CONFIG.features.email_auto && email) {
       const typeLabelUpper = type === 'devis' ? 'DEVIS' : 'FACTURE';
@@ -492,8 +504,111 @@ app.get('/api/ca-complet', async (req, res) => {
   try {
     const { data: histo } = await supabase.from('historique').select('*').order('created_at', { ascending: false });
     const { data: obat } = await supabase.from('factures_obat').select('*').eq('statut', 'Payée');
-    const obatFormate = (obat || []).map(f => ({ type: 'facture', client: f.client, total_ht: f.montant, statut: 'paye', created_at: f.date_facture + 'T00:00:00.000Z', num: f.reference, prestations: [{ nom: f.chantier, prix: f.montant, quantite: 1 }], source: 'obat' }));
-    res.json([...(histo || []), ...obatFormate]);
+    const obatFormate = (obat || []).map(f => ({
+      type: 'facture', client: f.client, total_ht: f.montant,
+      montant_diahe: f.montant, // Obat = 100% Diahe
+      statut: 'paye', created_at: f.date_facture + 'T00:00:00.000Z',
+      num: f.reference, prestations: [{ nom: f.chantier, prix: f.montant, quantite: 1 }], source: 'obat'
+    }));
+    // Enrichir chaque doc avec montant_diahe
+    const histoEnrichi = (histo || []).map(h => {
+      const pdiahe = h.part_diahe || 100;
+      const montant_diahe = parseFloat(h.total_ht || 0) * pdiahe / 100;
+      return { ...h, montant_diahe };
+    });
+    res.json([...histoEnrichi, ...obatFormate]);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Vérifier si un devis a été signé (polling depuis l'app)
+app.get('/api/historique/:num/check-signature', authMiddleware, async (req, res) => {
+  try {
+    const { data } = await supabase.from('historique').select('statut, signature, date_signature').eq('num', req.params.num).single();
+    if (!data) return res.status(404).json({ error: 'Non trouvé' });
+    res.json({ statut: data.statut, signe: data.statut === 'signe', date_signature: data.date_signature });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════
+// API: CHARGES (MODULE RENTABILITÉ)
+// ═══════════════════════════════════════════════════
+
+// Lister charges d'un mois
+app.get('/api/charges', authMiddleware, async (req, res) => {
+  try {
+    const { mois } = req.query;
+    let query = supabase.from('charges').select('*').order('date', { ascending: false });
+    if (mois) query = query.eq('mois', mois);
+    const { data, error } = await query;
+    if (error) throw error;
+    res.json(data || []);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Ajouter une charge
+app.post('/api/charges', authMiddleware, async (req, res) => {
+  try {
+    const { date, categorie, montant, note } = req.body;
+    if (!categorie || !montant) return res.status(400).json({ error: 'Champs manquants' });
+    const dateCharge = date || new Date().toISOString().split('T')[0];
+    const mois = dateCharge.substring(0, 7); // YYYY-MM
+    const { data, error } = await supabase.from('charges').insert({ date: dateCharge, mois, categorie, montant: parseFloat(montant), note: note || null }).select().single();
+    if (error) throw error;
+    res.json({ success: true, charge: data });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Supprimer une charge
+app.delete('/api/charges/:id', authMiddleware, async (req, res) => {
+  try {
+    await supabase.from('charges').delete().eq('id', req.params.id);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Dashboard rentabilité d'un mois
+app.get('/api/rentabilite/:mois', authMiddleware, async (req, res) => {
+  try {
+    const { mois } = req.params; // YYYY-MM
+
+    // CA du mois (part Diahe uniquement)
+    const { data: factures } = await supabase.from('historique')
+      .select('total_ht, part_diahe, statut')
+      .like('created_at', `${mois}%`)
+      .eq('type', 'facture');
+
+    const { data: obat } = await supabase.from('factures_obat')
+      .select('montant')
+      .like('date_facture', `${mois}%`)
+      .eq('statut', 'Payée');
+
+    const caFactures = (factures || [])
+      .filter(f => ['paye','payé','payée'].includes((f.statut||'').toLowerCase()))
+      .reduce((s, f) => s + parseFloat(f.total_ht || 0) * (f.part_diahe || 100) / 100, 0);
+    const caObat = (obat || []).reduce((s, f) => s + parseFloat(f.montant || 0), 0);
+    const ca_total = caFactures + caObat;
+
+    // Charges du mois
+    const { data: charges } = await supabase.from('charges').select('*').eq('mois', mois);
+    const charges_total = (charges || []).reduce((s, c) => s + parseFloat(c.montant || 0), 0);
+
+    // Par catégorie
+    const par_categorie = {};
+    (charges || []).forEach(c => {
+      par_categorie[c.categorie] = (par_categorie[c.categorie] || 0) + parseFloat(c.montant || 0);
+    });
+
+    // Estimation URSSAF si pas saisie (~22% du CA pour AE)
+    const urssaf_estimee = !(par_categorie['urssaf']) ? Math.round(ca_total * 0.22) : 0;
+
+    const benefice_net = ca_total - charges_total;
+    const taux_marge = ca_total > 0 ? Math.round((benefice_net / ca_total) * 100) : 0;
+
+    res.json({
+      mois, ca_total: Math.round(ca_total), charges_total: Math.round(charges_total),
+      benefice_net: Math.round(benefice_net), taux_marge,
+      urssaf_estimee, par_categorie, charges: charges || []
+    });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
