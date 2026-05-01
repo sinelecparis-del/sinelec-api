@@ -824,8 +824,8 @@ print('PDF_OK')
 
 app.post('/api/chat', async (req, res) => {
   if (!CONFIG.features.chatbot_claude) {
-    return res.status(403).json({ error: 'Feature désactivée' });
-  }
+   }
+});
 
   try {
     const { message } = req.body;
@@ -1203,8 +1203,7 @@ app.get('/signer/:num', async (req, res) => {
 // ── API SIGNATURE — PDF signé légalement ─────────────────
 app.post('/api/signature', async (req, res) => {
   if (!CONFIG.features.signature_client) {
-    return res.status(403).json({ error: 'Feature désactivée' });
-  }
+   
 
   try {
     const { num, signature, cgv_acceptees } = req.body;
@@ -1580,8 +1579,8 @@ print('PDF_SIGNE_OK')
 
 app.get('/api/historique', async (req, res) => {
   if (!CONFIG.features.historique) {
-    return res.status(403).json({ error: 'Feature désactivée' });
-  }
+   }
+});
 
   try {
     const { type } = req.query;
@@ -1982,8 +1981,8 @@ Réponds UNIQUEMENT en JSON valide, sans texte avant ni après, sans markdown, s
 
 app.post('/api/rapport', async (req, res) => {
   if (!CONFIG.features.rapports_intervention) {
-    return res.status(403).json({ error: 'Feature désactivée' });
-  }
+    }
+});
 
   try {
     const { client, adresse, chantier, photo_avant, photo_apres, signature } = req.body;
@@ -3471,8 +3470,8 @@ if (CONFIG.relances.enabled) {
 
 app.post('/api/veille/lancer', async (req, res) => {
   if (!CONFIG.features.veille_tarifaire) {
-    return res.status(403).json({ error: 'Feature désactivée' });
-  }
+    }
+});
 
   try {
     await veilTarifaire();
