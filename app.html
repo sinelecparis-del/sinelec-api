@@ -4149,7 +4149,7 @@ let histoFiltreActif = 'tous';
 
 async function chargerHistorique() {
   try {
-    const res = await fetch('/api/historique');
+    const res = await fetch('/api/ca-complet');
     const data = await res.json();
     historiqueData = data;
     afficherHistorique();
