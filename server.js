@@ -313,9 +313,7 @@ print('PDF_OK')
       try { fs.unlinkSync(pdfPath); } catch(e) {}
     }
 
-    if (type === 'facture' && telephone) {
-      try { await envoyerSMS(telephone, `Merci pour votre confiance ! Un avis Google nous aiderait : https://g.page/r/CSw-MABnFUAYEAE/review - SINELEC Paris`); } catch(e) {}
-    }
+    // ⚠️ Pas de SMS avis Google ici — envoyé uniquement au moment du paiement
 
     res.json({ success: true, num, total_ht });
   } catch(error) {
@@ -792,7 +790,10 @@ app.get('/paiement-confirme/:num', async (req, res) => {
           const html = `<html><body style="font-family:Arial;padding:20px;"><h2 style="color:#16a34a;">✅ Paiement reçu — Merci !</h2><p>Bonjour <b>${prenomClient}</b>, votre paiement de ${montant.toFixed(2)} € a bien été reçu.</p></body></html>`;
           await envoyerEmail(factureData.email, `✅ Facture SINELEC ${num} — Paiement reçu`, html);
           await envoyerEmail('sinelec.paris@gmail.com', `💰 PAIEMENT RECU — ${num} — ${factureData.client||''} — ${montant.toFixed(0)}€`, html);
-          if (factureData.telephone) await envoyerSMS(factureData.telephone, `Merci ! Votre paiement de ${montant.toFixed(0)}€ a bien été reçu. SINELEC Paris ⚡`);
+          // SMS confirmation + avis Google en 1 seul message
+          if (factureData.telephone) {
+            await envoyerSMS(factureData.telephone, `Merci ${prenomClient} ! Paiement ${montant.toFixed(0)}€ reçu ✅ Un avis Google nous aiderait beaucoup : https://g.page/r/CSw-MABnFUAYEAE/review — SINELEC Paris ⚡`);
+          }
         } catch(e) {}
       });
     }
@@ -816,7 +817,10 @@ app.post('/api/marquer-paye', async (req, res) => {
         const html = `<html><body style="font-family:Arial;padding:20px;"><h2 style="color:#16a34a;">✅ Paiement reçu — ${modeLabel}</h2><p>Bonjour <b>${prenomClient}</b>, facture ${num} réglée — ${montant.toFixed(2)} €.</p></body></html>`;
         if (factureData.email) await envoyerEmail(factureData.email, `✅ Facture SINELEC ${num} — Paiement reçu`, html);
         await envoyerEmail('sinelec.paris@gmail.com', `💰 PAIEMENT ${modeLabel.toUpperCase()} — ${num} — ${factureData.client||''} — ${montant.toFixed(0)}€`, html);
-        if (factureData.telephone) await envoyerSMS(factureData.telephone, `Merci ! Paiement ${montant.toFixed(0)}€ par ${modeLabel} reçu. SINELEC Paris ⚡`);
+        // SMS confirmation paiement + avis Google en 1 seul message
+        if (factureData.telephone) {
+          await envoyerSMS(factureData.telephone, `Merci ${prenomClient} ! Paiement ${montant.toFixed(0)}€ reçu ✅ Un avis Google nous aiderait beaucoup : https://g.page/r/CSw-MABnFUAYEAE/review — SINELEC Paris ⚡`);
+        }
       } catch(e) {}
     });
   } catch(e) { res.status(500).json({ error: e.message }); }
