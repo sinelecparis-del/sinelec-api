@@ -1196,7 +1196,22 @@ body {
 <div id="page-dpe" class="page"><div class="content"><div class="section"><div class="section-title">🏠 Analyse DPE</div><div id="dpe-content"></div></div></div></div>
 <div id="page-rapport" class="page"><div class="content"><div class="section"><div class="section-title">📸 Rapport d'intervention</div><div id="rapport-content"></div></div></div></div>
 <div id="page-clients" class="page"><div class="content" style="max-width:900px;"><div class="section"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><div class="section-title" style="margin-bottom:0;">👥 Clients</div><input type="text" id="clients-search" placeholder="🔍 Rechercher..." oninput="filtrerClients(this.value)" style="padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:rgba(255,255,255,0.7);font-size:13px;width:200px;"></div><div id="clients-list">Chargement...</div></div></div></div>
-<div id="page-sante" class="page"><div class="content"><div class="section"><div style="display:flex;justify-content:space-between;align-items:center;"><div class="section-title" style="margin-bottom:0;">🏥 Santé Système</div><button onclick="verifierSante()" class="btn-small">🔄 Vérifier</button></div><div id="sante-global" style="background:rgba(255,255,255,0.5);border-radius:14px;padding:20px;margin:16px 0;text-align:center;"><div id="sante-global-icon" style="font-size:40px;">⏳</div><div id="sante-global-text" style="font-size:15px;font-weight:700;margin-top:8px;">Chargement...</div></div><div id="sante-services" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;"></div></div></div></div>
+<div id="page-sante" class="page"><div class="content"><div class="section"><div style="display:flex;justify-content:space-between;align-items:center;"><div class="section-title" style="margin-bottom:0;">🏥 Santé Système</div><button onclick="verifierSante()" class="btn-small">🔄 Vérifier</button></div><div id="sante-global" style="background:rgba(255,255,255,0.5);border-radius:14px;padding:20px;margin:16px 0;text-align:center;"><div id="sante-global-icon" style="font-size:40px;">⏳</div><div id="sante-global-text" style="font-size:15px;font-weight:700;margin-top:8px;">Chargement...</div></div><div id="sante-services" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;"></div></div>
+
+  <!-- SECTION IA AUTONOME -->
+  <div class="section">
+    <div class="section-title">🤖 IA Autonome</div>
+    <div id="ia-statut" style="padding:12px;background:#f9f9f9;border-radius:12px;margin-bottom:12px;font-size:13px;color:rgba(0,0,0,0.6);">Chargement statut IA...</div>
+    <div id="ia-corrections-list"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;">
+      <button onclick="chargerStatutIA()" class="btn-small">🔍 Analyser maintenant</button>
+      <button onclick="appliquerCorrectionIA()" id="ia-btn-appliquer"
+        style="display:none;padding:10px;border-radius:10px;border:none;background:linear-gradient(135deg,#E8B84B,#C9962A);color:#fff;font-size:12px;font-weight:700;cursor:pointer;">
+        ⚡ Appliquer correction
+      </button>
+    </div>
+  </div>
+</div></div>
 <div id="page-params" class="page"><div class="content"><div class="section"><div class="section-title">⚙️ Grille tarifaire</div><div id="params-grid"></div><button onclick="sauvegarderPrix()" class="btn-gen" style="margin-top:16px;">💾 Sauvegarder</button></div></div></div>
 
 </div><!-- fin main-content -->
@@ -1398,7 +1413,7 @@ function switchPage(page, el) {
   if (page === 'dashboard') setTimeout(chargerDashboard, 100);
   if (page === 'clients') setTimeout(chargerClients, 100);
   if (page === 'params') setTimeout(afficherParams, 100);
-  if (page === 'sante') setTimeout(chargerSante, 100);
+  if (page === 'sante') setTimeout(() => { chargerSante(); chargerStatutIA(); }, 100);
   if (page === 'agenda') setTimeout(chargerAgenda, 100);
   if (page === 'rentabilite') setTimeout(chargerRentabilite, 100);
   // Page header animé
@@ -3097,7 +3112,77 @@ async function supprimerCharge(id) {
   } catch(e) { showToast('❌ Erreur', '⚠️'); }
 }
 
-console.log('⚡ SINELEC OS — Rentabilité + Alopronto activés');
+// ═══════════════════════════════════════════════════
+// IA AUTONOME — INTERFACE
+// ═══════════════════════════════════════════════════
+async function chargerStatutIA() {
+  const statutEl = document.getElementById('ia-statut');
+  const listEl   = document.getElementById('ia-corrections-list');
+  const btnEl    = document.getElementById('ia-btn-appliquer');
+  if (statutEl) statutEl.textContent = '🔍 Analyse en cours...';
+
+  try {
+    const res = await fetch('/api/ia/statut');
+    const data = await res.json();
+
+    // Statut général
+    const nbErr = data.erreurs_en_cours || 0;
+    if (statutEl) {
+      statutEl.innerHTML = nbErr === 0
+        ? `<span style="color:#00A878;font-weight:700;">✅ Aucune erreur détectée — système sain</span>`
+        : `<span style="color:#E03030;font-weight:700;">⚠️ ${nbErr} erreur(s) en mémoire</span>`;
+    }
+
+    // Liste des corrections
+    const corrections = data.corrections || [];
+    const enAttente = corrections.filter(c => c.statut === 'en_attente' && c.peut_corriger);
+
+    if (btnEl) btnEl.style.display = enAttente.length > 0 ? 'block' : 'none';
+
+    if (listEl) {
+      if (!corrections.length) {
+        listEl.innerHTML = '<div style="font-size:12px;color:rgba(0,0,0,0.4);text-align:center;padding:12px;">Aucune analyse récente</div>';
+      } else {
+        listEl.innerHTML = corrections.slice(0, 5).map(c => {
+          const icon = c.severite === 'critique' ? '🔴' : c.severite === 'majeur' ? '🟠' : '🟡';
+          const statutBadge = c.statut === 'appliqué' ? '✅' : c.statut === 'en_attente' ? '⏳' : '➖';
+          return `
+          <div style="background:#f9f9f9;border:1px solid rgba(0,0,0,0.08);border-radius:12px;padding:12px;margin-bottom:8px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+              <span style="font-size:13px;font-weight:700;color:#0a0a0a;">${icon} ${c.severite?.toUpperCase()}</span>
+              <span style="font-size:11px;color:rgba(0,0,0,0.4);">${statutBadge} ${c.statut} · ${new Date(c.date).toLocaleDateString('fr-FR')}</span>
+            </div>
+            <div style="font-size:12px;color:rgba(0,0,0,0.6);">${c.message || c.diagnostic}</div>
+            ${c.peut_corriger && c.statut === 'en_attente' ? '<div style="font-size:11px;color:var(--accent);font-weight:700;margin-top:4px;">⚡ Correction automatique disponible</div>' : ''}
+          </div>`;
+        }).join('');
+      }
+    }
+  } catch(e) {
+    if (statutEl) statutEl.innerHTML = `<span style="color:#E03030;">❌ Erreur connexion IA : ${e.message}</span>`;
+  }
+}
+
+async function appliquerCorrectionIA() {
+  const btn = document.getElementById('ia-btn-appliquer');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Application...'; }
+
+  try {
+    const res = await fetch('/api/ia/appliquer', { method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}' });
+    const data = await res.json();
+    if (data.success) {
+      showToast('✅ ' + data.message, '🤖');
+      shootConfetti();
+      setTimeout(chargerStatutIA, 2000);
+    } else {
+      showToast('❌ ' + (data.message || data.error), '⚠️');
+    }
+  } catch(e) { showToast('❌ ' + e.message, '⚠️'); }
+
+  if (btn) { btn.disabled = false; btn.textContent = '⚡ Appliquer correction'; }
+}
+
+console.log('⚡ SINELEC OS — IA Autonome activée');
 
 // ═══════════════════════════════════════════════════
 // SKELETON LOADER
