@@ -2952,17 +2952,13 @@ RÈGLES :
 - Donne UNIQUEMENT la réponse, sans introduction ni guillemets`;
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch('/api/avis/generer', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 300,
-        messages: [{ role: 'user', content: prompt }]
-      })
+      body: JSON.stringify({ texte, etoiles: avisEtoiles, intervention })
     });
     const data = await res.json();
-    const reponse = data.content?.[0]?.text?.trim();
+    const reponse = data.reponse?.trim();
     if (reponse && resultEl) {
       resultEl.textContent = reponse;
       if (resultSection) resultSection.style.display = 'block';
