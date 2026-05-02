@@ -725,6 +725,17 @@ app.put('/api/agenda/:id', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// Modifier un champ de l'agenda (date, heure, notes...)
+app.patch('/api/agenda/:id', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body; // { date_intervention, heure, notes, etc. }
+    const { error } = await supabase.from('agenda').update(updates).eq('id', id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.patch('/api/agenda/:id/statut', async (req, res) => {
   try {
     const { error } = await supabase.from('agenda').update({ statut: req.body.statut }).eq('id', req.params.id);
@@ -1139,7 +1150,7 @@ async function relancerFacturesImpayees() {
     }
 
     if (relancees > 0) {
-      // Notifier Diahe par email
+      // Notifier SINELEC par email
       await envoyerEmail(
         'sinelec.paris@gmail.com',
         `📱 ${relancees} relance(s) facture envoyée(s) — SINELEC`,
