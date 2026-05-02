@@ -1836,14 +1836,14 @@ Style : professionnel, technique, détaillé comme un rapport d'assurance. Minim
 app.post('/api/rapport', authMiddleware, async (req, res) => {
   if (!CONFIG.features.rapports_intervention) return res.status(403).json({ error: 'Feature désactivée' });
   try {
-    const { client, adresse, chantier, description, photo_avant, photo_apres } = req.body;
+    const { client, adresse, chantier, description, email, telephone, photo_avant, photo_apres } = req.body;
     const compteur = await incrementerCompteur('rapport');
     const num = `R-${new Date().getFullYear()}${String(new Date().getMonth()+1).padStart(2,'0')}-${String(compteur).padStart(3,'0')}`;
     const dateStr = new Date().toLocaleDateString('fr-FR');
 
     // Sauvegarder en base
     await supabase.from('rapports').insert({
-      num, client, adresse, chantier, description,
+      num, client, adresse, chantier, description, email, telephone,
       date_rapport: new Date().toISOString()
     });
 
@@ -2003,6 +2003,55 @@ print('RAPPORT_OK')
     } catch(pyErr) { throw new Error('PDF rapport: ' + pyErr.message.substring(0,200)); }
 
     const pdfBuffer = fs.readFileSync(pdfPath);
+    const pdfB64Rapport = pdfBuffer.toString('base64');
+
+    // Envoyer par email au client si email fourni
+    if (email) {
+      const prenom = (client || '').split(' ')[0];
+      try {
+        await envoyerEmail(email,
+          `📋 SINELEC Paris — Rapport d'intervention ${num}`,
+          `<html><body style="font-family:Arial;padding:0;background:#f5f5f7;">
+          <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;">
+            <div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:28px;text-align:center;">
+              <div style="font-size:36px;">📋</div>
+              <h2 style="color:#fff;margin:8px 0 0;">Rapport d'intervention</h2>
+              <p style="color:#BFC8D6;font-size:12px;margin-top:6px;">SINELEC Paris</p>
+            </div>
+            <div style="padding:24px;">
+              <p style="color:#333;font-size:14px;">Bonjour <strong>${prenom}</strong>,</p>
+              <p style="color:#555;font-size:13px;line-height:1.6;margin:12px 0;">
+                Veuillez trouver ci-joint le rapport détaillé de l'intervention réalisée à votre domicile.<br>
+                Ce document récapitule l'ensemble des travaux effectués et les vérifications réalisées.
+              </p>
+              <div style="background:#f9f9f9;border-left:4px solid #C9A84C;border-radius:4px;padding:12px 16px;margin:16px 0;">
+                <div style="font-size:11px;font-weight:700;color:#C9A84C;text-transform:uppercase;margin-bottom:4px;">Référence</div>
+                <div style="font-size:14px;font-weight:800;color:#1B2A4A;">${num} — ${dateStr}</div>
+              </div>
+              <p style="color:#999;font-size:12px;line-height:1.6;">
+                Pour toute question : 📞 07 87 38 86 22<br>
+                sinelec.paris@gmail.com
+              </p>
+            </div>
+            <div style="background:#f8f8f8;padding:14px;text-align:center;">
+              <p style="color:#999;font-size:11px;">SINELEC Paris • 128 Rue La Boétie, 75008 Paris</p>
+            </div>
+          </div></body></html>`,
+          { content: pdfB64Rapport, name: `Rapport_SINELEC_${num}.pdf` }
+        );
+        console.log(`✅ Rapport envoyé à ${email}`);
+      } catch(e) { console.error('Email rapport:', e.message); }
+    }
+
+    // Copie à SINELEC Paris
+    try {
+      await envoyerEmail('sinelec.paris@gmail.com',
+        `📋 Rapport ${num} — ${client} — ${dateStr}`,
+        `<p>Rapport généré pour <strong>${client}</strong> — ${adresse}</p><p>Ref: ${num}</p>`,
+        { content: pdfB64Rapport, name: `Rapport_SINELEC_${num}.pdf` }
+      );
+    } catch(e) {}
+
     res.json({ success: true, num });
 
     // Nettoyage
