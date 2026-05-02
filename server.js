@@ -1803,6 +1803,216 @@ app.post('/api/clients/creer', authMiddleware, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── DESCRIPTION IA RAPPORT ────────────────────────
+app.post('/api/rapport/description', authMiddleware, async (req, res) => {
+  try {
+    const { chantier, client, adresse } = req.body;
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1500,
+      messages: [{ role: 'user', content:
+        `Tu es un électricien professionnel parisien (SINELEC Paris). Rédige un rapport d'intervention très détaillé et long, style assurance/expertise, pour les travaux suivants :
+
+TRAVAUX : ${chantier}
+CLIENT : ${client || 'Client'}
+ADRESSE : ${adresse || 'Paris'}
+
+Le rapport doit contenir :
+1. Description technique détaillée de l'état initial de l'installation
+2. Travaux réalisés étape par étape (méthodologie, matériaux utilisés, marques)
+3. Tests et vérifications effectués (tensions mesurées, tests différentiels, continuité de terre)
+4. Résultats et conformité NF C 15-100
+5. Recommandations pour la suite
+
+Style : professionnel, technique, détaillé comme un rapport d'assurance. Minimum 300 mots. Pas de titre, juste le corps du texte.`
+      }]
+    });
+    const description = response.content[0].text.trim();
+    res.json({ success: true, description });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── RAPPORT D'INTERVENTION ────────────────────────
+app.post('/api/rapport', authMiddleware, async (req, res) => {
+  if (!CONFIG.features.rapports_intervention) return res.status(403).json({ error: 'Feature désactivée' });
+  try {
+    const { client, adresse, chantier, description, photo_avant, photo_apres } = req.body;
+    const compteur = await incrementerCompteur('rapport');
+    const num = `R-${new Date().getFullYear()}${String(new Date().getMonth()+1).padStart(2,'0')}-${String(compteur).padStart(3,'0')}`;
+    const dateStr = new Date().toLocaleDateString('fr-FR');
+
+    // Sauvegarder en base
+    await supabase.from('rapports').insert({
+      num, client, adresse, chantier, description,
+      date_rapport: new Date().toISOString()
+    });
+
+    // Générer PDF avec photos
+    const pyPath = path.join(__dirname, `_rapp_${num}.py`);
+    const pdfPath = path.join(__dirname, `_rapp_${num}.pdf`);
+
+    const descEsc = String(description || chantier).replace(/'/g, ' ').replace(/\n/g, '\\n');
+    const clientEsc = String(client || '').replace(/'/g, ' ');
+    const adresseEsc = String(adresse || '').replace(/'/g, ' ');
+    const chantierEsc = String(chantier || '').replace(/'/g, ' ');
+
+    // Encoder les photos en base64 pour Python
+    const photoAvantB64 = photo_avant ? photo_avant.replace(/^data:image\/[a-z]+;base64,/, '') : null;
+    const photoApresB64 = photo_apres ? photo_apres.replace(/^data:image\/[a-z]+;base64,/, '') : null;
+
+    const py = `# -*- coding: utf-8 -*-
+import io, base64
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.units import cm
+from reportlab.pdfgen import canvas as pdfcanvas
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+from reportlab.platypus.flowables import HRFlowable
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
+from reportlab.lib.utils import ImageReader
+
+W,H=A4
+MARINE=colors.HexColor('#1B2A4A'); OR=colors.HexColor('#C9A84C')
+VERT=colors.HexColor('#16a34a'); GRIS=colors.HexColor('#555555')
+GRIS_L=colors.HexColor('#f5f5f5'); LIGNE=colors.HexColor('#e0e0e0')
+BLANC=colors.white
+
+def p(txt,sz=9,font='Helvetica',color=colors.HexColor('#333333'),align=TA_LEFT,sb=4,sa=4):
+    return Paragraph(str(txt).replace('\\\\n','<br/>'),ParagraphStyle('s',fontName=font,fontSize=sz,textColor=color,alignment=align,spaceBefore=sb,spaceAfter=sa,leading=sz*1.5,wordWrap='CJK'))
+
+logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
+
+class SC(pdfcanvas.Canvas):
+    def __init__(self,fn,**kw):
+        pdfcanvas.Canvas.__init__(self,fn,**kw); self._pg=0; self.saveState(); self._draw_bg()
+    def showPage(self): self._draw_footer(); pdfcanvas.Canvas.showPage(self); self._pg+=1; self.saveState(); self._draw_bg()
+    def save(self): self._draw_footer(); pdfcanvas.Canvas.save(self)
+    def _draw_bg(self):
+        self.setFillColor(BLANC); self.rect(0,0,W,H,fill=1,stroke=0)
+        self.setFillColor(MARINE); self.rect(0,0,0.6*cm,H,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0.6*cm,0,0.08*cm,H,fill=1,stroke=0)
+        if self._pg==0: self._draw_header()
+    def _draw_header(self):
+        self.setFillColor(MARINE); self.rect(0.68*cm,H-4.8*cm,W-0.68*cm,4.8*cm,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0.68*cm,H-4.8*cm,W-0.68*cm,0.1*cm,fill=1,stroke=0)
+        self.drawImage(ImageReader(io.BytesIO(logo_bytes)),0.9*cm,H-4.5*cm,width=3.5*cm,height=3.5*cm,preserveAspectRatio=True,mask='auto')
+        self.setFont('Helvetica-Bold',16); self.setFillColor(BLANC)
+        self.drawString(5.5*cm,H-1.6*cm,"RAPPORT D'INTERVENTION")
+        self.setFont('Helvetica',9); self.setFillColor(colors.HexColor('#BFC8D6'))
+        self.drawString(5.5*cm,H-2.2*cm,'SINELEC Paris — Electricien professionnel')
+        self.drawString(5.5*cm,H-2.7*cm,'128 Rue La Boetie, 75008 Paris — 07 87 38 86 22')
+        self.drawString(5.5*cm,H-3.2*cm,'sinelec.paris@gmail.com — SIRET : 91015824500019')
+        self.setFillColor(OR); self.roundRect(W-6.5*cm,H-3.8*cm,5.3*cm,1.3*cm,0.15*cm,fill=1,stroke=0)
+        self.setFont('Helvetica-Bold',9); self.setFillColor(MARINE)
+        self.drawCentredString(W-3.85*cm,H-2.85*cm,'Ref : ${num}')
+        self.drawCentredString(W-3.85*cm,H-3.3*cm,'Date : ${dateStr}')
+    def _draw_footer(self):
+        self.saveState()
+        self.setFillColor(MARINE); self.rect(0,0,W,0.9*cm,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0,0.9*cm,W,0.08*cm,fill=1,stroke=0)
+        self.setFont('Helvetica',7); self.setFillColor(colors.HexColor('#8899BB'))
+        self.drawCentredString(W/2,0.38*cm,'SINELEC Paris \\u2022 128 Rue La Boetie 75008 Paris \\u2022 07 87 38 86 22 \\u2022 SIRET : 91015824500019 \\u2022 TVA non applicable art. 293B CGI')
+        self.setFont('Helvetica-Bold',7); self.setFillColor(OR); self.drawRightString(W-1.2*cm,0.22*cm,'${num}')
+        self.restoreState()
+
+doc=SimpleDocTemplate('${pdfPath}',pagesize=A4,leftMargin=1.3*cm,rightMargin=1.0*cm,topMargin=5.2*cm,bottomMargin=1.4*cm)
+story=[]
+
+# ── Fiche intervention ──
+fiche=Table([
+    [p('CLIENT',8,'Helvetica-Bold',OR,sa=2), p('${clientEsc}',10,'Helvetica-Bold',MARINE)],
+    [p('ADRESSE',8,'Helvetica-Bold',OR,sa=2), p('${adresseEsc}',9,color=GRIS)],
+    [p('OBJET',8,'Helvetica-Bold',OR,sa=2), p('${chantierEsc}',9,color=GRIS)],
+    [p('DATE',8,'Helvetica-Bold',OR,sa=2), p('${dateStr}',9,color=GRIS)],
+    [p('REF.',8,'Helvetica-Bold',OR,sa=2), p('${num}',9,color=GRIS)],
+],colWidths=[3.0*cm,15.4*cm])
+fiche.setStyle(TableStyle([
+    ('BOX',(0,0),(-1,-1),0.5,OR),('INNERGRID',(0,0),(-1,-1),0.3,LIGNE),
+    ('BACKGROUND',(0,0),(0,-1),colors.HexColor('#FBF7EC')),
+    ('BACKGROUND',(1,0),(1,-1),BLANC),
+    ('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7),
+    ('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),
+    ('LINEBEFORE',(0,0),(0,-1),4,MARINE),
+    ('VALIGN',(0,0),(-1,-1),'MIDDLE'),
+]))
+story.append(fiche)
+story.append(Spacer(1,0.4*cm))
+
+# ── Titre section rapport ──
+story.append(HRFlowable(width='100%',thickness=2,color=MARINE,spaceAfter=6))
+story.append(p("COMPTE-RENDU DETAILLE DE L'INTERVENTION",10,'Helvetica-Bold',MARINE,sa=8))
+story.append(HRFlowable(width='100%',thickness=0.5,color=OR,spaceAfter=12))
+
+# ── Description longue ──
+desc_txt = '${descEsc}'
+for ligne in desc_txt.split('\\\\n'):
+    if ligne.strip():
+        story.append(p(ligne.strip(),9.5,sa=6))
+story.append(Spacer(1,0.4*cm))
+
+${photoAvantB64 || photoApresB64 ? `
+# ── Photos avant / après ──
+story.append(HRFlowable(width='100%',thickness=2,color=MARINE,spaceAfter=6))
+story.append(p('PHOTOS AVANT / APRES',10,'Helvetica-Bold',MARINE,sa=8))
+story.append(HRFlowable(width='100%',thickness=0.5,color=OR,spaceAfter=12))
+photo_cells=[]
+photo_labels=[]
+${photoAvantB64 ? `
+av_bytes=base64.b64decode('${photoAvantB64}')
+av_img=Image(io.BytesIO(av_bytes),width=8.5*cm,height=6.0*cm)
+av_img.hAlign='CENTER'
+photo_cells.append(av_img)
+photo_labels.append(p('AVANT INTERVENTION',8,'Helvetica-Bold',GRIS,TA_CENTER))
+` : `photo_cells.append(p('')); photo_labels.append(p(''))`}
+${photoApresB64 ? `
+ap_bytes=base64.b64decode('${photoApresB64}')
+ap_img=Image(io.BytesIO(ap_bytes),width=8.5*cm,height=6.0*cm)
+ap_img.hAlign='CENTER'
+photo_cells.append(ap_img)
+photo_labels.append(p('APRES INTERVENTION',8,'Helvetica-Bold',VERT,TA_CENTER))
+` : `photo_cells.append(p('')); photo_labels.append(p(''))`}
+if len(photo_cells)==2:
+    t_ph=Table([photo_cells,photo_labels],colWidths=[9.1*cm,9.1*cm])
+    t_ph.setStyle(TableStyle([('ALIGN',(0,0),(-1,-1),'CENTER'),('VALIGN',(0,0),(-1,-1),'MIDDLE'),
+        ('BOX',(0,0),(-1,-1),0.5,LIGNE),('INNERGRID',(0,0),(-1,-1),0.3,LIGNE),
+        ('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
+    story.append(t_ph)
+    story.append(Spacer(1,0.3*cm))
+` : ''}
+
+# ── Signature ──
+story.append(Spacer(1,0.3*cm))
+story.append(HRFlowable(width='100%',thickness=0.5,color=LIGNE,spaceAfter=10))
+sig=Table([
+    [p('Technicien SINELEC',8,'Helvetica-Bold',GRIS), p('Signature client',8,'Helvetica-Bold',GRIS,TA_RIGHT)],
+    [p('Diahe SINERA',10,'Helvetica-Bold',MARINE), p('Nom : _______________________',9,align=TA_RIGHT)],
+    [p('Electricien certifie — SINELEC Paris',8,color=GRIS), p('',8,align=TA_RIGHT)],
+    [p('Garanti decennale ORUS N° 278499522',8,color=GRIS), p('',8,align=TA_RIGHT)],
+],colWidths=[9.1*cm,9.1*cm])
+sig.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4),
+    ('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)]))
+story.append(sig)
+
+doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw))
+print('RAPPORT_OK')
+`;
+    fs.writeFileSync(pyPath, py, 'utf8');
+    try {
+      execSync(`python3 ${pyPath} 2>&1`, { cwd: __dirname });
+    } catch(pyErr) { throw new Error('PDF rapport: ' + pyErr.message.substring(0,200)); }
+
+    const pdfBuffer = fs.readFileSync(pdfPath);
+    res.json({ success: true, num });
+
+    // Nettoyage
+    try { fs.unlinkSync(pyPath); fs.unlinkSync(pdfPath); } catch(e) {}
+  } catch(e) {
+    console.error('Rapport:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── GÉNÉRATION RÉPONSE AVIS GOOGLE ────────────────
 app.post('/api/avis/generer', authMiddleware, async (req, res) => {
   try {
