@@ -175,6 +175,49 @@ app.post('/api/generer', async (req, res) => {
       intervention_type: intervention_type || 'immediat'
     });
 
+    // ── UPSERT FICHE CLIENT AUTO ──────────────────
+    if (client && (email || telephone)) {
+      try {
+        // Chercher si client existe déjà (par email ou téléphone)
+        let existant = null;
+        if (email) {
+          const { data } = await supabase.from('clients').select('*').eq('email', email).single();
+          existant = data;
+        }
+        if (!existant && telephone) {
+          const { data } = await supabase.from('clients').select('*').eq('telephone', telephone).single();
+          existant = data;
+        }
+
+        if (existant) {
+          // Mettre à jour les infos
+          await supabase.from('clients').update({
+            nom: client,
+            email: email || existant.email,
+            telephone: telephone || existant.telephone,
+            adresse: adresse || existant.adresse,
+            derniere_intervention: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }).eq('id', existant.id);
+        } else {
+          // Créer nouvelle fiche client
+          await supabase.from('clients').insert({
+            nom: client,
+            email: email || null,
+            telephone: telephone || null,
+            adresse: adresse || null,
+            source: 'app',
+            premiere_intervention: new Date().toISOString(),
+            derniere_intervention: new Date().toISOString(),
+            created_at: new Date().toISOString()
+          });
+        }
+        console.log(`✅ Fiche client mise à jour : ${client}`);
+      } catch(e) {
+        console.log('Client upsert (non bloquant):', e.message);
+      }
+    }
+
     if (CONFIG.features.email_auto && email) {
       const typeLabelUpper = type === 'devis' ? 'DEVIS' : 'FACTURE';
       const dateStr = new Date().toLocaleDateString('fr-FR');
@@ -1517,6 +1560,45 @@ Fournis le server.js complet corrigé. Réponds UNIQUEMENT avec le code JavaScri
     console.error('Appliquer correction:', e.message);
     res.status(500).json({ error: e.message });
   }
+});
+
+// Créer ou mettre à jour une fiche client manuellement
+app.post('/api/clients/creer', authMiddleware, async (req, res) => {
+  try {
+    const { nom, email, telephone, adresse } = req.body;
+    if (!nom) return res.status(400).json({ error: 'Nom manquant' });
+
+    // Chercher si client existe déjà
+    let existant = null;
+    if (email) {
+      const { data } = await supabase.from('clients').select('*').eq('email', email).maybeSingle();
+      existant = data;
+    }
+    if (!existant && telephone) {
+      const { data } = await supabase.from('clients').select('*').eq('telephone', telephone).maybeSingle();
+      existant = data;
+    }
+
+    if (existant) {
+      await supabase.from('clients').update({
+        nom, email: email || existant.email,
+        telephone: telephone || existant.telephone,
+        adresse: adresse || existant.adresse,
+        derniere_intervention: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }).eq('id', existant.id);
+      res.json({ success: true, created: false });
+    } else {
+      await supabase.from('clients').insert({
+        nom, email: email || null, telephone: telephone || null,
+        adresse: adresse || null, source: 'app',
+        premiere_intervention: new Date().toISOString(),
+        derniere_intervention: new Date().toISOString(),
+        created_at: new Date().toISOString()
+      });
+      res.json({ success: true, created: true });
+    }
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── GÉNÉRATION RÉPONSE AVIS GOOGLE ────────────────
