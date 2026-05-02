@@ -1068,7 +1068,37 @@ body {
     </div>
   </div>
 
-  <button class="btn-gen" id="d-btn" onclick="generer('devis')">📄 Générer le devis PDF</button>
+  <!-- TOGGLE IMMÉDIAT / PLANIFIÉ -->
+  <div class="section" style="margin-bottom:16px;">
+    <div class="section-title">⚡ Type d'intervention</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+      <div id="toggle-immediat" onclick="setTypeIntervention('immediat')"
+        style="border-radius:14px;padding:16px 12px;cursor:pointer;border:2px solid rgba(232,184,75,0.5);background:linear-gradient(135deg,rgba(232,184,75,0.1),rgba(201,150,42,0.06));text-align:center;transition:all 0.25s;">
+        <div style="font-size:26px;margin-bottom:6px;">⚡</div>
+        <div style="font-size:13px;font-weight:800;color:#C9962A;margin-bottom:3px;">Immédiat</div>
+        <div style="font-size:10px;color:rgba(0,0,0,0.45);line-height:1.4;">Sur place,<br>je travaille direct</div>
+      </div>
+      <div id="toggle-planifie" onclick="setTypeIntervention('planifie')"
+        style="border-radius:14px;padding:16px 12px;cursor:pointer;border:2px solid rgba(0,0,0,0.08);background:#f9f9f9;text-align:center;transition:all 0.25s;">
+        <div style="font-size:26px;margin-bottom:6px;">📅</div>
+        <div style="font-size:13px;font-weight:800;color:rgba(0,0,0,0.5);margin-bottom:3px;">Planifié</div>
+        <div style="font-size:10px;color:rgba(0,0,0,0.35);line-height:1.4;">Client choisit<br>sa date</div>
+      </div>
+    </div>
+    <!-- Info box dynamique -->
+    <div id="info-immediat"
+      style="background:#fffbf0;border:1px solid rgba(232,184,75,0.3);border-radius:10px;padding:11px 14px;font-size:11px;color:#92620a;line-height:1.5;display:flex;gap:8px;align-items:flex-start;">
+      <span style="font-size:16px;">⚡</span>
+      <div><strong>Intervention immédiate</strong> — Le client signe sur son téléphone. Pas de lien calendrier. Tu travailles dans la foulée.</div>
+    </div>
+    <div id="info-planifie"
+      style="background:#f0f4ff;border:1px solid rgba(27,42,74,0.2);border-radius:10px;padding:11px 14px;font-size:11px;color:#1B2A4A;line-height:1.5;display:none;gap:8px;align-items:flex-start;">
+      <span style="font-size:16px;">📅</span>
+      <div><strong>RDV à planifier</strong> — Dès que le client signe, il reçoit un email pour choisir son créneau. Tu confirmes ou refuses.</div>
+    </div>
+  </div>
+
+  <button class="btn-gen" id="d-btn" onclick="generer('devis')">⚡ Générer le devis — Immédiat</button>
   <div class="status" id="d-status"></div>
 </div>
 </div>
@@ -3891,6 +3921,52 @@ function removeFromPanier(prefix, idx) {
 // ═══════════════════════════════════════════════════
 // GÉNÉRATION — REMISE INCLUSE + DESCRIPTIONS ÉDITÉES
 // ═══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
+// TOGGLE IMMÉDIAT / PLANIFIÉ
+// ═══════════════════════════════════════════════════
+let typeIntervention = 'immediat'; // défaut = immédiat
+
+function setTypeIntervention(type) {
+  typeIntervention = type;
+  const btnGen = document.getElementById('d-btn');
+
+  // Toggle immédiat
+  const elImmédiat = document.getElementById('toggle-immediat');
+  const elPlanifie = document.getElementById('toggle-planifie');
+  const infoImmediat = document.getElementById('info-immediat');
+  const infoPlanifie = document.getElementById('info-planifie');
+
+  if (type === 'immediat') {
+    if (elImmédiat) {
+      elImmédiat.style.borderColor = 'rgba(232,184,75,0.5)';
+      elImmédiat.style.background = 'linear-gradient(135deg,rgba(232,184,75,0.1),rgba(201,150,42,0.06))';
+      elImmédiat.querySelector('div:nth-child(2)').style.color = '#C9962A';
+    }
+    if (elPlanifie) {
+      elPlanifie.style.borderColor = 'rgba(0,0,0,0.08)';
+      elPlanifie.style.background = '#f9f9f9';
+      elPlanifie.querySelector('div:nth-child(2)').style.color = 'rgba(0,0,0,0.5)';
+    }
+    if (infoImmediat) infoImmediat.style.display = 'flex';
+    if (infoPlanifie) infoPlanifie.style.display = 'none';
+    if (btnGen) btnGen.textContent = '⚡ Générer le devis — Immédiat';
+  } else {
+    if (elPlanifie) {
+      elPlanifie.style.borderColor = 'rgba(27,42,74,0.5)';
+      elPlanifie.style.background = 'linear-gradient(135deg,rgba(27,42,74,0.08),rgba(36,54,96,0.04))';
+      elPlanifie.querySelector('div:nth-child(2)').style.color = '#1B2A4A';
+    }
+    if (elImmédiat) {
+      elImmédiat.style.borderColor = 'rgba(0,0,0,0.08)';
+      elImmédiat.style.background = '#f9f9f9';
+      elImmédiat.querySelector('div:nth-child(2)').style.color = 'rgba(0,0,0,0.5)';
+    }
+    if (infoImmediat) infoImmediat.style.display = 'none';
+    if (infoPlanifie) infoPlanifie.style.display = 'flex';
+    if (btnGen) btnGen.textContent = '📅 Générer le devis — Planifié';
+  }
+}
+
 async function generer(type) {
   const prefix = type === 'devis' ? 'd' : 'f';
   const btn = document.getElementById(`${prefix}-btn`);
@@ -3951,7 +4027,8 @@ async function generer(type) {
         partenaire: prefix === 'd' ? partenaireActifD : false,
         part_diahe: prefix === 'd' ? parseInt(document.getElementById('d-part-diahe')?.value || 60) : 100,
         part_partenaire: prefix === 'd' ? parseInt(document.getElementById('d-part-alopronto')?.value || 40) : 0,
-        nom_partenaire: 'Alopronto'
+        nom_partenaire: 'Alopronto',
+        intervention_type: type === 'devis' ? typeIntervention : 'immediat'
       })
     });
     const data = await res.json();
@@ -3966,7 +4043,9 @@ async function generer(type) {
     showToast('❌ ' + e.message, '⚠️');
   } finally {
     btn.disabled = false;
-    btn.textContent = type === 'devis' ? '📄 Générer le devis PDF' : '💶 Générer la facture PDF';
+    btn.textContent = type === 'devis'
+      ? (typeIntervention === 'immediat' ? '⚡ Générer le devis — Immédiat' : '📅 Générer le devis — Planifié')
+      : '💶 Générer la facture PDF';
   }
 }
 </script>
