@@ -1643,6 +1643,7 @@ function afficherHistorique() {
       btns.push(`<button onclick="previsualiserPDF('${item.num}')" ${btnStyle('rgba(59,130,246,0.08)','#3b82f6','rgba(59,130,246,0.2)')}>👁️ Aperçu</button>`);
       btns.push(`<button onclick="telechargerPDF('${item.num}')" ${btnStyle('rgba(255,255,255,0.6)','var(--text-2)','var(--border)')}>⬇️ PDF</button>`);
       btns.push(`<button onclick="dupliquerDoc('${item.num}')" ${btnStyle('rgba(255,255,255,0.6)','var(--text-2)','var(--border)')}>📋 Dupliquer</button>`);
+      btns.push(`<button onclick="creerFicheClient('${item.num}')" ${btnStyle('rgba(232,184,75,0.1)','var(--accent-2)','rgba(232,184,75,0.3)')}>👤 Fiche client</button>`);
       btns.push(`<button onclick="supprimerDoc('${item.num}')" ${btnStyle('rgba(239,68,68,0.08)','#ef4444','rgba(239,68,68,0.2)')}>🗑️ Supprimer</button>`);
 
       actionsHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px;">${btns.join('')}</div>`;
@@ -1982,6 +1983,31 @@ async function dupliquerDoc(num) {
 }
 
 let previewNumActuel = null;
+
+async function creerFicheClient(num) {
+  const item = historiqueData.find(i => i.num === num);
+  if (!item) return;
+  showToast('⏳ Création fiche client...', '👤');
+  try {
+    const res = await fetch('/api/clients/creer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nom: item.client || '',
+        email: item.email || '',
+        telephone: item.telephone || '',
+        adresse: item.adresse || ''
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(data.created ? '✅ Fiche client créée !' : '✅ Fiche client mise à jour !', '👤');
+      if (data.created) shootConfetti();
+    } else {
+      showToast('❌ ' + (data.error || 'Erreur'), '⚠️');
+    }
+  } catch(e) { showToast('❌ ' + e.message, '⚠️'); }
+}
 
 async function previsualiserPDF(num) {
   previewNumActuel = num;
