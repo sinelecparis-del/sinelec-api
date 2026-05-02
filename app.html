@@ -2091,6 +2091,10 @@ async function creerFicheClient(num) {
 
 async function previsualiserPDF(num) {
   previewNumActuel = num;
+
+  // Détecter iOS
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
   const overlay = document.getElementById('popup-preview');
   const iframe  = document.getElementById('preview-iframe');
   const loading = document.getElementById('preview-loading');
@@ -2098,6 +2102,15 @@ async function previsualiserPDF(num) {
 
   const item = historiqueData.find(i => i.num === num);
   if (title) title.textContent = `${item?.type === 'facture' ? '💶 Facture' : '📋 Devis'} ${num} — ${item?.client || ''}`;
+
+  // Sur iOS — ouvrir directement dans Safari (iframe ne marche pas)
+  if (isIOS) {
+    const token = localStorage.getItem('sinelec_token');
+    const url = `/api/pdf/${num}${token ? '?token='+token : ''}`;
+    window.open(url, '_blank');
+    showToast('📄 PDF ouvert dans Safari', '👁️');
+    return;
+  }
 
   overlay.classList.add('active');
   if (iframe)  iframe.style.display = 'none';
