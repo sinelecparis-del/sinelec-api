@@ -563,6 +563,190 @@ app.post('/api/signature', async (req, res) => {
     const htmlConfirm = `<html><body style="font-family:Arial;padding:20px;"><h2>✅ Devis ${num} signé</h2><p>Client: ${devisData.client||''} — Montant: ${montant.toFixed(2)} € — Acompte: ${(montant*0.4).toFixed(2)} €</p><p>IP: ${ipClient} — Date: ${now.toLocaleDateString('fr-FR')}</p></body></html>`;
     try { await envoyerEmail('sinelec.paris@gmail.com', `🔔 SIGNÉ — ${num} — ${devisData.client||''} — ${montant.toFixed(0)}€`, htmlConfirm); } catch(e) {}
 
+    // ── RÉGÉNÉRER PDF AVEC SIGNATURE + ENVOYER AU CLIENT ──
+    if (devisData.email) {
+      try {
+        const sigB64 = signature.replace(/^data:image\/png;base64,/, '');
+        const dateStr = now.toLocaleDateString('fr-FR');
+        const dateSig = now.toLocaleDateString('fr-FR');
+        const clientEsc = String(devisData.client || '').replace(/'/g, ' ');
+        const adresseParts = (devisData.adresse || '').split(',');
+        const clientRue = String(adresseParts[0] || '').trim().replace(/'/g, ' ');
+        const clientVille = adresseParts.slice(1).join(',').trim().replace(/'/g, ' ');
+        const totalHT = parseFloat(devisData.total_ht || 0);
+        const detailsData = (devisData.prestations || []).map(p => ({
+          designation: p.nom || p.designation, qte: p.quantite || 1,
+          prixUnit: p.prix || 0, total: (p.prix || 0) * (p.quantite || 1),
+          details: p.desc ? [p.desc] : []
+        }));
+
+        const pyPath2 = path.join(__dirname, `_sig_${num}.py`);
+        const detPath2 = path.join(__dirname, `_sig_details_${num}.json`);
+        const pdfPath2 = path.join(__dirname, `_sig_${num}.pdf`);
+        fs.writeFileSync(detPath2, JSON.stringify(detailsData));
+
+        const pySig = `# -*- coding: utf-8 -*-
+import json, base64, io, sys
+from reportlab.lib.pagesizes import A4; from reportlab.lib import colors; from reportlab.lib.units import cm
+from reportlab.platypus import *; from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT; from reportlab.pdfgen import canvas as pdfcanvas
+from reportlab.lib.utils import ImageReader; from reportlab.platypus.flowables import HRFlowable
+W,H=A4; MARINE=colors.HexColor('#1B2A4A'); OR=colors.HexColor('#C9A84C')
+OR_PALE=colors.HexColor('#FBF7EC'); OR_FONCE=colors.HexColor('#A07830')
+BLANC=colors.white; CREME=colors.HexColor('#FDFCF9')
+GRIS_TEXTE=colors.HexColor('#3A3A3A'); GRIS_SOFT=colors.HexColor('#777777')
+GRIS_LIGNE=colors.HexColor('#E0DDD6'); GRIS_BG=colors.HexColor('#F5F4F0')
+VERT=colors.HexColor('#16a34a')
+def p(txt,sz=9,font='Helvetica',color=GRIS_TEXTE,align=TA_LEFT,sb=0,sa=2,leading=None):
+    if leading is None: leading=sz*1.35
+    return Paragraph(str(txt),ParagraphStyle('s',fontName=font,fontSize=sz,textColor=color,alignment=align,spaceBefore=sb,spaceAfter=sa,leading=leading,wordWrap='CJK'))
+data=json.loads(open('${detPath2}',encoding='utf-8').read())
+totalHT=sum(l['total'] for l in data)
+logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
+sig_bytes=base64.b64decode('${sigB64}')
+class SC(pdfcanvas.Canvas):
+    def __init__(self,fn,**kw): pdfcanvas.Canvas.__init__(self,fn,**kw); self._pg=0; self.saveState(); self._draw_page()
+    def showPage(self): self._draw_footer(); pdfcanvas.Canvas.showPage(self); self._pg+=1
+    def save(self): self._draw_footer(); pdfcanvas.Canvas.save(self)
+    def _draw_page(self):
+        self.saveState(); self.setFillColor(CREME); self.rect(0,0,W,H,fill=1,stroke=0)
+        self.setFillColor(MARINE); self.rect(0,0,0.7*cm,H,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0.7*cm,0,0.08*cm,H,fill=1,stroke=0)
+        if self._pg==0: self._draw_header()
+        else: self._draw_header_small()
+        self.restoreState()
+    def _draw_header(self):
+        self.setFillColor(MARINE); self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,5.4*cm,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,0.12*cm,fill=1,stroke=0)
+        self.drawImage(ImageReader(io.BytesIO(logo_bytes)),0.9*cm,H-5.05*cm,width=4.2*cm,height=4.2*cm,preserveAspectRatio=True,mask='auto')
+        self.setFont('Helvetica-Bold',15); self.setFillColor(BLANC); self.drawString(5.9*cm,H-1.7*cm,'SINELEC PARIS')
+        self.setFont('Helvetica-Bold',9); self.drawString(5.9*cm,H-2.5*cm,'128 Rue La Boetie, 75008 Paris')
+        self.setFont('Helvetica',8.5); self.setFillColor(colors.HexColor('#BFC8D6'))
+        self.drawString(5.9*cm,H-3.0*cm,'Tel : 07 87 38 86 22'); self.drawString(5.9*cm,H-3.4*cm,'sinelec.paris@gmail.com')
+        self.setFillColor(colors.HexColor('#243660')); self.roundRect(5.9*cm,H-4.15*cm,5.5*cm,0.55*cm,0.1*cm,fill=1,stroke=0)
+        self.setFont('Helvetica-Bold',8); self.setFillColor(OR); self.drawString(6.1*cm,H-3.88*cm,'SIRET : 91015824500019')
+        self.setFont('Helvetica-Bold',40); self.setFillColor(BLANC); self.drawRightString(W-1.2*cm,H-2.2*cm,'DEVIS')
+        self.setStrokeColor(OR); self.setLineWidth(1.5); self.line(13*cm,H-2.65*cm,W-1.2*cm,H-2.65*cm)
+        self.setFillColor(OR); self.roundRect(W-6.5*cm,H-3.55*cm,5.3*cm,0.65*cm,0.15*cm,fill=1,stroke=0)
+        self.setFont('Helvetica-Bold',9); self.setFillColor(MARINE); self.drawCentredString(W-3.85*cm,H-3.22*cm,'N\\u00b0 ${num}')
+        self.setFont('Helvetica',8); self.setFillColor(colors.HexColor('#BFC8D6')); self.drawRightString(W-1.2*cm,H-3.9*cm,'Date : ${dateStr}')
+        # Tampon SIGNÉ rond vert
+        self.saveState()
+        cx=W-5.0*cm; cy=H/2+1.0*cm; r=1.9*cm
+        self.setStrokeColor(VERT); self.setFillColor(VERT); self.setFillAlpha(0.75)
+        self.setLineWidth(3); self.circle(cx,cy,r,fill=0,stroke=1)
+        self.setLineWidth(1.2); self.circle(cx,cy,r-0.15*cm,fill=0,stroke=1)
+        self.translate(cx,cy); self.rotate(-15)
+        self.setFont('Helvetica-Bold',7); self.drawCentredString(0,1.0*cm,'SINELEC')
+        self.setFont('Helvetica-Bold',19); self.drawCentredString(0,0.15*cm,'SIGNE')
+        self.setFont('Helvetica-Bold',7.5); self.drawCentredString(0,-0.55*cm,'${dateSig}')
+        self.setFont('Helvetica',6.5); self.drawCentredString(0,-1.0*cm,'PARIS')
+        self.restoreState()
+    def _draw_header_small(self):
+        self.setFillColor(MARINE); self.rect(0.78*cm,H-1.5*cm,W-0.78*cm,1.5*cm,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0.78*cm,H-1.5*cm,W-0.78*cm,0.08*cm,fill=1,stroke=0)
+        self.setFont('Helvetica-Bold',10); self.setFillColor(BLANC); self.drawString(1.4*cm,H-1.0*cm,'SINELEC')
+        self.setFont('Helvetica',8); self.setFillColor(OR); self.drawRightString(W-1.2*cm,H-1.0*cm,'DEVIS N\\u00b0 ${num}')
+    def _draw_footer(self):
+        self.saveState(); self.setFillColor(MARINE); self.rect(0,0,W,1.0*cm,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0,1.0*cm,W,0.08*cm,fill=1,stroke=0)
+        self.setFont('Helvetica',6.5); self.setFillColor(colors.HexColor('#8899BB'))
+        self.drawCentredString(W/2,0.5*cm,'SINELEC EI \\u2022 128 Rue La Boetie 75008 Paris \\u2022 SIRET : 91015824500019 \\u2022 TVA non applicable art. 293B CGI')
+        self.setFont('Helvetica-Bold',7); self.setFillColor(OR); self.drawRightString(W-1.2*cm,0.28*cm,'${num}'); self.restoreState()
+doc=SimpleDocTemplate('${pdfPath2}',pagesize=A4,leftMargin=1.2*cm,rightMargin=1.0*cm,topMargin=5.6*cm,bottomMargin=1.6*cm)
+story=[]
+objet_b=Table([[p('OBJET DES TRAVAUX',7.5,'Helvetica-Bold',OR,sa=4)],[p('${String(devisData.description || 'Travaux electricite').replace(/'/g,' ')}',10,'Helvetica-Bold',MARINE)],[p('Conformes NF C 15-100 \\u2022 Garantie decennale ORUS',7.5,color=GRIS_SOFT)]],colWidths=[8.2*cm])
+objet_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3),('LEFTPADDING',(0,0),(-1,-1),0),('LINEABOVE',(0,0),(0,0),2.5,MARINE),('TOPPADDING',(0,0),(0,0),10)]))
+client_b=Table([[p('CLIENT',7,'Helvetica-Bold',OR,sa=4)],[p('${clientEsc}',10,'Helvetica-Bold',MARINE)],[p('${clientRue}',8.5,color=GRIS_TEXTE)],[p('${clientVille}',8.5,color=GRIS_TEXTE)]],colWidths=[9.0*cm])
+client_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('BACKGROUND',(0,0),(-1,-1),OR_PALE),('BOX',(0,0),(-1,-1),1,OR),('LINEBEFORE',(0,0),(0,-1),4,MARINE),('TOPPADDING',(0,0),(0,0),10),('BOTTOMPADDING',(0,-1),(-1,-1),10)]))
+story.append(Table([[objet_b,client_b]],colWidths=[8.7*cm,9.5*cm],style=TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)])))
+story.append(Spacer(1,0.6*cm))
+cw=[0.7*cm,9.5*cm,1.5*cm,0.9*cm,2.4*cm,3.2*cm]
+rows=[[p('#',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('DESIGNATION',7.5,'Helvetica-Bold',BLANC),p('QTE',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('U.',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('PRIX U. HT',7.5,'Helvetica-Bold',BLANC,TA_RIGHT),p('TOTAL HT',7.5,'Helvetica-Bold',BLANC,TA_RIGHT)]]
+for i,l in enumerate(data):
+    q=int(l['qte']) if l['qte']==int(l['qte']) else l['qte']
+    rows.append([p(str(i+1),9,color=OR,align=TA_CENTER),p('<b>'+l['designation']+'</b>',9,color=MARINE),p(str(q),9,align=TA_CENTER),p('u.',9,align=TA_CENTER,color=GRIS_SOFT),p('%.2f \\u20ac'%l['prixUnit'],9,align=TA_RIGHT),p('<b>%.2f \\u20ac</b>'%l['total'],9,'Helvetica-Bold',MARINE,TA_RIGHT)])
+    for det in l.get('details',[]):
+        rows.append(['',p('   - '+det,7.5,'Helvetica-Oblique',color=GRIS_SOFT),'','','',''])
+t=Table(rows,colWidths=cw)
+ts=[('BACKGROUND',(0,0),(-1,0),MARINE),('LINEBELOW',(0,0),(-1,0),2.5,OR),('VALIGN',(0,0),(-1,-1),'TOP'),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),('LEFTPADDING',(0,0),(-1,-1),7),('RIGHTPADDING',(0,0),(-1,-1),7),('BOX',(0,0),(-1,-1),0.3,GRIS_LIGNE)]
+row_idx=1; bg=True
+for l in data:
+    nb=1+len(l.get('details',[])); c2=BLANC if bg else GRIS_BG
+    ts.append(('BACKGROUND',(0,row_idx),(-1,row_idx+nb-1),c2)); ts.append(('LINEBELOW',(0,row_idx+nb-1),(-1,row_idx+nb-1),0.3,GRIS_LIGNE))
+    row_idx+=nb; bg=not bg
+t.setStyle(TableStyle(ts)); story.append(t); story.append(Spacer(1,0.15*cm))
+tt=Table([['',p('Total HT',9,color=GRIS_SOFT,align=TA_RIGHT),p('%.2f \\u20ac'%totalHT,9,'Helvetica-Bold',GRIS_TEXTE,TA_RIGHT)],['',p('TVA',9,color=GRIS_SOFT,align=TA_RIGHT),p('Non applicable (art. 293B)',8,color=GRIS_SOFT,align=TA_RIGHT)]],colWidths=[9.0*cm,4.5*cm,4.7*cm])
+tt.setStyle(TableStyle([('LINEABOVE',(1,0),(-1,0),0.5,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('LEFTPADDING',(0,0),(-1,-1),6),('RIGHTPADDING',(0,0),(-1,-1),6)]))
+story.append(tt); story.append(Spacer(1,0.12*cm))
+net=Table([[p('NET \\u00c0 PAYER',13,'Helvetica-Bold',BLANC),p('%.2f \\u20ac'%totalHT,16,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
+net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('LINEBELOW',(0,0),(-1,-1),3,OR),('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
+story.append(net); story.append(Spacer(1,0.35*cm))
+story.append(HRFlowable(width='100%',thickness=0.3,color=GRIS_LIGNE,spaceAfter=8))
+cond=Table([[p('Acompte 40% a la signature',9,color=GRIS_TEXTE),p('%.2f \\u20ac'%(totalHT*0.4),9,'Helvetica-Bold',OR_FONCE,TA_RIGHT)],[p('Solde a la fin des travaux',9,color=GRIS_TEXTE),p('%.2f \\u20ac'%(totalHT*0.6),9,align=TA_RIGHT)],[p('Validite 30 jours \\u2022 Virement, especes, CB',8,color=GRIS_SOFT),'']],colWidths=[14.2*cm,4.0*cm])
+cond.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,1),0.3,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),('SPAN',(0,2),(1,2))]))
+story.append(cond); story.append(Spacer(1,0.3*cm))
+story.append(HRFlowable(width='100%',thickness=0.5,color=VERT,spaceAfter=8))
+t_sig_lbl=Table([[p('SIGNATURE CLIENT',8,'Helvetica-Bold',VERT,sa=0)]],colWidths=[18.2*cm])
+t_sig_lbl.setStyle(TableStyle([('LEFTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),6)]))
+story.append(t_sig_lbl)
+t_mention=Table([[p('Bon pour accord — Devis recu avant execution des travaux',9,'Helvetica-Bold',MARINE),p('Lu et approuve — Signe le : ${dateSig}',9,'Helvetica-Oblique',GRIS_SOFT,TA_RIGHT)]],colWidths=[11.0*cm,7.2*cm])
+t_mention.setStyle(TableStyle([('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),10)]))
+story.append(t_mention)
+sig_img=Image(io.BytesIO(sig_bytes),width=7.0*cm,height=2.5*cm)
+sig_img.hAlign='LEFT'
+story.append(sig_img)
+iban=Table([[p('IBAN',7,'Helvetica-Bold',GRIS_SOFT),p('FR76 1695 8000 0174 2540 5920 931',9,'Helvetica-Bold',MARINE),p('BIC',7,'Helvetica-Bold',GRIS_SOFT,TA_RIGHT),p('QNTOFRP1XXX',9,'Helvetica-Bold',MARINE,TA_RIGHT)]],colWidths=[1.5*cm,9.5*cm,1.8*cm,5.4*cm])
+iban.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),OR_PALE),('BOX',(0,0),(-1,-1),0.5,OR),('LINEBEFORE',(0,0),(0,-1),4,MARINE),('TOPPADDING',(0,0),(-1,-1),9),('BOTTOMPADDING',(0,0),(-1,-1),9),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
+story.append(Spacer(1,0.2*cm)); story.append(iban)
+doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw))
+print('PDF_SIG_OK')
+`;
+        fs.writeFileSync(pyPath2, pySig, 'utf8');
+        const { execSync: execS } = require('child_process');
+        execS(`python3 ${pyPath2} ${detPath2} ${pdfPath2}`, { cwd: __dirname });
+        const pdfB64 = fs.readFileSync(pdfPath2).toString('base64');
+
+        // Envoyer au client avec PDF signé en pièce jointe
+        await envoyerEmail(devisData.email,
+          `✅ SINELEC Paris — Votre devis ${num} signé`,
+          `<html><body style="font-family:Arial;padding:0;background:#f5f5f7;">
+          <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;">
+            <div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:28px;text-align:center;">
+              <div style="font-size:40px;">✅</div>
+              <h2 style="color:#fff;margin:8px 0 0;">Devis signé !</h2>
+            </div>
+            <div style="padding:28px;">
+              <p style="color:#333;font-size:14px;margin-bottom:16px;">Bonjour <strong>${prenom}</strong>,</p>
+              <p style="color:#555;font-size:14px;line-height:1.6;margin-bottom:16px;">
+                Votre devis <strong>${num}</strong> de <strong>${montant.toFixed(0)} €</strong> est bien signé.<br>
+                Vous trouverez ci-joint votre exemplaire avec votre signature.
+              </p>
+              <div style="background:#f0f7f0;border:1px solid rgba(22,163,74,0.2);border-left:4px solid #16a34a;border-radius:8px;padding:12px 16px;margin-bottom:16px;">
+                <p style="color:#15803d;font-size:13px;font-weight:700;margin:0;">
+                  📋 Bon pour accord — Devis reçu avant exécution des travaux
+                </p>
+              </div>
+              <p style="color:#999;font-size:12px;line-height:1.6;">
+                Pour toute question :<br>
+                📞 07 87 38 86 22 | sinelec.paris@gmail.com
+              </p>
+            </div>
+            <div style="background:#f8f8f8;padding:14px;text-align:center;">
+              <p style="color:#999;font-size:11px;">SINELEC Paris • sinelec.paris@gmail.com</p>
+            </div>
+          </div></body></html>`,
+          { content: pdfB64, name: `Devis_SINELEC_${num}_Signe.pdf` }
+        );
+
+        // Nettoyage
+        try { fs.unlinkSync(pyPath2); fs.unlinkSync(detPath2); fs.unlinkSync(pdfPath2); } catch(e) {}
+        console.log(`✅ PDF signé envoyé à ${devisData.email}`);
+      } catch(e) {
+        console.error('PDF signé:', e.message);
+      }
+    }
+
     res.json({ success: true });
   } catch(error) {
     res.status(500).json({ error: error.message });
@@ -1026,6 +1210,24 @@ if IS_FACTURE:
     pays=Table([[p('Virement bancaire',9,color=GRIS_TEXTE),p('IBAN ci-dessous',8,color=GRIS_SOFT,align=TA_RIGHT)],[p('Especes',9,color=GRIS_TEXTE),p('Remis en main propre',8,color=GRIS_SOFT,align=TA_RIGHT)],[p('Carte bancaire',9,color=GRIS_TEXTE),p('Terminal SumUp',8,color=GRIS_SOFT,align=TA_RIGHT)]],colWidths=[8.0*cm,10.2*cm])
     pays.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,-2),0.3,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)]))
     story.append(pays)
+${(docStatut === 'signe' || docStatut === 'signé') && data.signature ? `
+sig_b64 = '${data.signature.replace(/^data:image\/png;base64,/, '')}'
+sig_date_str = '${data.date_signature ? new Date(data.date_signature).toLocaleDateString("fr-FR") : dateStr}'
+from reportlab.platypus.flowables import HRFlowable
+story.append(Spacer(1,0.3*cm))
+story.append(HRFlowable(width='100%',thickness=0.5,color=GRIS_LIGNE,spaceAfter=6))
+sig_rows = [[p('SIGNATURE CLIENT',7,'Helvetica-Bold',OR,sa=0)]]
+t_sig_lbl = Table(sig_rows,colWidths=[18.2*cm])
+t_sig_lbl.setStyle(TableStyle([('LEFTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),2),('BOTTOMPADDING',(0,0),(-1,-1),4)]))
+story.append(t_sig_lbl)
+t_mention = Table([[p('Bon pour accord - Devis recu avant execution des travaux',8,'Helvetica-Bold',MARINE),p('Lu et approuve - Signe le : '+sig_date_str,8,'Helvetica-Oblique',GRIS_SOFT,align=TA_RIGHT)]],colWidths=[11.0*cm,7.2*cm])
+t_mention.setStyle(TableStyle([('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
+story.append(t_mention)
+sig_bytes = base64.b64decode(sig_b64)
+sig_img = Image(io.BytesIO(sig_bytes),width=7.0*cm,height=2.5*cm)
+sig_img.hAlign = 'LEFT'
+story.append(sig_img)
+` : ''}
 doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
 `;
     fs.writeFileSync(pyPath, py, 'utf8');
