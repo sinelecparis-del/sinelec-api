@@ -1225,7 +1225,87 @@ body {
 <div id="page-vocal" class="page"><div class="content"><div class="section"><div class="section-title">🎙️ Script Vocal IA</div><div id="vocal-content"></div></div></div></div>
 <div id="page-chat" class="page"><div class="content"><div class="section"><div class="section-title">🤖 Chat AI</div><div id="chat-messages" style="min-height:200px;"></div><div style="display:flex;gap:10px;margin-top:16px;"><input type="text" id="chat-input" placeholder="Décris le chantier..." style="flex:1;background:rgba(255,255,255,0.65);border:1.5px solid rgba(218,165,32,0.15);border-radius:12px;padding:14px 16px;color:var(--text);font-size:15px;outline:none;" onkeypress="if(event.key==='Enter') envoyerMessage()"><button onclick="envoyerMessage()" style="background:linear-gradient(135deg,var(--accent),var(--gold));color:#fff;border:none;border-radius:12px;padding:14px 20px;font-weight:800;cursor:pointer;font-size:20px;">→</button></div></div></div></div>
 <div id="page-dpe" class="page"><div class="content"><div class="section"><div class="section-title">🏠 Analyse DPE</div><div id="dpe-content"></div></div></div></div>
-<div id="page-rapport" class="page"><div class="content"><div class="section"><div class="section-title">📸 Rapport d'intervention</div><div id="rapport-content"></div></div></div></div>
+<div id="page-rapport" class="page"><div class="content">
+  <div class="section">
+    <div class="section-title">📸 Rapport d'intervention</div>
+
+    <!-- Infos client -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+      <div>
+        <div style="font-size:11px;font-weight:700;color:rgba(0,0,0,0.4);text-transform:uppercase;margin-bottom:4px;">Client</div>
+        <input id="rap-client" type="text" placeholder="Nom du client" oninput="autocompleteClient('rap',this.value,'client')"
+          style="width:100%;padding:10px 12px;border:1.5px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;font-weight:600;background:#f9f9f9;outline:none;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='rgba(0,0,0,0.1)'">
+        <div id="rap-client-suggestions" style="display:none;position:absolute;background:#fff;border:1px solid rgba(0,0,0,0.1);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.12);z-index:999;width:280px;max-height:200px;overflow-y:auto;"></div>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:rgba(0,0,0,0.4);text-transform:uppercase;margin-bottom:4px;">Adresse</div>
+        <input id="rap-adresse" type="text" placeholder="Adresse intervention"
+          style="width:100%;padding:10px 12px;border:1.5px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;font-weight:600;background:#f9f9f9;outline:none;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='rgba(0,0,0,0.1)'">
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+      <div>
+        <div style="font-size:11px;font-weight:700;color:rgba(0,0,0,0.4);text-transform:uppercase;margin-bottom:4px;">📧 Email <span style="color:#ef4444;">*</span></div>
+        <input id="rap-email" type="email" placeholder="email@client.fr"
+          style="width:100%;padding:10px 12px;border:1.5px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;background:#f9f9f9;outline:none;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='rgba(0,0,0,0.1)'">
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:rgba(0,0,0,0.4);text-transform:uppercase;margin-bottom:4px;">📞 Téléphone</div>
+        <input id="rap-tel" type="tel" placeholder="06 xx xx xx xx"
+          style="width:100%;padding:10px 12px;border:1.5px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;background:#f9f9f9;outline:none;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='rgba(0,0,0,0.1)'">
+      </div>
+    </div>
+
+    <!-- Chantier court pour l'IA -->
+    <div style="margin-bottom:12px;">
+      <div style="font-size:11px;font-weight:700;color:rgba(0,0,0,0.4);text-transform:uppercase;margin-bottom:4px;">Travaux réalisés (court — l'IA développe)</div>
+      <input id="rap-chantier" type="text" placeholder="Ex: Remplacement tableau 2 rangées + mise à la terre + 4 prises" style="width:100%;padding:10px 12px;border:1.5px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;background:#f9f9f9;outline:none;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='rgba(0,0,0,0.1)'">
+    </div>
+
+    <!-- Bouton générer description IA -->
+    <button onclick="genererDescriptionIA()" style="width:100%;background:linear-gradient(135deg,#1B2A4A,#243660);color:#fff;border:none;border-radius:12px;padding:13px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:12px;">
+      🤖 Générer description détaillée par IA
+    </button>
+
+    <!-- Description longue modifiable -->
+    <div style="margin-bottom:12px;">
+      <div style="font-size:11px;font-weight:700;color:rgba(0,0,0,0.4);text-transform:uppercase;margin-bottom:4px;">Description complète (modifiable)</div>
+      <textarea id="rap-description" rows="8" placeholder="La description détaillée apparaîtra ici après génération IA — vous pouvez la modifier..." style="width:100%;padding:12px;border:1.5px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;background:#f9f9f9;outline:none;resize:vertical;line-height:1.6;font-family:inherit;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='rgba(0,0,0,0.1)'"></textarea>
+    </div>
+
+    <!-- Photos avant / après -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+      <!-- Photo AVANT -->
+      <div>
+        <div style="font-size:11px;font-weight:700;color:rgba(0,0,0,0.4);text-transform:uppercase;margin-bottom:6px;">📷 Photo AVANT</div>
+        <label for="rap-photo-avant" style="display:block;border:2px dashed rgba(0,0,0,0.15);border-radius:12px;padding:16px;text-align:center;cursor:pointer;background:#f9f9f9;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='rgba(0,0,0,0.15)'">
+          <div id="prev-avant" style="display:none;"><img id="img-avant" style="width:100%;border-radius:8px;max-height:140px;object-fit:cover;"></div>
+          <div id="lbl-avant">
+            <div style="font-size:28px;margin-bottom:6px;">📷</div>
+            <div style="font-size:12px;color:rgba(0,0,0,0.4);font-weight:600;">Appuyer pour ajouter</div>
+          </div>
+        </label>
+        <input type="file" id="rap-photo-avant" accept="image/*" capture="environment" style="display:none;" onchange="previewPhoto('avant', this)">
+      </div>
+      <!-- Photo APRÈS -->
+      <div>
+        <div style="font-size:11px;font-weight:700;color:rgba(0,0,0,0.4);text-transform:uppercase;margin-bottom:6px;">📷 Photo APRÈS</div>
+        <label for="rap-photo-apres" style="display:block;border:2px dashed rgba(0,0,0,0.15);border-radius:12px;padding:16px;text-align:center;cursor:pointer;background:#f9f9f9;transition:all 0.2s;" onmouseover="this.style.borderColor='#16a34a'" onmouseout="this.style.borderColor='rgba(0,0,0,0.15)'">
+          <div id="prev-apres" style="display:none;"><img id="img-apres" style="width:100%;border-radius:8px;max-height:140px;object-fit:cover;"></div>
+          <div id="lbl-apres">
+            <div style="font-size:28px;margin-bottom:6px;">✅</div>
+            <div style="font-size:12px;color:rgba(0,0,0,0.4);font-weight:600;">Appuyer pour ajouter</div>
+          </div>
+        </label>
+        <input type="file" id="rap-photo-apres" accept="image/*" capture="environment" style="display:none;" onchange="previewPhoto('apres', this)">
+      </div>
+    </div>
+
+    <!-- Bouton générer rapport PDF -->
+    <button onclick="genererRapport()" class="btn-gen">📄 Générer le rapport PDF</button>
+    <div class="status" id="rap-status"></div>
+  </div>
+</div></div>
 <div id="page-clients" class="page"><div class="content" style="max-width:900px;"><div class="section"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><div class="section-title" style="margin-bottom:0;">👥 Clients</div><input type="text" id="clients-search" placeholder="🔍 Rechercher..." oninput="filtrerClients(this.value)" style="padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:rgba(255,255,255,0.7);font-size:13px;width:200px;"></div><div id="clients-list">Chargement...</div></div></div></div>
 <div id="page-sante" class="page"><div class="content"><div class="section"><div style="display:flex;justify-content:space-between;align-items:center;"><div class="section-title" style="margin-bottom:0;">🏥 Santé Système</div><button onclick="verifierSante()" class="btn-small">🔄 Vérifier</button></div><div id="sante-global" style="background:rgba(255,255,255,0.5);border-radius:14px;padding:20px;margin:16px 0;text-align:center;"><div id="sante-global-icon" style="font-size:40px;">⏳</div><div id="sante-global-text" style="font-size:15px;font-weight:700;margin-top:8px;">Chargement...</div></div><div id="sante-services" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;"></div></div>
 
@@ -3311,6 +3391,113 @@ async function appliquerCorrectionIA() {
   if (btn) { btn.disabled = false; btn.textContent = '⚡ Appliquer correction'; }
 }
 
+// ═══════════════════════════════════════════════════
+// RAPPORT D'INTERVENTION
+// ═══════════════════════════════════════════════════
+let rapportPhotoAvant = null;
+let rapportPhotoApres = null;
+
+function previewPhoto(type, input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const b64 = e.target.result;
+    if (type === 'avant') {
+      rapportPhotoAvant = b64;
+      document.getElementById('img-avant').src = b64;
+      document.getElementById('prev-avant').style.display = 'block';
+      document.getElementById('lbl-avant').style.display = 'none';
+    } else {
+      rapportPhotoApres = b64;
+      document.getElementById('img-apres').src = b64;
+      document.getElementById('prev-apres').style.display = 'block';
+      document.getElementById('lbl-apres').style.display = 'none';
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+async function genererDescriptionIA() {
+  const chantier = document.getElementById('rap-chantier')?.value.trim();
+  const client   = document.getElementById('rap-client')?.value.trim();
+  const adresse  = document.getElementById('rap-adresse')?.value.trim();
+  if (!chantier) { showToast('⚠️ Décris d\'abord les travaux !', '❌'); return; }
+
+  const descEl = document.getElementById('rap-description');
+  descEl.value = '⏳ Génération en cours...';
+  descEl.disabled = true;
+
+  try {
+    const res = await fetch('/api/rapport/description', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chantier, client, adresse })
+    });
+    const data = await res.json();
+    if (data.success) {
+      descEl.value = data.description;
+      showToast('✅ Description générée — modifie si besoin', '🤖');
+    } else {
+      descEl.value = '';
+      showToast('❌ ' + (data.error || 'Erreur IA'), '⚠️');
+    }
+  } catch(e) {
+    descEl.value = '';
+    showToast('❌ ' + e.message, '⚠️');
+  } finally {
+    descEl.disabled = false;
+  }
+}
+
+async function genererRapport() {
+  const client      = document.getElementById('rap-client')?.value.trim();
+  const adresse     = document.getElementById('rap-adresse')?.value.trim();
+  const chantier    = document.getElementById('rap-chantier')?.value.trim();
+  const description = document.getElementById('rap-description')?.value.trim();
+
+  if (!client || !chantier) { showToast('⚠️ Client et travaux requis !', '❌'); return; }
+  const rapEmail = document.getElementById('rap-email')?.value.trim();
+  if (!rapEmail) {
+    const go = confirm('⚠️ Email client manquant !\n\nSans email, le rapport ne sera pas envoyé au client.\n\nContinuer quand même ?');
+    if (!go) return;
+  }
+
+  const btn = document.querySelector('#page-rapport .btn-gen');
+  const status = document.getElementById('rap-status');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Génération...'; }
+  if (status) status.textContent = '';
+
+  try {
+    const res = await fetch('/api/rapport', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client, adresse, chantier,
+        description: description || chantier,
+        email: document.getElementById('rap-email')?.value.trim() || '',
+        telephone: document.getElementById('rap-tel')?.value.trim() || '',
+        photo_avant: rapportPhotoAvant || null,
+        photo_apres: rapportPhotoApres || null
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(`🎉 Rapport ${data.num} généré !`, '📋');
+      shootConfetti();
+      if (status) status.innerHTML = `<div style="color:#16a34a;font-weight:700;text-align:center;padding:10px;">✅ Rapport ${data.num} créé avec succès !</div>`;
+      // Reset
+      rapportPhotoAvant = null; rapportPhotoApres = null;
+    } else {
+      showToast('❌ ' + (data.error || 'Erreur'), '⚠️');
+    }
+  } catch(e) {
+    showToast('❌ ' + e.message, '⚠️');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📄 Générer le rapport PDF'; }
+  }
+}
+
 console.log('⚡ SINELEC OS — IA Autonome activée');
 
 // ═══════════════════════════════════════════════════
@@ -4016,6 +4203,11 @@ async function generer(type) {
   const client = getClientComplet(prefix);
   const adresse = document.getElementById(`${prefix}-adresse`)?.value.trim();
   if (!client || !adresse) { showToast('⚠️ Remplis le nom et l\'adresse !', '❌'); return; }
+  const emailVal = document.getElementById(`${prefix}-email`)?.value.trim();
+  if (!emailVal) {
+    const go = confirm('⚠️ Email client manquant !\n\nSans email, le client ne recevra pas son PDF.\n\nContinuer quand même ?');
+    if (!go) return;
+  }
 
   // ── BUG 2 CORRIGÉ : lire les textareas DOM juste avant d'envoyer
   document.querySelectorAll(`#${prefix}-panier-items textarea[data-idx]`).forEach(ta => {
