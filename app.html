@@ -2782,9 +2782,10 @@ async function enregistrerLead(creerDevis) {
 // ═══════════════════════════════════════════════════
 let modePopupData = null;
 
-function ouvrirModePopup(prefix, nom, prix) {
-  modePopupData = { prefix, nom, prix };
+function ouvrirModePopup(prefix, nom, prix, categorie) {
+  modePopupData = { prefix, nom, prix, categorie };
   document.getElementById('mode-popup-nom').textContent = nom;
+  document.getElementById('mode-popup-detail').textContent = categorie || '';
   document.getElementById('mode-prix-forfait').textContent = prix.f + ' €';
   document.getElementById('mode-prix-fourniture').textContent = prix.fo + ' €';
   document.getElementById('mode-prix-mo').textContent = prix.mo + ' €';
@@ -2797,11 +2798,11 @@ function fermerModePopup() { document.getElementById('mode-popup-overlay').class
 
 function choisirMode(mode) {
   if (!modePopupData) return;
-  const {prefix, nom, prix} = modePopupData;
-  const p = mode==='fourniture'?prix.fo:mode==='mo'?prix.mo:prix.f;
-  const l = mode==='fourniture'?nom+' (fourniture)':mode==='mo'?nom+' (MO)':nom;
+  const {prefix, nom, prix, categorie} = modePopupData;
+  const p = mode==='fourniture' ? prix.fo : mode==='mo' ? prix.mo : prix.f;
+  const l = mode==='fourniture' ? nom+' (fourniture)' : mode==='mo' ? nom+' (MO)' : nom;
   fermerModePopup();
-  showToast(`✅ ${l} ajouté !`, '🛒');
+  addToPanier(prefix, l, p, categorie, prix.desc || '');
 }
 
 // ═══════════════════════════════════════════════════
@@ -4018,8 +4019,15 @@ function selectCategory(prefix, cat, btn) {
   Object.entries(GRILLE[cat]).forEach(([nom, prix]) => {
     const div = document.createElement('div');
     div.className = 'prest-btn';
-    div.innerHTML = `<span class="prest-name">${nom}</span><span class="prest-price">${typeof prix === 'object' ? prix.f : prix} €</span>`;
-    div.onclick = () => addToPanier(prefix, nom, typeof prix === 'object' ? prix.f : prix, cat, typeof prix === 'object' ? prix.desc : '');
+    const prixObj = typeof prix === 'object' ? prix : { f: prix, fo: 0, mo: 0, desc: '' };
+    div.innerHTML = `<span class="prest-name">${nom}</span><span class="prest-price">${prixObj.f} €</span>`;
+    // Si la prestation a des prix MO/fourniture séparés → ouvre le popup 3 modes
+    // Sinon → ajoute directement en forfait
+    if (prixObj.fo > 0 || prixObj.mo > 0) {
+      div.onclick = () => ouvrirModePopup(prefix, nom, prixObj, cat);
+    } else {
+      div.onclick = () => addToPanier(prefix, nom, prixObj.f, cat, prixObj.desc || '');
+    }
     prestsDiv.appendChild(div);
   });
   prestsDiv.classList.add('show');
