@@ -837,6 +837,22 @@ class SC(pdfcanvas.Canvas):
         self.setFillColor(OR); self.roundRect(W-6.5*cm,H-3.55*cm,5.3*cm,0.65*cm,0.15*cm,fill=1,stroke=0)
         self.setFont('Helvetica-Bold',9); self.setFillColor(MARINE); self.drawCentredString(W-3.85*cm,H-3.22*cm,'N ${num}')
         self.setFont('Helvetica',8); self.setFillColor(colors.HexColor('#BFC8D6')); self.drawRightString(W-1.2*cm,H-3.9*cm,'Date : ${dateStr}  |  Valable : ${dateValide}')
+        ${docStatut === 'signe' || docStatut === 'signé' ? `
+        self.saveState()
+        self.translate(W/2, H/2)
+        self.rotate(35)
+        self.setFillColor(colors.HexColor('#16a34a'))
+        self.setStrokeColor(colors.HexColor('#16a34a'))
+        self.setLineWidth(3)
+        self.roundRect(-3.5*cm,-1.0*cm,7.0*cm,2.0*cm,0.3*cm,fill=0,stroke=1)
+        self.setFont('Helvetica-Bold',38)
+        self.setFillAlpha(0.75)
+        self.drawCentredString(0,0.3*cm,'SIGNE')
+        self.setFont('Helvetica',10)
+        self.setFillAlpha(0.6)
+        self.drawCentredString(0,-0.5*cm,'${data.date_signature ? new Date(data.date_signature).toLocaleDateString("fr-FR") : ""}')
+        self.restoreState()
+        ` : ''}
     def _draw_footer(self):
         self.saveState(); self.setFillColor(MARINE); self.rect(0,0,W,1.0*cm,fill=1,stroke=0)
         self.setFillColor(OR); self.rect(0,1.0*cm,W,0.08*cm,fill=1,stroke=0)
@@ -1392,6 +1408,38 @@ Fournis le server.js complet corrigé. Réponds UNIQUEMENT avec le code JavaScri
 
   } catch(e) {
     console.error('Appliquer correction:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── GÉNÉRATION RÉPONSE AVIS GOOGLE ────────────────
+app.post('/api/avis/generer', authMiddleware, async (req, res) => {
+  try {
+    const { texte, etoiles, intervention } = req.body;
+    if (!texte) return res.status(400).json({ error: 'Texte manquant' });
+
+    const prompt = `Tu es l'assistant de SINELEC, électricien Paris (Diahe).
+Génère une réponse professionnelle et chaleureuse à cet avis Google ${etoiles || 5} étoile(s).
+
+AVIS : "${texte}"
+${intervention ? `INTERVENTION : ${intervention}` : ''}
+
+RÈGLES :
+- 40 à 70 mots maximum
+- Intègre 2-3 mots-clés SEO naturellement parmi : électricien Paris, dépannage électrique Paris, électricien Paris 8e, urgence électrique Paris, mise aux normes NF C 15-100, électricien Île-de-France
+- ${(etoiles || 5) >= 4 ? 'Remercie sincèrement, valorise le point positif, invite à revenir' : 'Réponds calmement, propose de résoudre, reste professionnel'}
+- Termine par : Diahe — SINELEC ⚡
+- Donne UNIQUEMENT la réponse, sans introduction ni guillemets`;
+
+    const response = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 300,
+      messages: [{ role: 'user', content: prompt }]
+    });
+
+    const reponse = response.content[0]?.text?.trim();
+    res.json({ success: true, reponse });
+  } catch(e) {
     res.status(500).json({ error: e.message });
   }
 });
