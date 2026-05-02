@@ -153,7 +153,7 @@ async function chargerGrilleTarifaire() {
 app.post('/api/generer', async (req, res) => {
   if (!CONFIG.features.devis_factures) return res.status(403).json({ error: 'Feature désactivée' });
   try {
-    const { type, client, email, telephone, adresse, complement, codePostal, ville, prenom, description, prestations, partenaire, part_diahe, part_partenaire, nom_partenaire } = req.body;
+    const { type, client, email, telephone, adresse, complement, codePostal, ville, prenom, description, prestations, partenaire, part_diahe, part_partenaire, nom_partenaire, intervention_type } = req.body;
     const compteur = await incrementerCompteur(type);
     const annee = new Date().getFullYear();
     const mois = String(new Date().getMonth() + 1).padStart(2, '0');
@@ -171,7 +171,8 @@ app.post('/api/generer', async (req, res) => {
       partenaire: isPartenaire,
       part_diahe: pdiahe,
       part_partenaire: ppartenaire,
-      nom_partenaire: isPartenaire ? (nom_partenaire || 'Alopronto') : null
+      nom_partenaire: isPartenaire ? (nom_partenaire || 'Alopronto') : null,
+      intervention_type: intervention_type || 'immediat'
     });
 
     if (CONFIG.features.email_auto && email) {
@@ -264,6 +265,36 @@ class SC(pdfcanvas.Canvas):
         self.drawCentredString(W/2,0.5*cm,'SINELEC EI  \\u2022  128 Rue La Boetie, 75008 Paris  \\u2022  SIRET : 91015824500019  \\u2022  TVA non applicable art. 293B CGI')
         self.setFont('Helvetica-Bold',7); self.setFillColor(OR); self.drawRightString(W-1.2*cm,0.28*cm,'${num}')
         self.restoreState()
+        self._draw_tampons()
+    def _draw_tampons(self):
+        IS_PAYE = '${type}' == 'facture' and '${docStatut}' in ('paye', 'paye', 'payee', 'acquitte')
+        IS_SIGNE = '${type}' == 'devis' and '${docStatut}' in ('signe', 'signe')
+        rouge = colors.HexColor('#cc0000')
+        vert  = colors.HexColor('#16a34a')
+        if IS_PAYE:
+            self.saveState()
+            cx = W - 5.0*cm; cy = 9.0*cm; r = 1.9*cm
+            self.setStrokeColor(rouge); self.setFillColor(rouge); self.setFillAlpha(0.72)
+            self.setLineWidth(3); self.circle(cx,cy,r,fill=0,stroke=1)
+            self.setLineWidth(1.2); self.circle(cx,cy,r-0.15*cm,fill=0,stroke=1)
+            self.translate(cx,cy); self.rotate(-15)
+            self.setFont('Helvetica-Bold',7); self.drawCentredString(0,1.0*cm,'SINELEC')
+            self.setFont('Helvetica-Bold',22); self.drawCentredString(0,0.1*cm,'PAYE')
+            self.setFont('Helvetica-Bold',7.5); self.drawCentredString(0,-0.55*cm,'${dateStr}')
+            self.setFont('Helvetica',6.5); self.drawCentredString(0,-1.0*cm,'PARIS')
+            self.restoreState()
+        if IS_SIGNE:
+            self.saveState()
+            cx = W - 5.0*cm; cy = 9.0*cm; r = 1.9*cm
+            self.setStrokeColor(vert); self.setFillColor(vert); self.setFillAlpha(0.72)
+            self.setLineWidth(3); self.circle(cx,cy,r,fill=0,stroke=1)
+            self.setLineWidth(1.2); self.circle(cx,cy,r-0.15*cm,fill=0,stroke=1)
+            self.translate(cx,cy); self.rotate(-15)
+            self.setFont('Helvetica-Bold',7); self.drawCentredString(0,1.0*cm,'SINELEC')
+            self.setFont('Helvetica-Bold',19); self.drawCentredString(0,0.15*cm,'SIGNE')
+            self.setFont('Helvetica-Bold',7.5); self.drawCentredString(0,-0.55*cm,'${data.date_signature ? new Date(data.date_signature).toLocaleDateString("fr-FR") : dateStr}')
+            self.setFont('Helvetica',6.5); self.drawCentredString(0,-1.0*cm,'PARIS')
+            self.restoreState()
 doc=SimpleDocTemplate(sys.argv[2],pagesize=A4,leftMargin=1.2*cm,rightMargin=1.0*cm,topMargin=5.6*cm,bottomMargin=1.6*cm)
 story=[]
 objet_b=Table([[p('OBJET DES TRAVAUX',7.5,'Helvetica-Bold',OR,sa=4)],[p('${descObjet}',10,'Helvetica-Bold',MARINE)],[p('Conformes NF C 15-100  \\u2022  Garantie decennale ORUS',7.5,color=GRIS_SOFT)]],colWidths=[8.2*cm])
@@ -299,10 +330,18 @@ net=Table([[p('NET \\u00c0 PAYER',13,'Helvetica-Bold',BLANC),p('%.2f \\u20ac'%to
 net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('LINEBELOW',(0,0),(-1,-1),3,OR),('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
 story.append(net); story.append(Spacer(1,0.35*cm))
 story.append(HRFlowable(width='100%',thickness=0.3,color=GRIS_LIGNE,spaceAfter=8))
-story.append(p('CONDITIONS',8,'Helvetica-Bold',MARINE,sa=6))
-cond=Table([[p('Acompte 40% a la signature',9,color=GRIS_TEXTE),p('%.2f \\u20ac'%(totalHT*0.4),9,'Helvetica-Bold',OR_FONCE,TA_RIGHT)],[p('Solde a la fin des travaux',9,color=GRIS_TEXTE),p('%.2f \\u20ac'%(totalHT*0.6),9,align=TA_RIGHT)],[p('Validite 30 jours  \\u2022  Virement, especes, CB',8,color=GRIS_SOFT),'']],colWidths=[14.2*cm,4.0*cm])
-cond.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,1),0.3,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),('SPAN',(0,2),(1,2))]))
-story.append(cond); story.append(Spacer(1,0.15*cm))
+IS_DEVIS = '${type}' == 'devis'
+IS_PAYE = '${docStatut}' in ('paye', 'paye', 'payee', 'acquitte')
+if IS_DEVIS:
+    story.append(p('CONDITIONS',8,'Helvetica-Bold',MARINE,sa=6))
+    cond=Table([[p('Acompte 40% a la signature',9,color=GRIS_TEXTE),p('%.2f \\u20ac'%(totalHT*0.4),9,'Helvetica-Bold',OR_FONCE,TA_RIGHT)],[p('Solde a la fin des travaux',9,color=GRIS_TEXTE),p('%.2f \\u20ac'%(totalHT*0.6),9,align=TA_RIGHT)],[p('Validite 30 jours  \\u2022  Virement, especes, CB',8,color=GRIS_SOFT),'']],colWidths=[14.2*cm,4.0*cm])
+    cond.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,1),0.3,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),('SPAN',(0,2),(1,2))]))
+    story.append(cond); story.append(Spacer(1,0.15*cm))
+else:
+    story.append(p('MODALITES DE PAIEMENT',8,'Helvetica-Bold',MARINE,sa=6))
+    pays=Table([[p('Virement bancaire',9,color=GRIS_TEXTE),p('IBAN ci-dessous',8,color=GRIS_SOFT,align=TA_RIGHT)],[p('Especes',9,color=GRIS_TEXTE),p('Remis en main propre',8,color=GRIS_SOFT,align=TA_RIGHT)],[p('Carte bancaire',9,color=GRIS_TEXTE),p('Terminal SumUp',8,color=GRIS_SOFT,align=TA_RIGHT)]],colWidths=[8.0*cm,10.2*cm])
+    pays.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,-2),0.3,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)]))
+    story.append(pays); story.append(Spacer(1,0.15*cm))
 iban=Table([[p('IBAN',7,'Helvetica-Bold',GRIS_SOFT),p('FR76 1695 8000 0174 2540 5920 931',9,'Helvetica-Bold',MARINE),p('BIC',7,'Helvetica-Bold',GRIS_SOFT,TA_RIGHT),p('QNTOFRP1XXX',9,'Helvetica-Bold',MARINE,TA_RIGHT)]],colWidths=[1.5*cm,9.5*cm,1.8*cm,5.4*cm])
 iban.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),OR_PALE),('BOX',(0,0),(-1,-1),0.5,OR),('LINEBEFORE',(0,0),(0,-1),4,MARINE),('TOPPADDING',(0,0),(-1,-1),9),('BOTTOMPADDING',(0,0),(-1,-1),9),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
 story.append(iban)
@@ -438,8 +477,47 @@ app.post('/api/signature', async (req, res) => {
     await supabase.from('historique').update({ signature, statut: 'signe', date_signature: now.toISOString(), cgv_acceptees: cgv_acceptees || false }).eq('num', num);
 
     const montant = parseFloat(devisData.total_ht || 0);
+    const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+    const lienRdv = `${appUrl}/rdv/${num}`;
+    const prenom = (devisData.client || '').split(' ')[0];
+
+    // Email lien RDV — seulement si intervention planifiée
+    if (devisData.email && devisData.intervention_type === 'planifie') {
+      try {
+        await envoyerEmail(devisData.email,
+          `⚡ SINELEC Paris — Choisissez votre date d'intervention`,
+          `<html><body style="font-family:Arial;padding:0;background:#f5f5f7;">
+          <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.1);">
+            <div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:28px;text-align:center;">
+              <div style="font-size:36px;margin-bottom:8px;">⚡</div>
+              <h2 style="color:#fff;margin:0;font-size:20px;">SINELEC Paris</h2>
+              <p style="color:#BFC8D6;margin-top:6px;font-size:13px;">Votre devis est signé ✅</p>
+            </div>
+            <div style="padding:28px;">
+              <p style="color:#333;font-size:15px;margin-bottom:8px;">Bonjour <strong>${prenom}</strong>,</p>
+              <p style="color:#555;font-size:14px;line-height:1.6;margin-bottom:20px;">
+                Votre devis <strong>${num}</strong> de <strong>${montant.toFixed(0)}€</strong> a bien été signé.<br>
+                Il ne vous reste plus qu'à choisir votre créneau d'intervention !
+              </p>
+              <div style="text-align:center;margin:24px 0;">
+                <a href="${lienRdv}" style="background:linear-gradient(135deg,#C9A84C,#daa520);color:#fff;text-decoration:none;border-radius:14px;padding:16px 32px;font-size:16px;font-weight:800;display:inline-block;">
+                  📅 Choisir ma date d'intervention
+                </a>
+              </div>
+              <p style="color:#999;font-size:12px;text-align:center;line-height:1.6;">
+                Créneaux disponibles du lundi au samedi, 8h à 20h<br>
+                Votre créneau sera confirmé par email dans les 2h
+              </p>
+            </div>
+            <div style="background:#f8f8f8;padding:14px;text-align:center;">
+              <p style="color:#999;font-size:11px;">SINELEC Paris • 07 87 38 86 22 • sinelec.paris@gmail.com</p>
+            </div>
+          </div></body></html>`
+        );
+      } catch(e) { console.error('Email RDV:', e.message); }
+    }
+
     const htmlConfirm = `<html><body style="font-family:Arial;padding:20px;"><h2>✅ Devis ${num} signé</h2><p>Client: ${devisData.client||''} — Montant: ${montant.toFixed(2)} € — Acompte: ${(montant*0.4).toFixed(2)} €</p><p>IP: ${ipClient} — Date: ${now.toLocaleDateString('fr-FR')}</p></body></html>`;
-    if (devisData.email) { try { await envoyerEmail(devisData.email, `✅ Votre devis SINELEC ${num} signé`, htmlConfirm); } catch(e) {} }
     try { await envoyerEmail('sinelec.paris@gmail.com', `🔔 SIGNÉ — ${num} — ${devisData.client||''} — ${montant.toFixed(0)}€`, htmlConfirm); } catch(e) {}
 
     res.json({ success: true });
@@ -858,7 +936,27 @@ class SC(pdfcanvas.Canvas):
         self.setFillColor(OR); self.rect(0,1.0*cm,W,0.08*cm,fill=1,stroke=0)
         self.setFont('Helvetica',6.5); self.setFillColor(colors.HexColor('#8899BB'))
         self.drawCentredString(W/2,0.5*cm,'SINELEC EI \\u2022 128 Rue La Boetie 75008 Paris \\u2022 SIRET : 91015824500019 \\u2022 TVA non applicable art. 293B CGI')
-        self.setFont('Helvetica-Bold',7); self.setFillColor(OR); self.drawRightString(W-1.2*cm,0.28*cm,'${num}'); self.restoreState()
+        self.setFont('Helvetica-Bold',7); self.setFillColor(OR); self.drawRightString(W-1.2*cm,0.28*cm,'${num}'); self.restoreState(); self._draw_tampons()
+    def _draw_tampons(self):
+        rouge = colors.HexColor('#cc0000')
+        vert  = colors.HexColor('#16a34a')
+        IS_PAYE = '${docStatut}' in ('paye', 'payé', 'payee', 'acquitte', 'acquitté')
+        IS_SIGNE = '${docType}' == 'devis' and '${docStatut}' in ('signe', 'signé')
+        couleur = rouge if IS_PAYE else (vert if IS_SIGNE else None)
+        label   = 'PAYE' if IS_PAYE else ('SIGNE' if IS_SIGNE else None)
+        if not couleur: return
+        self.saveState()
+        cx = W - 5.0*cm; cy = 9.0*cm; r = 1.9*cm
+        self.setStrokeColor(couleur); self.setFillColor(couleur); self.setFillAlpha(0.72)
+        self.setLineWidth(3); self.circle(cx,cy,r,fill=0,stroke=1)
+        self.setLineWidth(1.2); self.circle(cx,cy,r-0.15*cm,fill=0,stroke=1)
+        self.translate(cx,cy); self.rotate(-15)
+        self.setFont('Helvetica-Bold',7); self.drawCentredString(0,1.0*cm,'SINELEC')
+        sz = 22 if IS_PAYE else 19
+        self.setFont('Helvetica-Bold',sz); self.drawCentredString(0,0.15*cm,label)
+        self.setFont('Helvetica-Bold',7.5); self.drawCentredString(0,-0.55*cm,'${dateStr}')
+        self.setFont('Helvetica',6.5); self.drawCentredString(0,-1.0*cm,'PARIS')
+        self.restoreState()
 doc=SimpleDocTemplate(sys.argv[2],pagesize=A4,leftMargin=1.2*cm,rightMargin=1.0*cm,topMargin=5.6*cm,bottomMargin=1.6*cm); story=[]
 client_b=Table([[p('CLIENT',7,'Helvetica-Bold',OR,sa=4)],[p('${clientEsc}',10,'Helvetica-Bold',MARINE)],[p('${clientRue}',8.5,color=GRIS_TEXTE)],[p('${clientVille}',8.5,color=GRIS_TEXTE)]],colWidths=[18.2*cm])
 client_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('BACKGROUND',(0,0),(-1,-1),OR_PALE),('BOX',(0,0),(-1,-1),1,OR),('LINEBEFORE',(0,0),(0,-1),4,MARINE),('TOPPADDING',(0,0),(0,0),10),('BOTTOMPADDING',(0,-1),(-1,-1),10)]))
@@ -876,6 +974,15 @@ tt=Table([['',p('Total HT',9,color=GRIS_SOFT,align=TA_RIGHT),p('%.2f \\u20ac'%to
 tt.setStyle(TableStyle([('LINEABOVE',(1,0),(-1,0),0.5,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('LEFTPADDING',(0,0),(-1,-1),6),('RIGHTPADDING',(0,0),(-1,-1),6)])); story.append(tt); story.append(Spacer(1,0.12*cm))
 net=Table([[p('NET A PAYER',12,'Helvetica-Bold',BLANC),p('%.2f \\u20ac'%totalHT,16,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
 net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('LINEBELOW',(0,0),(-1,-1),3,OR),('VALIGN',(0,0),(-1,-1),'MIDDLE')])); story.append(net)
+IS_FACTURE = '${docType}' == 'facture'
+if IS_FACTURE:
+    story.append(Spacer(1,0.35*cm))
+    from reportlab.platypus.flowables import HRFlowable
+    story.append(HRFlowable(width='100%',thickness=0.3,color=GRIS_LIGNE,spaceAfter=8))
+    story.append(p('MODALITES DE PAIEMENT',8,'Helvetica-Bold',MARINE,sa=6))
+    pays=Table([[p('Virement bancaire',9,color=GRIS_TEXTE),p('IBAN ci-dessous',8,color=GRIS_SOFT,align=TA_RIGHT)],[p('Especes',9,color=GRIS_TEXTE),p('Remis en main propre',8,color=GRIS_SOFT,align=TA_RIGHT)],[p('Carte bancaire',9,color=GRIS_TEXTE),p('Terminal SumUp',8,color=GRIS_SOFT,align=TA_RIGHT)]],colWidths=[8.0*cm,10.2*cm])
+    pays.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,-2),0.3,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)]))
+    story.append(pays)
 doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
 `;
     fs.writeFileSync(pyPath, py, 'utf8');
@@ -1464,6 +1571,291 @@ app.get('/api/ia/statut', authMiddleware, async (req, res) => {
 
 // ── CRON SURVEILLANCE — toutes les heures ──────────
 cron.schedule('0 * * * *', analyserEtCorrigerErreurs);
+
+// ═══════════════════════════════════════════════════
+// CALENDRIER CLIENT — PRISE DE RDV
+// ═══════════════════════════════════════════════════
+
+function dureeEstimee(prestations) {
+  const noms = (prestations || []).map(p => (p.nom || p.designation || '').toLowerCase()).join(' ');
+  if (noms.includes('tableau') || noms.includes('renovation') || noms.includes('mise aux normes')) return 3;
+  if (noms.includes('vmc') || noms.includes('chauffe-eau') || noms.includes('borne')) return 2;
+  return 1;
+}
+
+// Page calendrier client
+app.get('/rdv/:num', async (req, res) => {
+  try {
+    const { num } = req.params;
+    const { data: devis } = await supabase.from('historique').select('*').eq('num', num).single();
+    if (!devis) return res.status(404).send(`<html><body style="font-family:Arial;text-align:center;padding:40px;"><h2>Lien invalide</h2><p>Contactez SINELEC Paris : 07 87 38 86 22</p></body></html>`);
+    if (devis.date_intervention) {
+      const d = new Date(devis.date_intervention).toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+      return res.send(`<html><body style="font-family:Arial;text-align:center;padding:40px;background:#f5f5f7;"><div style="max-width:400px;margin:0 auto;background:#fff;border-radius:20px;padding:32px;box-shadow:0 4px 24px rgba(0,0,0,0.1);"><div style="font-size:48px;margin-bottom:16px;">✅</div><h2 style="color:#1B2A4A;">RDV déjà planifié</h2><p style="color:#777;font-size:14px;margin-top:8px;">Votre intervention est prévue le<br><strong style="color:#1B2A4A;font-size:16px;">${d}</strong></p><p style="color:#999;font-size:12px;margin-top:20px;">SINELEC Paris — 07 87 38 86 22</p></div></body></html>`);
+    }
+    const duree = dureeEstimee(devis.prestations);
+    const prestDesc = (devis.prestations || []).slice(0,2).map(p => p.nom || p.designation || '').join(', ');
+    const montantStr = parseFloat(devis.total_ht || 0).toLocaleString('fr-FR',{minimumFractionDigits:2}) + ' €';
+
+    res.send(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>SINELEC Paris — Prendre RDV</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Plus Jakarta Sans',sans-serif;background:#f5f5f7;min-height:100vh;}
+.hd{background:linear-gradient(135deg,#1B2A4A,#243660);padding:20px 24px;text-align:center;}
+.hd-logo{font-size:30px;margin-bottom:4px;}.hd-title{font-size:18px;font-weight:900;color:#fff;}.hd-sub{font-size:11px;color:#BFC8D6;margin-top:4px;}
+.dc{background:#fff;margin:14px;border-radius:14px;padding:14px 18px;box-shadow:0 2px 12px rgba(0,0,0,0.08);border-left:4px solid #C9A84C;}
+.dl{font-size:9px;font-weight:800;color:#C9A84C;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;}
+.dn{font-size:15px;font-weight:800;color:#1B2A4A;}.dd{font-size:11px;color:#777;margin-top:2px;}.dm{font-size:18px;font-weight:900;color:#1B2A4A;margin-top:5px;}
+.st{font-size:11px;font-weight:800;color:#1B2A4A;text-transform:uppercase;letter-spacing:1px;margin:0 14px 8px;}
+.wn{display:flex;align-items:center;justify-content:space-between;margin:0 14px 10px;}
+.wb{background:#fff;border:1px solid #e5e5e5;border-radius:8px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;font-family:inherit;}
+.wl{font-size:12px;font-weight:800;color:#1B2A4A;}
+.dg{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin:0 14px 8px;}
+.db{background:#fff;border:1.5px solid #e5e5e5;border-radius:10px;padding:8px 3px;text-align:center;cursor:pointer;transition:all 0.2s;}
+.db.hs{border-color:#C9A84C;}.db.ns{opacity:0.3;cursor:not-allowed;}.db.sl{background:#1B2A4A;border-color:#1B2A4A;}
+.dn2{font-size:9px;font-weight:700;color:#999;text-transform:uppercase;}.dn3{font-size:15px;font-weight:900;color:#1B2A4A;margin:2px 0;}
+.dots{display:flex;justify-content:center;gap:2px;}.dot{width:4px;height:4px;border-radius:50%;background:#C9A84C;}
+.db.sl .dn2,.db.sl .dn3{color:#fff;}.db.sl .dot{background:rgba(255,255,255,0.5);}
+.lg{display:flex;gap:12px;margin:0 14px 10px;}
+.li{display:flex;align-items:center;gap:4px;font-size:10px;color:#777;font-weight:600;}
+.ld{width:10px;height:10px;border-radius:3px;}
+.ss{margin:0 14px 14px;display:none;}
+.st2{font-size:12px;font-weight:800;color:#1B2A4A;margin-bottom:8px;}
+.sg{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;}
+.sl2{background:#fff;border:1.5px solid #e5e5e5;border-radius:11px;padding:12px 8px;text-align:center;cursor:pointer;transition:all 0.2s;}
+.sl2.av:hover{border-color:#C9A84C;background:#fffbf0;}.sl2.se{background:#1B2A4A;border-color:#1B2A4A;}
+.sl2.bz{background:#f8f8f8;cursor:not-allowed;}
+.st3{font-size:15px;font-weight:800;color:#1B2A4A;}.sd{font-size:9px;color:#999;margin-top:1px;}
+.sl2.se .st3,.sl2.se .sd{color:#fff;}.sl2.bz .st3{font-size:10px;color:#ccc;font-weight:600;}
+.rp{background:#f0f7f0;border:1.5px solid rgba(22,163,74,0.25);border-radius:10px;padding:11px 14px;margin:0 14px 12px;display:none;align-items:center;gap:10px;}
+.rt{font-size:12px;font-weight:700;color:#15803d;}.rs{font-size:10px;color:#16a34a;margin-top:2px;}
+.cb{width:calc(100% - 28px);margin:0 14px 12px;background:linear-gradient(135deg,#C9A84C,#daa520);color:#fff;border:none;border-radius:12px;padding:15px;font-size:14px;font-weight:900;cursor:pointer;font-family:inherit;display:block;opacity:0.3;pointer-events:none;letter-spacing:0.5px;}
+.cb.ac{opacity:1;pointer-events:all;}
+.nt{margin:0 14px 28px;font-size:10px;color:#999;text-align:center;line-height:1.6;}
+.ok{display:none;text-align:center;padding:40px 20px;}
+.ok-i{font-size:52px;margin-bottom:14px;}.ok h2{color:#1B2A4A;font-size:18px;margin-bottom:8px;}.ok p{color:#777;font-size:13px;line-height:1.6;}
+</style></head><body>
+<div class="hd"><div class="hd-logo">⚡</div><div class="hd-title">SINELEC Paris</div><div class="hd-sub">Électricien Paris & Île-de-France • 7j/7</div></div>
+<div style="height:14px;"></div>
+<div class="dc"><div class="dl">📋 Devis signé — ${num}</div><div class="dn">${devis.client||''}</div><div class="dd">${prestDesc}</div><div class="dm">${montantStr}</div></div>
+<div id="mc">
+  <div class="st">Choisissez votre date</div>
+  <div class="wn"><button class="wb" onclick="chg(-1)">‹</button><span class="wl" id="wl">...</span><button class="wb" onclick="chg(1)">›</button></div>
+  <div class="dg" id="dg"></div>
+  <div class="lg">
+    <div class="li"><div class="ld" style="background:#C9A84C;"></div>Disponible</div>
+    <div class="li"><div class="ld" style="background:#e5e5e5;"></div>Complet</div>
+  </div>
+  <div class="ss" id="ss"><div class="st2" id="st2"></div><div class="sg" id="sg"></div></div>
+  <div class="rp" id="rp"><div style="font-size:20px;">✅</div><div><div class="rt" id="rt"></div><div class="rs">~${duree}h • En attente de confirmation</div></div></div>
+  <button class="cb" id="cb" onclick="confirmer()">Confirmer ce créneau →</button>
+  <div class="nt">⚡ Soumis à validation SINELEC Paris<br>SMS de confirmation dans les 2h • <strong>07 87 38 86 22</strong></div>
+</div>
+<div class="ok" id="ok">
+  <div class="ok-i">🎉</div><h2>Demande envoyée !</h2>
+  <p>Votre demande a été transmise à SINELEC Paris.<br>Vous recevrez un email de confirmation dans les 2h.</p>
+  <p style="margin-top:16px;font-weight:800;color:#1B2A4A;font-size:14px;" id="od"></p>
+  <p style="margin-top:14px;color:#999;font-size:11px;">SINELEC Paris — 07 87 38 86 22</p>
+</div>
+<script>
+const NUM='${num}',DUR=${duree};
+const HD=8,HF=20;
+let off=0,jour=null,cren=null,occ=[];
+async function init(){
+  try{const r=await fetch('/api/rdv/disponibilites?num='+NUM);const d=await r.json();occ=d.occupe||[];}catch(e){occ=[];}
+  rend();
+}
+function lundi(o){const d=new Date();d.setHours(0,0,0,0);const j=d.getDay()||7;d.setDate(d.getDate()-j+1+o*7);return d;}
+function fmt(d){return d.toISOString().split('T')[0];}
+function pris(ds,h){return occ.some(o=>o.date===ds&&o.heure===h);}
+function libres(ds){const s=[];for(let h=HD;h<=HF-DUR;h++){if(!pris(ds,h+':00'))s.push(h);}return s;}
+function chg(d){off+=d;jour=null;cren=null;document.getElementById('ss').style.display='none';document.getElementById('rp').style.display='none';document.getElementById('cb').classList.remove('ac');rend();}
+function rend(){
+  const l=lundi(off);const js=['Lun','Mar','Mer','Jeu','Ven','Sam'];
+  const ms=['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
+  const fin=new Date(l);fin.setDate(fin.getDate()+5);
+  document.getElementById('wl').textContent=l.getDate()+' '+ms[l.getMonth()]+' — '+fin.getDate()+' '+ms[fin.getMonth()]+' '+l.getFullYear();
+  const g=document.getElementById('dg');g.innerHTML='';
+  const t=new Date();t.setHours(0,0,0,0);
+  for(let i=0;i<6;i++){
+    const d=new Date(l);d.setDate(l.getDate()+i);
+    const ds=fmt(d);const past=d<t;
+    const sl=past?[]:libres(ds);const hs=sl.length>0;
+    const b=document.createElement('div');
+    b.className='db'+(hs?' hs':'  ns')+(jour===ds?' sl':'');
+    b.innerHTML='<div class="dn2">'+js[i]+'</div><div class="dn3">'+d.getDate()+'</div><div class="dots">'+sl.slice(0,3).map(()=>'<div class="dot"></div>').join('')+'</div>';
+    if(hs)b.onclick=()=>selJour(ds,d,sl);
+    g.appendChild(b);
+  }
+}
+function selJour(ds,do2,sl){
+  jour=ds;cren=null;
+  document.getElementById('rp').style.display='none';
+  document.getElementById('cb').classList.remove('ac');
+  rend();
+  const jn=['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+  const mn=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  document.getElementById('st2').textContent=jn[do2.getDay()]+' '+do2.getDate()+' '+mn[do2.getMonth()];
+  document.getElementById('ss').style.display='block';
+  const g=document.getElementById('sg');g.innerHTML='';
+  for(let h=HD;h<=HF-DUR;h++){
+    const libre=!pris(ds,h+':00');
+    const d=document.createElement('div');
+    d.className='sl2 '+(libre?'av':'bz');
+    d.innerHTML=libre?'<div class="st3">'+h+'h00</div><div class="sd">~'+DUR+'h</div>':'<div class="st3">Non dispo</div><div class="sd"></div>';
+    if(libre)d.onclick=()=>selCren(h,d,do2);
+    g.appendChild(d);
+  }
+  document.getElementById('ss').scrollIntoView({behavior:'smooth',block:'start'});
+}
+function selCren(h,el,do2){
+  document.querySelectorAll('.sl2').forEach(s=>s.classList.remove('se'));
+  el.classList.add('se');cren=h;
+  const jn=['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+  const mn=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  const lb=jn[do2.getDay()]+' '+do2.getDate()+' '+mn[do2.getMonth()]+' à '+h+'h00';
+  document.getElementById('rt').textContent=lb;
+  document.getElementById('rp').style.display='flex';
+  document.getElementById('cb').classList.add('ac');
+  document.getElementById('rp').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+async function confirmer(){
+  if(!jour||cren===null)return;
+  const btn=document.getElementById('cb');
+  btn.textContent='⏳ Envoi...';btn.classList.remove('ac');
+  try{
+    const r=await fetch('/api/rdv/demande',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({num:NUM,date:jour,heure:cren+':00'})});
+    const d=await r.json();
+    if(d.success){
+      document.getElementById('mc').style.display='none';
+      document.getElementById('ok').style.display='block';
+      document.getElementById('od').textContent=document.getElementById('rt').textContent;
+    } else { alert('Erreur : '+(d.error||'Réessayez'));btn.classList.add('ac');btn.textContent='Confirmer ce créneau →'; }
+  }catch(e){alert('Erreur réseau');btn.classList.add('ac');btn.textContent='Confirmer ce créneau →';}
+}
+init();
+</script></body></html>`);
+  } catch(e) { res.status(500).send('Erreur: ' + e.message); }
+});
+
+// Disponibilités — renvoie les créneaux occupés
+app.get('/api/rdv/disponibilites', async (req, res) => {
+  try {
+    const { data: agenda } = await supabase.from('agenda').select('date_intervention,heure').not('statut','in','("terminé","annulé")');
+    const occupe = (agenda||[]).filter(a=>a.date_intervention&&a.heure).map(a=>({date:a.date_intervention,heure:a.heure}));
+    res.json({ occupe });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Demande RDV → email SINELEC Paris avec boutons Confirmer/Refuser
+app.post('/api/rdv/demande', async (req, res) => {
+  try {
+    const { num, date, heure } = req.body;
+    const { data: devis } = await supabase.from('historique').select('*').eq('num', num).single();
+    if (!devis) return res.status(404).json({ error: 'Devis introuvable' });
+
+    const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+    const dateFormate = new Date(date).toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+    const lienOui = `${appUrl}/api/rdv/confirmer?num=${num}&date=${date}&heure=${encodeURIComponent(heure)}&action=oui`;
+    const lienNon = `${appUrl}/api/rdv/confirmer?num=${num}&date=${date}&heure=${encodeURIComponent(heure)}&action=non`;
+
+    await supabase.from('historique').update({ rdv_statut: 'en_attente' }).eq('num', num);
+
+    await envoyerEmail('sinelec.paris@gmail.com',
+      `📅 Demande RDV — ${devis.client} — Action requise`,
+      `<html><body style="font-family:Arial;padding:0;background:#f5f5f7;">
+      <div style="max-width:500px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.1);">
+        <div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:24px;text-align:center;">
+          <div style="font-size:32px;">📅</div>
+          <h2 style="color:#fff;margin:8px 0 0;font-size:18px;">Nouvelle demande de RDV</h2>
+        </div>
+        <div style="padding:24px;">
+          <p style="font-size:14px;color:#333;margin-bottom:14px;"><strong>${devis.client}</strong> — Devis <strong>${num}</strong> (${parseFloat(devis.total_ht||0).toFixed(0)}€)</p>
+          <div style="background:#fffbf0;border:1.5px solid #C9A84C;border-radius:12px;padding:16px;margin-bottom:16px;text-align:center;">
+            <div style="font-size:11px;font-weight:800;color:#C9A84C;text-transform:uppercase;margin-bottom:6px;">📅 Date souhaitée</div>
+            <div style="font-size:20px;font-weight:900;color:#1B2A4A;">${dateFormate}</div>
+            <div style="font-size:16px;font-weight:700;color:#555;margin-top:4px;">à ${heure.replace(':00','')}h00</div>
+          </div>
+          <p style="font-size:13px;color:#777;margin-bottom:6px;">📍 ${devis.adresse||'—'}</p>
+          <p style="font-size:13px;color:#777;margin-bottom:20px;">📞 ${devis.telephone||'—'}</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <a href="${lienOui}" style="background:#16a34a;color:#fff;text-decoration:none;border-radius:10px;padding:14px;text-align:center;font-size:15px;font-weight:800;display:block;">✅ Confirmer</a>
+            <a href="${lienNon}" style="background:#fee2e2;color:#dc2626;text-decoration:none;border-radius:10px;padding:14px;text-align:center;font-size:15px;font-weight:800;display:block;">❌ Refuser</a>
+          </div>
+        </div>
+        <div style="background:#f8f8f8;padding:12px;text-align:center;">
+          <p style="color:#999;font-size:11px;">SINELEC Paris • 07 87 38 86 22 • sinelec.paris@gmail.com</p>
+        </div>
+      </div></body></html>`
+    );
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Confirmation ou refus depuis l'email
+app.get('/api/rdv/confirmer', async (req, res) => {
+  try {
+    const { num, date, heure, action } = req.query;
+    const { data: devis } = await supabase.from('historique').select('*').eq('num', num).single();
+    if (!devis) return res.send('<h2>Lien invalide</h2>');
+
+    const prenom = (devis.client || '').split(' ')[0];
+    const dateFormate = new Date(date).toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+
+    if (action === 'oui') {
+      // Ajouter dans l'agenda
+      await supabase.from('agenda').insert({
+        client: devis.client, telephone: devis.telephone, adresse: devis.adresse,
+        date_intervention: date, heure, statut: 'planifié',
+        type_intervention: (devis.prestations||[]).slice(0,1).map(p=>p.nom||p.designation).join('') || 'Intervention',
+        notes: `Devis ${num} — ${parseFloat(devis.total_ht||0).toFixed(0)}€`
+      });
+      // Mettre à jour l'historique
+      await supabase.from('historique').update({ date_intervention: date, rdv_heure: heure, rdv_statut: 'confirme' }).eq('num', num);
+
+      // Email de confirmation au client
+      if (devis.email) {
+        await envoyerEmail(devis.email,
+          `✅ SINELEC Paris — RDV confirmé !`,
+          `<html><body style="font-family:Arial;padding:0;background:#f5f5f7;">
+          <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;">
+            <div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:28px;text-align:center;">
+              <div style="font-size:40px;">✅</div>
+              <h2 style="color:#fff;margin:8px 0 0;">RDV Confirmé !</h2>
+            </div>
+            <div style="padding:28px;">
+              <p style="font-size:15px;color:#333;margin-bottom:16px;">Bonjour <strong>${prenom}</strong>,</p>
+              <div style="background:#f0f7f0;border:1.5px solid rgba(22,163,74,0.3);border-radius:12px;padding:18px;text-align:center;margin-bottom:16px;">
+                <div style="font-size:11px;font-weight:800;color:#16a34a;text-transform:uppercase;margin-bottom:6px;">📅 Votre RDV</div>
+                <div style="font-size:20px;font-weight:900;color:#1B2A4A;">${dateFormate}</div>
+                <div style="font-size:16px;font-weight:700;color:#555;margin-top:4px;">à ${heure.replace(':00','')}h00</div>
+              </div>
+              <p style="font-size:13px;color:#777;line-height:1.6;">📍 ${devis.adresse||''}<br>📞 En cas d'urgence : <strong>07 87 38 86 22</strong></p>
+            </div>
+            <div style="background:#f8f8f8;padding:14px;text-align:center;">
+              <p style="color:#999;font-size:11px;">SINELEC Paris • sinelec.paris@gmail.com</p>
+            </div>
+          </div></body></html>`
+        ).catch(()=>{});
+      }
+
+      res.send(`<html><body style="font-family:Arial;text-align:center;padding:40px;background:#f5f5f7;"><div style="max-width:400px;margin:0 auto;background:#fff;border-radius:20px;padding:32px;box-shadow:0 4px 24px rgba(0,0,0,0.1);"><div style="font-size:48px;">✅</div><h2 style="color:#1B2A4A;margin:12px 0 8px;">RDV Confirmé !</h2><p style="color:#777;">${dateFormate} à ${heure.replace(':00','')}h00</p><p style="color:#777;margin-top:8px;">Email de confirmation envoyé à ${devis.client}.</p><p style="color:#999;font-size:11px;margin-top:20px;">SINELEC Paris</p></div></body></html>`);
+
+    } else {
+      // Refus → email au client pour rechoisir
+      await supabase.from('historique').update({ rdv_statut: 'refuse' }).eq('num', num);
+      const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+      if (devis.email) {
+        await envoyerEmail(devis.email,
+          `📅 SINELEC Paris — Choisissez un autre créneau`,
+          `<html><body style="font-family:Arial;padding:0;background:#f5f5f7;"><div style="max-width:480px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;"><div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:28px;text-align:center;"><div style="font-size:36px;">⚡</div><h2 style="color:#fff;margin:8px 0 0;">SINELEC Paris</h2></div><div style="padding:28px;"><p style="font-size:14px;color:#333;margin-bottom:16px;">Bonjour <strong>${prenom}</strong>,</p><p style="font-size:14px;color:#555;margin-bottom:20px;">Le créneau demandé (${dateFormate} à ${heure.replace(':00','')}h00) n'est malheureusement plus disponible. Veuillez choisir un autre créneau :</p><div style="text-align:center;"><a href="${appUrl}/rdv/${num}" style="background:linear-gradient(135deg,#C9A84C,#daa520);color:#fff;text-decoration:none;border-radius:14px;padding:14px 28px;font-size:14px;font-weight:800;display:inline-block;">📅 Choisir un autre créneau</a></div></div><div style="background:#f8f8f8;padding:14px;text-align:center;"><p style="color:#999;font-size:11px;">SINELEC Paris • 07 87 38 86 22</p></div></div></body></html>`
+        ).catch(()=>{});
+      }
+      res.send(`<html><body style="font-family:Arial;text-align:center;padding:40px;background:#f5f5f7;"><div style="max-width:400px;margin:0 auto;background:#fff;border-radius:20px;padding:32px;box-shadow:0 4px 24px rgba(0,0,0,0.1);"><div style="font-size:48px;">📅</div><h2 style="color:#1B2A4A;margin:12px 0 8px;">Créneau refusé</h2><p style="color:#777;">Email envoyé à ${devis.client} pour rechoisir un créneau.</p></div></body></html>`);
+    }
+  } catch(e) { res.status(500).send('Erreur: ' + e.message); }
+});
 
 // ═══════════════════════════════════════════════════
 // DÉMARRAGE
