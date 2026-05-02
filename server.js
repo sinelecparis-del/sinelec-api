@@ -1150,7 +1150,7 @@ async function relancerFacturesImpayees() {
     }
 
     if (relancees > 0) {
-      // Notifier SINELEC par email
+      // Notifier Diahe par email
       await envoyerEmail(
         'sinelec.paris@gmail.com',
         `📱 ${relancees} relance(s) facture envoyée(s) — SINELEC`,
@@ -1174,6 +1174,248 @@ app.get('/api/relances/lancer', authMiddleware, async (req, res) => {
     res.json({ success: true, message: 'Relances lancées — vérifiez vos SMS et emails' });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
+
+// Lancer chaque matin à 9h05
+cron.schedule('5 9 * * *', relancerFacturesImpayees);
+
+// Route GET pour tester depuis le navigateur
+app.get('/api/relances/lancer', authMiddleware, async (req, res) => {
+  try {
+    await relancerFacturesImpayees();
+    res.json({ success: true, message: 'Relances lancées — vérifiez vos SMS et emails' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════
+// IA AUTONOME — SURVEILLANCE + AUTO-CORRECTION
+// ═══════════════════════════════════════════════════
+// IA SINELEC — client Anthropic déjà initialisé en haut du fichier
+// Log des erreurs en mémoire (buffer circulaire 100 entrées)
+const errorLog = [];
+const MAX_ERRORS = 100;
+
+function logError(route, error, req_info) {
+  errorLog.unshift({
+    ts: new Date().toISOString(),
+    route,
+    error: error.message || String(error),
+    stack: error.stack?.substring(0, 500) || '',
+    req: req_info || ''
+  });
+  if (errorLog.length > MAX_ERRORS) errorLog.pop();
+}
+
+// Middleware global de capture d'erreurs
+app.use((err, req, res, next) => {
+  logError(req.path, err, `${req.method} ${req.path}`);
+  res.status(500).json({ error: err.message });
+});
+
+// ── PUSH GITHUB ────────────────────────────────────
+async function pushGitHub(filename, content, message) {
+  const token = process.env.GITHUB_TOKEN;
+  const repo  = process.env.GITHUB_REPO || 'sinelecparis-del/sinelec-api';
+  if (!token) throw new Error('GITHUB_TOKEN manquant');
+
+  // Récupérer le SHA actuel du fichier
+  const getRes = await fetch(`https://api.github.com/repos/${repo}/contents/${filename}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' }
+  });
+  const getJson = await getRes.json();
+  const sha = getJson.sha;
+
+  // Encoder en base64
+  const encoded = Buffer.from(content).toString('base64');
+
+  // Push
+  const putRes = await fetch(`https://api.github.com/repos/${repo}/contents/${filename}`, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/vnd.github+json',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      message: `🤖 IA SINELEC: ${message}`,
+      content: encoded,
+      sha
+    })
+  });
+  const putJson = await putRes.json();
+  if (!putJson.commit) throw new Error('Push GitHub échoué: ' + JSON.stringify(putJson).substring(0, 200));
+  return putJson.commit.sha;
+}
+
+// ── ANALYSE IA ─────────────────────────────────────
+async function analyserEtCorrigerErreurs() {
+  try {
+    if (errorLog.length === 0) return;
+
+    // Récupérer le code actuel
+    const fs = require('fs');
+    const serverCode = fs.readFileSync(__filename, 'utf8');
+
+    const erreurs = errorLog.slice(0, 10).map(e =>
+      `[${e.ts}] ${e.req} → ${e.error}`
+    ).join('\n');
+
+    const prompt = `Tu es l'IA de maintenance de SINELEC OS, une app de gestion pour électricien.
+
+ERREURS DÉTECTÉES :
+${erreurs}
+
+CODE SERVER.JS (extrait) :
+${serverCode.substring(0, 8000)}
+
+MISSION :
+1. Analyse les erreurs
+2. Si tu peux corriger dans server.js, fournis le code corrigé
+3. Si c'est dans app.html, indique-le
+4. Sois concis
+
+RÉPONDS EN JSON :
+{
+  "severite": "critique|majeur|mineur",
+  "diagnostic": "explication courte",
+  "peut_corriger_auto": true|false,
+  "correction_server": "code corrigé complet si applicable, sinon null",
+  "message_diahe": "message clair pour Diahe"
+}`;
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 4000,
+      messages: [{ role: 'user', content: prompt }]
+    });
+
+    const text = response.content[0].text;
+    let analyse;
+    try {
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      analyse = JSON.parse(jsonMatch[0]);
+    } catch(e) {
+      console.log('IA analyse:', text.substring(0, 200));
+      return;
+    }
+
+    console.log(`🤖 IA Analyse: ${analyse.severite} — ${analyse.diagnostic}`);
+
+    // Sauvegarder l'analyse en base
+    await supabase.from('ia_corrections').insert({
+      date: new Date().toISOString(),
+      severite: analyse.severite,
+      diagnostic: analyse.diagnostic,
+      peut_corriger: analyse.peut_corriger_auto,
+      message: analyse.message_diahe,
+      erreurs: erreurs,
+      statut: 'en_attente'
+    }).select();
+
+    // Notifier Diahe
+    const urgence = analyse.severite === 'critique' ? '🔴' : analyse.severite === 'majeur' ? '🟠' : '🟡';
+    await envoyerEmail('sinelec.paris@gmail.com',
+      `${urgence} SINELEC OS — ${analyse.severite.toUpperCase()} détecté`,
+      `<html><body style="font-family:Arial;padding:20px;background:#f8f8f8;">
+      <div style="max-width:500px;margin:0 auto;background:#fff;border-radius:12px;padding:24px;">
+        <h2 style="color:#E8B84B;">🤖 IA SINELEC — Alerte ${analyse.severite}</h2>
+        <p><strong>Diagnostic :</strong> ${analyse.diagnostic}</p>
+        <p><strong>Message :</strong> ${analyse.message_diahe}</p>
+        <p><strong>Correction auto disponible :</strong> ${analyse.peut_corriger_auto ? '✅ Oui' : '❌ Non — intervention manuelle requise'}</p>
+        ${analyse.peut_corriger_auto ? `<p style="background:#e8f5e9;padding:12px;border-radius:8px;">👉 Va dans SINELEC OS → Santé → <strong>Appliquer la correction</strong></p>` : ''}
+        <hr><p style="font-size:12px;color:#888;">Erreurs détectées : ${errorLog.length} | ${new Date().toLocaleString('fr-FR')}</p>
+      </div></body></html>`
+    );
+
+  } catch(e) {
+    console.error('IA analyse erreur:', e.message);
+  }
+}
+
+// ── APPLIQUER CORRECTION ──────────────────────────
+app.post('/api/ia/appliquer', authMiddleware, async (req, res) => {
+  try {
+    const { correction_id } = req.body;
+
+    // Récupérer la correction en attente
+    const { data: corrections } = await supabase
+      .from('ia_corrections')
+      .select('*')
+      .eq('statut', 'en_attente')
+      .eq('peut_corriger', true)
+      .order('date', { ascending: false })
+      .limit(1);
+
+    if (!corrections || !corrections.length) {
+      return res.json({ success: false, message: 'Aucune correction automatique disponible' });
+    }
+
+    const correction = corrections[0];
+
+    // Re-analyser pour obtenir le code corrigé
+    const fs = require('fs');
+    const serverCode = fs.readFileSync(__filename, 'utf8');
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 8000,
+      messages: [{
+        role: 'user',
+        content: `Voici le problème détecté sur SINELEC OS : ${correction.diagnostic}
+Erreurs : ${correction.erreurs}
+
+Code server.js actuel :
+${serverCode}
+
+Fournis le server.js complet corrigé. Réponds UNIQUEMENT avec le code JavaScript, sans explication ni balises markdown.`
+      }]
+    });
+
+    const codeCorrige = response.content[0].text
+      .replace(/^```javascript\n?/, '').replace(/^```js\n?/, '').replace(/```$/, '').trim();
+
+    // Push sur GitHub
+    const commitSha = await pushGitHub('server.js', codeCorrige,
+      `Correction auto: ${correction.diagnostic.substring(0, 60)}`);
+
+    // Mettre à jour le statut
+    await supabase.from('ia_corrections')
+      .update({ statut: 'appliqué', commit_sha: commitSha })
+      .eq('id', correction.id);
+
+    // Vider le log d'erreurs
+    errorLog.length = 0;
+
+    res.json({
+      success: true,
+      message: `✅ Correction appliquée ! Commit: ${commitSha.substring(0, 7)}. Railway redémarre dans 30 secondes.`
+    });
+
+  } catch(e) {
+    console.error('Appliquer correction:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── STATUT IA ──────────────────────────────────────
+app.get('/api/ia/statut', authMiddleware, async (req, res) => {
+  try {
+    const { data: corrections } = await supabase
+      .from('ia_corrections')
+      .select('*')
+      .order('date', { ascending: false })
+      .limit(10);
+
+    res.json({
+      erreurs_en_cours: errorLog.length,
+      dernieres_erreurs: errorLog.slice(0, 5),
+      corrections: corrections || [],
+      ia_active: true
+    });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── CRON SURVEILLANCE — toutes les heures ──────────
+cron.schedule('0 * * * *', analyserEtCorrigerErreurs);
 
 // ═══════════════════════════════════════════════════
 // DÉMARRAGE
