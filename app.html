@@ -2276,27 +2276,53 @@ function nouveauDevisClient(nom, tel, email, adresse) {
 let _clientsCache = null;
 
 async function getClientsCache() {
-  if (_clientsCache) return _clientsCache;
+  if (_clientsCache && _clientsCache.length > 0) return _clientsCache;
   try {
-    // Fusionner clients Supabase + historique app
-    const [r1, r2] = await Promise.all([fetch('/api/clients'), fetch('/api/ca-complet')]);
+    const [r1, r2] = await Promise.all([
+      fetch('/api/clients'),
+      fetch('/api/ca-complet')
+    ]);
     const supaClients = await r1.json();
     const histo = await r2.json();
-    // Extraire clients uniques depuis historique
-    const histoClients = {};
-    (histo||[]).forEach(h => {
+
+    // Extraire clients depuis historique (source app)
+    const histoMap = {};
+    (histo || []).forEach(h => {
       if (!h.client || h.source === 'obat') return;
-      const key = h.client.toLowerCase();
-      if (!histoClients[key]) histoClients[key] = { nom: h.client, telephone: h.telephone||'', email: h.email||'', adresse: h.adresse||'' };
+      const key = h.client.toLowerCase().trim();
+      if (!histoMap[key]) {
+        histoMap[key] = {
+          nom: h.client,
+          telephone: h.telephone || '',
+          email: h.email || '',
+          adresse: h.adresse || ''
+        };
+      }
     });
-    // Fusionner
-    const tous = [...(supaClients||[])];
-    Object.values(histoClients).forEach(hc => {
-      if (!tous.find(c => (c.nom||'').toLowerCase() === hc.nom.toLowerCase())) tous.push(hc);
+
+    // Normaliser les clients Supabase (champ nom ou client)
+    const normalized = (supaClients || []).map(c => ({
+      nom: c.nom || c.client || c.name || '',
+      telephone: c.telephone || c.tel || c.phone || '',
+      email: c.email || '',
+      adresse: c.adresse || c.address || ''
+    })).filter(c => c.nom);
+
+    // Fusionner sans doublons
+    const tous = [...normalized];
+    Object.values(histoMap).forEach(hc => {
+      if (!tous.find(c => c.nom.toLowerCase() === hc.nom.toLowerCase())) {
+        tous.push(hc);
+      }
     });
-    _clientsCache = tous;
-    return tous;
-  } catch(e) { return []; }
+
+    _clientsCache = tous.sort((a, b) => a.nom.localeCompare(b.nom));
+    console.log(`✅ Cache clients : ${_clientsCache.length} clients chargés`);
+    return _clientsCache;
+  } catch(e) {
+    console.error('getClientsCache error:', e);
+    return [];
+  }
 }
 
 async function autocompleteClient(prefix, query, champ) {
