@@ -2307,6 +2307,19 @@ async function supprimerIntervention(id) {
 // ═══════════════════════════════════════════════════
 let clientsData = [];
 
+function filtrerClients(query) {
+  if (!clientsData || !clientsData.length) return;
+  const q = query.toLowerCase().trim();
+  if (!q) { renderListeClients(clientsData); return; }
+  const filtres = clientsData.filter(c =>
+    (c.nom||'').toLowerCase().includes(q) ||
+    (c.telephone||'').includes(q) ||
+    (c.email||'').toLowerCase().includes(q) ||
+    (c.adresse||'').toLowerCase().includes(q)
+  );
+  renderListeClients(filtres);
+}
+
 async function chargerClients() {
   const container = document.getElementById('clients-list');
   if (!container) return;
