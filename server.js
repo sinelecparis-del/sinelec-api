@@ -335,7 +335,7 @@ class SC(pdfcanvas.Canvas):
             self.translate(cx,cy); self.rotate(-15)
             self.setFont('Helvetica-Bold',7); self.drawCentredString(0,1.0*cm,'SINELEC')
             self.setFont('Helvetica-Bold',19); self.drawCentredString(0,0.15*cm,'SIGNE')
-            self.setFont('Helvetica-Bold',7.5); self.drawCentredString(0,-0.55*cm,'${data.date_signature ? new Date(data.date_signature).toLocaleDateString("fr-FR") : dateStr}')
+            self.setFont('Helvetica-Bold',7.5); self.drawCentredString(0,-0.55*cm,'${dateStr}')
             self.setFont('Helvetica',6.5); self.drawCentredString(0,-1.0*cm,'PARIS')
             self.restoreState()
 doc=SimpleDocTemplate(sys.argv[2],pagesize=A4,leftMargin=1.2*cm,rightMargin=1.0*cm,topMargin=5.6*cm,bottomMargin=1.6*cm)
