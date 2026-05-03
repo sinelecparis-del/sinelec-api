@@ -2295,8 +2295,19 @@ async function verifierAuth() {
 
 function initialiserApp() {
   masquerLogin();
-  // Démarrer sur la page Accueil
-  switchPage('accueil', document.querySelector('.sidebar-item[onclick*="accueil"]'));
+  // Réinitialiser les filtres APRÈS que les variables let soient déclarées
+  setTimeout(() => {
+    // Reset complet de tous les filtres historique
+    if (typeof histoFiltre !== 'undefined') histoFiltre = 'tous';
+    if (typeof histoStatutFiltre !== 'undefined') histoStatutFiltre = null;
+    if (typeof histoSearch !== 'undefined') histoSearch = '';
+    if (typeof histoPage !== 'undefined') histoPage = 1;
+    if (typeof histoFiltreActif !== 'undefined') histoFiltreActif = 'tous';
+    window._histoFiltreMois = null;
+    window._histoFiltreStatut = null;
+    // Naviguer sur l'accueil
+    switchPage('accueil', document.querySelector('.sidebar-item[onclick*="accueil"]'));
+  }, 100);
   // Démarrer le polling signature
   setTimeout(demarrerPollingSignature, 3000);
 }
@@ -4742,8 +4753,13 @@ async function chargerAccueil() {
     renderAccueilDocs(devis,    'acc-tab-devis',    'devis');
     renderAccueilDocs(factures, 'acc-tab-factures', 'factures');
 
-    // A TRAITER MAINTENANT
-    const devisSignesNonFactures = devis.filter(d => norm(d.statut) === 'signe');
+    // A TRAITER : devis signés ET pas encore convertis en facture
+    // Un devis converti en facture a statut 'facture' ou 'termine'
+    const devisSignesNonFactures = devis.filter(d => {
+      const s = norm(d.statut);
+      return s === 'signe'; // statut exact 'signe' = signé mais pas encore facturé
+      // Si converti en facture → statut devient 'facture' → exclu automatiquement
+    });
     const todayStr = now.toISOString().split('T')[0];
     const agendaAujourdhui = (agenda||[])
       .filter(iv => iv.date_intervention === todayStr &&
@@ -4922,6 +4938,9 @@ function filtrerHistorique(type) {
   histoStatutFiltre = null;
   histoSearch = '';
   histoPage = 1;
+  // Réinitialiser les filtres provenant du KPI/tiroir
+  window._histoFiltreMois = null;
+  window._histoFiltreStatut = null;
   document.querySelectorAll('.histo-filter-btn').forEach(b => b.classList.remove('active'));
   event?.target?.classList.add('active');
   renderTableauHistorique();
@@ -4944,11 +4963,27 @@ function renderTableauHistorique() {
       return true;
     });
   }
+  // Filtre mois (depuis tiroir CA ou KPI)
+  if (window._histoFiltreMois) {
+    data = data.filter(d => (d.created_at||d.date||'').startsWith(window._histoFiltreMois));
+  }
+  // Filtre statut spécial (attente paiement / signature)
+  if (window._histoFiltreStatut === 'attente_paiement') {
+    data = data.filter(d => {
+      const s = (d.statut||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+      return d.type === 'facture' && !['paye','payee','acquitte','annule'].includes(s);
+    });
+  } else if (window._histoFiltreStatut === 'attente_signature') {
+    data = data.filter(d => {
+      const s = (d.statut||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+      return d.type === 'devis' && s === 'envoye';
+    });
+  }
   if (histoSearch) {
     data = data.filter(d =>
-      (d.client||'').toLowerCase().includes(histoSearch) ||
-      (d.num||'').toLowerCase().includes(histoSearch) ||
-      (d.adresse||'').toLowerCase().includes(histoSearch)
+      (d.client||'').toLowerCase().includes(histoSearch.toLowerCase()) ||
+      (d.num||'').toLowerCase().includes(histoSearch.toLowerCase()) ||
+      (d.adresse||'').toLowerCase().includes(histoSearch.toLowerCase())
     );
   }
 
