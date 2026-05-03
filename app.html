@@ -92,56 +92,60 @@ body {
 }
 @media(min-width:768px){ .fab-lead { bottom:24px; right:80px; } }
 
-/* ══ SIDEBAR ══ */
+/* ══ SIDEBAR STYLE OBAT ══ */
 .sidebar {
   position:fixed; left:0; top:0; width:var(--sidebar-width); height:100vh;
-  background: #ffffff;
-  border-right: 1px solid rgba(0,0,0,0.06);
+  background: #1B2A4A;
   z-index:100; display:flex; flex-direction:column;
-  box-shadow: 4px 0 24px rgba(0,0,0,0.06);
 }
 
 .sidebar-logo {
-  padding:28px 20px 24px;
-  border-bottom:1px solid var(--border);
-  display:flex; align-items:center; gap:14px;
+  padding:20px 18px 16px;
+  border-bottom:1px solid rgba(255,255,255,0.08);
+  display:flex; align-items:center; gap:12px;
 }
 .sidebar-logo-icon {
-  width:44px; height:44px;
-  background: linear-gradient(135deg, #E8B84B, #FFD700);
-  border-radius:14px; display:flex; align-items:center; justify-content:center;
-  font-size:22px;
-  box-shadow: 0 4px 16px rgba(232,184,75,0.35);
-  animation: float 4s ease-in-out infinite;
+  width:38px; height:38px;
+  background: linear-gradient(135deg, #E8B84B, #C9962A);
+  border-radius:10px; display:flex; align-items:center; justify-content:center;
+  font-size:20px; flex-shrink:0;
+  box-shadow: 0 4px 12px rgba(232,184,75,0.3);
 }
 .sidebar-logo-text h1 {
-  font-size:18px; font-weight:900; letter-spacing:-0.5px;
-  background: linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.7) 100%);
-  -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+  font-size:16px; font-weight:900; letter-spacing:-0.3px; color:#fff;
 }
 .sidebar-logo-text span {
-  font-size:10px; font-weight:600; color:var(--accent);
+  font-size:10px; font-weight:600; color:rgba(255,255,255,0.4);
   letter-spacing:1.5px; text-transform:uppercase;
 }
 
-.sidebar-nav { flex:1; padding:16px 12px; overflow-y:auto; scrollbar-width:thin; }
+.sidebar-nav { flex:1; padding:10px 10px; overflow-y:auto; scrollbar-width:thin; }
+
+.sidebar-section {
+  font-size:10px; font-weight:700; color:rgba(255,255,255,0.3);
+  letter-spacing:1.5px; text-transform:uppercase;
+  padding:12px 10px 5px;
+}
 
 .sidebar-item {
-  display:flex; align-items:center; gap:12px;
-  padding:11px 14px; border-radius:12px; cursor:pointer;
-  transition:all 0.2s; margin-bottom:2px;
-  font-size:13px; font-weight:600; color:rgba(0,0,0,0.5); user-select:none;
+  display:flex; align-items:center; gap:10px;
+  padding:10px 12px; border-radius:8px; cursor:pointer;
+  transition:all 0.15s; margin-bottom:2px;
+  font-size:13px; font-weight:600; color:rgba(255,255,255,0.55); user-select:none;
 }
-.sidebar-item:hover { background:rgba(232,184,75,0.08); color:rgba(0,0,0,0.8); }
+.sidebar-item:hover { background:rgba(255,255,255,0.06); color:#fff; }
 .sidebar-item.active {
-  background: linear-gradient(135deg, rgba(232,184,75,0.15), rgba(201,150,42,0.08));
-  color: var(--accent-2);
-  border:1px solid rgba(232,184,75,0.25);
+  background: rgba(232,184,75,0.15);
+  color: #E8B84B;
 }
-.sidebar-item-icon { font-size:18px; width:22px; text-align:center; }
+.sidebar-item-icon { font-size:16px; width:20px; text-align:center; flex-shrink:0; }
+.sidebar-item-badge {
+  margin-left:auto; background:#ef4444; color:#fff;
+  border-radius:10px; padding:1px 7px; font-size:10px; font-weight:800;
+}
 
 .sidebar-footer {
-  padding:16px 20px; border-top:1px solid var(--border);
+  padding:14px 18px; border-top:1px solid rgba(255,255,255,0.08);
   display:flex; align-items:center; justify-content:space-between;
 }
 
@@ -424,7 +428,181 @@ body {
 .client-toggle-btn { flex:1; padding:10px; text-align:center; font-size:13px; font-weight:700; border-radius:9px; cursor:pointer; transition:all 0.2s; color:var(--text-3); user-select:none; }
 .client-toggle-btn.active { background:linear-gradient(135deg,rgba(232,184,75,0.15),rgba(255,215,0,0.08)); color:var(--gold); border:1px solid rgba(232,184,75,0.2); }
 
-/* ══ DATE INTERVENTION dans historique ══ */
+/* ══ PAGE ACCUEIL STYLE OBAT ══ */
+.obat-topbar {
+  background:#fff; border-bottom:1px solid #e8e8f0;
+  padding:14px 24px; display:flex; align-items:center;
+  justify-content:space-between; position:sticky; top:0; z-index:50;
+}
+.obat-topbar-left h2 { font-size:17px; font-weight:800; color:#1a1a2e; }
+.obat-topbar-left span { font-size:12px; color:#999; }
+.obat-topbar-right { display:flex; gap:10px; }
+.btn-obat-primary { background:#1B2A4A; color:#fff; border:none; border-radius:8px; padding:9px 18px; font-size:13px; font-weight:700; cursor:pointer; }
+.btn-obat-gold { background:linear-gradient(135deg,#E8B84B,#C9962A); color:#fff; border:none; border-radius:8px; padding:9px 18px; font-size:13px; font-weight:700; cursor:pointer; }
+
+.obat-content { padding:20px 24px; }
+
+.obat-kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px; }
+.obat-kpi {
+  background:#fff; border-radius:10px; padding:18px 20px;
+  border:1px solid #e8e8f0;
+}
+.obat-kpi-val { font-size:24px; font-weight:900; color:#1a1a2e; margin-bottom:3px; }
+.obat-kpi-lbl { font-size:11px; color:#999; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; }
+.obat-kpi-trend { font-size:12px; font-weight:700; margin-top:8px; }
+
+.obat-quick { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:20px; }
+.obat-quick-btn {
+  background:#fff; border:1px solid #e8e8f0; border-radius:10px;
+  padding:16px 12px; text-align:center; cursor:pointer;
+  transition:all 0.15s;
+}
+.obat-quick-btn:hover { border-color:#E8B84B; background:#fffbf0; transform:translateY(-2px); box-shadow:0 4px 16px rgba(232,184,75,0.15); }
+.obat-quick-btn:active { transform:translateY(0); }
+
+.obat-row2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px; }
+.obat-row3 { display:grid; grid-template-columns:2fr 1fr; gap:16px; }
+.obat-card { background:#fff; border-radius:10px; border:1px solid #e8e8f0; overflow:hidden; }
+.obat-card-head {
+  padding:14px 18px; border-bottom:1px solid #f0f0f8;
+  display:flex; align-items:center; justify-content:space-between;
+  font-size:13px; font-weight:800; color:#1a1a2e;
+}
+.obat-card-link { font-size:12px; color:#3b82f6; font-weight:600; cursor:pointer; }
+.obat-card-body { padding:0 18px; }
+
+.obat-doc-row {
+  display:flex; align-items:center; gap:12px;
+  padding:11px 0; border-bottom:1px solid #f5f5fa;
+}
+.obat-doc-row:last-child { border-bottom:none; }
+.obat-doc-num { font-size:12px; font-weight:700; color:#C9A84C; width:105px; flex-shrink:0; }
+.obat-doc-info { flex:1; min-width:0; }
+.obat-doc-client { font-size:13px; font-weight:700; color:#1a1a2e; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.obat-doc-desc { font-size:11px; color:#999; }
+.obat-doc-right { text-align:right; flex-shrink:0; }
+.obat-doc-montant { font-size:13px; font-weight:800; }
+.obat-doc-badge { margin-top:3px; }
+
+.obat-agenda-item {
+  display:flex; align-items:center; gap:12px;
+  padding:11px 0; border-bottom:1px solid #f5f5fa;
+}
+.obat-agenda-item:last-child { border-bottom:none; }
+.obat-agenda-heure {
+  width:48px; text-align:center; flex-shrink:0;
+  background:#f0f4ff; border-radius:7px; padding:6px 4px;
+  font-size:12px; font-weight:800; color:#1B2A4A; line-height:1.3;
+}
+.obat-agenda-heure small { display:block; font-size:9px; color:#999; font-weight:600; }
+
+.obat-avis-block {
+  background:linear-gradient(135deg,#fffbf0,#fff8e1);
+  border:1px solid rgba(232,184,75,0.25); border-radius:10px;
+  padding:14px 16px; margin:14px 18px 0; display:flex; align-items:center; gap:14px;
+}
+.obat-avis-nb { font-size:32px; font-weight:900; color:#E8B84B; line-height:1; }
+
+/* ══ HISTORIQUE STYLE OBAT (TABLEAU) ══ */
+.histo-table-wrap {
+  background:#fff; border-radius:10px; border:1px solid #e8e8f0;
+  overflow:hidden; margin-bottom:0;
+}
+.histo-table-filters {
+  padding:14px 18px; border-bottom:1px solid #e8e8f0;
+  display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  background:#fff;
+}
+.histo-filter-btn {
+  padding:6px 14px; border-radius:20px; font-size:12px; font-weight:600;
+  cursor:pointer; border:1.5px solid #e8e8f0; background:#fff; color:#666;
+  transition:all 0.15s;
+}
+.histo-filter-btn.active { background:#1B2A4A; color:#fff; border-color:#1B2A4A; }
+.histo-search {
+  margin-left:auto; padding:7px 12px 7px 32px; border-radius:8px;
+  border:1.5px solid #e8e8f0; font-size:12px; outline:none;
+  background:#f8f8fc; width:200px;
+}
+table.histo-table { width:100%; border-collapse:collapse; }
+table.histo-table thead { background:#f8f8fc; }
+table.histo-table th {
+  padding:11px 14px; text-align:left;
+  font-size:11px; font-weight:800; color:#999;
+  text-transform:uppercase; letter-spacing:0.8px;
+  border-bottom:1px solid #e8e8f0; white-space:nowrap;
+}
+table.histo-table td {
+  padding:13px 14px; font-size:13px;
+  border-bottom:1px solid #f5f5fa; vertical-align:middle;
+}
+table.histo-table tr:last-child td { border-bottom:none; }
+table.histo-table tr:hover td { background:#fafbff; }
+.ht-num { font-weight:700; color:#C9A84C; }
+.ht-client { font-weight:700; color:#1a1a2e; }
+.ht-desc { font-size:11px; color:#999; margin-top:2px; }
+.ht-montant { font-weight:800; text-align:right; }
+.ht-date { color:#999; font-size:12px; white-space:nowrap; }
+.ht-actions { text-align:right; white-space:nowrap; }
+.ht-ico {
+  width:30px; height:30px; border-radius:7px;
+  border:1px solid #e8e8f0; background:#fff;
+  display:inline-flex; align-items:center; justify-content:center;
+  cursor:pointer; font-size:13px; margin-left:3px;
+  transition:all 0.12s; vertical-align:middle;
+}
+.ht-ico:hover { background:#f0f4ff; border-color:#93c5fd; }
+.ht-more {
+  width:30px; height:30px; border-radius:7px;
+  border:1px solid #e8e8f0; background:#fff;
+  display:inline-flex; align-items:center; justify-content:center;
+  cursor:pointer; font-size:13px; font-weight:700; color:#999;
+  margin-left:3px; letter-spacing:1px; vertical-align:middle;
+  transition:all 0.12s; position:relative;
+}
+.ht-more:hover { background:#f8f8fc; }
+
+/* Dropdown menu ··· */
+.ht-dropdown {
+  position:absolute; right:0; top:34px;
+  background:#fff; border:1px solid #e8e8f0;
+  border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,0.1);
+  z-index:999; min-width:180px; overflow:hidden; display:none;
+}
+.ht-dropdown.open { display:block; }
+.ht-dropdown-item {
+  padding:10px 14px; font-size:13px; font-weight:600;
+  color:#1a1a2e; cursor:pointer; display:flex; align-items:center; gap:8px;
+  transition:background 0.1s;
+}
+.ht-dropdown-item:hover { background:#f5f6fa; }
+.ht-dropdown-item.red { color:#ef4444; }
+
+.histo-pagination {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:12px 18px; border-top:1px solid #e8e8f0;
+  font-size:12px; color:#999; background:#fff;
+}
+.histo-page-btns { display:flex; gap:4px; }
+.histo-page-btn {
+  width:30px; height:30px; border-radius:7px; border:1px solid #e8e8f0;
+  background:#fff; display:flex; align-items:center; justify-content:center;
+  font-size:12px; font-weight:600; cursor:pointer; color:#666; transition:all 0.12s;
+}
+.histo-page-btn.active { background:#1B2A4A; color:#fff; border-color:#1B2A4A; }
+.histo-page-btn:hover:not(.active) { background:#f0f4ff; border-color:#93c5fd; color:#1d4ed8; }
+
+/* Badge stat historique */
+.histo-stats {
+  display:grid; grid-template-columns:repeat(4,1fr);
+  gap:1px; background:#e8e8f0;
+  border-bottom:1px solid #e8e8f0;
+}
+.histo-stat {
+  background:#fff; padding:14px 18px;
+}
+.histo-stat-val { font-size:18px; font-weight:900; color:#1a1a2e; }
+.histo-stat-lbl { font-size:11px; color:#999; font-weight:600; margin-top:2px; }
 .date-interv-input {
   border:1.5px solid rgba(218,165,32,0.25); border-radius:8px; padding:5px 8px;
   font-size:12px; background:rgba(255,255,255,0.7); color:var(--text); outline:none;
@@ -689,17 +867,32 @@ body {
     <div class="sidebar-logo-text"><h1>SINELEC</h1><span>Paris & IDF</span></div>
   </div>
   <div class="sidebar-nav">
-    <div class="sidebar-item" onclick="switchPage('depannage', this)" style="border:1.5px solid rgba(201,168,76,0.4);">
-      <span class="sidebar-item-icon">⚡</span><span>Dépannage</span>
+
+    <div class="sidebar-item" onclick="switchPage('accueil', this)">
+      <span class="sidebar-item-icon">🏠</span><span>Accueil</span>
+    </div>
+    <div class="sidebar-item" onclick="switchPage('depannage', this)" style="border:1px solid rgba(232,184,75,0.3);">
+      <span class="sidebar-item-icon">⚡</span><span>Dépannage rapide</span>
     </div>
     <div class="sidebar-item" onclick="switchPage('agenda', this)">
       <span class="sidebar-item-icon">📅</span><span>Agenda</span>
     </div>
+
+    <div class="sidebar-section">Documents</div>
     <div class="sidebar-item active" onclick="switchPage('devis', this)">
       <span class="sidebar-item-icon">📋</span><span>Devis</span>
     </div>
     <div class="sidebar-item" onclick="switchPage('facture', this)">
-      <span class="sidebar-item-icon">💶</span><span>Facture</span>
+      <span class="sidebar-item-icon">💶</span><span>Factures</span>
+    </div>
+    <div class="sidebar-item" onclick="switchPage('historique', this)">
+      <span class="sidebar-item-icon">📁</span><span>Historique</span>
+      <span class="sidebar-item-badge" id="badge-historique" style="display:none;">0</span>
+    </div>
+
+    <div class="sidebar-section">Gestion</div>
+    <div class="sidebar-item" onclick="switchPage('clients', this)">
+      <span class="sidebar-item-icon">👥</span><span>Clients</span>
     </div>
     <div class="sidebar-item" onclick="switchPage('dashboard', this)">
       <span class="sidebar-item-icon">📊</span><span>CA & Stats</span>
@@ -707,8 +900,13 @@ body {
     <div class="sidebar-item" onclick="switchPage('rentabilite', this)">
       <span class="sidebar-item-icon">💰</span><span>Rentabilité</span>
     </div>
-    <div class="sidebar-item" onclick="switchPage('historique', this)">
-      <span class="sidebar-item-icon">📋</span><span>Historique</span>
+
+    <div class="sidebar-section">Outils IA</div>
+    <div class="sidebar-item" onclick="switchPage('rapport', this)">
+      <span class="sidebar-item-icon">📸</span><span>Rapport</span>
+    </div>
+    <div class="sidebar-item" onclick="switchPage('dpe', this)">
+      <span class="sidebar-item-icon">🏠</span><span>Analyse DPE</span>
     </div>
     <div class="sidebar-item" onclick="switchPage('avis', this)">
       <span class="sidebar-item-icon">⭐</span><span>Réponses Avis</span>
@@ -719,27 +917,20 @@ body {
     <div class="sidebar-item" onclick="switchPage('chat', this)">
       <span class="sidebar-item-icon">🤖</span><span>Chat AI</span>
     </div>
-    <div class="sidebar-item" onclick="switchPage('dpe', this)">
-      <span class="sidebar-item-icon">🏠</span><span>Analyse DPE</span>
-    </div>
-    <div class="sidebar-item" onclick="switchPage('rapport', this)">
-      <span class="sidebar-item-icon">📸</span><span>Rapport</span>
-    </div>
-    <div class="sidebar-item" onclick="switchPage('clients', this)">
-      <span class="sidebar-item-icon">👥</span><span>Clients</span>
-    </div>
+
+    <div class="sidebar-section">Système</div>
     <div class="sidebar-item" onclick="switchPage('sante', this)">
       <span class="sidebar-item-icon">🏥</span><span>Santé</span>
     </div>
     <div class="sidebar-item" onclick="switchPage('params', this)">
       <span class="sidebar-item-icon">⚙️</span><span>Paramètres</span>
     </div>
-    <div class="sidebar-item" onclick="seDeconnecter()" style="margin-top:8px;color:#ef4444;">
+    <div class="sidebar-item" onclick="seDeconnecter()" style="color:rgba(239,68,68,0.7);margin-top:4px;">
       <span class="sidebar-item-icon">🚪</span><span>Déconnexion</span>
     </div>
   </div>
   <div class="sidebar-footer">
-    <div style="font-size:11px;color:var(--text-3);font-weight:600;">Mode :</div>
+    <div style="font-size:11px;color:rgba(255,255,255,0.3);font-weight:600;">Mode :</div>
     <div class="theme-toggle" onclick="toggleTheme()"><span id="theme-icon">🌙</span></div>
   </div>
 </div>
@@ -767,22 +958,198 @@ body {
 
 <div class="main-content">
 
-<!-- ════════════ PAGE HISTORIQUE — CARTES MOBILES ════════════ -->
+<!-- ════════════ PAGE ACCUEIL ════════════ -->
+<div id="page-accueil" class="page">
+
+  <!-- Topbar -->
+  <div class="obat-topbar">
+    <div class="obat-topbar-left">
+      <h2 id="accueil-greeting">👋 Bonjour Diahe</h2>
+      <span id="accueil-date"></span>
+    </div>
+    <div class="obat-topbar-right">
+      <button class="btn-obat-primary" onclick="switchPage('devis',document.querySelector('.sidebar-item[onclick*=\'devis\']'))">📋 Nouveau devis</button>
+      <button class="btn-obat-gold" onclick="switchPage('facture',document.querySelector('.sidebar-item[onclick*=\'facture\']'))">💶 Nouvelle facture</button>
+    </div>
+  </div>
+
+  <div class="obat-content">
+
+    <!-- KPI -->
+    <div class="obat-kpi-grid">
+      <div class="obat-kpi">
+        <div class="obat-kpi-lbl">CA ce mois</div>
+        <div class="obat-kpi-val" id="acc-ca-mois">—</div>
+        <div class="obat-kpi-trend" id="acc-ca-mois-trend" style="color:#999;">Chargement...</div>
+      </div>
+      <div class="obat-kpi">
+        <div class="obat-kpi-lbl">CA année 2026</div>
+        <div class="obat-kpi-val" id="acc-ca-annee">—</div>
+        <div class="obat-kpi-trend" style="color:#999;" id="acc-nb-factures">—</div>
+      </div>
+      <div class="obat-kpi">
+        <div class="obat-kpi-lbl">Devis en attente</div>
+        <div class="obat-kpi-val" id="acc-devis-attente">—</div>
+        <div class="obat-kpi-trend" id="acc-devis-relance" style="color:#f59e0b;">—</div>
+      </div>
+      <div class="obat-kpi">
+        <div class="obat-kpi-lbl">Reste à encaisser</div>
+        <div class="obat-kpi-val" id="acc-reste">—</div>
+        <div class="obat-kpi-trend" id="acc-retard" style="color:#999;">—</div>
+      </div>
+    </div>
+
+    <!-- Actions rapides -->
+    <div class="obat-quick">
+      <div class="obat-quick-btn" onclick="switchPage('depannage',null)">
+        <div style="font-size:26px;margin-bottom:8px;">⚡</div>
+        <div style="font-size:13px;font-weight:800;color:#1a1a2e;">Dépannage rapide</div>
+        <div style="font-size:11px;color:#999;margin-top:3px;">Devis en 20 sec</div>
+      </div>
+      <div class="obat-quick-btn" onclick="switchPage('rapport',null)">
+        <div style="font-size:26px;margin-bottom:8px;">📸</div>
+        <div style="font-size:13px;font-weight:800;color:#1a1a2e;">Rapport IA</div>
+        <div style="font-size:11px;color:#999;margin-top:3px;">Photos + description</div>
+      </div>
+      <div class="obat-quick-btn" onclick="switchPage('dpe',null)">
+        <div style="font-size:26px;margin-bottom:8px;">🏠</div>
+        <div style="font-size:13px;font-weight:800;color:#1a1a2e;">Analyse DPE</div>
+        <div style="font-size:11px;color:#999;margin-top:3px;">Devis automatique</div>
+      </div>
+      <div class="obat-quick-btn" onclick="switchPage('avis',null)">
+        <div style="font-size:26px;margin-bottom:8px;">⭐</div>
+        <div style="font-size:13px;font-weight:800;color:#1a1a2e;">Répondre aux avis</div>
+        <div style="font-size:11px;color:#999;margin-top:3px;">SEO Google</div>
+      </div>
+    </div>
+
+    <!-- Derniers docs + Agenda -->
+    <div class="obat-row2">
+
+      <div class="obat-card">
+        <div class="obat-card-head">
+          📋 Derniers documents
+          <span class="obat-card-link" onclick="switchPage('historique',null)">Voir tout →</span>
+        </div>
+        <div class="obat-card-body" id="acc-derniers-docs">
+          <div style="padding:20px;text-align:center;color:#999;font-size:13px;">Chargement...</div>
+        </div>
+      </div>
+
+      <div class="obat-card">
+        <div class="obat-card-head">
+          📅 Agenda du jour
+          <span class="obat-card-link" onclick="switchPage('agenda',null)">Voir tout →</span>
+        </div>
+        <div class="obat-card-body" id="acc-agenda-today">
+          <div style="padding:20px;text-align:center;color:#999;font-size:13px;">Chargement...</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- CA chart + Avis Google -->
+    <div class="obat-row3">
+
+      <div class="obat-card">
+        <div class="obat-card-head">📊 CA des 6 derniers mois</div>
+        <div style="padding:16px 18px;">
+          <div style="position:relative;height:140px;">
+            <canvas id="acc-chart-ca"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="obat-card">
+        <div class="obat-card-head">⭐ Avis Google</div>
+        <div class="obat-avis-block">
+          <div>
+            <div class="obat-avis-nb" id="acc-avis-nb">91</div>
+            <div style="font-size:15px;margin:2px 0;">⭐⭐⭐⭐⭐</div>
+            <div style="font-size:11px;color:#999;font-weight:600;">avis · note 5,0/5</div>
+          </div>
+          <div style="flex:1;">
+            <div style="font-size:12px;font-weight:700;color:#16a34a;margin-bottom:6px;">🎯 Objectif : 150 avis</div>
+            <div style="height:6px;background:#f0f0f0;border-radius:4px;overflow:hidden;">
+              <div id="acc-avis-bar" style="height:100%;width:60%;background:linear-gradient(90deg,#E8B84B,#16a34a);border-radius:4px;transition:width 1s;"></div>
+            </div>
+            <div id="acc-avis-pct" style="font-size:11px;color:#999;margin-top:4px;">60% de l'objectif</div>
+          </div>
+        </div>
+        <div style="padding:14px 18px;display:flex;gap:8px;">
+          <button onclick="switchPage('avis',null)" style="flex:1;padding:9px;border-radius:8px;border:1px solid #E8B84B;background:#fffbf0;color:#C9962A;font-size:12px;font-weight:700;cursor:pointer;">✍️ Répondre</button>
+          <button onclick="window.open('https://g.page/r/CSw-MABnFUAYEAE/review','_blank')" style="flex:1;padding:9px;border-radius:8px;border:none;background:#1B2A4A;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">🔗 Lien avis</button>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+<!-- ════════════ PAGE HISTORIQUE — TABLEAU STYLE OBAT ════════════ -->
 <div id="page-historique" class="page">
-<div class="content" style="max-width:700px;">
+<div class="content" style="max-width:1100px;padding:0;">
 
-  <!-- FILTRES -->
-  <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
-    <button onclick="filtrerHistorique('tous')" id="filter-tous" class="btn-filter" style="flex:1;min-width:80px;background:linear-gradient(135deg,var(--accent),var(--gold));color:#fff;border:none;border-radius:12px;padding:12px 16px;font-size:13px;font-weight:700;cursor:pointer;">Tous</button>
-    <button onclick="filtrerHistorique('devis')" id="filter-devis" class="btn-filter" style="flex:1;min-width:80px;background:rgba(59,130,246,0.1);color:#3b82f6;border:1px solid rgba(59,130,246,0.25);border-radius:12px;padding:12px 16px;font-size:13px;font-weight:700;cursor:pointer;">📋 Devis</button>
-    <button onclick="filtrerHistorique('facture')" id="filter-facture" class="btn-filter" style="flex:1;min-width:80px;background:rgba(16,185,129,0.1);color:#10b981;border:1px solid rgba(16,185,129,0.25);border-radius:12px;padding:12px 16px;font-size:13px;font-weight:700;cursor:pointer;">💶 Factures</button>
+  <!-- Topbar -->
+  <div class="obat-topbar">
+    <div class="obat-topbar-left">
+      <h2>📁 Historique</h2>
+      <span>Tous vos documents</span>
+    </div>
+    <div class="obat-topbar-right">
+      <button class="btn-obat-primary" onclick="switchPage('devis',null)">📋 Nouveau devis</button>
+      <button class="btn-obat-gold" onclick="switchPage('facture',null)">💶 Nouvelle facture</button>
+    </div>
   </div>
 
-  <!-- LISTE CARTES -->
-  <div id="histo-cards">
-    <div class="panier-empty">Chargement...</div>
+  <!-- Stats rapides -->
+  <div class="histo-stats" id="histo-stats-bar">
+    <div class="histo-stat"><div class="histo-stat-val" id="histo-stat-total">—</div><div class="histo-stat-lbl">Total documents</div></div>
+    <div class="histo-stat"><div class="histo-stat-val" id="histo-stat-ca">—</div><div class="histo-stat-lbl">CA facturé</div></div>
+    <div class="histo-stat"><div class="histo-stat-val" id="histo-stat-attente">—</div><div class="histo-stat-lbl">Devis en attente</div></div>
+    <div class="histo-stat"><div class="histo-stat-val" id="histo-stat-encaisser">—</div><div class="histo-stat-lbl">Reste à encaisser</div></div>
   </div>
 
+  <div class="histo-table-wrap">
+
+    <!-- Filtres -->
+    <div class="histo-table-filters">
+      <button class="histo-filter-btn active" onclick="filtrerHistorique('tous')">Tous</button>
+      <button class="histo-filter-btn" onclick="filtrerHistorique('devis')">📋 Devis</button>
+      <button class="histo-filter-btn" onclick="filtrerHistorique('facture')">💶 Factures</button>
+      <button class="histo-filter-btn" onclick="filtrerHistoriqueStatut('signe')">✅ Signés</button>
+      <button class="histo-filter-btn" onclick="filtrerHistoriqueStatut('paye')">💰 Payées</button>
+      <button class="histo-filter-btn" onclick="filtrerHistoriqueStatut('attente')">⏳ En attente</button>
+      <input type="text" class="histo-search" placeholder="🔍 Rechercher..." oninput="rechercherHistorique(this.value)">
+    </div>
+
+    <!-- Tableau -->
+    <table class="histo-table">
+      <thead>
+        <tr>
+          <th>Numéro</th>
+          <th>Type</th>
+          <th>Statut</th>
+          <th>Client / Chantier</th>
+          <th>Date</th>
+          <th>Intervention</th>
+          <th style="text-align:right;">Montant HT</th>
+          <th style="text-align:right;">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="histo-table-body">
+        <tr><td colspan="8" style="text-align:center;padding:40px;color:#999;">Chargement...</td></tr>
+      </tbody>
+    </table>
+
+    <!-- Pagination -->
+    <div class="histo-pagination">
+      <div id="histo-pagination-info">— éléments</div>
+      <div class="histo-page-btns" id="histo-page-btns"></div>
+    </div>
+
+  </div>
 </div>
 </div>
 
@@ -1541,6 +1908,7 @@ function switchPage(page, el) {
   window.scrollTo(0, 0);
   setTimeout(() => { window.scrollTo(0, 0); if (pageEl) pageEl.scrollIntoView({ behavior:'instant', block:'start' }); }, 50);
   if (page === 'depannage') setTimeout(initDepannage, 100);
+  if (page === 'accueil') setTimeout(chargerAccueil, 100);
   if (page === 'historique') setTimeout(chargerHistorique, 100);
   if (page === 'dashboard') setTimeout(chargerDashboard, 100);
   if (page === 'clients') setTimeout(chargerClients, 100);
@@ -3510,6 +3878,366 @@ async function genererRapport() {
     showToast('❌ ' + e.message, '⚠️');
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '📄 Générer le rapport PDF'; }
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// PAGE ACCUEIL
+// ═══════════════════════════════════════════════════
+let accChartCA = null;
+
+async function chargerAccueil() {
+  // Date + heure
+  const now = new Date();
+  const jours = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+  const moisN = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  const el = document.getElementById('accueil-date');
+  if (el) el.textContent = `${jours[now.getDay()]} ${now.getDate()} ${moisN[now.getMonth()]} ${now.getFullYear()} · Paris`;
+
+  try {
+    const [resCA, resAgenda] = await Promise.all([
+      fetch('/api/ca-complet'),
+      fetch('/api/agenda')
+    ]);
+    const docs = await resCA.json();
+    const agenda = await resAgenda.json();
+
+    // ── KPI ──
+    const annee = now.getFullYear();
+    const moisCourant = `${annee}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    const factures = docs.filter(d => d.type === 'facture');
+    const devis = docs.filter(d => d.type === 'devis');
+
+    const caMois = factures.filter(f => (f.created_at||'').startsWith(moisCourant))
+      .reduce((s,f) => s + parseFloat(f.total_ht||0), 0);
+    const caAnnee = factures.filter(f => (f.created_at||'').startsWith(String(annee)))
+      .reduce((s,f) => s + parseFloat(f.total_ht||0), 0);
+    const devisAttente = devis.filter(d => {
+      const s = (d.statut||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+      return s === 'envoye';
+    });
+    const devisRelance = devisAttente.filter(d => (new Date()-new Date(d.created_at))/3600000 > 48);
+    const resteEncaisser = factures.filter(f => {
+      const s = (f.statut||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+      return !['paye','payee','acquitte','annule'].includes(s);
+    }).reduce((s,f) => s + parseFloat(f.total_ht||0), 0);
+
+    document.getElementById('acc-ca-mois').textContent = Math.round(caMois).toLocaleString('fr-FR') + ' €';
+    document.getElementById('acc-ca-annee').textContent = Math.round(caAnnee).toLocaleString('fr-FR') + ' €';
+    document.getElementById('acc-devis-attente').textContent = devisAttente.length + ' devis';
+    document.getElementById('acc-reste').textContent = Math.round(resteEncaisser).toLocaleString('fr-FR') + ' €';
+    document.getElementById('acc-nb-factures').textContent = `${factures.length} factures au total`;
+    document.getElementById('acc-devis-relance').textContent = devisRelance.length > 0 ? `⚠️ ${devisRelance.length} devis +48h` : '✅ Tous récents';
+    document.getElementById('acc-devis-relance').style.color = devisRelance.length > 0 ? '#f59e0b' : '#16a34a';
+    document.getElementById('acc-retard').textContent = '0 € en retard';
+
+    // ── Avis Google ──
+    const nbAvis = 91; // mis à jour manuellement
+    const objectif = 150;
+    const pct = Math.round((nbAvis / objectif) * 100);
+    const barEl = document.getElementById('acc-avis-bar');
+    const pctEl = document.getElementById('acc-avis-pct');
+    if (barEl) barEl.style.width = pct + '%';
+    if (pctEl) pctEl.textContent = `${pct}% de l'objectif (${nbAvis}/${objectif})`;
+
+    // ── Derniers documents ──
+    const derniers = docs.slice(0, 5);
+    const docsEl = document.getElementById('acc-derniers-docs');
+    if (docsEl) {
+      docsEl.innerHTML = derniers.map(d => {
+        const statut = (d.statut||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+        const estPaye = ['paye','payee','acquitte'].includes(statut);
+        const estSigne = statut === 'signe';
+        const badgeHtml = estPaye
+          ? `<span class="badge b-paye" style="background:#d1fae5;color:#065f46;border-radius:20px;padding:3px 9px;font-size:11px;font-weight:700;">💰 Payée</span>`
+          : estSigne
+          ? `<span class="badge b-signe" style="background:#dcfce7;color:#15803d;border-radius:20px;padding:3px 9px;font-size:11px;font-weight:700;">✅ Signé</span>`
+          : statut === 'annule'
+          ? `<span style="background:#f3f4f6;color:#6b7280;border-radius:20px;padding:3px 9px;font-size:11px;font-weight:700;">❌ Annulé</span>`
+          : (new Date()-new Date(d.created_at))/3600000 > 48 && d.type === 'devis'
+          ? `<span style="background:#fef2f2;color:#dc2626;border-radius:20px;padding:3px 9px;font-size:11px;font-weight:700;">⚠️ +48h</span>`
+          : `<span style="background:#fef9c3;color:#854d0e;border-radius:20px;padding:3px 9px;font-size:11px;font-weight:700;">⏳ En attente</span>`;
+        return `
+        <div class="obat-doc-row">
+          <div class="obat-doc-num">${d.num}</div>
+          <div class="obat-doc-info">
+            <div class="obat-doc-client">${d.client||'—'}</div>
+            <div class="obat-doc-desc">${(d.prestations||[{nom:'—'}])[0]?.nom||'—'}</div>
+          </div>
+          <div class="obat-doc-right">
+            <div class="obat-doc-montant">${parseFloat(d.total_ht||0).toFixed(0)} €</div>
+            <div class="obat-doc-badge">${badgeHtml}</div>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    // ── Agenda du jour ──
+    const todayStr = now.toISOString().split('T')[0];
+    const today = (agenda||[]).filter(iv => iv.date_intervention === todayStr && iv.statut !== 'terminé' && iv.statut !== 'annulé')
+      .sort((a,b) => (a.heure||'').localeCompare(b.heure||''));
+    const agendaEl = document.getElementById('acc-agenda-today');
+    if (agendaEl) {
+      if (!today.length) {
+        agendaEl.innerHTML = `<div style="padding:24px;text-align:center;color:#999;font-size:13px;">Aucune intervention aujourd'hui</div>`;
+      } else {
+        agendaEl.innerHTML = today.map(iv => `
+        <div class="obat-agenda-item">
+          <div class="obat-agenda-heure">${(iv.heure||'?').replace(':00','h')}<small>~1h</small></div>
+          <div style="flex:1;">
+            <div style="font-size:13px;font-weight:700;color:#1a1a2e;">${iv.client||'Client'}</div>
+            <div style="font-size:11px;color:#999;">${iv.type_intervention||'Intervention'}</div>
+            ${iv.adresse ? `<div style="font-size:11px;color:#3b82f6;margin-top:1px;">📍 ${iv.adresse.substring(0,35)}...</div>` : ''}
+          </div>
+          ${iv.telephone ? `<a href="tel:${iv.telephone}" style="font-size:18px;text-decoration:none;">📞</a>` : ''}
+        </div>`).join('');
+        agendaEl.innerHTML += `<div style="padding:10px 0;text-align:center;background:#f0fdf4;margin:8px -18px -1px;font-size:12px;font-weight:700;color:#15803d;">✅ ${today.length} intervention${today.length>1?'s':''} aujourd'hui</div>`;
+      }
+    }
+
+    // ── Graphique CA 6 mois ──
+    const labels = [], vals = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+      const mKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      labels.push(d.toLocaleDateString('fr-FR',{month:'short'}));
+      vals.push(Math.round(factures.filter(f=>(f.created_at||'').startsWith(mKey)).reduce((s,f)=>s+parseFloat(f.total_ht||0),0)));
+    }
+    if (accChartCA) { accChartCA.destroy(); accChartCA = null; }
+    const ctx = document.getElementById('acc-chart-ca')?.getContext('2d');
+    if (ctx) {
+      accChartCA = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            data: vals,
+            backgroundColor: vals.map((_,i) => i === vals.length-1 ? 'rgba(232,184,75,0.3)' : '#1B2A4A'),
+            borderRadius: 6,
+            borderWidth: vals.map((_,i) => i === vals.length-1 ? 2 : 0),
+            borderColor: '#E8B84B'
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color:'#999', font:{size:11} }, grid:{display:false}, border:{display:false} },
+            y: { ticks: { color:'#999', font:{size:11}, callback: v => v.toLocaleString('fr-FR')+'€' }, grid:{color:'#f5f5fa'}, border:{display:false} }
+          }
+        }
+      });
+    }
+
+  } catch(e) {
+    console.error('Accueil:', e);
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// HISTORIQUE — TABLEAU STYLE OBAT
+// ═══════════════════════════════════════════════════
+let histoPage = 1;
+const HISTO_PER_PAGE = 25;
+let histoFiltre = 'tous';
+let histoStatutFiltre = null;
+let histoSearch = '';
+
+function filtrerHistoriqueStatut(statut) {
+  histoStatutFiltre = statut;
+  histoFiltre = 'tous';
+  histoPage = 1;
+  // Reset boutons filtre type
+  document.querySelectorAll('.histo-filter-btn').forEach(b => b.classList.remove('active'));
+  renderTableauHistorique();
+}
+
+function rechercherHistorique(q) {
+  histoSearch = q.toLowerCase().trim();
+  histoPage = 1;
+  renderTableauHistorique();
+}
+
+function filtrerHistorique(type) {
+  histoFiltreActif = type;
+  histoFiltre = type;
+  histoStatutFiltre = null;
+  histoSearch = '';
+  histoPage = 1;
+  document.querySelectorAll('.histo-filter-btn').forEach(b => b.classList.remove('active'));
+  event?.target?.classList.add('active');
+  renderTableauHistorique();
+  // Garder compatibilité avec l'ancien afficherHistorique si besoin
+}
+
+function renderTableauHistorique() {
+  const tbody = document.getElementById('histo-table-body');
+  if (!tbody) return;
+
+  // Filtrer
+  let data = [...historiqueData];
+  if (histoFiltre !== 'tous') data = data.filter(d => d.type === histoFiltre);
+  if (histoStatutFiltre) {
+    data = data.filter(d => {
+      const s = (d.statut||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+      if (histoStatutFiltre === 'signe') return s === 'signe';
+      if (histoStatutFiltre === 'paye') return ['paye','payee','acquitte'].includes(s);
+      if (histoStatutFiltre === 'attente') return s === 'envoye';
+      return true;
+    });
+  }
+  if (histoSearch) {
+    data = data.filter(d =>
+      (d.client||'').toLowerCase().includes(histoSearch) ||
+      (d.num||'').toLowerCase().includes(histoSearch) ||
+      (d.adresse||'').toLowerCase().includes(histoSearch)
+    );
+  }
+
+  // Trier par date desc
+  data.sort((a,b) => new Date(b.created_at||b.date) - new Date(a.created_at||a.date));
+
+  // Stats rapides
+  const totalDocs = historiqueData.length;
+  const caTotal = historiqueData.filter(d=>d.type==='facture').reduce((s,d)=>s+parseFloat(d.total_ht||0),0);
+  const devisAttente = historiqueData.filter(d=>{const s=(d.statut||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); return d.type==='devis'&&s==='envoye';}).length;
+  const reste = historiqueData.filter(d=>{const s=(d.statut||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); return d.type==='facture'&&!['paye','payee','acquitte','annule'].includes(s);}).reduce((s,d)=>s+parseFloat(d.total_ht||0),0);
+  const el1 = document.getElementById('histo-stat-total'); if(el1) el1.textContent = totalDocs;
+  const el2 = document.getElementById('histo-stat-ca'); if(el2) el2.textContent = Math.round(caTotal).toLocaleString('fr-FR')+'€';
+  const el3 = document.getElementById('histo-stat-attente'); if(el3) el3.textContent = devisAttente;
+  const el4 = document.getElementById('histo-stat-encaisser'); if(el4) el4.textContent = Math.round(reste).toLocaleString('fr-FR')+'€';
+
+  // Pagination
+  const total = data.length;
+  const pages = Math.ceil(total / HISTO_PER_PAGE);
+  const start = (histoPage - 1) * HISTO_PER_PAGE;
+  const pageData = data.slice(start, start + HISTO_PER_PAGE);
+
+  const infoEl = document.getElementById('histo-pagination-info');
+  if (infoEl) infoEl.textContent = `${start+1} à ${Math.min(start+HISTO_PER_PAGE, total)} sur ${total} éléments`;
+
+  // Boutons pagination
+  const btnsEl = document.getElementById('histo-page-btns');
+  if (btnsEl) {
+    btnsEl.innerHTML = `<div class="histo-page-btn" onclick="histoChangePage(${histoPage-1})">‹</div>`;
+    const maxBtn = Math.min(pages, 5);
+    for (let p = 1; p <= maxBtn; p++) {
+      btnsEl.innerHTML += `<div class="histo-page-btn${p===histoPage?' active':''}" onclick="histoChangePage(${p})">${p}</div>`;
+    }
+    if (pages > 5) btnsEl.innerHTML += `<div class="histo-page-btn" style="cursor:default;">...</div><div class="histo-page-btn${pages===histoPage?' active':''}" onclick="histoChangePage(${pages})">${pages}</div>`;
+    btnsEl.innerHTML += `<div class="histo-page-btn" onclick="histoChangePage(${histoPage+1})">›</div>`;
+  }
+
+  // Tableau
+  if (!pageData.length) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:40px;color:#999;font-size:14px;">Aucun document trouvé</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = pageData.map(item => {
+    const statut = (item.statut||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    const type = item.type || 'facture';
+    const isObat = item.source === 'obat';
+    const montant = parseFloat(item.total_ht||0).toFixed(0);
+    const date = new Date(item.created_at||item.date).toLocaleDateString('fr-FR');
+    const ageH = (new Date()-new Date(item.created_at||item.date))/3600000;
+
+    // Type badge
+    const typeBadge = type === 'devis'
+      ? `<span style="background:#eff6ff;color:#3b82f6;border:1px solid #bfdbfe;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;">📋 Devis</span>`
+      : `<span style="background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;">💶 Facture</span>`;
+
+    // Statut badge
+    let statutBadge;
+    const estPaye = ['paye','payee','acquitte'].includes(statut);
+    const estSigne = statut === 'signe';
+    const estAnnule = statut === 'annule';
+    const estAlerte = type === 'devis' && statut === 'envoye' && ageH > 48;
+    if (estPaye) statutBadge = `<span style="background:#d1fae5;color:#065f46;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;">💰 Payée</span>`;
+    else if (estSigne) statutBadge = `<span style="background:#dcfce7;color:#15803d;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;">✅ Signé</span>`;
+    else if (estAnnule) statutBadge = `<span style="background:#f3f4f6;color:#6b7280;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;">❌ Annulé</span>`;
+    else if (estAlerte) statutBadge = `<span style="background:#fef2f2;color:#dc2626;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;">⚠️ +48h</span>`;
+    else statutBadge = `<span style="background:#fef9c3;color:#854d0e;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;">⏳ En attente</span>`;
+
+    // Intervention date
+    const dateInterv = item.date_intervention
+      ? `<div style="color:#1B2A4A;font-weight:600;font-size:12px;">📅 ${new Date(item.date_intervention).toLocaleDateString('fr-FR')}</div>`
+      : `<input type="date" value="" onchange="majDateIntervention('${item.num}',this.value)" style="border:1px solid #e8e8f0;border-radius:6px;padding:4px 8px;font-size:11px;color:#999;outline:none;cursor:pointer;background:#f8f8fc;" title="Planifier intervention">`;
+
+    // Actions
+    let actions = `
+      <div class="ht-ico" onclick="previsualiserPDF('${item.num}')" title="Aperçu">👁️</div>
+      <div class="ht-ico" onclick="telechargerPDF('${item.num}')" title="Télécharger">⬇️</div>`;
+
+    if (!isObat) {
+      const moreId = `more-${item.num}`;
+      actions += `
+      <div class="ht-more" onclick="toggleDropdown('${moreId}',event)" title="Plus">
+        ···
+        <div class="ht-dropdown" id="${moreId}">
+          ${type === 'devis' ? `<div class="ht-dropdown-item" onclick="convertirEnFacture('${item.num}')">💶 → Facture</div>` : ''}
+          ${type === 'devis' && !estSigne ? `<div class="ht-dropdown-item" onclick="ouvrirPopupSig('${item.num}')">✍️ Signature</div>` : ''}
+          ${type === 'devis' && !estSigne ? `<div class="ht-dropdown-item" onclick="marquerSigne('${item.num}')">✅ Marquer signé</div>` : ''}
+          ${type === 'facture' && !estPaye && !estAnnule ? `
+            <div class="ht-dropdown-item" onclick="marquerPaye('${item.num}','terminal')">💳 Payé — Terminal</div>
+            <div class="ht-dropdown-item" onclick="marquerPaye('${item.num}','virement')">🏦 Payé — Virement</div>
+            <div class="ht-dropdown-item" onclick="marquerPaye('${item.num}','especes')">💶 Payé — Espèces</div>
+            <div class="ht-dropdown-item" onclick="genererLienPaiement('${item.num}')">🔗 Lien CB</div>
+            <div class="ht-dropdown-item" onclick="annulerFacture('${item.num}')">❌ Annuler</div>
+          ` : ''}
+          <div class="ht-dropdown-item" onclick="dupliquerDoc('${item.num}')">📋 Dupliquer</div>
+          <div class="ht-dropdown-item" onclick="creerFicheClient('${item.num}')">👤 Fiche client</div>
+          <div class="ht-dropdown-item red" onclick="supprimerDoc('${item.num}')">🗑️ Supprimer</div>
+        </div>
+      </div>`;
+    }
+
+    const prestNom = (item.prestations||[{nom:'—'}])[0]?.nom || '—';
+
+    return `<tr>
+      <td class="ht-num">${item.num}</td>
+      <td>${typeBadge}</td>
+      <td>${statutBadge}</td>
+      <td>
+        <div class="ht-client">${item.client||'—'}</div>
+        <div class="ht-desc">${prestNom.substring(0,40)}${prestNom.length>40?'...':''}</div>
+      </td>
+      <td class="ht-date">${date}</td>
+      <td class="ht-date">${dateInterv}</td>
+      <td class="ht-montant" style="color:${estPaye?'#16a34a':'#1a1a2e'}">${parseInt(montant).toLocaleString('fr-FR')} €</td>
+      <td class="ht-actions">${actions}</td>
+    </tr>`;
+  }).join('');
+}
+
+function histoChangePage(p) {
+  const maxP = Math.ceil(historiqueData.length / HISTO_PER_PAGE);
+  if (p < 1 || p > maxP) return;
+  histoPage = p;
+  renderTableauHistorique();
+  document.querySelector('.histo-table-wrap')?.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function toggleDropdown(id, e) {
+  e.stopPropagation();
+  // Fermer tous les autres
+  document.querySelectorAll('.ht-dropdown.open').forEach(d => { if (d.id !== id) d.classList.remove('open'); });
+  document.getElementById(id)?.classList.toggle('open');
+}
+// Fermer dropdowns au clic ailleurs
+document.addEventListener('click', () => document.querySelectorAll('.ht-dropdown.open').forEach(d => d.classList.remove('open')));
+
+async function chargerHistorique() {
+  afficherSkeleton('histo-table-body', 5);
+  try {
+    const res = await fetch('/api/ca-complet');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    historiqueData = await res.json();
+    renderTableauHistorique();
+    demarrerPollingSignature();
+  } catch(e) {
+    const tbody = document.getElementById('histo-table-body');
+    if (tbody) tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:40px;color:#ef4444;">❌ ${e.message}</td></tr>`;
   }
 }
 
