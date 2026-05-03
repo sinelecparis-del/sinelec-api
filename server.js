@@ -1301,6 +1301,20 @@ app.get('/paiement-confirme/:num', async (req, res) => {
   res.send(`<html><body style="text-align:center;padding:40px;font-family:Arial;"><div style="max-width:500px;margin:40px auto;background:white;border-radius:20px;padding:40px;box-shadow:0 4px 20px rgba(0,0,0,0.1);"><div style="font-size:64px;">✅</div><h2 style="color:#1B2A4A;">Paiement confirmé !</h2><p style="color:#555;">Référence : <strong style="color:#C9A84C;">${num}</strong></p><p style="color:#aaa;margin-top:20px;">SINELEC Paris — 07 87 38 86 22</p></div></body></html>`);
 });
 
+// ── ROUTE SMS DIRECT ──────────────────────────────
+app.post('/api/sms', authMiddleware, async (req, res) => {
+  const { telephone, message } = req.body;
+  if (!telephone || !message) return res.status(400).json({ success: false, error: 'telephone et message requis' });
+  try {
+    await envoyerSMS(telephone, message);
+    console.log(`📱 SMS envoyé à ${telephone}`);
+    res.json({ success: true });
+  } catch(e) {
+    console.error('SMS error:', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 app.post('/api/marquer-paye', async (req, res) => {
   const { num, mode_paiement } = req.body;
   if (!num) return res.status(400).json({ error: 'Numéro manquant' });
