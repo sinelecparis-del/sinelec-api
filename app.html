@@ -429,79 +429,226 @@ body {
 .client-toggle-btn.active { background:linear-gradient(135deg,rgba(232,184,75,0.15),rgba(255,215,0,0.08)); color:var(--gold); border:1px solid rgba(232,184,75,0.2); }
 
 /* ══ PAGE ACCUEIL STYLE OBAT ══ */
+/* ══ TOPBAR ACCUEIL ══ */
 .obat-topbar {
-  background:#fff; border-bottom:1px solid #e8e8f0;
-  padding:14px 24px; display:flex; align-items:center;
+  background:#fff; border-bottom:1px solid #e8ecf0;
+  padding:13px 26px; display:flex; align-items:center; gap:14px;
   justify-content:space-between; position:sticky; top:0; z-index:50;
+  box-shadow:0 1px 6px rgba(11,31,58,0.05);
 }
-.obat-topbar-left h2 { font-size:17px; font-weight:800; color:#1a1a2e; }
-.obat-topbar-left span { font-size:12px; color:#999; }
-.obat-topbar-right { display:flex; gap:10px; }
-.btn-obat-primary { background:#1B2A4A; color:#fff; border:none; border-radius:8px; padding:9px 18px; font-size:13px; font-weight:700; cursor:pointer; }
-.btn-obat-gold { background:linear-gradient(135deg,#E8B84B,#C9962A); color:#fff; border:none; border-radius:8px; padding:9px 18px; font-size:13px; font-weight:700; cursor:pointer; }
+.obat-topbar-left h2 { font-size:17px; font-weight:900; color:#0B1F3A; letter-spacing:-0.2px; }
+.obat-topbar-left span { font-size:11px; color:#8896A8; margin-top:1px; }
+.obat-topbar-right { display:flex; gap:10px; align-items:center; }
+.btn-obat-primary {
+  background:#0B1F3A; color:#fff; border:none; border-radius:9px;
+  padding:9px 18px; font-size:12px; font-weight:700; cursor:pointer;
+  transition:all 0.15s; font-family:inherit;
+}
+.btn-obat-primary:hover { background:#1B2A4A; transform:translateY(-1px); }
+.btn-obat-gold {
+  background:linear-gradient(135deg,#E8B84B,#C9962A); color:#0B1F3A;
+  border:none; border-radius:9px; padding:9px 18px; font-size:12px;
+  font-weight:800; cursor:pointer; font-family:inherit;
+  box-shadow:0 4px 14px rgba(232,184,75,0.35); transition:all 0.18s;
+}
+.btn-obat-gold:hover { transform:translateY(-1px); box-shadow:0 6px 20px rgba(232,184,75,0.45); }
 
-.obat-content { padding:20px 24px; }
+.obat-content { padding:20px 26px; }
 
-.obat-kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px; }
+/* ══ ALERTE DEVIS +48H ══ */
+.acc-alerte {
+  background:linear-gradient(135deg,#fef5f5,#fff8f8);
+  border:1.5px solid #fecaca; border-radius:11px;
+  padding:12px 18px; margin-bottom:18px;
+  display:flex; align-items:center; gap:12px;
+  box-shadow:0 2px 10px rgba(239,68,68,0.08);
+  animation:fadeUpAcc 0.4s ease;
+}
+@keyframes fadeUpAcc { from{opacity:0;transform:translateY(-8px);}to{opacity:1;transform:translateY(0);} }
+.acc-alerte-pulse { width:8px; height:8px; background:#ef4444; border-radius:50%; flex-shrink:0; box-shadow:0 0 0 3px rgba(239,68,68,0.2); animation:pulseAcc 2s infinite; }
+@keyframes pulseAcc { 0%,100%{box-shadow:0 0 0 3px rgba(239,68,68,0.18);}50%{box-shadow:0 0 0 7px rgba(239,68,68,0);} }
+.acc-alerte-txt { flex:1; }
+.acc-alerte-title { font-size:12px; font-weight:700; color:#991b1b; }
+.acc-alerte-sub { font-size:11px; color:#dc2626; opacity:0.65; margin-top:2px; }
+.acc-alerte-btn { background:#dc2626; color:#fff; border:none; border-radius:7px; padding:7px 13px; font-size:11px; font-weight:700; cursor:pointer; font-family:inherit; white-space:nowrap; transition:all 0.15s; }
+.acc-alerte-btn:hover { background:#b91c1c; }
+
+/* ══ KPI PREMIUM ══ */
+.obat-kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:13px; margin-bottom:16px; }
 .obat-kpi {
-  background:#fff; border-radius:10px; padding:18px 20px;
-  border:1px solid #e8e8f0;
+  background:#fff; border-radius:12px; padding:18px 20px;
+  border:1.5px solid #E4E7EF; position:relative; overflow:hidden;
+  transition:all 0.2s; cursor:default;
 }
-.obat-kpi-val { font-size:24px; font-weight:900; color:#1a1a2e; margin-bottom:3px; }
-.obat-kpi-lbl { font-size:11px; color:#999; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; }
-.obat-kpi-trend { font-size:12px; font-weight:700; margin-top:8px; }
+.obat-kpi::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:3px;
+  border-radius:12px 12px 0 0;
+}
+.obat-kpi.k1::before { background:linear-gradient(90deg,#E8B84B,#FFD270); }
+.obat-kpi.k2::before { background:linear-gradient(90deg,#16a34a,#4ade80); }
+.obat-kpi.k3::before { background:linear-gradient(90deg,#f59e0b,#fcd34d); }
+.obat-kpi.k4::before { background:linear-gradient(90deg,#3b82f6,#93c5fd); }
+.obat-kpi:hover { transform:translateY(-3px); box-shadow:0 10px 28px rgba(11,31,58,0.1); border-color:transparent; }
+.obat-kpi-icon { font-size:28px; opacity:0.08; position:absolute; top:14px; right:14px; }
+.obat-kpi-lbl { font-size:10px; color:#8896A8; font-weight:700; text-transform:uppercase; letter-spacing:1px; margin-bottom:9px; }
+.obat-kpi-val { font-size:24px; font-weight:900; color:#0B1F3A; letter-spacing:-0.5px; margin-bottom:8px; }
+.obat-kpi-trend { font-size:11px; font-weight:600; }
+.obat-kpi-sub { font-size:10.5px; color:#8896A8; margin-top:4px; }
 
-.obat-quick { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:20px; }
+/* ══ QUICK ACTIONS PREMIUM ══ */
+.obat-quick { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:16px; }
 .obat-quick-btn {
-  background:#fff; border:1px solid #e8e8f0; border-radius:10px;
-  padding:16px 12px; text-align:center; cursor:pointer;
+  background:#fff; border:1.5px solid #E4E7EF; border-radius:12px;
+  padding:16px 14px; cursor:pointer; display:flex;
+  flex-direction:column; align-items:flex-start; gap:7px;
+  transition:all 0.2s; position:relative; overflow:hidden;
+}
+.obat-quick-btn:hover {
+  border-color:rgba(232,184,75,0.5); transform:translateY(-3px);
+  box-shadow:0 8px 22px rgba(232,184,75,0.14);
+}
+.obat-quick-btn:active { transform:translateY(0); }
+.obat-quick-arrow {
+  position:absolute; top:12px; right:12px;
+  font-size:13px; font-weight:700; color:#D4D8E2;
+  transition:all 0.2s;
+}
+.obat-quick-btn:hover .obat-quick-arrow { color:#E8B84B; transform:translate(2px,-2px); }
+
+/* ══ LAYOUT ACCUEIL ══ */
+.obat-row2 { display:grid; grid-template-columns:320px 1fr; gap:14px; margin-bottom:14px; }
+.obat-row3 { display:grid; grid-template-columns:1fr 280px; gap:14px; }
+
+/* ══ CARDS ══ */
+.obat-card {
+  background:#fff; border-radius:12px;
+  border:1.5px solid #E4E7EF; overflow:hidden;
+  box-shadow:0 2px 10px rgba(11,31,58,0.04);
+}
+.obat-card-head {
+  padding:14px 20px; border-bottom:1px solid #EEF0F6;
+  display:flex; align-items:center; justify-content:space-between;
+  font-size:13px; font-weight:800; color:#0B1F3A;
+}
+.obat-card-link {
+  font-size:11px; color:#C9A84C; font-weight:700; cursor:pointer;
+  padding:4px 10px; border-radius:20px; background:rgba(201,168,76,0.08);
   transition:all 0.15s;
 }
-.obat-quick-btn:hover { border-color:#E8B84B; background:#fffbf0; transform:translateY(-2px); box-shadow:0 4px 16px rgba(232,184,75,0.15); }
-.obat-quick-btn:active { transform:translateY(0); }
+.obat-card-link:hover { background:rgba(201,168,76,0.16); }
+.obat-card-body { padding:0 20px; }
 
-.obat-row2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px; }
-.obat-row3 { display:grid; grid-template-columns:2fr 1fr; gap:16px; }
-.obat-card { background:#fff; border-radius:10px; border:1px solid #e8e8f0; overflow:hidden; }
-.obat-card-head {
-  padding:14px 18px; border-bottom:1px solid #f0f0f8;
-  display:flex; align-items:center; justify-content:space-between;
-  font-size:13px; font-weight:800; color:#1a1a2e;
+/* ══ ONGLETS DOCS ══ */
+.obat-tabs { display:flex; border-bottom:1px solid #EEF0F6; padding:0 20px; }
+.obat-tab {
+  padding:11px 14px; font-size:12px; font-weight:600;
+  cursor:pointer; color:#8896A8; border-bottom:2px solid transparent;
+  transition:all 0.15s; display:flex; align-items:center; gap:5px;
 }
-.obat-card-link { font-size:12px; color:#3b82f6; font-weight:600; cursor:pointer; }
-.obat-card-body { padding:0 18px; }
+.obat-tab.on { color:#0B1F3A; border-bottom-color:#E8B84B; font-weight:700; }
+.obat-tab:hover:not(.on) { color:#344258; }
+.obat-tab-cnt {
+  background:#F0F2F7; color:#8896A8; border-radius:20px;
+  padding:1px 7px; font-size:10px; font-weight:700; transition:all 0.15s;
+}
+.obat-tab.on .obat-tab-cnt { background:rgba(232,184,75,0.15); color:#C9962A; }
+.obat-tc { display:none; }
+.obat-tc.on { display:block; }
 
+/* ══ DOC ROWS ══ */
 .obat-doc-row {
   display:flex; align-items:center; gap:12px;
-  padding:11px 0; border-bottom:1px solid #f5f5fa;
+  padding:11px 20px; border-bottom:1px solid #F5F6FA;
+  cursor:pointer; transition:background 0.1s;
 }
 .obat-doc-row:last-child { border-bottom:none; }
-.obat-doc-num { font-size:12px; font-weight:700; color:#C9A84C; width:105px; flex-shrink:0; }
+.obat-doc-row:hover { background:#FAFBFF; }
+.obat-doc-row.hot { background:#FFF8F8; }
+.obat-doc-num { font-size:11px; font-weight:700; color:#C9A84C; width:100px; flex-shrink:0; font-family:monospace; }
 .obat-doc-info { flex:1; min-width:0; }
-.obat-doc-client { font-size:13px; font-weight:700; color:#1a1a2e; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.obat-doc-desc { font-size:11px; color:#999; }
-.obat-doc-right { text-align:right; flex-shrink:0; }
-.obat-doc-montant { font-size:13px; font-weight:800; }
-.obat-doc-badge { margin-top:3px; }
+.obat-doc-client { font-size:13px; font-weight:700; color:#0B1F3A; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.obat-doc-desc { font-size:11px; color:#8896A8; margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.obat-doc-right { display:flex; align-items:center; gap:8px; flex-shrink:0; }
+.obat-doc-date { font-size:11px; color:#8896A8; white-space:nowrap; }
+.obat-doc-actions { display:flex; gap:4px; opacity:0; transition:opacity 0.15s; }
+.obat-doc-row:hover .obat-doc-actions { opacity:1; }
+.obat-doc-act {
+  width:27px; height:27px; border-radius:7px;
+  border:1.5px solid #E4E7EF; background:#fff;
+  display:flex; align-items:center; justify-content:center;
+  font-size:12px; cursor:pointer; transition:all 0.12s;
+}
+.obat-doc-act:hover { background:rgba(232,184,75,0.1); border-color:rgba(232,184,75,0.4); }
+.obat-voir-plus {
+  padding:11px 20px; text-align:center; font-size:11px;
+  color:#C9A84C; font-weight:700; cursor:pointer; opacity:0.8;
+  border-top:1px solid #EEF0F6; transition:all 0.15s;
+}
+.obat-voir-plus:hover { opacity:1; background:#FFFBF5; }
 
+/* ══ CHANTIERS ══ */
+.obat-chantier {
+  padding:13px 20px; border-bottom:1px solid #F5F6FA;
+  cursor:pointer; transition:background 0.12s;
+}
+.obat-chantier:last-child { border-bottom:none; }
+.obat-chantier:hover { background:#FAFBFF; }
+.obat-ch-top { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:9px; }
+.obat-ch-nom { font-size:12.5px; font-weight:700; color:#0B1F3A; }
+.obat-ch-desc { font-size:10.5px; color:#8896A8; margin-top:2px; }
+.obat-ch-montant { font-size:14px; font-weight:900; color:#C9A84C; }
+.obat-ch-track { height:5px; background:#EEF0F6; border-radius:4px; overflow:hidden; }
+.obat-ch-fill { height:100%; border-radius:4px; transition:width 1.2s ease; }
+.obat-ch-foot { display:flex; justify-content:space-between; margin-top:5px; }
+.obat-ch-pct { font-size:10px; font-weight:700; }
+.obat-ch-date { font-size:10px; color:#8896A8; }
+
+/* ══ AGENDA ══ */
 .obat-agenda-item {
   display:flex; align-items:center; gap:12px;
-  padding:11px 0; border-bottom:1px solid #f5f5fa;
+  padding:11px 20px; border-bottom:1px solid #F5F6FA;
 }
 .obat-agenda-item:last-child { border-bottom:none; }
 .obat-agenda-heure {
-  width:48px; text-align:center; flex-shrink:0;
-  background:#f0f4ff; border-radius:7px; padding:6px 4px;
+  width:46px; text-align:center; flex-shrink:0;
+  background:#EFF4FF; border-radius:7px; padding:6px 4px;
   font-size:12px; font-weight:800; color:#1B2A4A; line-height:1.3;
 }
-.obat-agenda-heure small { display:block; font-size:9px; color:#999; font-weight:600; }
+.obat-agenda-heure small { display:block; font-size:9px; color:#8896A8; font-weight:600; }
 
+/* ══ AVIS GOOGLE ══ */
 .obat-avis-block {
-  background:linear-gradient(135deg,#fffbf0,#fff8e1);
-  border:1px solid rgba(232,184,75,0.25); border-radius:10px;
-  padding:14px 16px; margin:14px 18px 0; display:flex; align-items:center; gap:14px;
+  background:linear-gradient(135deg,#0B1F3A,#132840);
+  border-radius:11px; padding:18px;
+  margin:18px 20px 0; position:relative; overflow:hidden;
 }
-.obat-avis-nb { font-size:32px; font-weight:900; color:#E8B84B; line-height:1; }
+.obat-avis-block::before {
+  content:'⭐'; position:absolute; right:-6px; top:-10px;
+  font-size:66px; opacity:0.07; line-height:1;
+}
+.obat-avis-top { display:flex; align-items:flex-end; gap:14px; margin-bottom:13px; }
+.obat-avis-nb { font-size:42px; font-weight:900; color:#E8B84B; line-height:1; letter-spacing:-1px; }
+.obat-avis-stars { font-size:14px; margin:3px 0 2px; }
+.obat-avis-lbl { font-size:10px; color:rgba(255,255,255,0.3); font-weight:600; text-transform:uppercase; letter-spacing:0.5px; }
+.obat-avis-rank { font-size:13px; font-weight:800; color:#4ade80; }
+.obat-avis-rank-sub { font-size:10px; color:rgba(255,255,255,0.3); margin-top:2px; }
+.obat-avis-sep { height:1px; background:rgba(255,255,255,0.08); margin-bottom:12px; }
+.obat-avis-obj { font-size:11px; font-weight:700; color:#E8B84B; opacity:0.9; margin-bottom:7px; }
+.obat-avis-track { height:5px; background:rgba(255,255,255,0.1); border-radius:4px; overflow:hidden; }
+.obat-avis-fill { height:100%; background:linear-gradient(90deg,#E8B84B,#22c55e); border-radius:4px; }
+.obat-avis-pct { font-size:10px; color:rgba(255,255,255,0.35); margin-top:5px; }
+
+/* ══ SIDEBAR AVATAR ══ */
+.sidebar-avatar {
+  width:32px; height:32px; border-radius:50%; flex-shrink:0;
+  background:linear-gradient(135deg,#E8B84B,#C9962A);
+  display:flex; align-items:center; justify-content:center;
+  font-size:13px; font-weight:900; color:#0B1F3A;
+  box-shadow:0 0 0 2px rgba(232,184,75,0.3);
+}
+.sidebar-avatar-info { flex:1; min-width:0; }
+.sidebar-avatar-name { font-size:11px; font-weight:700; color:#fff; }
+.sidebar-avatar-role { font-size:9px; color:rgba(255,255,255,0.3); margin-top:1px; }
 
 /* ══ HISTORIQUE STYLE OBAT (TABLEAU) ══ */
 .histo-table-wrap {
@@ -930,8 +1077,12 @@ table.histo-table tr:hover td { background:#fafbff; }
     </div>
   </div>
   <div class="sidebar-footer">
-    <div style="font-size:11px;color:rgba(255,255,255,0.3);font-weight:600;">Mode :</div>
-    <div class="theme-toggle" onclick="toggleTheme()"><span id="theme-icon">🌙</span></div>
+    <div class="sidebar-avatar">D</div>
+    <div class="sidebar-avatar-info">
+      <div class="sidebar-avatar-name">Diahe</div>
+      <div class="sidebar-avatar-role">SINELEC · Auto-entrepreneur</div>
+    </div>
+    <div class="theme-toggle" onclick="toggleTheme()" style="margin-left:auto;width:30px;height:30px;font-size:14px;"><span id="theme-icon">🌙</span></div>
   </div>
 </div>
 
@@ -968,117 +1119,162 @@ table.histo-table tr:hover td { background:#fafbff; }
       <span id="accueil-date"></span>
     </div>
     <div class="obat-topbar-right">
-      <button class="btn-obat-primary" onclick="switchPage('devis',document.querySelector('.sidebar-item[onclick*=\'devis\']'))">📋 Nouveau devis</button>
-      <button class="btn-obat-gold" onclick="switchPage('facture',document.querySelector('.sidebar-item[onclick*=\'facture\']'))">💶 Nouvelle facture</button>
+      <button class="btn-obat-primary" onclick="switchPage('devis',null)">📋 Nouveau devis</button>
+      <button class="btn-obat-gold" onclick="switchPage('facture',null)">💶 Nouvelle facture</button>
     </div>
   </div>
 
   <div class="obat-content">
 
+    <!-- Alerte devis +48h -->
+    <div id="acc-alerte-box" style="display:none;">
+      <div class="acc-alerte">
+        <div class="acc-alerte-pulse"></div>
+        <div class="acc-alerte-txt">
+          <div class="acc-alerte-title" id="acc-alerte-title">Devis sans réponse depuis +48h</div>
+          <div class="acc-alerte-sub" id="acc-alerte-sub"></div>
+        </div>
+        <button class="acc-alerte-btn" onclick="switchPage('historique',null)">Voir les devis →</button>
+      </div>
+    </div>
+
     <!-- KPI -->
     <div class="obat-kpi-grid">
-      <div class="obat-kpi">
-        <div class="obat-kpi-lbl">CA ce mois</div>
+      <div class="obat-kpi k1">
+        <div class="obat-kpi-icon">📊</div>
+        <div class="obat-kpi-lbl">CA encaissé ce mois</div>
         <div class="obat-kpi-val" id="acc-ca-mois">—</div>
-        <div class="obat-kpi-trend" id="acc-ca-mois-trend" style="color:#999;">Chargement...</div>
+        <div class="obat-kpi-trend" id="acc-ca-mois-trend" style="color:#8896A8;">Chargement...</div>
+        <div class="obat-kpi-sub" id="acc-ca-objectif">Objectif mensuel : 8 000 €</div>
       </div>
-      <div class="obat-kpi">
+      <div class="obat-kpi k2">
+        <div class="obat-kpi-icon">💰</div>
         <div class="obat-kpi-lbl">CA année 2026</div>
         <div class="obat-kpi-val" id="acc-ca-annee">—</div>
-        <div class="obat-kpi-trend" style="color:#999;" id="acc-nb-factures">—</div>
+        <div class="obat-kpi-trend" id="acc-nb-factures" style="color:#16a34a;">—</div>
+        <div class="obat-kpi-sub">106 985 € depuis création</div>
       </div>
-      <div class="obat-kpi">
+      <div class="obat-kpi k3">
+        <div class="obat-kpi-icon">⏳</div>
+        <div class="obat-kpi-lbl">Reste à encaisser</div>
+        <div class="obat-kpi-val" id="acc-reste">—</div>
+        <div class="obat-kpi-trend" id="acc-retard" style="color:#8896A8;">—</div>
+        <div class="obat-kpi-sub" id="acc-nb-att-fact">—</div>
+      </div>
+      <div class="obat-kpi k4">
+        <div class="obat-kpi-icon">📋</div>
         <div class="obat-kpi-lbl">Devis en attente</div>
         <div class="obat-kpi-val" id="acc-devis-attente">—</div>
         <div class="obat-kpi-trend" id="acc-devis-relance" style="color:#f59e0b;">—</div>
-      </div>
-      <div class="obat-kpi">
-        <div class="obat-kpi-lbl">Reste à encaisser</div>
-        <div class="obat-kpi-val" id="acc-reste">—</div>
-        <div class="obat-kpi-trend" id="acc-retard" style="color:#999;">—</div>
+        <div class="obat-kpi-sub" id="acc-total-devis">—</div>
       </div>
     </div>
 
     <!-- Actions rapides -->
     <div class="obat-quick">
       <div class="obat-quick-btn" onclick="switchPage('depannage',null)">
-        <div style="font-size:26px;margin-bottom:8px;">⚡</div>
-        <div style="font-size:13px;font-weight:800;color:#1a1a2e;">Dépannage rapide</div>
-        <div style="font-size:11px;color:#999;margin-top:3px;">Devis en 20 sec</div>
+        <span class="obat-quick-arrow">↗</span>
+        <div style="font-size:22px;">⚡</div>
+        <div style="font-size:12px;font-weight:800;color:#0B1F3A;">Dépannage rapide</div>
+        <div style="font-size:10px;color:#8896A8;">Devis en 20 secondes</div>
       </div>
       <div class="obat-quick-btn" onclick="switchPage('rapport',null)">
-        <div style="font-size:26px;margin-bottom:8px;">📸</div>
-        <div style="font-size:13px;font-weight:800;color:#1a1a2e;">Rapport IA</div>
-        <div style="font-size:11px;color:#999;margin-top:3px;">Photos + description</div>
+        <span class="obat-quick-arrow">↗</span>
+        <div style="font-size:22px;">📸</div>
+        <div style="font-size:12px;font-weight:800;color:#0B1F3A;">Rapport IA</div>
+        <div style="font-size:10px;color:#8896A8;">Photos avant / après</div>
       </div>
       <div class="obat-quick-btn" onclick="switchPage('dpe',null)">
-        <div style="font-size:26px;margin-bottom:8px;">🏠</div>
-        <div style="font-size:13px;font-weight:800;color:#1a1a2e;">Analyse DPE</div>
-        <div style="font-size:11px;color:#999;margin-top:3px;">Devis automatique</div>
+        <span class="obat-quick-arrow">↗</span>
+        <div style="font-size:22px;">🏠</div>
+        <div style="font-size:12px;font-weight:800;color:#0B1F3A;">Analyse DPE</div>
+        <div style="font-size:10px;color:#8896A8;">Devis automatique IA</div>
       </div>
-      <div class="obat-quick-btn" onclick="switchPage('avis',null)">
-        <div style="font-size:26px;margin-bottom:8px;">⭐</div>
-        <div style="font-size:13px;font-weight:800;color:#1a1a2e;">Répondre aux avis</div>
-        <div style="font-size:11px;color:#999;margin-top:3px;">SEO Google</div>
+      <div class="obat-quick-btn" onclick="ouvrirLead()">
+        <span class="obat-quick-arrow">↗</span>
+        <div style="font-size:22px;">📞</div>
+        <div style="font-size:12px;font-weight:800;color:#0B1F3A;">Nouveau lead</div>
+        <div style="font-size:10px;color:#8896A8;">Agenda + Waze</div>
       </div>
     </div>
 
-    <!-- Derniers docs + Agenda -->
+    <!-- ROW 2 : Chantiers + Docs avec onglets -->
     <div class="obat-row2">
 
+      <!-- CHANTIERS EN COURS -->
       <div class="obat-card">
         <div class="obat-card-head">
-          📋 Derniers documents
+          🏗️ Chantiers en cours
           <span class="obat-card-link" onclick="switchPage('historique',null)">Voir tout →</span>
         </div>
-        <div class="obat-card-body" id="acc-derniers-docs">
-          <div style="padding:20px;text-align:center;color:#999;font-size:13px;">Chargement...</div>
+        <div id="acc-chantiers">
+          <div style="padding:30px 20px;text-align:center;color:#8896A8;font-size:13px;">Chargement...</div>
         </div>
       </div>
 
+      <!-- DOCS AVEC ONGLETS -->
       <div class="obat-card">
         <div class="obat-card-head">
-          📅 Agenda du jour
-          <span class="obat-card-link" onclick="switchPage('agenda',null)">Voir tout →</span>
+          📄 Documents récents
+          <span class="obat-card-link" onclick="switchPage('historique',null)">Historique →</span>
         </div>
-        <div class="obat-card-body" id="acc-agenda-today">
-          <div style="padding:20px;text-align:center;color:#999;font-size:13px;">Chargement...</div>
+        <div class="obat-tabs">
+          <div class="obat-tab on" onclick="switchAccueilTab('devis',this)">Devis <span class="obat-tab-cnt" id="acc-cnt-devis">—</span></div>
+          <div class="obat-tab" onclick="switchAccueilTab('factures',this)">Factures <span class="obat-tab-cnt" id="acc-cnt-factures">—</span></div>
+        </div>
+        <div class="obat-tc on" id="acc-tab-devis">
+          <div style="padding:20px;text-align:center;color:#8896A8;font-size:13px;">Chargement...</div>
+        </div>
+        <div class="obat-tc" id="acc-tab-factures">
+          <div style="padding:20px;text-align:center;color:#8896A8;font-size:13px;">Chargement...</div>
         </div>
       </div>
 
     </div>
 
-    <!-- CA chart + Avis Google -->
+    <!-- ROW 3 : CA chart + Avis Google -->
     <div class="obat-row3">
 
       <div class="obat-card">
-        <div class="obat-card-head">📊 CA des 6 derniers mois</div>
-        <div style="padding:16px 18px;">
-          <div style="position:relative;height:140px;">
+        <div class="obat-card-head">
+          <div>
+            <div>📊 CA des 6 derniers mois</div>
+            <div id="acc-chart-total" style="font-size:11px;color:#8896A8;font-weight:600;margin-top:2px;">Chargement...</div>
+          </div>
+        </div>
+        <div style="padding:16px 20px 20px;">
+          <div style="position:relative;height:130px;">
             <canvas id="acc-chart-ca"></canvas>
           </div>
         </div>
       </div>
 
+      <!-- AVIS GOOGLE -->
       <div class="obat-card">
-        <div class="obat-card-head">⭐ Avis Google</div>
-        <div class="obat-avis-block">
-          <div>
-            <div class="obat-avis-nb" id="acc-avis-nb">91</div>
-            <div style="font-size:15px;margin:2px 0;">⭐⭐⭐⭐⭐</div>
-            <div style="font-size:11px;color:#999;font-weight:600;">avis · note 5,0/5</div>
-          </div>
-          <div style="flex:1;">
-            <div style="font-size:12px;font-weight:700;color:#16a34a;margin-bottom:6px;">🎯 Objectif : 150 avis</div>
-            <div style="height:6px;background:#f0f0f0;border-radius:4px;overflow:hidden;">
-              <div id="acc-avis-bar" style="height:100%;width:60%;background:linear-gradient(90deg,#E8B84B,#16a34a);border-radius:4px;transition:width 1s;"></div>
-            </div>
-            <div id="acc-avis-pct" style="font-size:11px;color:#999;margin-top:4px;">60% de l'objectif</div>
-          </div>
+        <div class="obat-card-head">
+          ⭐ Avis Google
+          <span class="obat-card-link" onclick="window.open('https://g.page/r/CSw-MABnFUAYEAE/review','_blank')">Ouvrir →</span>
         </div>
-        <div style="padding:14px 18px;display:flex;gap:8px;">
-          <button onclick="switchPage('avis',null)" style="flex:1;padding:9px;border-radius:8px;border:1px solid #E8B84B;background:#fffbf0;color:#C9962A;font-size:12px;font-weight:700;cursor:pointer;">✍️ Répondre</button>
-          <button onclick="window.open('https://g.page/r/CSw-MABnFUAYEAE/review','_blank')" style="flex:1;padding:9px;border-radius:8px;border:none;background:#1B2A4A;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">🔗 Lien avis</button>
+        <div class="obat-avis-block">
+          <div class="obat-avis-top">
+            <div>
+              <div class="obat-avis-nb" id="acc-avis-nb">91</div>
+              <div class="obat-avis-stars">⭐⭐⭐⭐⭐</div>
+              <div class="obat-avis-lbl">avis · 5,0 / 5</div>
+            </div>
+            <div>
+              <div class="obat-avis-rank">🥇 5,0 parfait</div>
+              <div class="obat-avis-rank-sub">Top Paris ⚡</div>
+            </div>
+          </div>
+          <div class="obat-avis-sep"></div>
+          <div class="obat-avis-obj">🎯 Objectif : 150 avis</div>
+          <div class="obat-avis-track"><div class="obat-avis-fill" id="acc-avis-bar" style="width:60.6%;"></div></div>
+          <div class="obat-avis-pct" id="acc-avis-pct">91 / 150 · 60% atteint · encore 59 avis</div>
+        </div>
+        <div style="padding:13px 20px 18px;display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <button onclick="switchPage('avis',null)" style="padding:9px;border-radius:8px;border:1.5px solid rgba(232,184,75,0.3);background:rgba(232,184,75,0.06);color:#C9962A;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.15s;" onmouseover="this.style.background='rgba(232,184,75,0.14)'" onmouseout="this.style.background='rgba(232,184,75,0.06)'">✍️ Répondre</button>
+          <button onclick="window.open('https://g.page/r/CSw-MABnFUAYEAE/review','_blank')" style="padding:9px;border-radius:8px;border:none;background:linear-gradient(135deg,#E8B84B,#C9962A);color:#0B1F3A;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;box-shadow:0 3px 10px rgba(232,184,75,0.3);transition:all 0.15s;" onmouseover="this.style.boxShadow='0 5px 16px rgba(232,184,75,0.45)'" onmouseout="this.style.boxShadow='0 3px 10px rgba(232,184,75,0.3)'">🔗 Lien avis</button>
         </div>
       </div>
 
@@ -3882,17 +4078,77 @@ async function genererRapport() {
 }
 
 // ═══════════════════════════════════════════════════
-// PAGE ACCUEIL
+// PAGE ACCUEIL ULTIMATE
 // ═══════════════════════════════════════════════════
 let accChartCA = null;
+let accDocsDevis = [];
+let accDocsFactures = [];
+
+function switchAccueilTab(name, el) {
+  document.querySelectorAll('.obat-tab').forEach(t => t.classList.remove('on'));
+  document.querySelectorAll('.obat-tc').forEach(t => t.classList.remove('on'));
+  el.classList.add('on');
+  document.getElementById('acc-tab-' + name)?.classList.add('on');
+}
+
+function renderAccueilDocs(docs, containerId, type) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  if (!docs.length) {
+    el.innerHTML = `<div style="padding:30px;text-align:center;color:#8896A8;font-size:13px;">Aucun ${type} récent</div>`;
+    return;
+  }
+  const getAgeStr = d => {
+    const h = (new Date() - new Date(d.created_at||d.date)) / 3600000;
+    if (h < 2) return "À l'instant";
+    if (h < 24) return `Il y a ${Math.floor(h)}h`;
+    if (h < 48) return "Hier";
+    return `Il y a ${Math.floor(h/24)} j`;
+  };
+  const getBadge = item => {
+    const s = (item.statut||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    const h = (new Date() - new Date(item.created_at||item.date)) / 3600000;
+    const alerte = type === 'devis' && s === 'envoye' && h > 48;
+    if (['paye','payee','acquitte'].includes(s)) return `<span style="background:#d1fae5;color:#065f46;border-radius:20px;padding:3px 9px;font-size:10.5px;font-weight:700;">💰 Payée</span>`;
+    if (s === 'signe') return `<span style="background:#dcfce7;color:#15803d;border-radius:20px;padding:3px 9px;font-size:10.5px;font-weight:700;">✅ Signé</span>`;
+    if (s === 'annule') return `<span style="background:#f3f4f6;color:#6b7280;border-radius:20px;padding:3px 9px;font-size:10.5px;font-weight:700;">❌ Annulé</span>`;
+    if (alerte) return `<span style="background:#fee2e2;color:#dc2626;border-radius:20px;padding:3px 9px;font-size:10.5px;font-weight:700;">⚠️ +48h</span>`;
+    if (s === 'envoye') return `<span style="background:#dbeafe;color:#1d4ed8;border-radius:20px;padding:3px 9px;font-size:10.5px;font-weight:700;">📧 Envoyé</span>`;
+    return `<span style="background:#fef9c3;color:#854d0e;border-radius:20px;padding:3px 9px;font-size:10.5px;font-weight:700;">⏳ En attente</span>`;
+  };
+  const isHot = item => {
+    const s = (item.statut||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    const h = (new Date() - new Date(item.created_at||item.date)) / 3600000;
+    return (type === 'devis' && s === 'envoye' && h > 48) || (type === 'factures' && s === 'envoye');
+  };
+  const prestNom = item => (item.prestations||[{nom:'—'}])[0]?.nom || '—';
+
+  el.innerHTML = docs.slice(0,6).map(item => `
+    <div class="obat-doc-row${isHot(item)?' hot':''}">
+      <div class="obat-doc-num">${item.num}</div>
+      <div class="obat-doc-info">
+        <div class="obat-doc-client">${item.client||'—'}</div>
+        <div class="obat-doc-desc">${prestNom(item).substring(0,38)}${prestNom(item).length>38?'...':''}</div>
+      </div>
+      <div class="obat-doc-right">
+        ${getBadge(item)}
+        <div class="obat-doc-date">${getAgeStr(item)}</div>
+        <div class="obat-doc-actions">
+          <div class="obat-doc-act" onclick="previsualiserPDF('${item.num}')" title="Aperçu">👁️</div>
+          <div class="obat-doc-act" onclick="telechargerPDF('${item.num}')" title="PDF">⬇️</div>
+        </div>
+      </div>
+    </div>`).join('') +
+    `<div class="obat-voir-plus" onclick="switchPage('historique',null)">Voir tout l'historique (${docs.length}) →</div>`;
+}
 
 async function chargerAccueil() {
-  // Date + heure
+  // Date
   const now = new Date();
   const jours = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
   const moisN = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
-  const el = document.getElementById('accueil-date');
-  if (el) el.textContent = `${jours[now.getDay()]} ${now.getDate()} ${moisN[now.getMonth()]} ${now.getFullYear()} · Paris`;
+  const dateEl = document.getElementById('accueil-date');
+  if (dateEl) dateEl.textContent = `${jours[now.getDay()]} ${now.getDate()} ${moisN[now.getMonth()]} ${now.getFullYear()}`;
 
   try {
     const [resCA, resAgenda] = await Promise.all([
@@ -3902,100 +4158,101 @@ async function chargerAccueil() {
     const docs = await resCA.json();
     const agenda = await resAgenda.json();
 
-    // ── KPI ──
-    const annee = now.getFullYear();
-    const moisCourant = `${annee}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    // ── Trier et séparer
+    docs.sort((a,b) => new Date(b.created_at||b.date) - new Date(a.created_at||a.date));
     const factures = docs.filter(d => d.type === 'facture');
-    const devis = docs.filter(d => d.type === 'devis');
+    const devis    = docs.filter(d => d.type === 'devis');
 
-    const caMois = factures.filter(f => (f.created_at||'').startsWith(moisCourant))
-      .reduce((s,f) => s + parseFloat(f.total_ht||0), 0);
-    const caAnnee = factures.filter(f => (f.created_at||'').startsWith(String(annee)))
-      .reduce((s,f) => s + parseFloat(f.total_ht||0), 0);
-    const devisAttente = devis.filter(d => {
-      const s = (d.statut||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-      return s === 'envoye';
-    });
-    const devisRelance = devisAttente.filter(d => (new Date()-new Date(d.created_at))/3600000 > 48);
-    const resteEncaisser = factures.filter(f => {
-      const s = (f.statut||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-      return !['paye','payee','acquitte','annule'].includes(s);
-    }).reduce((s,f) => s + parseFloat(f.total_ht||0), 0);
+    // ── KPI
+    const annee = now.getFullYear();
+    const moisCle = `${annee}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 
-    document.getElementById('acc-ca-mois').textContent = Math.round(caMois).toLocaleString('fr-FR') + ' €';
-    document.getElementById('acc-ca-annee').textContent = Math.round(caAnnee).toLocaleString('fr-FR') + ' €';
-    document.getElementById('acc-devis-attente').textContent = devisAttente.length + ' devis';
-    document.getElementById('acc-reste').textContent = Math.round(resteEncaisser).toLocaleString('fr-FR') + ' €';
-    document.getElementById('acc-nb-factures').textContent = `${factures.length} factures au total`;
-    document.getElementById('acc-devis-relance').textContent = devisRelance.length > 0 ? `⚠️ ${devisRelance.length} devis +48h` : '✅ Tous récents';
-    document.getElementById('acc-devis-relance').style.color = devisRelance.length > 0 ? '#f59e0b' : '#16a34a';
-    document.getElementById('acc-retard').textContent = '0 € en retard';
+    const caMois  = factures.filter(f=>(f.created_at||'').startsWith(moisCle)).reduce((s,f)=>s+parseFloat(f.total_ht||0),0);
+    const caAnnee = factures.filter(f=>(f.created_at||'').startsWith(String(annee))).reduce((s,f)=>s+parseFloat(f.total_ht||0),0);
+    const devisEnAttente  = devis.filter(d=>norm(d.statut)==='envoye');
+    const devisRelances   = devisEnAttente.filter(d=>(new Date()-new Date(d.created_at||d.date))/3600000>48);
+    const factEnAttente   = factures.filter(f=>!['paye','payee','acquitte','annule'].includes(norm(f.statut)));
+    const reste = factEnAttente.reduce((s,f)=>s+parseFloat(f.total_ht||0),0);
 
-    // ── Avis Google ──
-    const nbAvis = 91; // mis à jour manuellement
-    const objectif = 150;
-    const pct = Math.round((nbAvis / objectif) * 100);
-    const barEl = document.getElementById('acc-avis-bar');
-    const pctEl = document.getElementById('acc-avis-pct');
-    if (barEl) barEl.style.width = pct + '%';
-    if (pctEl) pctEl.textContent = `${pct}% de l'objectif (${nbAvis}/${objectif})`;
+    const set = (id,v) => { const e=document.getElementById(id); if(e) e.textContent=v; };
+    set('acc-ca-mois',   Math.round(caMois).toLocaleString('fr-FR')+' €');
+    set('acc-ca-annee',  Math.round(caAnnee).toLocaleString('fr-FR')+' €');
+    set('acc-nb-factures', `↑ ${factures.length} factures émises`);
+    set('acc-reste',     Math.round(reste).toLocaleString('fr-FR')+' €');
+    set('acc-retard',    reste > 0 ? `${factEnAttente.length} facture${factEnAttente.length>1?'s':''} en attente` : '✓ 0 € en retard');
+    set('acc-devis-attente', devisEnAttente.length+' devis');
+    set('acc-devis-relance', devisRelances.length>0 ? `⚠ ${devisRelances.length} sans réponse +48h` : '✅ Tous récents');
+    set('acc-total-devis', `${devis.length} devis au total`);
+    set('acc-nb-att-fact', `${factEnAttente.length} facture${factEnAttente.length>1?'s':''} en attente`);
 
-    // ── Derniers documents ──
-    const derniers = docs.slice(0, 5);
-    const docsEl = document.getElementById('acc-derniers-docs');
-    if (docsEl) {
-      docsEl.innerHTML = derniers.map(d => {
-        const statut = (d.statut||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-        const estPaye = ['paye','payee','acquitte'].includes(statut);
-        const estSigne = statut === 'signe';
-        const badgeHtml = estPaye
-          ? `<span class="badge b-paye" style="background:#d1fae5;color:#065f46;border-radius:20px;padding:3px 9px;font-size:11px;font-weight:700;">💰 Payée</span>`
-          : estSigne
-          ? `<span class="badge b-signe" style="background:#dcfce7;color:#15803d;border-radius:20px;padding:3px 9px;font-size:11px;font-weight:700;">✅ Signé</span>`
-          : statut === 'annule'
-          ? `<span style="background:#f3f4f6;color:#6b7280;border-radius:20px;padding:3px 9px;font-size:11px;font-weight:700;">❌ Annulé</span>`
-          : (new Date()-new Date(d.created_at))/3600000 > 48 && d.type === 'devis'
-          ? `<span style="background:#fef2f2;color:#dc2626;border-radius:20px;padding:3px 9px;font-size:11px;font-weight:700;">⚠️ +48h</span>`
-          : `<span style="background:#fef9c3;color:#854d0e;border-radius:20px;padding:3px 9px;font-size:11px;font-weight:700;">⏳ En attente</span>`;
-        return `
-        <div class="obat-doc-row">
-          <div class="obat-doc-num">${d.num}</div>
-          <div class="obat-doc-info">
-            <div class="obat-doc-client">${d.client||'—'}</div>
-            <div class="obat-doc-desc">${(d.prestations||[{nom:'—'}])[0]?.nom||'—'}</div>
-          </div>
-          <div class="obat-doc-right">
-            <div class="obat-doc-montant">${parseFloat(d.total_ht||0).toFixed(0)} €</div>
-            <div class="obat-doc-badge">${badgeHtml}</div>
-          </div>
-        </div>`;
-      }).join('');
-    }
+    const retardEl = document.getElementById('acc-retard');
+    if (retardEl) retardEl.style.color = reste > 0 ? '#f59e0b' : '#16a34a';
+    const relEl = document.getElementById('acc-devis-relance');
+    if (relEl) relEl.style.color = devisRelances.length > 0 ? '#dc2626' : '#16a34a';
 
-    // ── Agenda du jour ──
-    const todayStr = now.toISOString().split('T')[0];
-    const today = (agenda||[]).filter(iv => iv.date_intervention === todayStr && iv.statut !== 'terminé' && iv.statut !== 'annulé')
-      .sort((a,b) => (a.heure||'').localeCompare(b.heure||''));
-    const agendaEl = document.getElementById('acc-agenda-today');
-    if (agendaEl) {
-      if (!today.length) {
-        agendaEl.innerHTML = `<div style="padding:24px;text-align:center;color:#999;font-size:13px;">Aucune intervention aujourd'hui</div>`;
+    // ── Alerte +48h
+    const alerteBox = document.getElementById('acc-alerte-box');
+    if (alerteBox) {
+      if (devisRelances.length > 0) {
+        alerteBox.style.display = 'block';
+        set('acc-alerte-title', `${devisRelances.length} devis sans réponse depuis plus de 48h — Relancer maintenant ?`);
+        set('acc-alerte-sub', devisRelances.slice(0,3).map(d=>`${d.num} · ${d.client}`).join('  |  '));
       } else {
-        agendaEl.innerHTML = today.map(iv => `
-        <div class="obat-agenda-item">
-          <div class="obat-agenda-heure">${(iv.heure||'?').replace(':00','h')}<small>~1h</small></div>
-          <div style="flex:1;">
-            <div style="font-size:13px;font-weight:700;color:#1a1a2e;">${iv.client||'Client'}</div>
-            <div style="font-size:11px;color:#999;">${iv.type_intervention||'Intervention'}</div>
-            ${iv.adresse ? `<div style="font-size:11px;color:#3b82f6;margin-top:1px;">📍 ${iv.adresse.substring(0,35)}...</div>` : ''}
-          </div>
-          ${iv.telephone ? `<a href="tel:${iv.telephone}" style="font-size:18px;text-decoration:none;">📞</a>` : ''}
-        </div>`).join('');
-        agendaEl.innerHTML += `<div style="padding:10px 0;text-align:center;background:#f0fdf4;margin:8px -18px -1px;font-size:12px;font-weight:700;color:#15803d;">✅ ${today.length} intervention${today.length>1?'s':''} aujourd'hui</div>`;
+        alerteBox.style.display = 'none';
       }
     }
 
-    // ── Graphique CA 6 mois ──
+    // ── Avis Google
+    const nbAvis = 91; const objectif = 150;
+    const pct = Math.round((nbAvis/objectif)*100);
+    const barEl = document.getElementById('acc-avis-bar');
+    if (barEl) barEl.style.width = pct+'%';
+    set('acc-avis-pct', `${nbAvis} / ${objectif} · ${pct}% atteint · encore ${objectif-nbAvis} avis`);
+
+    // ── Onglets docs
+    accDocsDevis    = devis;
+    accDocsFactures = factures;
+    set('acc-cnt-devis', devis.length);
+    set('acc-cnt-factures', factures.length);
+    renderAccueilDocs(devis, 'acc-tab-devis', 'devis');
+    renderAccueilDocs(factures, 'acc-tab-factures', 'factures');
+
+    // ── Chantiers (devis signés récents = chantiers en cours)
+    const chantiers = devis.filter(d => {
+      const s = norm(d.statut);
+      return s === 'signe' && parseFloat(d.total_ht||0) > 0;
+    }).slice(0, 4);
+
+    const chEl = document.getElementById('acc-chantiers');
+    if (chEl) {
+      if (!chantiers.length) {
+        chEl.innerHTML = `<div style="padding:30px 20px;text-align:center;color:#8896A8;font-size:13px;">Aucun chantier en cours</div>`;
+      } else {
+        const colors = ['linear-gradient(90deg,#3b82f6,#60a5fa)', 'linear-gradient(90deg,#16a34a,#4ade80)', 'linear-gradient(90deg,#E8B84B,#f59e0b)', 'linear-gradient(90deg,#a855f7,#c084fc)'];
+        const pcts = [30, 60, 15, 80];
+        const pctColors = ['#3b82f6','#16a34a','#d97706','#a855f7'];
+        chEl.innerHTML = chantiers.map((d, i) => `
+          <div class="obat-chantier">
+            <div class="obat-ch-top">
+              <div>
+                <div class="obat-ch-nom">${d.client||'—'}</div>
+                <div class="obat-ch-desc">${((d.prestations||[{nom:'—'}])[0]?.nom||'—').substring(0,30)}</div>
+              </div>
+              <div class="obat-ch-montant">${parseFloat(d.total_ht||0).toFixed(0)} €</div>
+            </div>
+            <div class="obat-ch-track">
+              <div class="obat-ch-fill" style="width:${pcts[i]||30}%;background:${colors[i]||colors[0]};"></div>
+            </div>
+            <div class="obat-ch-foot">
+              <span class="obat-ch-pct" style="color:${pctColors[i]||pctColors[0]};">${pcts[i]||30}% réalisé</span>
+              <span class="obat-ch-date">${d.date_intervention ? '📅 '+new Date(d.date_intervention).toLocaleDateString('fr-FR') : '📅 En cours'}</span>
+            </div>
+          </div>`).join('');
+      }
+    }
+
+    // ── Graphique CA 6 mois
     const labels = [], vals = [];
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
@@ -4003,34 +4260,39 @@ async function chargerAccueil() {
       labels.push(d.toLocaleDateString('fr-FR',{month:'short'}));
       vals.push(Math.round(factures.filter(f=>(f.created_at||'').startsWith(mKey)).reduce((s,f)=>s+parseFloat(f.total_ht||0),0)));
     }
+
+    const totalChart = vals.reduce((a,b)=>a+b,0);
+    const maxVal = Math.max(...vals);
+    const bestIdx = vals.indexOf(maxVal);
+    set('acc-chart-total', `Total 6 mois : ${Math.round(totalChart).toLocaleString('fr-FR')} € · Meilleur : ${labels[bestIdx]} ${maxVal.toLocaleString('fr-FR')} € ★`);
+
     if (accChartCA) { accChartCA.destroy(); accChartCA = null; }
     const ctx = document.getElementById('acc-chart-ca')?.getContext('2d');
     if (ctx) {
       accChartCA = new Chart(ctx, {
         type: 'bar',
         data: {
-          labels,
+          labels: [...labels, 'ce mois'],
           datasets: [{
-            data: vals,
-            backgroundColor: vals.map((_,i) => i === vals.length-1 ? 'rgba(232,184,75,0.3)' : '#1B2A4A'),
-            borderRadius: 6,
-            borderWidth: vals.map((_,i) => i === vals.length-1 ? 2 : 0),
-            borderColor: '#E8B84B'
+            data: [...vals, 0],
+            backgroundColor: vals.map((v,i) => i === bestIdx ? '#E8B84B' : '#C7D2E8'),
+            borderRadius: 7,
+            borderSkipped: false,
           }]
         },
         options: {
-          responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
-          scales: {
-            x: { ticks: { color:'#999', font:{size:11} }, grid:{display:false}, border:{display:false} },
-            y: { ticks: { color:'#999', font:{size:11}, callback: v => v.toLocaleString('fr-FR')+'€' }, grid:{color:'#f5f5fa'}, border:{display:false} }
+          responsive:true, maintainAspectRatio:false,
+          plugins:{ legend:{display:false} },
+          scales:{
+            x:{ ticks:{color:'#8896A8',font:{size:10,weight:'600'}}, grid:{display:false}, border:{display:false} },
+            y:{ ticks:{color:'#8896A8',font:{size:10},callback:v=>v>0?Math.round(v/1000)+'k€':''}, grid:{color:'#F0F2F7'}, border:{display:false} }
           }
         }
       });
     }
 
   } catch(e) {
-    console.error('Accueil:', e);
+    console.error('chargerAccueil:', e);
   }
 }
 
