@@ -310,8 +310,8 @@ class SC(pdfcanvas.Canvas):
         self.restoreState()
         self._draw_tampons()
     def _draw_tampons(self):
-        IS_PAYE = '${type}' == 'facture' and '${docStatut}' in ('paye', 'paye', 'payee', 'acquitte')
-        IS_SIGNE = '${type}' == 'devis' and '${docStatut}' in ('signe', 'signe')
+        IS_PAYE = '${type}' == 'facture' and 'envoye' in ('paye', 'paye', 'payee', 'acquitte')
+        IS_SIGNE = '${type}' == 'devis' and 'envoye' in ('signe', 'signe')
         rouge = colors.HexColor('#cc0000')
         vert  = colors.HexColor('#16a34a')
         if IS_PAYE:
@@ -374,7 +374,7 @@ net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('TOPPADDING',(0,0)
 story.append(net); story.append(Spacer(1,0.35*cm))
 story.append(HRFlowable(width='100%',thickness=0.3,color=GRIS_LIGNE,spaceAfter=8))
 IS_DEVIS = '${type}' == 'devis'
-IS_PAYE = '${docStatut}' in ('paye', 'paye', 'payee', 'acquitte')
+IS_PAYE = False
 if IS_DEVIS:
     story.append(p('CONDITIONS',8,'Helvetica-Bold',MARINE,sa=6))
     cond=Table([[p('Acompte 40% a la signature',9,color=GRIS_TEXTE),p('%.2f \\u20ac'%(totalHT*0.4),9,'Helvetica-Bold',OR_FONCE,TA_RIGHT)],[p('Solde a la fin des travaux',9,color=GRIS_TEXTE),p('%.2f \\u20ac'%(totalHT*0.6),9,align=TA_RIGHT)],[p('Validite 30 jours  \\u2022  Virement, especes, CB',8,color=GRIS_SOFT),'']],colWidths=[14.2*cm,4.0*cm])
