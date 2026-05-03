@@ -4225,26 +4225,31 @@ async function genererEtTelecharger(type) {
   const panier = prefix === 'd' ? panierD : panierF;
   if (!panier.length) { showToast('⚠️ Panier vide !', '❌'); return; }
 
-  const client    = document.getElementById(`${prefix}-client`)?.value.trim();
-  const adresse   = document.getElementById(`${prefix}-adresse`)?.value.trim();
+  const client  = getClientComplet(prefix);
+  const adresse = document.getElementById(`${prefix}-adresse`)?.value.trim();
   if (!client || !adresse) { showToast('⚠️ Remplis le nom et l\'adresse !', '❌'); return; }
 
   const btn = document.getElementById('f-btn-dl');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Génération...'; }
 
   try {
-    const email     = document.getElementById(`${prefix}-email`)?.value.trim() || '';
     const telephone = document.getElementById(`${prefix}-tel`)?.value.trim() || '';
     const prenom    = document.getElementById(`${prefix}-prenom`)?.value.trim() || '';
-    const ville     = document.getElementById(`${prefix}-ville`)?.value.trim() || '';
     const desc      = document.getElementById(`${prefix}-description`)?.value.trim() || '';
+
+    // Sauvegarder les descriptions éditées
+    document.querySelectorAll(`#${prefix}-panier-items textarea[data-idx]`).forEach(ta => {
+      const idx = parseInt(ta.getAttribute('data-idx'));
+      if (!isNaN(idx) && panier[idx]) panier[idx].desc = ta.value;
+    });
+
     const prestations = panier.map(p => ({ nom: p.designation, prix: p.prixUnit, quantite: p.qte, desc: p.desc || '' }));
 
-    // Générer sans email (on passe un email vide)
+    // Générer SANS email — pas d'envoi
     const res = await fetch('/api/generer', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('sinelec_token') || '') },
-      body: JSON.stringify({ type, client, email: '', telephone, adresse, prenom, ville, description: desc, prestations })
+      body: JSON.stringify({ type, client, email: '', telephone, adresse, prenom, description: desc, prestations })
     });
     const data = await res.json();
     if (!data.success) throw new Error(data.error || 'Erreur génération');
@@ -4256,17 +4261,12 @@ async function genererEtTelecharger(type) {
     const blob = await pdfRes.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
-    a.download = `${data.num}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    a.href = url; a.download = `${data.num}.pdf`;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
 
     showToast(`✅ ${data.num} téléchargé — prêt pour WhatsApp !`, '📲');
     shootConfetti();
-
-    // Reset panier
     if (prefix === 'd') panierD = []; else panierF = [];
     renderPanier(prefix);
 
