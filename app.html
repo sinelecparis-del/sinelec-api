@@ -586,22 +586,82 @@ body {
 }
 .obat-voir-plus:hover { opacity:1; background:#FFFBF5; }
 
-/* ══ CHANTIERS ══ */
-.obat-chantier {
-  padding:13px 20px; border-bottom:1px solid #F5F6FA;
-  cursor:pointer; transition:background 0.12s;
+/* ══ À TRAITER MAINTENANT ══ */
+.traiter-section { padding:4px 0; }
+.traiter-section + .traiter-section { border-top:1px solid #EEF0F6; }
+.traiter-label {
+  font-size:9px; font-weight:800; color:#8896A8;
+  letter-spacing:1.5px; text-transform:uppercase;
+  padding:10px 20px 4px;
 }
-.obat-chantier:last-child { border-bottom:none; }
-.obat-chantier:hover { background:#FAFBFF; }
-.obat-ch-top { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:9px; }
-.obat-ch-nom { font-size:12.5px; font-weight:700; color:#0B1F3A; }
-.obat-ch-desc { font-size:10.5px; color:#8896A8; margin-top:2px; }
-.obat-ch-montant { font-size:14px; font-weight:900; color:#C9A84C; }
-.obat-ch-track { height:5px; background:#EEF0F6; border-radius:4px; overflow:hidden; }
-.obat-ch-fill { height:100%; border-radius:4px; transition:width 1.2s ease; }
-.obat-ch-foot { display:flex; justify-content:space-between; margin-top:5px; }
-.obat-ch-pct { font-size:10px; font-weight:700; }
-.obat-ch-date { font-size:10px; color:#8896A8; }
+.traiter-item {
+  display:flex; align-items:center; gap:11px;
+  padding:10px 20px; cursor:pointer;
+  transition:background 0.12s; border-bottom:1px solid #F5F6FA;
+  position:relative;
+}
+.traiter-item:last-child { border-bottom:none; }
+.traiter-item:hover { background:#FAFBFF; }
+.traiter-item:hover .traiter-actions { opacity:1; }
+.traiter-dot {
+  width:8px; height:8px; border-radius:50%; flex-shrink:0;
+}
+.traiter-dot.rouge { background:#ef4444; box-shadow:0 0 0 3px rgba(239,68,68,0.15); }
+.traiter-dot.orange { background:#f59e0b; box-shadow:0 0 0 3px rgba(245,158,11,0.15); }
+.traiter-dot.vert { background:#16a34a; box-shadow:0 0 0 3px rgba(22,163,74,0.15); }
+.traiter-info { flex:1; min-width:0; }
+.traiter-client { font-size:12.5px; font-weight:700; color:#0B1F3A; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.traiter-desc { font-size:10.5px; color:#8896A8; margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.traiter-right { text-align:right; flex-shrink:0; }
+.traiter-montant { font-size:13px; font-weight:800; color:#C9A84C; }
+.traiter-age { font-size:10px; color:#8896A8; margin-top:2px; }
+.traiter-actions {
+  display:flex; gap:4px; margin-left:6px;
+  opacity:0; transition:opacity 0.15s; flex-shrink:0;
+}
+.traiter-act {
+  width:27px; height:27px; border-radius:7px;
+  border:1.5px solid #E4E7EF; background:#fff;
+  display:flex; align-items:center; justify-content:center;
+  font-size:12px; cursor:pointer; transition:all 0.12s;
+}
+.traiter-act:hover { background:rgba(232,184,75,0.1); border-color:rgba(232,184,75,0.4); }
+.traiter-act.green:hover { background:rgba(22,163,74,0.1); border-color:rgba(22,163,74,0.4); }
+.traiter-act.blue:hover { background:rgba(245,158,11,0.1); border-color:rgba(245,158,11,0.4); }
+.traiter-vide {
+  padding:18px 20px; text-align:center;
+  font-size:12px; font-weight:700;
+}
+
+/* ══ KPI CLIQUABLE — TOOLTIP ══ */
+.obat-kpi { cursor:pointer; }
+.obat-kpi-tooltip {
+  position:absolute; bottom:0; left:50%;
+  transform:translateX(-50%) translateY(calc(100% + 6px));
+  background:#0B1F3A; color:#fff; padding:5px 11px;
+  border-radius:7px; font-size:10px; font-weight:600;
+  white-space:nowrap; opacity:0; transition:all 0.18s;
+  pointer-events:none; z-index:20;
+  box-shadow:0 4px 12px rgba(11,31,58,0.25);
+}
+.obat-kpi-tooltip::before {
+  content:''; position:absolute; top:-4px; left:50%;
+  transform:translateX(-50%);
+  border:4px solid transparent; border-bottom-color:#0B1F3A;
+  border-top:none;
+}
+.obat-kpi:hover .obat-kpi-tooltip { opacity:1; transform:translateX(-50%) translateY(calc(100% + 8px)); }
+
+/* ══ ALERTE CHIPS INDIVIDUELLES ══ */
+.acc-alerte-chips { display:flex; gap:7px; flex-wrap:wrap; margin-top:8px; }
+.acc-alerte-chip {
+  background:#fff; border:1.5px solid #fecaca; border-radius:8px;
+  padding:6px 12px; font-size:11px; font-weight:700; color:#dc2626;
+  cursor:pointer; transition:all 0.15s;
+  display:flex; align-items:center; gap:6px;
+}
+.acc-alerte-chip:hover { background:#fee2e2; border-color:#ef4444; transform:translateY(-1px); }
+.acc-alerte-chip-client { font-size:10px; color:#991b1b; opacity:0.8; }
 
 /* ══ AGENDA ══ */
 .obat-agenda-item {
@@ -1132,41 +1192,44 @@ table.histo-table tr:hover td { background:#fafbff; }
         <div class="acc-alerte-pulse"></div>
         <div class="acc-alerte-txt">
           <div class="acc-alerte-title" id="acc-alerte-title">Devis sans réponse depuis +48h</div>
-          <div class="acc-alerte-sub" id="acc-alerte-sub"></div>
+          <div class="acc-alerte-chips" id="acc-alerte-chips"></div>
         </div>
-        <button class="acc-alerte-btn" onclick="switchPage('historique',null)">Voir les devis →</button>
       </div>
     </div>
 
     <!-- KPI -->
     <div class="obat-kpi-grid">
-      <div class="obat-kpi k1">
+      <div class="obat-kpi k1" onclick="filtrerHistoriqueEtNaviguer('facture','paye','mois')" style="position:relative;">
         <div class="obat-kpi-icon">📊</div>
         <div class="obat-kpi-lbl">CA encaissé ce mois</div>
         <div class="obat-kpi-val" id="acc-ca-mois">—</div>
         <div class="obat-kpi-trend" id="acc-ca-mois-trend" style="color:#8896A8;">Chargement...</div>
         <div class="obat-kpi-sub" id="acc-ca-objectif">Objectif mensuel : 8 000 €</div>
+        <div class="obat-kpi-tooltip">→ Factures payées ce mois</div>
       </div>
-      <div class="obat-kpi k2">
+      <div class="obat-kpi k2" onclick="switchPage('dashboard',null)" style="position:relative;">
         <div class="obat-kpi-icon">💰</div>
         <div class="obat-kpi-lbl">CA année 2026</div>
         <div class="obat-kpi-val" id="acc-ca-annee">—</div>
         <div class="obat-kpi-trend" id="acc-nb-factures" style="color:#16a34a;">—</div>
         <div class="obat-kpi-sub">106 985 € depuis création</div>
+        <div class="obat-kpi-tooltip">→ Page CA & Stats</div>
       </div>
-      <div class="obat-kpi k3">
+      <div class="obat-kpi k3" onclick="filtrerHistoriqueEtNaviguer('facture','attente',null)" style="position:relative;">
         <div class="obat-kpi-icon">⏳</div>
         <div class="obat-kpi-lbl">Reste à encaisser</div>
         <div class="obat-kpi-val" id="acc-reste">—</div>
         <div class="obat-kpi-trend" id="acc-retard" style="color:#8896A8;">—</div>
         <div class="obat-kpi-sub" id="acc-nb-att-fact">—</div>
+        <div class="obat-kpi-tooltip">→ Factures en attente de paiement</div>
       </div>
-      <div class="obat-kpi k4">
+      <div class="obat-kpi k4" onclick="filtrerHistoriqueEtNaviguer('devis','attente',null)" style="position:relative;">
         <div class="obat-kpi-icon">📋</div>
         <div class="obat-kpi-lbl">Devis en attente</div>
         <div class="obat-kpi-val" id="acc-devis-attente">—</div>
         <div class="obat-kpi-trend" id="acc-devis-relance" style="color:#f59e0b;">—</div>
         <div class="obat-kpi-sub" id="acc-total-devis">—</div>
+        <div class="obat-kpi-tooltip">→ Devis en attente de signature</div>
       </div>
     </div>
 
@@ -1201,13 +1264,13 @@ table.histo-table tr:hover td { background:#fafbff; }
     <!-- ROW 2 : Chantiers + Docs avec onglets -->
     <div class="obat-row2">
 
-      <!-- CHANTIERS EN COURS -->
+      <!-- À TRAITER MAINTENANT -->
       <div class="obat-card">
         <div class="obat-card-head">
-          🏗️ Chantiers en cours
-          <span class="obat-card-link" onclick="switchPage('historique',null)">Voir tout →</span>
+          ⚡ À traiter maintenant
+          <span class="obat-card-link" onclick="switchPage('historique',null)">Historique →</span>
         </div>
-        <div id="acc-chantiers">
+        <div id="acc-traiter">
           <div style="padding:30px 20px;text-align:center;color:#8896A8;font-size:13px;">Chargement...</div>
         </div>
       </div>
@@ -4174,150 +4237,294 @@ function renderAccueilDocs(docs, containerId, type) {
     `<div class="obat-voir-plus" onclick="switchPage('historique',null)">Voir tout l'historique (${docs.length}) →</div>`;
 }
 
+// ── Navigation depuis KPI ──────────────────────────
+function filtrerHistoriqueEtNaviguer(type, statut, periode) {
+  histoFiltre = type || 'tous';
+  histoStatutFiltre = statut === 'attente' ? null : statut;
+  histoSearch = '';
+  histoPage = 1;
+  if (periode === 'mois') {
+    const now = new Date();
+    window._histoFiltreMois = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  } else {
+    window._histoFiltreMois = null;
+  }
+  // Filtre statut spécial attente
+  if (statut === 'attente') {
+    if (type === 'facture') window._histoFiltreStatut = 'attente_paiement';
+    if (type === 'devis')   window._histoFiltreStatut = 'attente_signature';
+  } else {
+    window._histoFiltreStatut = null;
+  }
+  switchPage('historique', null);
+}
+
+// ── Aller directement sur un doc dans l historique ──
+function allerSurDoc(num) {
+  histoFiltre = 'tous';
+  histoStatutFiltre = null;
+  histoSearch = num;
+  histoPage = 1;
+  window._histoFiltreMois = null;
+  window._histoFiltreStatut = null;
+  switchPage('historique', null);
+}
+
+// ── Relancer un devis par SMS ──
+async function relancerDevis(num, tel, client) {
+  if (!tel) { showToast('Pas de telephone pour ce client', 'warning'); return; }
+  const msg = `Bonjour ${client}, votre devis SINELEC ${num} est en attente de votre signature. N hesitez pas a me contacter. Diahe - SINELEC`;
+  try {
+    const res = await fetch('/api/sms', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ telephone: tel, message: msg })
+    });
+    const data = await res.json();
+    if (data.success) showToast(`SMS de relance envoye a ${client}`, 'ok');
+    else showToast('Erreur SMS: ' + (data.error||''), 'error');
+  } catch(e) { showToast('Erreur reseau', 'error'); }
+}
+
 async function chargerAccueil() {
-  // Date
   const now = new Date();
   const jours = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
-  const moisN = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  const moisN = ['janvier','fevrier','mars','avril','mai','juin','juillet','aout','septembre','octobre','novembre','decembre'];
+  const moisNFR = ['janvier','f\u00e9vrier','mars','avril','mai','juin','juillet','ao\u00fbt','septembre','octobre','novembre','d\u00e9cembre'];
   const dateEl = document.getElementById('accueil-date');
-  if (dateEl) dateEl.textContent = `${jours[now.getDay()]} ${now.getDate()} ${moisN[now.getMonth()]} ${now.getFullYear()}`;
+  if (dateEl) dateEl.textContent = `${jours[now.getDay()]} ${now.getDate()} ${moisNFR[now.getMonth()]} ${now.getFullYear()}`;
 
   try {
     const [resCA, resAgenda] = await Promise.all([
       fetch('/api/ca-complet'),
       fetch('/api/agenda')
     ]);
-    const docs = await resCA.json();
+    const docs   = await resCA.json();
     const agenda = await resAgenda.json();
+    const norm   = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    const ageH   = d => (new Date() - new Date(d.created_at||d.date)) / 3600000;
+    const ageStr = d => {
+      const h = ageH(d);
+      if (h < 2)  return "A l instant";
+      if (h < 24) return `Il y a ${Math.floor(h)}h`;
+      if (h < 48) return 'Hier';
+      return `Il y a ${Math.floor(h/24)} j`;
+    };
 
-    // ── Trier et séparer
     docs.sort((a,b) => new Date(b.created_at||b.date) - new Date(a.created_at||a.date));
     const factures = docs.filter(d => d.type === 'facture');
     const devis    = docs.filter(d => d.type === 'devis');
 
-    // ── KPI
-    const annee = now.getFullYear();
+    const annee   = now.getFullYear();
     const moisCle = `${annee}-${String(now.getMonth()+1).padStart(2,'0')}`;
-    const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 
-    const caMois  = factures.filter(f=>(f.created_at||'').startsWith(moisCle)).reduce((s,f)=>s+parseFloat(f.total_ht||0),0);
-    const caAnnee = factures.filter(f=>(f.created_at||'').startsWith(String(annee))).reduce((s,f)=>s+parseFloat(f.total_ht||0),0);
-    const devisEnAttente  = devis.filter(d=>norm(d.statut)==='envoye');
-    const devisRelances   = devisEnAttente.filter(d=>(new Date()-new Date(d.created_at||d.date))/3600000>48);
-    const factEnAttente   = factures.filter(f=>!['paye','payee','acquitte','annule'].includes(norm(f.statut)));
-    const reste = factEnAttente.reduce((s,f)=>s+parseFloat(f.total_ht||0),0);
+    const caMois  = factures
+      .filter(f => (f.created_at||'').startsWith(moisCle))
+      .reduce((s,f) => s + parseFloat(f.total_ht||0), 0);
+    const caAnnee = factures
+      .filter(f => (f.created_at||'').startsWith(String(annee)))
+      .reduce((s,f) => s + parseFloat(f.total_ht||0), 0);
+    const factMoisPaye = factures.filter(f =>
+      (f.created_at||'').startsWith(moisCle) &&
+      ['paye','payee','acquitte'].includes(norm(f.statut))
+    );
+    const devisEnAttente = devis.filter(d => norm(d.statut) === 'envoye');
+    const devisRelances  = devisEnAttente.filter(d => ageH(d) > 48);
+    const factEnAttente  = factures.filter(f =>
+      !['paye','payee','acquitte','annule'].includes(norm(f.statut))
+    );
+    const reste = factEnAttente.reduce((s,f) => s + parseFloat(f.total_ht||0), 0);
 
-    const set = (id,v) => { const e=document.getElementById(id); if(e) e.textContent=v; };
-    set('acc-ca-mois',   Math.round(caMois).toLocaleString('fr-FR')+' €');
-    set('acc-ca-annee',  Math.round(caAnnee).toLocaleString('fr-FR')+' €');
-    set('acc-nb-factures', `↑ ${factures.length} factures émises`);
-    set('acc-reste',     Math.round(reste).toLocaleString('fr-FR')+' €');
-    set('acc-retard',    reste > 0 ? `${factEnAttente.length} facture${factEnAttente.length>1?'s':''} en attente` : '✓ 0 € en retard');
-    set('acc-devis-attente', devisEnAttente.length+' devis');
-    set('acc-devis-relance', devisRelances.length>0 ? `⚠ ${devisRelances.length} sans réponse +48h` : '✅ Tous récents');
-    set('acc-total-devis', `${devis.length} devis au total`);
-    set('acc-nb-att-fact', `${factEnAttente.length} facture${factEnAttente.length>1?'s':''} en attente`);
+    const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+    set('acc-ca-mois',       Math.round(caMois).toLocaleString('fr-FR') + ' \u20ac');
+    set('acc-ca-mois-trend', `\u2191 ${factMoisPaye.length} facture${factMoisPaye.length>1?'s':''} pay\u00e9e${factMoisPaye.length>1?'s':''} ce mois`);
+    set('acc-ca-annee',      Math.round(caAnnee).toLocaleString('fr-FR') + ' \u20ac');
+    set('acc-nb-factures',   `\u2191 ${factures.length} factures \u00e9mises`);
+    set('acc-reste',         Math.round(reste).toLocaleString('fr-FR') + ' \u20ac');
+    set('acc-retard',        reste > 0 ? `${factEnAttente.length} facture${factEnAttente.length>1?'s':''} en attente` : '\u2713 0 \u20ac en retard');
+    set('acc-nb-att-fact',   `${factEnAttente.length} facture${factEnAttente.length>1?'s':''} en attente`);
+    set('acc-devis-attente', devisEnAttente.length + ' devis');
+    set('acc-devis-relance', devisRelances.length > 0 ? `\u26a0 ${devisRelances.length} sans r\u00e9ponse +48h` : '\u2705 Tous r\u00e9cents');
+    set('acc-total-devis',   `${devis.length} devis au total`);
 
     const retardEl = document.getElementById('acc-retard');
     if (retardEl) retardEl.style.color = reste > 0 ? '#f59e0b' : '#16a34a';
     const relEl = document.getElementById('acc-devis-relance');
     if (relEl) relEl.style.color = devisRelances.length > 0 ? '#dc2626' : '#16a34a';
 
-    // ── Alerte +48h
+    // Alerte chips
     const alerteBox = document.getElementById('acc-alerte-box');
+    const chipsEl   = document.getElementById('acc-alerte-chips');
     if (alerteBox) {
       if (devisRelances.length > 0) {
         alerteBox.style.display = 'block';
-        set('acc-alerte-title', `${devisRelances.length} devis sans réponse depuis plus de 48h — Relancer maintenant ?`);
-        set('acc-alerte-sub', devisRelances.slice(0,3).map(d=>`${d.num} · ${d.client}`).join('  |  '));
+        set('acc-alerte-title', `${devisRelances.length} devis sans r\u00e9ponse depuis plus de 48h`);
+        if (chipsEl) {
+          chipsEl.innerHTML = devisRelances.map(d => `
+            <div class="acc-alerte-chip" onclick="allerSurDoc('${d.num}')" title="Aller sur ce devis">
+              <span>${d.num}</span>
+              <span class="acc-alerte-chip-client">${(d.client||'').substring(0,22)} \u00b7 ${parseFloat(d.total_ht||0).toFixed(0)} \u20ac</span>
+              <span>\u2192</span>
+            </div>`).join('');
+        }
       } else {
         alerteBox.style.display = 'none';
       }
     }
 
-    // ── Avis Google
+    // Avis Google
     const nbAvis = 91; const objectif = 150;
-    const pct = Math.round((nbAvis/objectif)*100);
+    const pctAvis = Math.round((nbAvis / objectif) * 100);
     const barEl = document.getElementById('acc-avis-bar');
-    if (barEl) barEl.style.width = pct+'%';
-    set('acc-avis-pct', `${nbAvis} / ${objectif} · ${pct}% atteint · encore ${objectif-nbAvis} avis`);
+    if (barEl) barEl.style.width = pctAvis + '%';
+    set('acc-avis-pct', `${nbAvis} / ${objectif} \u00b7 ${pctAvis}% atteint \u00b7 encore ${objectif - nbAvis} avis`);
 
-    // ── Onglets docs
+    // Onglets docs
     accDocsDevis    = devis;
     accDocsFactures = factures;
-    set('acc-cnt-devis', devis.length);
+    set('acc-cnt-devis',    devis.length);
     set('acc-cnt-factures', factures.length);
-    renderAccueilDocs(devis, 'acc-tab-devis', 'devis');
+    renderAccueilDocs(devis,    'acc-tab-devis',    'devis');
     renderAccueilDocs(factures, 'acc-tab-factures', 'factures');
 
-    // ── Chantiers (devis signés récents = chantiers en cours)
-    const chantiers = devis.filter(d => {
-      const s = norm(d.statut);
-      return s === 'signe' && parseFloat(d.total_ht||0) > 0;
-    }).slice(0, 4);
+    // A TRAITER MAINTENANT
+    const devisSignesNonFactures = devis.filter(d => norm(d.statut) === 'signe');
+    const todayStr = now.toISOString().split('T')[0];
+    const agendaAujourdhui = (agenda||[])
+      .filter(iv => iv.date_intervention === todayStr &&
+        !['termine','annule'].includes(norm(iv.statut)))
+      .sort((a,b) => (a.heure||'').localeCompare(b.heure||''));
 
-    const chEl = document.getElementById('acc-chantiers');
-    if (chEl) {
-      if (!chantiers.length) {
-        chEl.innerHTML = `<div style="padding:30px 20px;text-align:center;color:#8896A8;font-size:13px;">Aucun chantier en cours</div>`;
+    const traiterEl = document.getElementById('acc-traiter');
+    if (traiterEl) {
+      let html = '';
+
+      html += `<div class="traiter-section"><div class="traiter-label">\uD83D\uDD34 Urgent \u2014 Devis sign\u00e9s \u00e0 facturer</div>`;
+      if (!devisSignesNonFactures.length) {
+        html += `<div class="traiter-vide" style="color:#16a34a;">\u2705 Aucun devis sign\u00e9 en attente de facturation</div>`;
       } else {
-        const colors = ['linear-gradient(90deg,#3b82f6,#60a5fa)', 'linear-gradient(90deg,#16a34a,#4ade80)', 'linear-gradient(90deg,#E8B84B,#f59e0b)', 'linear-gradient(90deg,#a855f7,#c084fc)'];
-        const pcts = [30, 60, 15, 80];
-        const pctColors = ['#3b82f6','#16a34a','#d97706','#a855f7'];
-        chEl.innerHTML = chantiers.map((d, i) => `
-          <div class="obat-chantier">
-            <div class="obat-ch-top">
-              <div>
-                <div class="obat-ch-nom">${d.client||'—'}</div>
-                <div class="obat-ch-desc">${((d.prestations||[{nom:'—'}])[0]?.nom||'—').substring(0,30)}</div>
-              </div>
-              <div class="obat-ch-montant">${parseFloat(d.total_ht||0).toFixed(0)} €</div>
+        html += devisSignesNonFactures.slice(0,3).map(d => {
+          const pn = ((d.prestations||[{nom:'\u2014'}])[0]?.nom||'\u2014').substring(0,30);
+          return `<div class="traiter-item" onclick="allerSurDoc('${d.num}')">
+            <div class="traiter-dot rouge"></div>
+            <div class="traiter-info">
+              <div class="traiter-client">${d.client||'\u2014'}</div>
+              <div class="traiter-desc">${pn}</div>
             </div>
-            <div class="obat-ch-track">
-              <div class="obat-ch-fill" style="width:${pcts[i]||30}%;background:${colors[i]||colors[0]};"></div>
+            <div class="traiter-right">
+              <div class="traiter-montant">${parseFloat(d.total_ht||0).toFixed(0)} \u20ac</div>
+              <div class="traiter-age">${ageStr(d)}</div>
             </div>
-            <div class="obat-ch-foot">
-              <span class="obat-ch-pct" style="color:${pctColors[i]||pctColors[0]};">${pcts[i]||30}% réalisé</span>
-              <span class="obat-ch-date">${d.date_intervention ? '📅 '+new Date(d.date_intervention).toLocaleDateString('fr-FR') : '📅 En cours'}</span>
+            <div class="traiter-actions">
+              <div class="traiter-act green" onclick="event.stopPropagation();convertirEnFacture('${d.num}')" title="Cr\u00e9er facture">\uD83D\uDCB6</div>
+              <div class="traiter-act" onclick="event.stopPropagation();previsualiserPDF('${d.num}')" title="Aper\u00e7u">\uD83D\uDC41\uFE0F</div>
             </div>
-          </div>`).join('');
+          </div>`;
+        }).join('');
+        if (devisSignesNonFactures.length > 3) {
+          html += `<div class="traiter-vide" style="color:#8896A8;font-weight:600;">+ ${devisSignesNonFactures.length-3} autre${devisSignesNonFactures.length-3>1?'s':''}</div>`;
+        }
       }
+      html += `</div>`;
+
+      html += `<div class="traiter-section"><div class="traiter-label">\uD83D\uDFE1 En attente \u2014 Devis sans r\u00e9ponse +48h</div>`;
+      if (!devisRelances.length) {
+        html += `<div class="traiter-vide" style="color:#16a34a;">\u2705 Tous les devis ont \u00e9t\u00e9 vus r\u00e9cemment</div>`;
+      } else {
+        html += devisRelances.slice(0,3).map(d => {
+          const pn = ((d.prestations||[{nom:'\u2014'}])[0]?.nom||'\u2014').substring(0,30);
+          const jj = Math.floor(ageH(d)/24);
+          const tl = (d.telephone||'').replace(/'/g,"\\'");
+          const cl = (d.client||'').replace(/'/g,"\\'");
+          return `<div class="traiter-item" onclick="allerSurDoc('${d.num}')">
+            <div class="traiter-dot orange"></div>
+            <div class="traiter-info">
+              <div class="traiter-client">${d.client||'\u2014'}</div>
+              <div class="traiter-desc">${pn}</div>
+            </div>
+            <div class="traiter-right">
+              <div class="traiter-montant">${parseFloat(d.total_ht||0).toFixed(0)} \u20ac</div>
+              <div class="traiter-age" style="color:#dc2626;">Il y a ${jj} j</div>
+            </div>
+            <div class="traiter-actions">
+              <div class="traiter-act blue" onclick="event.stopPropagation();relancerDevis('${d.num}','${tl}','${cl}')" title="Relancer SMS">\uD83D\uDCF1</div>
+              <div class="traiter-act green" onclick="event.stopPropagation();convertirEnFacture('${d.num}')" title="Facture directe">\uD83D\uDCB6</div>
+              <div class="traiter-act" onclick="event.stopPropagation();previsualiserPDF('${d.num}')" title="Aper\u00e7u">\uD83D\uDC41\uFE0F</div>
+            </div>
+          </div>`;
+        }).join('');
+      }
+      html += `</div>`;
+
+      html += `<div class="traiter-section"><div class="traiter-label">\uD83D\uDFE2 Aujourd\u2019hui \u2014 Agenda</div>`;
+      if (!agendaAujourdhui.length) {
+        html += `<div class="traiter-vide" style="color:#8896A8;">Aucune intervention planifi\u00e9e aujourd\u2019hui</div>`;
+      } else {
+        html += agendaAujourdhui.slice(0,2).map(iv => {
+          const nom = iv.client || (iv.prenom||''+' '+iv.nom||'').trim() || 'Client';
+          const heure = (iv.heure||'?').substring(0,5);
+          return `<div class="traiter-item" onclick="switchPage('agenda',null)">
+            <div class="traiter-dot vert"></div>
+            <div style="background:#EFF4FF;border-radius:7px;padding:5px 8px;text-align:center;flex-shrink:0;min-width:44px;">
+              <div style="font-size:12px;font-weight:800;color:#1B2A4A;">${heure}</div>
+            </div>
+            <div class="traiter-info">
+              <div class="traiter-client">${nom}</div>
+              <div class="traiter-desc">${iv.type_intervention||'Intervention'}</div>
+            </div>
+            ${iv.telephone ? `<a href="tel:${iv.telephone}" onclick="event.stopPropagation()" class="traiter-act" style="text-decoration:none;display:flex;align-items:center;justify-content:center;" title="Appeler">\uD83D\uDCDE</a>` : ''}
+          </div>`;
+        }).join('');
+      }
+      html += `</div>`;
+
+      traiterEl.innerHTML = html;
     }
 
-    // ── Graphique CA 6 mois
+    // Graphique CA 6 mois
     const labels = [], vals = [];
     for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+      const d    = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const mKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-      labels.push(d.toLocaleDateString('fr-FR',{month:'short'}));
-      vals.push(Math.round(factures.filter(f=>(f.created_at||'').startsWith(mKey)).reduce((s,f)=>s+parseFloat(f.total_ht||0),0)));
+      labels.push(d.toLocaleDateString('fr-FR', {month:'short'}));
+      vals.push(Math.round(
+        factures.filter(f=>(f.created_at||'').startsWith(mKey))
+               .reduce((s,f)=>s+parseFloat(f.total_ht||0),0)
+      ));
     }
-
     const totalChart = vals.reduce((a,b)=>a+b,0);
-    const maxVal = Math.max(...vals);
-    const bestIdx = vals.indexOf(maxVal);
-    set('acc-chart-total', `Total 6 mois : ${Math.round(totalChart).toLocaleString('fr-FR')} € · Meilleur : ${labels[bestIdx]} ${maxVal.toLocaleString('fr-FR')} € ★`);
+    const maxVal     = Math.max(...vals);
+    const bestIdx    = vals.indexOf(maxVal);
+    set('acc-chart-total', `Total 6 mois : ${Math.round(totalChart).toLocaleString('fr-FR')} \u20ac \u00b7 Meilleur : ${labels[bestIdx]||''} ${maxVal.toLocaleString('fr-FR')} \u20ac \u2605`);
 
     if (accChartCA) { accChartCA.destroy(); accChartCA = null; }
     const ctx = document.getElementById('acc-chart-ca')?.getContext('2d');
     if (ctx) {
       accChartCA = new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels: [...labels, 'ce mois'],
-          datasets: [{
-            data: [...vals, 0],
-            backgroundColor: vals.map((v,i) => i === bestIdx ? '#E8B84B' : '#C7D2E8'),
-            borderRadius: 7,
-            borderSkipped: false,
+        type:'bar',
+        data:{
+          labels:[...labels,'ce mois'],
+          datasets:[{
+            data:[...vals, caMois||0],
+            backgroundColor:[...vals.map((v,i)=>i===bestIdx?'#E8B84B':'#C7D2E8'),'rgba(232,184,75,0.25)'],
+            borderColor:[...vals.map(()=>'transparent'),'#E8B84B'],
+            borderWidth:2, borderRadius:7, borderSkipped:false
           }]
         },
-        options: {
+        options:{
           responsive:true, maintainAspectRatio:false,
-          plugins:{ legend:{display:false} },
+          plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.parsed.y.toLocaleString('fr-FR')} \u20ac`}}},
           scales:{
-            x:{ ticks:{color:'#8896A8',font:{size:10,weight:'600'}}, grid:{display:false}, border:{display:false} },
-            y:{ ticks:{color:'#8896A8',font:{size:10},callback:v=>v>0?Math.round(v/1000)+'k€':''}, grid:{color:'#F0F2F7'}, border:{display:false} }
+            x:{ticks:{color:'#8896A8',font:{size:10,weight:'600'}},grid:{display:false},border:{display:false}},
+            y:{ticks:{color:'#8896A8',font:{size:10},callback:v=>v>0?Math.round(v/1000)+'k\u20ac':''},grid:{color:'#F0F2F7'},border:{display:false}}
+          },
+          onClick:(evt,elements)=>{
+            if(!elements.length) return;
+            const idx = elements[0].index;
+            if(idx >= labels.length) return;
+            const d = new Date(now.getFullYear(), now.getMonth()-(5-idx), 1);
+            window._histoFiltreMois = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+            histoFiltre='facture'; histoStatutFiltre=null; histoSearch=''; histoPage=1;
+            switchPage('historique',null);
           }
         }
       });
@@ -4327,6 +4534,7 @@ async function chargerAccueil() {
     console.error('chargerAccueil:', e);
   }
 }
+
 
 // ═══════════════════════════════════════════════════
 // HISTORIQUE — TABLEAU STYLE OBAT
