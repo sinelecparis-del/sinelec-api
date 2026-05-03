@@ -4105,26 +4105,61 @@ function renderAccueilDocs(docs, containerId, type) {
     if (h < 48) return "Hier";
     return `Il y a ${Math.floor(h/24)} j`;
   };
+  const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
   const getBadge = item => {
-    const s = (item.statut||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    const s = norm(item.statut);
     const h = (new Date() - new Date(item.created_at||item.date)) / 3600000;
     const alerte = type === 'devis' && s === 'envoye' && h > 48;
-    if (['paye','payee','acquitte'].includes(s)) return `<span style="background:#d1fae5;color:#065f46;border-radius:20px;padding:3px 9px;font-size:10.5px;font-weight:700;">💰 Payée</span>`;
-    if (s === 'signe') return `<span style="background:#dcfce7;color:#15803d;border-radius:20px;padding:3px 9px;font-size:10.5px;font-weight:700;">✅ Signé</span>`;
-    if (s === 'annule') return `<span style="background:#f3f4f6;color:#6b7280;border-radius:20px;padding:3px 9px;font-size:10.5px;font-weight:700;">❌ Annulé</span>`;
-    if (alerte) return `<span style="background:#fee2e2;color:#dc2626;border-radius:20px;padding:3px 9px;font-size:10.5px;font-weight:700;">⚠️ +48h</span>`;
-    if (s === 'envoye') return `<span style="background:#dbeafe;color:#1d4ed8;border-radius:20px;padding:3px 9px;font-size:10.5px;font-weight:700;">📧 Envoyé</span>`;
-    return `<span style="background:#fef9c3;color:#854d0e;border-radius:20px;padding:3px 9px;font-size:10.5px;font-weight:700;">⏳ En attente</span>`;
+    if (['paye','payee','acquitte'].includes(s)) return `<span style="background:#d1fae5;color:#065f46;border-radius:20px;padding:3px 9px;font-size:10.5px;font-weight:700;white-space:nowrap;">💰 Payée</span>`;
+    if (s === 'signe') return `<span style="background:#dcfce7;color:#15803d;border-radius:20px;padding:3px 9px;font-size:10.5px;font-weight:700;white-space:nowrap;">✅ Signé</span>`;
+    if (s === 'annule') return `<span style="background:#f3f4f6;color:#6b7280;border-radius:20px;padding:3px 9px;font-size:10.5px;font-weight:700;white-space:nowrap;">❌ Annulé</span>`;
+    if (alerte) return `<span style="background:#fee2e2;color:#dc2626;border-radius:20px;padding:3px 9px;font-size:10.5px;font-weight:700;white-space:nowrap;">⚠️ +48h</span>`;
+    if (s === 'envoye') return `<span style="background:#dbeafe;color:#1d4ed8;border-radius:20px;padding:3px 9px;font-size:10.5px;font-weight:700;white-space:nowrap;">📧 Envoyé</span>`;
+    return `<span style="background:#fef9c3;color:#854d0e;border-radius:20px;padding:3px 9px;font-size:10.5px;font-weight:700;white-space:nowrap;">⏳ En attente</span>`;
   };
   const isHot = item => {
-    const s = (item.statut||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    const s = norm(item.statut);
     const h = (new Date() - new Date(item.created_at||item.date)) / 3600000;
     return (type === 'devis' && s === 'envoye' && h > 48) || (type === 'factures' && s === 'envoye');
   };
   const prestNom = item => (item.prestations||[{nom:'—'}])[0]?.nom || '—';
 
+  // Boutons d'action contextuels selon type et statut
+  const getActions = item => {
+    const s = norm(item.statut);
+    const estPaye   = ['paye','payee','acquitte'].includes(s);
+    const estSigne  = s === 'signe';
+    const estAnnule = s === 'annule';
+    let btns = [];
+
+    // Toujours : aperçu + PDF
+    btns.push(`<div class="obat-doc-act" onclick="event.stopPropagation();previsualiserPDF('${item.num}')" title="Aperçu">👁️</div>`);
+    btns.push(`<div class="obat-doc-act" onclick="event.stopPropagation();telechargerPDF('${item.num}')" title="Télécharger PDF">⬇️</div>`);
+
+    if (type === 'devis') {
+      if (!estSigne) {
+        btns.push(`<div class="obat-doc-act" onclick="event.stopPropagation();ouvrirPopupSig('${item.num}')" title="Signature client" style="font-size:11px;">✍️</div>`);
+        btns.push(`<div class="obat-doc-act" onclick="event.stopPropagation();convertirEnFacture('${item.num}')" title="→ Facture" style="font-size:11px;color:#16a34a;">→💶</div>`);
+      }
+      if (estSigne) {
+        btns.push(`<div class="obat-doc-act" onclick="event.stopPropagation();convertirEnFacture('${item.num}')" title="Convertir en facture" style="font-size:11px;color:#16a34a;">→💶</div>`);
+      }
+    }
+
+    if (type === 'factures' && !estPaye && !estAnnule) {
+      btns.push(`<div class="obat-doc-act" onclick="event.stopPropagation();marquerPaye('${item.num}','terminal')" title="Payé CB" style="font-size:11px;">💳</div>`);
+      btns.push(`<div class="obat-doc-act" onclick="event.stopPropagation();marquerPaye('${item.num}','especes')" title="Payé espèces" style="font-size:11px;">💶</div>`);
+      btns.push(`<div class="obat-doc-act" onclick="event.stopPropagation();genererLienPaiement('${item.num}')" title="Lien paiement CB" style="font-size:11px;">🔗</div>`);
+      btns.push(`<div class="obat-doc-act" onclick="event.stopPropagation();marquerTermine('${item.num}')" title="Marquer terminé" style="font-size:11px;color:#16a34a;">✅</div>`);
+    }
+
+    return btns.join('');
+  };
+
   el.innerHTML = docs.slice(0,6).map(item => `
-    <div class="obat-doc-row${isHot(item)?' hot':''}">
+    <div class="obat-doc-row${isHot(item)?' hot':''}"
+      onclick="switchPage('historique',null);setTimeout(()=>{const el=document.querySelector('[data-num=\\'${item.num}\\']');if(el)el.scrollIntoView({behavior:'smooth',block:'center'});},500);"
+      title="Cliquer pour voir dans l'historique">
       <div class="obat-doc-num">${item.num}</div>
       <div class="obat-doc-info">
         <div class="obat-doc-client">${item.client||'—'}</div>
@@ -4133,10 +4168,7 @@ function renderAccueilDocs(docs, containerId, type) {
       <div class="obat-doc-right">
         ${getBadge(item)}
         <div class="obat-doc-date">${getAgeStr(item)}</div>
-        <div class="obat-doc-actions">
-          <div class="obat-doc-act" onclick="previsualiserPDF('${item.num}')" title="Aperçu">👁️</div>
-          <div class="obat-doc-act" onclick="telechargerPDF('${item.num}')" title="PDF">⬇️</div>
-        </div>
+        <div class="obat-doc-actions">${getActions(item)}</div>
       </div>
     </div>`).join('') +
     `<div class="obat-voir-plus" onclick="switchPage('historique',null)">Voir tout l'historique (${docs.length}) →</div>`;
