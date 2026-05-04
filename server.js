@@ -320,34 +320,29 @@ class SC(pdfcanvas.Canvas):
         self.restoreState()
         self._draw_tampons()
     def _draw_tampons(self):
-        IS_PAYE = '${type}' == 'facture' and 'envoye' in ('paye', 'paye', 'payee', 'acquitte')
-        IS_SIGNE = '${type}' == 'devis' and 'envoye' in ('signe', 'signe')
+        IS_PAYE = '${type}' == 'facture' and 'envoye' in ('paye','payee','acquitte')
+        IS_SIGNE = '${type}' == 'devis' and 'envoye' in ('signe',)
         rouge = colors.HexColor('#cc0000')
         vert  = colors.HexColor('#16a34a')
-        if IS_PAYE:
-            self.saveState()
-            cx = W - 5.0*cm; cy = 9.0*cm; r = 1.9*cm
-            self.setStrokeColor(rouge); self.setFillColor(rouge); self.setFillAlpha(0.72)
-            self.setLineWidth(3); self.circle(cx,cy,r,fill=0,stroke=1)
-            self.setLineWidth(1.2); self.circle(cx,cy,r-0.15*cm,fill=0,stroke=1)
-            self.translate(cx,cy); self.rotate(-15)
-            self.setFont('Helvetica-Bold',7); self.drawCentredString(0,1.0*cm,'SINELEC')
-            self.setFont('Helvetica-Bold',22); self.drawCentredString(0,0.1*cm,'PAYE')
-            self.setFont('Helvetica-Bold',7.5); self.drawCentredString(0,-0.55*cm,'${dateStr}')
-            self.setFont('Helvetica',6.5); self.drawCentredString(0,-1.0*cm,'PARIS')
-            self.restoreState()
-        if IS_SIGNE:
-            self.saveState()
-            cx = W - 5.0*cm; cy = 9.0*cm; r = 1.9*cm
-            self.setStrokeColor(vert); self.setFillColor(vert); self.setFillAlpha(0.72)
-            self.setLineWidth(3); self.circle(cx,cy,r,fill=0,stroke=1)
-            self.setLineWidth(1.2); self.circle(cx,cy,r-0.15*cm,fill=0,stroke=1)
-            self.translate(cx,cy); self.rotate(-15)
-            self.setFont('Helvetica-Bold',7); self.drawCentredString(0,1.0*cm,'SINELEC')
-            self.setFont('Helvetica-Bold',19); self.drawCentredString(0,0.15*cm,'SIGNE')
-            self.setFont('Helvetica-Bold',7.5); self.drawCentredString(0,-0.55*cm,'${dateStr}')
-            self.setFont('Helvetica',6.5); self.drawCentredString(0,-1.0*cm,'PARIS')
-            self.restoreState()
+        couleur = rouge if IS_PAYE else (vert if IS_SIGNE else None)
+        if not couleur: return
+        cx = W - 5.0*cm; cy = 9.0*cm; r = 1.9*cm
+        self.saveState()
+        self.setStrokeColor(couleur); self.setFillColor(couleur)
+        self.setFillAlpha(0.85); self.setLineWidth(3.5); self.circle(cx,cy,r,fill=0,stroke=1)
+        self.setLineWidth(0.8); self.setFillAlpha(0.4); self.circle(cx,cy,r-0.22*cm,fill=0,stroke=1)
+        self.setLineWidth(0.3); self.setFillAlpha(0.2)
+        self.setDash([0.08*cm,0.28*cm]); self.circle(cx,cy,r-0.52*cm,fill=0,stroke=1); self.setDash()
+        self.translate(cx,cy); self.rotate(-15)
+        nom_court = '${clientEsc}'.upper()[:16]
+        self.setFillAlpha(0.92); self.setFillColor(couleur)
+        self.setFont('Helvetica-Bold',7); self.drawCentredString(0,1.05*cm,nom_court)
+        label = 'PAYE' if IS_PAYE else 'SIGNE'
+        sz = 22 if IS_PAYE else 20
+        self.setFillAlpha(0.9); self.setFont('Helvetica-Bold',sz); self.drawCentredString(0,0.18*cm,label)
+        self.setFont('Helvetica-Bold',7.5); self.setFillAlpha(0.75); self.drawCentredString(0,-0.52*cm,'${dateStr}')
+        self.setFont('Helvetica',6); self.setFillAlpha(0.45); self.drawCentredString(0,-1.02*cm,'PARIS')
+        self.restoreState()
 doc=SimpleDocTemplate(sys.argv[2],pagesize=A4,leftMargin=1.2*cm,rightMargin=1.0*cm,topMargin=5.6*cm,bottomMargin=1.6*cm)
 story=[]
 objet_b=Table([[p('OBJET DES TRAVAUX',7.5,'Helvetica-Bold',OR,sa=4)],[p('${descObjet}',10,'Helvetica-Bold',MARINE)],[p('Conformes NF C 15-100  \\u2022  Garantie decennale ORUS',7.5,color=GRIS_SOFT)]],colWidths=[8.2*cm])
@@ -718,14 +713,18 @@ class SC(pdfcanvas.Canvas):
         # Tampon SIGNÉ rond vert
         self.saveState()
         cx=W-5.0*cm; cy=H/2+1.0*cm; r=1.9*cm
-        self.setStrokeColor(VERT); self.setFillColor(VERT); self.setFillAlpha(0.75)
-        self.setLineWidth(3); self.circle(cx,cy,r,fill=0,stroke=1)
-        self.setLineWidth(1.2); self.circle(cx,cy,r-0.15*cm,fill=0,stroke=1)
+        self.setStrokeColor(VERT); self.setFillColor(VERT)
+        self.setFillAlpha(0.85); self.setLineWidth(3.5); self.circle(cx,cy,r,fill=0,stroke=1)
+        self.setLineWidth(0.8); self.setFillAlpha(0.4); self.circle(cx,cy,r-0.22*cm,fill=0,stroke=1)
+        self.setLineWidth(0.3); self.setFillAlpha(0.2)
+        self.setDash([0.08*cm,0.28*cm]); self.circle(cx,cy,r-0.52*cm,fill=0,stroke=1); self.setDash()
         self.translate(cx,cy); self.rotate(-15)
-        self.setFont('Helvetica-Bold',7); self.drawCentredString(0,1.0*cm,'SINELEC')
-        self.setFont('Helvetica-Bold',19); self.drawCentredString(0,0.15*cm,'SIGNE')
-        self.setFont('Helvetica-Bold',7.5); self.drawCentredString(0,-0.55*cm,'${dateSig}')
-        self.setFont('Helvetica',6.5); self.drawCentredString(0,-1.0*cm,'PARIS')
+        nom_court = '${clientEsc}'.upper()[:16]
+        self.setFillAlpha(0.92); self.setFillColor(VERT)
+        self.setFont('Helvetica-Bold',7); self.drawCentredString(0,1.05*cm,nom_court)
+        self.setFillAlpha(0.9); self.setFont('Helvetica-Bold',20); self.drawCentredString(0,0.18*cm,'SIGNE')
+        self.setFont('Helvetica-Bold',7.5); self.setFillAlpha(0.75); self.drawCentredString(0,-0.52*cm,'${dateSig}')
+        self.setFont('Helvetica',6); self.setFillAlpha(0.45); self.drawCentredString(0,-1.02*cm,'PARIS')
         self.restoreState()
     def _draw_header_small(self):
         self.setFillColor(MARINE); self.rect(0.78*cm,H-1.5*cm,W-0.78*cm,1.5*cm,fill=1,stroke=0)
@@ -1229,18 +1228,16 @@ class SC(pdfcanvas.Canvas):
         self.setFont('Helvetica',8); self.setFillColor(colors.HexColor('#BFC8D6')); self.drawRightString(W-1.2*cm,H-3.9*cm,'Date : ${dateStr}  |  Valable : ${dateValide}')
         ${docStatut === 'signe' || docStatut === 'signé' ? `
         self.saveState()
-        self.translate(W/2, H/2)
-        self.rotate(35)
-        self.setFillColor(colors.HexColor('#16a34a'))
-        self.setStrokeColor(colors.HexColor('#16a34a'))
-        self.setLineWidth(3)
-        self.roundRect(-3.5*cm,-1.0*cm,7.0*cm,2.0*cm,0.3*cm,fill=0,stroke=1)
-        self.setFont('Helvetica-Bold',38)
-        self.setFillAlpha(0.75)
-        self.drawCentredString(0,0.3*cm,'SIGNE')
-        self.setFont('Helvetica',10)
-        self.setFillAlpha(0.6)
-        self.drawCentredString(0,-0.5*cm,'${data.date_signature ? new Date(data.date_signature).toLocaleDateString("fr-FR") : ""}')
+        cx = W - 5.0*cm; cy = 9.0*cm; r = 1.9*cm
+        vert = colors.HexColor('#16a34a')
+        self.setStrokeColor(vert); self.setFillColor(vert); self.setFillAlpha(0.72)
+        self.setLineWidth(3); self.circle(cx,cy,r,fill=0,stroke=1)
+        self.setLineWidth(1.2); self.circle(cx,cy,r-0.15*cm,fill=0,stroke=1)
+        self.translate(cx,cy); self.rotate(-15)
+        self.setFont('Helvetica-Bold',7); self.drawCentredString(0,1.0*cm,'SINELEC')
+        self.setFont('Helvetica-Bold',19); self.drawCentredString(0,0.15*cm,'SIGNE')
+        self.setFont('Helvetica-Bold',7.5); self.drawCentredString(0,-0.55*cm,'${data.date_signature ? new Date(data.date_signature).toLocaleDateString("fr-FR") : dateStr}')
+        self.setFont('Helvetica',6.5); self.drawCentredString(0,-1.0*cm,'PARIS')
         self.restoreState()
         ` : ''}
     def _draw_footer(self):
@@ -1252,22 +1249,26 @@ class SC(pdfcanvas.Canvas):
     def _draw_tampons(self):
         rouge = colors.HexColor('#cc0000')
         vert  = colors.HexColor('#16a34a')
-        IS_PAYE = '${docStatut}' in ('paye', 'payé', 'payee', 'acquitte', 'acquitté')
-        IS_SIGNE = '${docType}' == 'devis' and '${docStatut}' in ('signe', 'signé')
+        IS_PAYE = '${docStatut}' in ('paye','payé','payee','acquitte','acquitté')
+        IS_SIGNE = '${docType}' == 'devis' and '${docStatut}' in ('signe','signé')
         couleur = rouge if IS_PAYE else (vert if IS_SIGNE else None)
         label   = 'PAYE' if IS_PAYE else ('SIGNE' if IS_SIGNE else None)
         if not couleur: return
-        self.saveState()
         cx = W - 5.0*cm; cy = 9.0*cm; r = 1.9*cm
-        self.setStrokeColor(couleur); self.setFillColor(couleur); self.setFillAlpha(0.72)
-        self.setLineWidth(3); self.circle(cx,cy,r,fill=0,stroke=1)
-        self.setLineWidth(1.2); self.circle(cx,cy,r-0.15*cm,fill=0,stroke=1)
+        self.saveState()
+        self.setStrokeColor(couleur); self.setFillColor(couleur)
+        self.setFillAlpha(0.85); self.setLineWidth(3.5); self.circle(cx,cy,r,fill=0,stroke=1)
+        self.setLineWidth(0.8); self.setFillAlpha(0.4); self.circle(cx,cy,r-0.22*cm,fill=0,stroke=1)
+        self.setLineWidth(0.3); self.setFillAlpha(0.2)
+        self.setDash([0.08*cm,0.28*cm]); self.circle(cx,cy,r-0.52*cm,fill=0,stroke=1); self.setDash()
         self.translate(cx,cy); self.rotate(-15)
-        self.setFont('Helvetica-Bold',7); self.drawCentredString(0,1.0*cm,'SINELEC')
-        sz = 22 if IS_PAYE else 19
-        self.setFont('Helvetica-Bold',sz); self.drawCentredString(0,0.15*cm,label)
-        self.setFont('Helvetica-Bold',7.5); self.drawCentredString(0,-0.55*cm,'${dateStr}')
-        self.setFont('Helvetica',6.5); self.drawCentredString(0,-1.0*cm,'PARIS')
+        nom_court = '${clientEsc}'.upper()[:16]
+        self.setFillAlpha(0.92); self.setFillColor(couleur)
+        self.setFont('Helvetica-Bold',7); self.drawCentredString(0,1.05*cm,nom_court)
+        sz = 22 if IS_PAYE else 20
+        self.setFillAlpha(0.9); self.setFont('Helvetica-Bold',sz); self.drawCentredString(0,0.18*cm,label)
+        self.setFont('Helvetica-Bold',7.5); self.setFillAlpha(0.75); self.drawCentredString(0,-0.52*cm,'${dateStr}')
+        self.setFont('Helvetica',6); self.setFillAlpha(0.45); self.drawCentredString(0,-1.02*cm,'PARIS')
         self.restoreState()
 doc=SimpleDocTemplate(sys.argv[2],pagesize=A4,leftMargin=1.2*cm,rightMargin=1.0*cm,topMargin=5.6*cm,bottomMargin=1.6*cm); story=[]
 client_b=Table([[p('CLIENT',7,'Helvetica-Bold',OR,sa=4)],[p('${clientEsc}',10,'Helvetica-Bold',MARINE)],[p('${clientRue}',8.5,color=GRIS_TEXTE)],[p('${clientVille}',8.5,color=GRIS_TEXTE)]],colWidths=[18.2*cm])
