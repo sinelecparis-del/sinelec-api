@@ -2877,16 +2877,46 @@ async function chargerHistorique() {
 // ─── DATE INTERVENTION ────────────────────────────────────────
 async function majDateIntervention(num, date) {
   try {
+    // 1. Mettre à jour la date dans historique
     const res = await fetch('/api/historique/' + num + '/statut', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ date_intervention: date || null })
     });
     const data = await res.json();
-    if (data.success) {
+    if (!data.success) { showToast('❌ Erreur mise à jour date', '⚠️'); return; }
+
+    // Mettre à jour localement
+    const item = historiqueData.find(i => i.num === num);
+    if (item) item.date_intervention = date || null;
+
+    // 2. Si date fournie → créer entrée dans l'agenda
+    if (date && item) {
+      const agendaRes = await fetch('/api/agenda', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client: item.client || '',
+          prenom: (item.client || '').split(' ')[0],
+          nom: (item.client || '').split(' ').slice(1).join(' '),
+          telephone: item.telephone || '',
+          adresse: item.adresse || '',
+          date_intervention: date,
+          heure: '09:00',
+          type_intervention: item.type === 'facture' ? 'Intervention facturée' : 'Intervention devis',
+          notes: `${item.type === 'devis' ? 'Devis' : 'Facture'} ${num} — ${parseFloat(item.total_ht||0).toFixed(0)}€`,
+          sms_rappel: true,
+          statut: 'planifié'
+        })
+      });
+      const agendaData = await agendaRes.json();
+      if (agendaData.success) {
+        showToast('📅 Date enregistrée + ajouté à l\'agenda !', '✅');
+      } else {
+        showToast('📅 Date enregistrée (agenda non créé)', '⚠️');
+      }
+    } else {
       showToast('📅 Date intervention enregistrée', '✅');
-      const item = historiqueData.find(i => i.num === num);
-      if (item) item.date_intervention = date || null;
     }
   } catch(e) {
     showToast('❌ Erreur mise à jour date', '⚠️');
