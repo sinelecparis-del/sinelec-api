@@ -1768,6 +1768,7 @@ table.histo-table tr:hover td { background:#fafbff; }
     </div>
     <div id="d-bloc-societe" style="display:none;">
       <div class="input-group"><label>Nom société</label><input type="text" id="d-societe" placeholder="JAS INVEST" oninput="this.value=this.value.toUpperCase()" autocomplete="off"></div>
+      <div class="input-group"><label>SIRET <span style="font-size:11px;color:var(--text-3);font-weight:400;text-transform:none;">(optionnel)</span></label><input type="text" id="d-siret" placeholder="123 456 789 00010" maxlength="17" oninput="formatSiret(this)"></div>
     </div>
     <div class="input-group">
       <label>Adresse</label>
@@ -1901,6 +1902,7 @@ table.histo-table tr:hover td { background:#fafbff; }
     </div>
     <div id="f-bloc-societe" style="display:none;">
       <div class="input-group"><label>Nom société</label><input type="text" id="f-societe" placeholder="JAS INVEST" oninput="this.value=this.value.toUpperCase()" autocomplete="off"></div>
+      <div class="input-group"><label>SIRET <span style="font-size:11px;color:var(--text-3);font-weight:400;text-transform:none;">(optionnel)</span></label><input type="text" id="f-siret" placeholder="123 456 789 00010" maxlength="17" oninput="formatSiret(this)"></div>
     </div>
     <div class="input-group">
       <label>Adresse</label>
@@ -5584,6 +5586,21 @@ async function modifierNbAvis() {
   }
 }
 
+function formatSiret(input) {
+  // Format : 123 456 789 00010
+  let val = input.value.replace(/\D/g, '').substring(0, 14);
+  let formatted = '';
+  for (let i = 0; i < val.length; i++) {
+    if (i === 3 || i === 6 || i === 9) formatted += ' ';
+    formatted += val[i];
+  }
+  input.value = formatted;
+}
+
+function getSiret(prefix) {
+  return (document.getElementById(`${prefix}-siret`)?.value || '').replace(/\s/g, '');
+}
+
 // ═══════════════════════════════════════════════════
 // PRESTATION LIBRE + IA
 // ═══════════════════════════════════════════════════
@@ -5647,45 +5664,28 @@ async function genererDescriptionLibre() {
 
   if (btnIA) { btnIA.disabled = true; btnIA.textContent = '⏳ Génération...'; }
 
-  const longLabel = libreLongueur === 'court'
-    ? '2 à 3 lignes maximum, style devis client clair et rassurant'
-    : '5 à 6 lignes, style description technique détaillée pour facture ou justificatif assurance';
-
-  const prompt = `Tu es le rédacteur technique de SINELEC, électricien à Paris.
-Rédige une description professionnelle de prestation électrique pour un document commercial (devis ou facture).
-
-PRESTATION : "${nom || mots}"
-MOTS-CLÉS : ${mots || nom}
-MONTANT : ${prix} €
-LONGUEUR : ${longLabel}
-
-RÈGLES STRICTES :
-- Style professionnel, clair, rassurant pour le client particulier
-- Mentionne les marques si pertinent (Legrand, Schneider Electric)
-- Inclus les normes si applicable (NF C 15-100, IP44, etc.)
-- Commence par un verbe d'action (Fourniture et pose, Remplacement, Création, Intervention...)
-- PAS de guillemets, PAS de tirets de liste
-- Donne UNIQUEMENT la description, sans titre ni introduction`;
-
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch('/api/ia/description-libre', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 300,
-        messages: [{ role: 'user', content: prompt }]
+        nom:      nom,
+        mots:     mots,
+        prix:     document.getElementById('libre-prix')?.value || '0',
+        longueur: libreLongueur
       })
     });
     const data = await res.json();
-    const texte = data.content?.[0]?.text?.trim();
+    const texte = data.description?.trim();
     if (texte && texteEl && resEl) {
       texteEl.value = texte;
       resEl.style.display = 'block';
       showToast('✅ Description générée par IA !', '🤖');
+    } else {
+      showToast('❌ ' + (data.error || 'Erreur IA'), '⚠️');
     }
   } catch(e) {
-    showToast('❌ Erreur IA : ' + e.message, '⚠️');
+    showToast('❌ Erreur réseau : ' + e.message, '⚠️');
   }
 
   if (btnIA) { btnIA.disabled = false; btnIA.textContent = '🤖 Générer avec IA'; }
@@ -6324,9 +6324,9 @@ async function generer(type) {
         email: document.getElementById(`${prefix}-email`)?.value.trim() || '',
         telephone: document.getElementById(`${prefix}-tel`)?.value.trim() || '',
         adresse,
+        siret_client: getSiret(prefix),
         description: document.getElementById(`${prefix}-description`)?.value.trim() || '',
         prestations: prestationsAEnvoyer,
-        // Partenaire Alopronto
         partenaire: prefix === 'd' ? partenaireActifD : false,
         part_diahe: prefix === 'd' ? parseInt(document.getElementById('d-part-diahe')?.value || 60) : 100,
         part_partenaire: prefix === 'd' ? parseInt(document.getElementById('d-part-alopronto')?.value || 40) : 0,
