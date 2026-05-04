@@ -153,7 +153,7 @@ async function chargerGrilleTarifaire() {
 app.post('/api/generer', async (req, res) => {
   if (!CONFIG.features.devis_factures) return res.status(403).json({ error: 'Feature désactivée' });
   try {
-    const { type, client, email, telephone, adresse, complement, codePostal, ville, prenom, description, prestations, partenaire, part_diahe, part_partenaire, nom_partenaire, intervention_type } = req.body;
+    const { type, client, email, telephone, adresse, complement, codePostal, ville, prenom, description, prestations, partenaire, part_diahe, part_partenaire, nom_partenaire, intervention_type, siret_client } = req.body;
     const compteur = await incrementerCompteur(type);
     const annee = new Date().getFullYear();
     const mois = String(new Date().getMonth() + 1).padStart(2, '0');
@@ -240,7 +240,16 @@ app.post('/api/generer', async (req, res) => {
       const villeManuelle = String(ville || '').trim();
       const villeGPS = adresseParts.find(p => p.length > 2 && p.length < 30 && !p.match(/^\d{5}/) && !p.toLowerCase().includes('france')) || '';
       const clientCPVille = [clientCP, villeManuelle || villeGPS].filter(Boolean).join(' ');
-      const descObjet = String(description || 'Travaux d electricite generale').trim().replace(/'/g, ' ');
+      const descObjet = String(description || 'Travaux d electricite generale')
+        .trim()
+        .replace(/'/g, ' ')
+        .replace(/"/g, ' ')
+        .replace(/\\/g, ' ')
+        .replace(/\n/g, ' ')
+        .replace(/\r/g, ' ')
+        .substring(0, 120);
+
+      const clientSiret = String(siret_client || '').trim().replace(/'/g, '').replace(/"/g, '').replace(/\\/g, '');
 
       const py = `# -*- coding: utf-8 -*-
 import json, base64, io, sys
@@ -347,6 +356,7 @@ if '${clientRue}': client_rows.append([p('${clientRue}',8.5,color=GRIS_TEXTE)])
 if '${clientComplement}': client_rows.append([p('${clientComplement}',8.5,color=GRIS_TEXTE)])
 if '${clientCPVille}': client_rows.append([p('${clientCPVille}',8.5,color=GRIS_TEXTE)])
 if '${clientTel}': client_rows.append([p('Tel : ${clientTel}',8.5,color=GRIS_SOFT)])
+if '${clientSiret}': client_rows.append([p('SIRET : ${clientSiret}',8,color=GRIS_SOFT)])
 client_b=Table(client_rows,colWidths=[9.0*cm])
 client_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('BACKGROUND',(0,0),(-1,-1),OR_PALE),('BOX',(0,0),(-1,-1),1,OR),('LINEBEFORE',(0,0),(0,-1),4,MARINE),('TOPPADDING',(0,0),(0,0),10),('BOTTOMPADDING',(0,-1),(-1,-1),10)]))
 story.append(Table([[objet_b,client_b]],colWidths=[8.7*cm,9.5*cm],style=TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)])))
@@ -393,8 +403,17 @@ print('PDF_OK')
 `;
       fs.writeFileSync(pyPath, py, 'utf8');
       try {
-        execSync(`python3 ${pyPath} ${detailsPath} ${pdfPath}`, { cwd: __dirname, stdio: 'inherit' });
-      } catch(pyErr) { throw new Error('PDF generation failed: ' + pyErr.message); }
+        const result = execSync(`python3 "${pyPath}" "${detailsPath}" "${pdfPath}"`, {
+          cwd: __dirname,
+          stdio: ['pipe', 'pipe', 'pipe'],
+          timeout: 30000
+        });
+        console.log('PDF result:', result.toString().trim());
+      } catch(pyErr) {
+        const errMsg = pyErr.stderr ? pyErr.stderr.toString() : pyErr.message;
+        console.error('PDF generation error:', errMsg);
+        throw new Error('PDF generation failed: ' + errMsg.substring(0, 200));
+      }
 
       const pdfB64 = fs.readFileSync(pdfPath).toString('base64');
       const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
@@ -1299,6 +1318,50 @@ app.get('/paiement-confirme/:num', async (req, res) => {
     }
   } catch(e) {}
   res.send(`<html><body style="text-align:center;padding:40px;font-family:Arial;"><div style="max-width:500px;margin:40px auto;background:white;border-radius:20px;padding:40px;box-shadow:0 4px 20px rgba(0,0,0,0.1);"><div style="font-size:64px;">✅</div><h2 style="color:#1B2A4A;">Paiement confirmé !</h2><p style="color:#555;">Référence : <strong style="color:#C9A84C;">${num}</strong></p><p style="color:#aaa;margin-top:20px;">SINELEC Paris — 07 87 38 86 22</p></div></body></html>`);
+});
+
+// ── DESCRIPTION IA PRESTATION LIBRE ─────────────────
+app.post('/api/ia/description-libre', authMiddleware, async (req, res) => {
+  const { nom, mots, prix, longueur } = req.body;
+  if (!nom && !mots) return res.status(400).json({ success: false, error: 'Désignation ou mots-clés requis' });
+
+  const longLabel = longueur === 'long'
+    ? '5 à 6 lignes, style description technique détaillée pour facture ou justificatif assurance'
+    : '2 à 3 lignes maximum, style devis client clair et rassurant';
+
+  const prompt = `Tu es le rédacteur technique de SINELEC, électricien certifié à Paris.
+Rédige une description professionnelle de prestation électrique pour un document commercial (devis ou facture client).
+
+PRESTATION : "${nom || mots}"
+MOTS-CLÉS FOURNIS PAR L'ÉLECTRICIEN : ${mots || nom}
+MONTANT : ${prix || '?'} €
+LONGUEUR DEMANDÉE : ${longLabel}
+
+CONTEXTE MÉTIER : interventions résidentielles et commerciales Paris IDF, clientèle particuliers et professionnels (salons, restaurants, bureaux), travaux conformes NF C 15-100.
+
+RÈGLES STRICTES :
+- Commence par un verbe d'action au présent (Fourniture et pose, Création, Remplacement, Tirage, Raccordement, Installation...)
+- Inclus les caractéristiques techniques précises mentionnées (calibre, section câble, IP, etc.)
+- Mentionne les normes applicables naturellement (NF C 15-100, NF C 14-100, IP44...)
+- Cite les marques si pertinent (Legrand, Schneider Electric, Atlantic, Somfy...)
+- Précise ce qui est inclus dans le forfait : main d'œuvre, fourniture, fixations, raccordement, tests
+- Style clair et professionnel, rassurant pour le client
+- PAS de tirets de liste, PAS de guillemets, texte continu
+- Donne UNIQUEMENT la description finale, sans titre ni commentaire`;
+
+  try {
+    const response = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 300,
+      messages: [{ role: 'user', content: prompt }]
+    });
+    const texte = response.content?.[0]?.text?.trim();
+    if (!texte) throw new Error('Réponse vide');
+    res.json({ success: true, description: texte });
+  } catch(e) {
+    console.error('Description libre IA:', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
 });
 
 // ── AVIS GOOGLE — lecture + mise à jour ──────────────
