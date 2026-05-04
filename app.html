@@ -4753,12 +4753,30 @@ async function chargerAccueil() {
     renderAccueilDocs(devis,    'acc-tab-devis',    'devis');
     renderAccueilDocs(factures, 'acc-tab-factures', 'factures');
 
-    // A TRAITER : devis signés ET pas encore convertis en facture
-    // Un devis converti en facture a statut 'facture' ou 'termine'
+    // A TRAITER : devis signés ET sans facture correspondante récente
+    // Logique : un devis est "à facturer" seulement si :
+    // 1. Son statut est 'signe'
+    // 2. ET aucune facture du même client n'existe dans les 30 derniers jours
+    // 3. ET le devis lui-même n'a pas été créé il y a plus de 60 jours (trop vieux = déjà traité)
+    const clientsFactures = new Set(
+      factures
+        .filter(f => {
+          const age = (new Date() - new Date(f.created_at||f.date)) / (1000*3600*24);
+          return age < 30; // facture créée dans les 30 derniers jours
+        })
+        .map(f => (f.client||'').toLowerCase().trim())
+    );
+
     const devisSignesNonFactures = devis.filter(d => {
       const s = norm(d.statut);
-      return s === 'signe'; // statut exact 'signe' = signé mais pas encore facturé
-      // Si converti en facture → statut devient 'facture' → exclu automatiquement
+      if (s !== 'signe') return false;
+      // Exclure si une facture récente existe pour ce client
+      const clientNorm = (d.client||'').toLowerCase().trim();
+      if (clientsFactures.has(clientNorm)) return false;
+      // Exclure si le devis est trop vieux (plus de 60 jours = probablement déjà traité)
+      const ageJours = (new Date() - new Date(d.created_at||d.date)) / (1000*3600*24);
+      if (ageJours > 60) return false;
+      return true;
     });
     const todayStr = now.toISOString().split('T')[0];
     const agendaAujourdhui = (agenda||[])
