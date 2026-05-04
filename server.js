@@ -1430,6 +1430,66 @@ RÈGLES STRICTES :
 });
 
 // ── AVIS GOOGLE — lecture + mise à jour ──────────────
+// ── IMPORT 2 DEVIS MANQUANTS ──────────────────────────
+app.get('/api/import-devis-manquants', async (req, res) => {
+  const docs = [
+    {
+      num: 'OS-202604-006',
+      type: 'devis',
+      client: 'AMOUREUX VIRGINIE',
+      email: 'amoureux.virginie@wanadoo.fr',
+      telephone: '0788840673',
+      adresse: '27 Rue des Trois Freres, 75018 Paris',
+      description: 'Tirage ligne electrique + prise murale + raccordement radiateur NF C 15-100',
+      statut: 'signe',
+      source: 'app',
+      total_ht: 370.00,
+      date_envoi: '2026-04-24T00:00:00.000Z',
+      created_at: '2026-04-24T00:00:00.000Z',
+      prestations: [
+        { nom: 'Deplacement Paris 18eme', prix: 50, quantite: 1, desc: 'Transport technicien, outillage professionnel' },
+        { nom: 'Tirage ligne electrique 2.5mm2 moins de 10m', prix: 120, quantite: 1, desc: 'Fourniture cable, passage sous goulotte, raccordement depart' },
+        { nom: 'Fourniture et pose prise murale 16A', prix: 90, quantite: 1, desc: 'Depose ancienne prise defectueuse, raccordement nouvelle prise, test fonctionnel' },
+        { nom: 'Raccordement radiateur electrique', prix: 110, quantite: 1, desc: 'Deblocage fils condamnes, verification section cable 2.5mm2, remise en service et test' }
+      ],
+      partenaire: false, part_diahe: 100, part_partenaire: 0
+    },
+    {
+      num: 'OS-202605-105',
+      type: 'devis',
+      client: 'RICK N RIEL',
+      email: 'ricknriel@gmail.com',
+      telephone: '+33624857184',
+      adresse: '9 Rue Eugene Manuel 75016 Paris',
+      description: 'Creation ligne dediee 32A Appareil laser Centre epilation laser',
+      statut: 'envoye',
+      source: 'app',
+      total_ht: 651.00,
+      date_envoi: '2026-05-04T00:00:00.000Z',
+      created_at: '2026-05-04T00:00:00.000Z',
+      prestations: [
+        { nom: 'Deplacement Paris intra-muros', prix: 65, quantite: 1, desc: 'Forfait deplacement tout compris' },
+        { nom: 'Creation ligne electrique dediee 32A equipement laser', prix: 515, quantite: 1, desc: 'Cable 6mm2, disjoncteur 32A, protection differentielle 30mA, conforme NF C 15-100' },
+        { nom: 'Prise specialisee 32A', prix: 120, quantite: 1, desc: 'Fourniture et pose prise 32A 2P+T Legrand/Schneider, raccordement cable 6mm2' },
+        { nom: 'Remise 7%', prix: -49, quantite: 1, desc: 'Remise accordee sur cette intervention' }
+      ],
+      partenaire: false, part_diahe: 100, part_partenaire: 0
+    }
+  ];
+
+  const resultats = [];
+  for (const doc of docs) {
+    try {
+      const { data: existing } = await supabase.from('historique').select('num').eq('num', doc.num).single();
+      if (existing) { resultats.push({ num: doc.num, status: 'deja existant' }); continue; }
+      const { error } = await supabase.from('historique').insert(doc);
+      if (error) resultats.push({ num: doc.num, status: 'ERREUR: ' + error.message });
+      else resultats.push({ num: doc.num, client: doc.client, montant: doc.total_ht + 'EUR', statut: doc.statut, status: 'INSERE OK' });
+    } catch(e) { resultats.push({ num: doc.num, status: 'ERREUR: ' + e.message }); }
+  }
+  res.json({ success: true, resultats });
+});
+
 app.get('/api/avis/compteur', async (req, res) => {
   try {
     const { data, error } = await supabase
