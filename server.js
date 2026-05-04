@@ -1301,6 +1301,46 @@ app.get('/paiement-confirme/:num', async (req, res) => {
   res.send(`<html><body style="text-align:center;padding:40px;font-family:Arial;"><div style="max-width:500px;margin:40px auto;background:white;border-radius:20px;padding:40px;box-shadow:0 4px 20px rgba(0,0,0,0.1);"><div style="font-size:64px;">✅</div><h2 style="color:#1B2A4A;">Paiement confirmé !</h2><p style="color:#555;">Référence : <strong style="color:#C9A84C;">${num}</strong></p><p style="color:#aaa;margin-top:20px;">SINELEC Paris — 07 87 38 86 22</p></div></body></html>`);
 });
 
+// ── AVIS GOOGLE — lecture + mise à jour ──────────────
+app.get('/api/avis/compteur', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('compteurs')
+      .select('valeur')
+      .eq('type', 'nb_avis_google')
+      .single();
+    const nb = (!error && data) ? data.valeur : 91;
+    res.json({ success: true, nb });
+  } catch(e) {
+    res.json({ success: true, nb: 91 }); // fallback
+  }
+});
+
+app.post('/api/avis/compteur', authMiddleware, async (req, res) => {
+  const { nb } = req.body;
+  const valeur = parseInt(nb);
+  if (!valeur || valeur < 0 || valeur > 9999) {
+    return res.status(400).json({ success: false, error: 'Valeur invalide' });
+  }
+  try {
+    // Upsert : insert ou update selon si la ligne existe
+    const { data: existing } = await supabase
+      .from('compteurs')
+      .select('valeur')
+      .eq('type', 'nb_avis_google')
+      .single();
+    if (existing) {
+      await supabase.from('compteurs').update({ valeur }).eq('type', 'nb_avis_google');
+    } else {
+      await supabase.from('compteurs').insert({ type: 'nb_avis_google', valeur });
+    }
+    console.log(`⭐ Avis Google mis à jour : ${valeur}`);
+    res.json({ success: true, nb: valeur });
+  } catch(e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // ── ROUTE SMS DIRECT ──────────────────────────────
 app.post('/api/sms', authMiddleware, async (req, res) => {
   const { telephone, message } = req.body;
