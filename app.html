@@ -2320,20 +2320,44 @@ table.histo-table tr:hover td { background:#fafbff; }
 <!-- POPUP PRÉVISUALISATION PDF -->
 <div class="popup-overlay" id="popup-preview" onclick="if(event.target===this)fermerPreview()">
   <div style="background:#ffffff;border-radius:20px;padding:0;width:95%;max-width:700px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 32px 80px rgba(0,0,0,0.2);">
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid rgba(0,0,0,0.08);">
-      <div style="font-size:15px;font-weight:800;color:#0a0a0a;" id="preview-title">Aperçu</div>
-      <div style="display:flex;gap:8px;">
-        <button onclick="telechargerDepuisPreview()" style="background:linear-gradient(135deg,#E8B84B,#C9962A);color:#fff;border:none;border-radius:10px;padding:8px 16px;font-size:12px;font-weight:700;cursor:pointer;">⬇️ Télécharger</button>
-        <button onclick="fermerPreview()" style="background:rgba(0,0,0,0.08);border:none;border-radius:10px;padding:8px 14px;font-size:13px;cursor:pointer;">✕</button>
+
+    <!-- Header -->
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid rgba(0,0,0,0.08);">
+      <div>
+        <div style="font-size:15px;font-weight:800;color:#0a0a0a;" id="preview-title">Aperçu</div>
+        <div style="font-size:11px;color:#8896A8;margin-top:2px;" id="preview-subtitle">Vérifie avant d'envoyer</div>
       </div>
+      <button onclick="fermerPreview()" style="background:rgba(0,0,0,0.08);border:none;border-radius:10px;padding:8px 14px;font-size:13px;cursor:pointer;">✕</button>
     </div>
-    <div style="flex:1;overflow:hidden;background:#f0f0f0;position:relative;">
+
+    <!-- PDF viewer -->
+    <div style="flex:1;overflow:hidden;background:#f0f0f0;position:relative;min-height:400px;">
       <div id="preview-loading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;background:#f0f0f0;z-index:2;">
         <div style="width:40px;height:40px;border:3px solid rgba(232,184,75,0.3);border-top-color:#E8B84B;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
         <div style="font-size:13px;color:rgba(0,0,0,0.5);font-weight:600;">Génération PDF...</div>
       </div>
-      <iframe id="preview-iframe" style="width:100%;height:100%;min-height:70vh;border:none;display:none;"></iframe>
+      <iframe id="preview-iframe" style="width:100%;height:100%;min-height:420px;border:none;display:none;"></iframe>
     </div>
+
+    <!-- Actions -->
+    <div id="preview-actions" style="padding:14px 20px;border-top:1px solid rgba(0,0,0,0.08);display:flex;gap:10px;flex-wrap:wrap;background:#fff;">
+      <!-- Bouton envoyer (visible si email dispo) -->
+      <button id="preview-btn-envoyer" onclick="envoyerDepuisPreview()"
+        style="flex:1;min-width:140px;background:linear-gradient(135deg,#1B2A4A,#243660);color:#fff;border:none;border-radius:11px;padding:13px 16px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:7px;">
+        ✉️ Envoyer au client
+      </button>
+      <!-- Télécharger WhatsApp -->
+      <button onclick="telechargerDepuisPreview()"
+        style="flex:1;min-width:120px;background:rgba(37,211,102,0.1);color:#16a34a;border:1.5px solid rgba(37,211,102,0.3);border-radius:11px;padding:13px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:7px;">
+        ⬇️ WhatsApp
+      </button>
+      <!-- Annuler -->
+      <button onclick="annulerEtSupprimerDoc()"
+        style="background:rgba(239,68,68,0.08);color:#dc2626;border:1.5px solid rgba(239,68,68,0.2);border-radius:11px;padding:13px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">
+        🗑️ Annuler
+      </button>
+    </div>
+
   </div>
 </div>
 
@@ -3025,7 +3049,6 @@ async function dupliquerDoc(num) {
   }, 400);
 }
 
-let previewNumActuel = null;
 
 async function creerFicheClient(num) {
   const item = historiqueData.find(i => i.num === num);
@@ -3052,58 +3075,133 @@ async function creerFicheClient(num) {
   } catch(e) { showToast('❌ ' + e.message, '⚠️'); }
 }
 
-async function previsualiserPDF(num) {
-  previewNumActuel = num;
+let previewNumActuel  = null;
+let previewEmailClient = null;
+let previewBlobUrl     = null;
 
-  // Détecter iOS
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+function ouvrirPreviewAvecActions(num, pdfB64, emailClient, type) {
+  previewNumActuel   = num;
+  previewEmailClient = emailClient;
 
-  const overlay = document.getElementById('popup-preview');
-  const iframe  = document.getElementById('preview-iframe');
-  const loading = document.getElementById('preview-loading');
-  const title   = document.getElementById('preview-title');
+  const overlay    = document.getElementById('popup-preview');
+  const iframe     = document.getElementById('preview-iframe');
+  const loading    = document.getElementById('preview-loading');
+  const titleEl    = document.getElementById('preview-title');
+  const subtitleEl = document.getElementById('preview-subtitle');
+  const btnEnvoyer = document.getElementById('preview-btn-envoyer');
 
-  const item = historiqueData.find(i => i.num === num);
-  if (title) title.textContent = `${item?.type === 'facture' ? '💶 Facture' : '📋 Devis'} ${num} — ${item?.client || ''}`;
+  if (titleEl) titleEl.textContent = `${type === 'facture' ? '💶 Facture' : '📋 Devis'} ${num}`;
+  if (subtitleEl) subtitleEl.textContent = emailClient
+    ? `Vérifie puis envoie à ${emailClient}`
+    : '⚠️ Pas d\'email — télécharge pour WhatsApp';
 
-  // Sur iOS — ouvrir directement dans Safari (iframe ne marche pas)
-  if (isIOS) {
-    const token = localStorage.getItem('sinelec_token');
-    const url = `/api/pdf/${num}${token ? '?token='+token : ''}`;
-    window.open(url, '_blank');
-    showToast('📄 PDF ouvert dans Safari', '👁️');
-    return;
+  if (btnEnvoyer) {
+    if (emailClient) {
+      btnEnvoyer.disabled = false;
+      btnEnvoyer.style.opacity = '1';
+      btnEnvoyer.style.cursor = 'pointer';
+    } else {
+      btnEnvoyer.disabled = true;
+      btnEnvoyer.style.opacity = '0.35';
+      btnEnvoyer.style.cursor = 'not-allowed';
+    }
   }
 
   overlay.classList.add('active');
   if (iframe)  iframe.style.display = 'none';
-  if (loading) loading.style.display = 'flex';
+  if (loading) { loading.style.display = 'flex'; loading.innerHTML = `<div style="width:40px;height:40px;border:3px solid rgba(232,184,75,0.3);border-top-color:#E8B84B;border-radius:50%;animation:spin 0.8s linear infinite;"></div><div style="font-size:13px;color:rgba(0,0,0,0.5);font-weight:600;">Chargement PDF...</div>`; }
 
-  try {
-    const res = await fetch(`/api/pdf/${num}`);
-    if (!res.ok) throw new Error('PDF non disponible');
-    const blob = await res.blob();
-    const url  = URL.createObjectURL(blob);
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+  const afficherBlob = (blob) => {
+    if (previewBlobUrl) URL.revokeObjectURL(previewBlobUrl);
+    previewBlobUrl = URL.createObjectURL(blob);
+    if (isIOS) {
+      window.open(previewBlobUrl, '_blank');
+      fermerPreview();
+      showToast('📄 PDF ouvert — vérifie puis envoie', '👁️');
+      return;
+    }
     if (iframe) {
-      iframe.src = url;
-      iframe.style.display = 'block';
-      if (loading) loading.style.display = 'none';
+      iframe.src = previewBlobUrl;
+      iframe.onload = () => { iframe.style.display = 'block'; if (loading) loading.style.display = 'none'; };
+    }
+  };
+
+  if (pdfB64) {
+    try {
+      const byteArr = Uint8Array.from(atob(pdfB64), c => c.charCodeAt(0));
+      afficherBlob(new Blob([byteArr], { type: 'application/pdf' }));
+    } catch(e) {
+      if (loading) loading.innerHTML = `<div style="color:#dc2626;font-size:13px;">❌ Erreur affichage PDF</div>`;
+    }
+  } else {
+    fetch(`/api/pdf/${num}`)
+      .then(r => { if (!r.ok) throw new Error('PDF non disponible'); return r.blob(); })
+      .then(blob => afficherBlob(blob))
+      .catch(() => { if (loading) loading.innerHTML = `<div style="color:#dc2626;font-size:13px;">❌ PDF non disponible</div>`; });
+  }
+}
+
+async function previsualiserPDF(num) {
+  const item = historiqueData.find(i => i.num === num);
+  ouvrirPreviewAvecActions(num, null, item?.email || '', item?.type || 'devis');
+}
+
+async function envoyerDepuisPreview() {
+  if (!previewNumActuel) return;
+  const btn = document.getElementById('preview-btn-envoyer');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Envoi en cours...'; }
+  try {
+    const res  = await fetch(`/api/envoyer/${previewNumActuel}`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      showToast(`✉️ Envoyé à ${previewEmailClient} !`, '✅');
+      shootConfetti();
+      fermerPreview();
+    } else {
+      showToast('❌ ' + (data.error || 'Erreur envoi'), '⚠️');
+      if (btn) { btn.disabled = false; btn.textContent = '✉️ Envoyer au client'; }
     }
   } catch(e) {
-    if (loading) loading.innerHTML = `<div style="color:#E03030;font-size:13px;font-weight:600;">❌ ${e.message}</div>`;
+    showToast('❌ Erreur réseau', '⚠️');
+    if (btn) { btn.disabled = false; btn.textContent = '✉️ Envoyer au client'; }
   }
+}
+
+function telechargerDepuisPreview() {
+  if (previewBlobUrl) {
+    const a = document.createElement('a');
+    a.href = previewBlobUrl;
+    a.download = `${previewNumActuel || 'document'}.pdf`;
+    a.click();
+    showToast('⬇️ PDF téléchargé — prêt pour WhatsApp !', '📲');
+  } else if (previewNumActuel) {
+    telechargerPDF(previewNumActuel);
+  }
+}
+
+async function annulerEtSupprimerDoc() {
+  if (!previewNumActuel) return;
+  const ok = confirm(`Supprimer ${previewNumActuel} ?`);
+  if (!ok) return;
+  try { await fetch(`/api/historique/${previewNumActuel}`, { method: 'DELETE' }); } catch(e) {}
+  showToast(`🗑️ ${previewNumActuel} supprimé`, '✅');
+  fermerPreview();
 }
 
 function fermerPreview() {
   document.getElementById('popup-preview').classList.remove('active');
   const iframe = document.getElementById('preview-iframe');
-  if (iframe) { URL.revokeObjectURL(iframe.src); iframe.src = ''; iframe.style.display = 'none'; }
-  previewNumActuel = null;
+  if (iframe) { iframe.src = ''; iframe.style.display = 'none'; }
+  if (previewBlobUrl) { URL.revokeObjectURL(previewBlobUrl); previewBlobUrl = null; }
+  previewNumActuel   = null;
+  previewEmailClient = null;
+  const btn = document.getElementById('preview-btn-envoyer');
+  if (btn) { btn.disabled = false; btn.textContent = '✉️ Envoyer au client'; }
 }
 
-function telechargerDepuisPreview() {
-  if (previewNumActuel) telechargerPDF(previewNumActuel);
-}
+
 
 async function telechargerPDF(num) {
   showToast('⏳ Génération PDF...', '📄');
@@ -6336,9 +6434,11 @@ async function generer(type) {
     });
     const data = await res.json();
     if (data.success) {
-      showToast(`🎉 ${type === 'devis' ? 'Devis' : 'Facture'} ${data.num} généré !`, '✨');
+      showToast(`✅ ${type === 'devis' ? 'Devis' : 'Facture'} ${data.num} généré !`, '⚡');
       if (type === 'devis') { panierD = []; renderPanier('d'); }
       else { panierF = []; renderPanier('f'); }
+      // Ouvrir la prévisualisation avec actions
+      ouvrirPreviewAvecActions(data.num, data.pdf_b64, data.email_client, type);
     } else {
       showToast('❌ ' + (data.error || 'Erreur'), '⚠️');
     }
