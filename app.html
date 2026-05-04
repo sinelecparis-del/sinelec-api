@@ -1617,6 +1617,11 @@ table.histo-table tr:hover td { background:#fafbff; }
     </div>
   </div>
 
+  <!-- Bouton prestation libre dépannage -->
+  <div id="dep-libre-box" style="display:none;margin-bottom:12px;">
+    <button onclick="ouvrirPrestationLibre('dep')" style="width:100%;background:rgba(255,255,255,0.6);color:#1B2A4A;border:1.5px solid rgba(27,42,74,0.2);border-radius:12px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">✏️ Prestation libre (montant personnalisé)</button>
+  </div>
+
   <!-- Choix Devis / Facture -->
   <div id="dep-type-box" style="display:none;background:var(--glass);border:1.5px solid var(--border);border-radius:16px;padding:16px;margin-bottom:16px;">
     <div style="font-size:13px;font-weight:700;color:var(--text-2);margin-bottom:10px;">Type de document</div>
@@ -1796,6 +1801,7 @@ table.histo-table tr:hover td { background:#fafbff; }
     </div>
     <input type="number" class="remise-input" id="d-remise-val" value="0" min="0" oninput="renderPanier('d')">
   </div>
+  <button onclick="ouvrirPrestationLibre('d')" style="width:100%;background:rgba(255,255,255,0.6);color:#1B2A4A;border:1.5px solid rgba(27,42,74,0.2);border-radius:12px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:8px;display:flex;align-items:center;justify-content:center;gap:6px;" id="d-libre-btn">✏️ Prestation libre</button>
   <button onclick="toggleRemise('d')" style="width:100%;background:rgba(255,255,255,0.6);color:var(--text-2);border:1.5px solid var(--border);border-radius:12px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:8px;" id="d-remise-btn">🏷️ Ajouter une remise</button>
   <button onclick="appliquerRemise7('d')" data-active="0" style="width:100%;background:rgba(201,168,76,0.08);color:var(--accent);border:1.5px solid rgba(201,168,76,0.3);border-radius:12px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:8px;" id="d-remise-7-btn">🎁 Remise 7%</button>
 
@@ -1919,6 +1925,7 @@ table.histo-table tr:hover td { background:#fafbff; }
     </div>
     <input type="number" class="remise-input" id="f-remise-val" value="0" min="0" oninput="renderPanier('f')">
   </div>
+  <button onclick="ouvrirPrestationLibre('f')" style="width:100%;background:rgba(255,255,255,0.6);color:#1B2A4A;border:1.5px solid rgba(27,42,74,0.2);border-radius:12px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:8px;display:flex;align-items:center;justify-content:center;gap:6px;" id="f-libre-btn">✏️ Prestation libre</button>
   <button onclick="toggleRemise('f')" style="width:100%;background:rgba(255,255,255,0.6);color:var(--text-2);border:1.5px solid var(--border);border-radius:12px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:8px;" id="f-remise-btn">🏷️ Ajouter une remise</button>
   <button onclick="appliquerRemise7('f')" data-active="0" style="width:100%;background:rgba(201,168,76,0.08);color:var(--accent);border:1.5px solid rgba(201,168,76,0.3);border-radius:12px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:8px;" id="f-remise-7-btn">🎁 Remise 7%</button>
   <div class="total-bar">
@@ -2140,6 +2147,127 @@ table.histo-table tr:hover td { background:#fafbff; }
     <div class="tiroir-ca-foot-stat"><div class="tiroir-ca-foot-val">—</div><div class="tiroir-ca-foot-lbl">Moyenne mensuelle</div></div>
     <div class="tiroir-ca-foot-sep"></div>
     <div class="tiroir-ca-foot-stat"><div class="tiroir-ca-foot-val">—</div><div class="tiroir-ca-foot-lbl">Mois actifs</div></div>
+  </div>
+</div>
+
+<!-- POPUP PRESTATION LIBRE -->
+<div class="popup-overlay" id="popup-libre" onclick="if(event.target===this)fermerPrestationLibre()">
+  <div class="popup-box" style="max-width:480px;">
+
+    <!-- Header -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <div style="font-size:17px;font-weight:900;color:#0B1F3A;">✏️ Prestation libre</div>
+      <button onclick="fermerPrestationLibre()" style="background:rgba(0,0,0,0.06);border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:16px;color:#666;">×</button>
+    </div>
+
+    <!-- Désignation -->
+    <div style="margin-bottom:14px;">
+      <div style="font-size:11px;font-weight:700;color:rgba(0,0,0,0.4);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:7px;">Désignation *</div>
+      <input type="text" id="libre-nom"
+        placeholder="Ex: Câble 6mm² + pose, Urgence nuit, Forfait sur mesure..."
+        style="width:100%;padding:12px 15px;background:#f9f9f9;border:1.5px solid rgba(0,0,0,0.1);border-radius:11px;font-size:14px;color:#0a0a0a;outline:none;font-family:inherit;"
+        onfocus="this.style.borderColor='#E8B84B';this.style.background='#fff'"
+        onblur="this.style.borderColor='rgba(0,0,0,0.1)';this.style.background='#f9f9f9'"
+        onkeydown="if(event.key==='Enter')document.getElementById('libre-prix').focus()">
+    </div>
+
+    <!-- Prix + Qté -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+      <div>
+        <div style="font-size:11px;font-weight:700;color:rgba(0,0,0,0.4);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:7px;">Prix HT (€) *</div>
+        <input type="number" id="libre-prix" placeholder="0" min="0" step="5"
+          style="width:100%;padding:12px;background:#f9f9f9;border:1.5px solid rgba(0,0,0,0.1);border-radius:11px;font-size:22px;font-weight:900;color:#C9962A;outline:none;text-align:center;font-family:inherit;"
+          onfocus="this.style.borderColor='#E8B84B';this.style.background='#fff';this.select()"
+          onblur="this.style.borderColor='rgba(0,0,0,0.1)';this.style.background='#f9f9f9'"
+          onkeydown="if(event.key==='Enter')validerPrestationLibre()">
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:rgba(0,0,0,0.4);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:7px;">Quantité</div>
+        <input type="number" id="libre-qte" value="1" min="1"
+          style="width:100%;padding:12px;background:#f9f9f9;border:1.5px solid rgba(0,0,0,0.1);border-radius:11px;font-size:22px;font-weight:900;color:#0B1F3A;outline:none;text-align:center;font-family:inherit;"
+          onfocus="this.style.borderColor='#E8B84B';this.style.background='#fff';this.select()"
+          onblur="this.style.borderColor='rgba(0,0,0,0.1)';this.style.background='#f9f9f9'">
+      </div>
+    </div>
+
+    <!-- Description manuelle -->
+    <div style="margin-bottom:14px;">
+      <div style="font-size:11px;font-weight:700;color:rgba(0,0,0,0.4);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:7px;">
+        Description <span style="font-weight:400;text-transform:none;font-size:10px;color:rgba(0,0,0,0.3);">— apparaît en italique dans le PDF</span>
+      </div>
+      <textarea id="libre-desc" rows="2"
+        placeholder="Décris ici la prestation..."
+        style="width:100%;padding:11px 14px;background:#f9f9f9;border:1.5px solid rgba(0,0,0,0.1);border-radius:11px;font-size:13px;color:#333;outline:none;resize:none;font-family:inherit;line-height:1.5;font-style:italic;"
+        onfocus="this.style.borderColor='#E8B84B';this.style.background='#fff'"
+        onblur="this.style.borderColor='rgba(0,0,0,0.1)';this.style.background='#f9f9f9'"></textarea>
+    </div>
+
+    <!-- Bloc IA -->
+    <div style="background:linear-gradient(135deg,rgba(27,42,74,0.04),rgba(27,42,74,0.02));border:1.5px solid rgba(27,42,74,0.12);border-radius:12px;padding:14px;margin-bottom:14px;">
+
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div style="font-size:12px;font-weight:800;color:#0B1F3A;display:flex;align-items:center;gap:6px;">
+          🤖 Description IA
+          <span style="font-size:10px;font-weight:600;color:#8896A8;">— Claude rédige pour toi</span>
+        </div>
+        <!-- Toggle court / long -->
+        <div style="display:flex;gap:4px;">
+          <button id="libre-btn-court" class="libre-longueur-btn" onclick="setLibreLongueur('court',this)"
+            style="padding:4px 10px;border-radius:6px;border:1.5px solid #0B1F3A;background:#0B1F3A;color:#fff;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;">
+            Court
+          </button>
+          <button id="libre-btn-long" class="libre-longueur-btn" onclick="setLibreLongueur('long',this)"
+            style="padding:4px 10px;border-radius:6px;border:1.5px solid #E4E7EF;background:transparent;color:#8896A8;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;">
+            Détaillé
+          </button>
+        </div>
+      </div>
+
+      <!-- Mots-clés -->
+      <input type="text" id="libre-ia-mots"
+        placeholder="Mots-clés : tableau 2 rangées, vieux fusibles, cuisine, mise aux normes..."
+        style="width:100%;padding:10px 13px;background:#fff;border:1.5px solid rgba(0,0,0,0.1);border-radius:9px;font-size:13px;color:#0a0a0a;outline:none;font-family:inherit;margin-bottom:8px;"
+        onfocus="this.style.borderColor='#E8B84B'"
+        onblur="this.style.borderColor='rgba(0,0,0,0.1)'"
+        onkeydown="if(event.key==='Enter')genererDescriptionLibre()">
+
+      <button id="libre-ia-btn" onclick="genererDescriptionLibre()"
+        style="width:100%;background:linear-gradient(135deg,#1B2A4A,#243660);color:#fff;border:none;border-radius:9px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.15s;">
+        🤖 Générer avec IA
+      </button>
+
+      <!-- Résultat IA -->
+      <div id="libre-ia-result" style="display:none;margin-top:10px;">
+        <div style="font-size:10px;font-weight:700;color:#8896A8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px;">✏️ Modifie si besoin avant d'insérer :</div>
+        <textarea id="libre-ia-texte" rows="4"
+          style="width:100%;padding:10px 13px;background:#fff;border:1.5px solid rgba(27,42,74,0.2);border-radius:9px;font-size:12px;color:#333;outline:none;resize:vertical;font-family:inherit;line-height:1.6;"
+          onfocus="this.style.borderColor='#E8B84B'"
+          onblur="this.style.borderColor='rgba(27,42,74,0.2)'"></textarea>
+        <button onclick="utiliserDescriptionIA()"
+          style="width:100%;margin-top:6px;background:rgba(22,163,74,0.1);color:#15803d;border:1.5px solid rgba(22,163,74,0.3);border-radius:9px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.15s;">
+          ✅ Utiliser cette description
+        </button>
+      </div>
+    </div>
+
+    <!-- Suggestions rapides -->
+    <div style="margin-bottom:16px;">
+      <div style="font-size:11px;font-weight:700;color:rgba(0,0,0,0.4);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:7px;">Suggestions rapides</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;">
+        <div onclick="remplirLibre('Déplacement supplémentaire', 50, 'Déplacement technicien SINELEC — frais de trajet supplémentaires')" style="background:rgba(232,184,75,0.1);border:1px solid rgba(232,184,75,0.3);border-radius:20px;padding:5px 12px;font-size:11px;font-weight:700;color:#C9962A;cursor:pointer;">🚗 Déplacement +50€</div>
+        <div onclick="remplirLibre('Main d\'œuvre heure supp.', 70, 'Heure supplémentaire de main d\'œuvre technicien qualifié SINELEC, outillage professionnel inclus')" style="background:rgba(232,184,75,0.1);border:1px solid rgba(232,184,75,0.3);border-radius:20px;padding:5px 12px;font-size:11px;font-weight:700;color:#C9962A;cursor:pointer;">⏱️ Heure MO +70€</div>
+        <div onclick="remplirLibre('Fourniture matériel spécifique', 0, 'Fourniture de matériel électrique spécifique selon besoin du chantier')" style="background:rgba(232,184,75,0.1);border:1px solid rgba(232,184,75,0.3);border-radius:20px;padding:5px 12px;font-size:11px;font-weight:700;color:#C9962A;cursor:pointer;">🔧 Fourniture</div>
+        <div onclick="remplirLibre('Majoration urgence nuit/WE', 250, 'Majoration pour intervention urgente de nuit ou week-end — mobilisation immédiate du technicien d\'astreinte')" style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:20px;padding:5px 12px;font-size:11px;font-weight:700;color:#dc2626;cursor:pointer;">🌙 Urgence nuit</div>
+        <div onclick="remplirLibre('Remise commerciale', -30, 'Remise commerciale accordée sur cette intervention')" style="background:rgba(22,163,74,0.08);border:1px solid rgba(22,163,74,0.2);border-radius:20px;padding:5px 12px;font-size:11px;font-weight:700;color:#16a34a;cursor:pointer;">🏷️ Remise</div>
+      </div>
+    </div>
+
+    <!-- Bouton valider -->
+    <button onclick="validerPrestationLibre()"
+      style="width:100%;background:linear-gradient(135deg,#E8B84B,#C9962A);color:#fff;border:none;border-radius:12px;padding:15px;font-size:14px;font-weight:900;cursor:pointer;letter-spacing:0.3px;box-shadow:0 4px 16px rgba(232,184,75,0.3);">
+      ✅ Ajouter au panier
+    </button>
+
   </div>
 </div>
 
@@ -3754,6 +3882,7 @@ function selectionnerDepForfait(id) {
     document.getElementById('dep-remise-box').style.display = 'none';
     document.getElementById('dep-type-box').style.display = 'none';
     document.getElementById('dep-btn-gen').style.display = 'none';
+    document.getElementById('dep-libre-box').style.display = 'none';
     return;
   }
 
@@ -3778,11 +3907,12 @@ function selectionnerDepForfait(id) {
   }
   if (descBox) descBox.style.display = 'block';
 
-  // Afficher remise, type, bouton
+  // Afficher remise, type, bouton, prestation libre
   majDepTotal();
   document.getElementById('dep-remise-box').style.display = 'block';
   document.getElementById('dep-type-box').style.display = 'block';
   document.getElementById('dep-btn-gen').style.display = 'block';
+  document.getElementById('dep-libre-box').style.display = 'block';
 }
 
 function majDepTotal() {
@@ -5410,6 +5540,183 @@ function ajouterPageHeader(pageId) {
     }
   }, { passive: true });
 })();
+
+// ═══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
+// PRESTATION LIBRE + IA
+// ═══════════════════════════════════════════════════
+let prestLibrePrefix = 'd';
+
+function ouvrirPrestationLibre(prefix) {
+  prestLibrePrefix = prefix;
+  const ids = ['libre-nom','libre-prix','libre-qte','libre-desc','libre-ia-mots'];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = id === 'libre-qte' ? '1' : '';
+  });
+  // Reset toggle longueur
+  setLibreLongueur('court', document.getElementById('libre-btn-court'));
+  // Reset résultat IA
+  const res = document.getElementById('libre-ia-result');
+  if (res) res.style.display = 'none';
+  document.getElementById('popup-libre').classList.add('active');
+  setTimeout(() => document.getElementById('libre-nom')?.focus(), 150);
+}
+
+function fermerPrestationLibre() {
+  document.getElementById('popup-libre').classList.remove('active');
+}
+
+function remplirLibre(nom, prix, desc) {
+  const el = id => document.getElementById(id);
+  if (el('libre-nom'))  el('libre-nom').value  = nom;
+  if (el('libre-prix')) el('libre-prix').value = prix;
+  if (el('libre-desc')) el('libre-desc').value = desc;
+  setTimeout(() => { el('libre-prix')?.focus(); el('libre-prix')?.select(); }, 50);
+}
+
+let libreLongueur = 'court';
+function setLibreLongueur(val, btn) {
+  libreLongueur = val;
+  document.querySelectorAll('.libre-longueur-btn').forEach(b => {
+    b.style.background = 'transparent';
+    b.style.color = '#8896A8';
+    b.style.borderColor = '#E4E7EF';
+  });
+  if (btn) {
+    btn.style.background = '#0B1F3A';
+    btn.style.color = '#fff';
+    btn.style.borderColor = '#0B1F3A';
+  }
+}
+
+async function genererDescriptionLibre() {
+  const nom   = document.getElementById('libre-nom')?.value.trim();
+  const mots  = document.getElementById('libre-ia-mots')?.value.trim();
+  const prix  = document.getElementById('libre-prix')?.value || '0';
+  const btnIA = document.getElementById('libre-ia-btn');
+  const resEl = document.getElementById('libre-ia-result');
+  const texteEl = document.getElementById('libre-ia-texte');
+
+  if (!nom && !mots) {
+    showToast('⚠️ Indique la désignation ou des mots-clés', '❌');
+    return;
+  }
+
+  if (btnIA) { btnIA.disabled = true; btnIA.textContent = '⏳ Génération...'; }
+
+  const longLabel = libreLongueur === 'court'
+    ? '2 à 3 lignes maximum, style devis client clair et rassurant'
+    : '5 à 6 lignes, style description technique détaillée pour facture ou justificatif assurance';
+
+  const prompt = `Tu es le rédacteur technique de SINELEC, électricien à Paris.
+Rédige une description professionnelle de prestation électrique pour un document commercial (devis ou facture).
+
+PRESTATION : "${nom || mots}"
+MOTS-CLÉS : ${mots || nom}
+MONTANT : ${prix} €
+LONGUEUR : ${longLabel}
+
+RÈGLES STRICTES :
+- Style professionnel, clair, rassurant pour le client particulier
+- Mentionne les marques si pertinent (Legrand, Schneider Electric)
+- Inclus les normes si applicable (NF C 15-100, IP44, etc.)
+- Commence par un verbe d'action (Fourniture et pose, Remplacement, Création, Intervention...)
+- PAS de guillemets, PAS de tirets de liste
+- Donne UNIQUEMENT la description, sans titre ni introduction`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 300,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+    const data = await res.json();
+    const texte = data.content?.[0]?.text?.trim();
+    if (texte && texteEl && resEl) {
+      texteEl.value = texte;
+      resEl.style.display = 'block';
+      showToast('✅ Description générée par IA !', '🤖');
+    }
+  } catch(e) {
+    showToast('❌ Erreur IA : ' + e.message, '⚠️');
+  }
+
+  if (btnIA) { btnIA.disabled = false; btnIA.textContent = '🤖 Générer avec IA'; }
+}
+
+function utiliserDescriptionIA() {
+  const texte = document.getElementById('libre-ia-texte')?.value.trim();
+  const descEl = document.getElementById('libre-desc');
+  if (texte && descEl) {
+    descEl.value = texte;
+    document.getElementById('libre-ia-result').style.display = 'none';
+    showToast('✅ Description insérée !', '✏️');
+  }
+}
+
+function validerPrestationLibre() {
+  const nom  = document.getElementById('libre-nom')?.value.trim();
+  const prix = parseFloat(document.getElementById('libre-prix')?.value) || 0;
+  const qte  = parseInt(document.getElementById('libre-qte')?.value) || 1;
+  const desc = document.getElementById('libre-desc')?.value.trim() || '';
+
+  if (!nom) {
+    showToast('⚠️ La désignation est obligatoire', '❌');
+    document.getElementById('libre-nom')?.focus();
+    return;
+  }
+
+  const prefix = prestLibrePrefix;
+
+  if (prefix === 'dep') {
+    // Dépannage : on simule une sélection de forfait custom
+    selectionnerDepForfaitLibre(nom, prix, desc);
+    fermerPrestationLibre();
+    return;
+  }
+
+  const panier = prefix === 'd' ? panierD : panierF;
+  panier.push({ designation: nom, prixUnit: prix, qte, categorie: 'Personnalisé', desc });
+  if (prefix === 'd') panierD = panier; else panierF = panier;
+  renderPanier(prefix);
+  fermerPrestationLibre();
+  showToast(`✅ "${nom}" — ${prix} € ajouté`, '✏️');
+}
+
+function selectionnerDepForfaitLibre(nom, prix, desc) {
+  // Ajoute une ligne custom dans la section dépannage
+  depForfaitSelectionne = 'libre';
+  let libreSection = document.getElementById('dep-libre-custom');
+  if (!libreSection) {
+    libreSection = document.createElement('div');
+    libreSection.id = 'dep-libre-custom';
+    libreSection.style.cssText = 'background:rgba(27,42,74,0.05);border:1.5px solid rgba(27,42,74,0.2);border-radius:14px;padding:14px 16px;margin-top:8px;';
+    document.getElementById('dep-forfaits').appendChild(libreSection);
+  }
+  libreSection.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div style="font-size:14px;font-weight:800;color:#0B1F3A;">✏️ ${nom}</div>
+        ${desc ? `<div style="font-size:11px;color:#8896A8;font-style:italic;margin-top:2px;">${desc.substring(0,60)}...</div>` : ''}
+        <div style="font-size:11px;color:#8896A8;margin-top:2px;">Prestation personnalisée</div>
+      </div>
+      <span style="font-size:18px;font-weight:900;color:#C9A84C;">${prix} €</span>
+    </div>`;
+  // Stocker pour génération
+  window.depLibreNom   = nom;
+  window.depLibrePrix  = prix;
+  window.depLibreDesc  = desc;
+  document.getElementById('dep-remise-box').style.display = 'block';
+  document.getElementById('dep-type-box').style.display   = 'block';
+  document.getElementById('dep-btn-gen').style.display    = 'block';
+  majDepTotal();
+  showToast(`✅ "${nom}" sélectionné — ${prix} €`, '✏️');
+}
 
 // ═══════════════════════════════════════════════════
 // REMISE
