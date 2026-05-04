@@ -1460,7 +1460,10 @@ table.histo-table tr:hover td { background:#fafbff; }
       <div class="obat-card">
         <div class="obat-card-head">
           ⭐ Avis Google
-          <span class="obat-card-link" onclick="window.open('https://g.page/r/CSw-MABnFUAYEAE/review','_blank')">Ouvrir →</span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="obat-card-link" onclick="modifierNbAvis()" title="Mettre à jour le compteur">✏️ Modifier</span>
+            <span class="obat-card-link" onclick="window.open('https://g.page/r/CSw-MABnFUAYEAE/review','_blank')">Ouvrir →</span>
+          </div>
         </div>
         <div class="obat-avis-block">
           <div class="obat-avis-top">
@@ -4868,12 +4871,19 @@ async function chargerAccueil() {
       }
     }
 
-    // Avis Google
-    const nbAvis = 91; const objectif = 150;
+    // Avis Google — lire depuis Supabase via API
+    let nbAvis = 91; // fallback
+    try {
+      const resAvis = await fetch('/api/avis/compteur');
+      const dataAvis = await resAvis.json();
+      if (dataAvis.success && dataAvis.nb) nbAvis = dataAvis.nb;
+    } catch(e) { /* garde le fallback */ }
+    const objectif = 150;
     const pctAvis = Math.round((nbAvis / objectif) * 100);
     const barEl = document.getElementById('acc-avis-bar');
     if (barEl) barEl.style.width = pctAvis + '%';
-    set('acc-avis-pct', `${nbAvis} / ${objectif} \u00b7 ${pctAvis}% atteint \u00b7 encore ${objectif - nbAvis} avis`);
+    set('acc-avis-nb',  nbAvis);
+    set('acc-avis-pct', `${nbAvis} / ${objectif} · ${pctAvis}% atteint · encore ${objectif - nbAvis} avis`);
 
     // Onglets docs
     accDocsDevis    = devis;
@@ -5542,6 +5552,38 @@ function ajouterPageHeader(pageId) {
 })();
 
 // ═══════════════════════════════════════════════════
+// ── AVIS GOOGLE — mise à jour compteur ──────────────
+async function modifierNbAvis() {
+  const actuel = parseInt(document.getElementById('acc-avis-nb')?.textContent) || 91;
+  const nouveau = prompt(`Nombre d'avis Google actuel : ${actuel}\n\nNouveau nombre :`, actuel);
+  if (!nouveau || isNaN(parseInt(nouveau))) return;
+  const nb = parseInt(nouveau);
+  if (nb < 0 || nb > 9999) { showToast('⚠️ Nombre invalide', '❌'); return; }
+  try {
+    const res = await fetch('/api/avis/compteur', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nb })
+    });
+    const data = await res.json();
+    if (data.success) {
+      // Mettre à jour l'affichage immédiatement
+      const objectif = 150;
+      const pct = Math.round((nb / objectif) * 100);
+      const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+      set('acc-avis-nb',  nb);
+      set('acc-avis-pct', `${nb} / ${objectif} · ${pct}% atteint · encore ${objectif - nb} avis`);
+      const barEl = document.getElementById('acc-avis-bar');
+      if (barEl) barEl.style.width = pct + '%';
+      showToast(`⭐ Compteur mis à jour : ${nb} avis !`, '✅');
+    } else {
+      showToast('❌ Erreur : ' + (data.error || 'inconnue'), '⚠️');
+    }
+  } catch(e) {
+    showToast('❌ Erreur réseau', '⚠️');
+  }
+}
+
 // ═══════════════════════════════════════════════════
 // PRESTATION LIBRE + IA
 // ═══════════════════════════════════════════════════
