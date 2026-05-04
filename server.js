@@ -218,7 +218,8 @@ app.post('/api/generer', async (req, res) => {
       }
     }
 
-    if (CONFIG.features.email_auto && email) {
+    // ── GÉNÉRATION PDF — toujours, email ou pas ──────
+    if (CONFIG.features.email_auto) {
       const typeLabelUpper = type === 'devis' ? 'DEVIS' : 'FACTURE';
       const dateStr = new Date().toLocaleDateString('fr-FR');
       const dateValide = new Date(Date.now() + 30*24*60*60*1000).toLocaleDateString('fr-FR');
