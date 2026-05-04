@@ -416,22 +416,87 @@ print('PDF_OK')
       }
 
       const pdfB64 = fs.readFileSync(pdfPath).toString('base64');
-      const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
-      const lienSig = `${appUrl}/signer/${num}`;
-      const htmlFinal = (type === 'devis' ? CONFIG.email.template_devis : CONFIG.email.template_facture).replace(/\{num\}/g, num).replace(/\{lien_signature\}/g, lienSig);
-      await envoyerEmail(email, `${type === 'devis' ? 'Devis' : 'Facture'} SINELEC ${num}`, htmlFinal, { content: pdfB64, name: `${num}.pdf` });
-      try { await envoyerEmail('sinelec.paris@gmail.com', `${type === 'devis' ? '📋 DEVIS' : '💶 FACTURE'} ${num} — ${client} — ${parseFloat(total_ht).toFixed(0)}€`, `<p>Client: ${client} | Montant: ${parseFloat(total_ht).toFixed(2)}€</p>`, { content: pdfB64, name: `${num}.pdf` }); } catch(e) {}
+      // Sauvegarder le PDF temporairement pour envoi ultérieur
+      const pdfStorePath = path.join(__dirname, `${num}_stored.pdf`);
+      fs.copyFileSync(pdfPath, pdfStorePath);
+
       try { fs.unlinkSync(pyPath); } catch(e) {}
       try { fs.unlinkSync(detailsPath); } catch(e) {}
       try { fs.unlinkSync(pdfPath); } catch(e) {}
+
+      // ✅ PAS d'envoi email ici — on renvoie le PDF pour prévisualisation
+      // L'email est envoyé via /api/envoyer/:num après validation
+      res.json({ success: true, num, total_ht, pdf_b64: pdfB64, email_client: email });
+      return;
     }
 
     // ⚠️ Pas de SMS avis Google ici — envoyé uniquement au moment du paiement
-
     res.json({ success: true, num, total_ht });
   } catch(error) {
     console.error('Erreur génération:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// ── ENVOYER EMAIL APRÈS PRÉVISUALISATION ─────────────
+app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
+  const { num } = req.params;
+  try {
+    // Récupérer les infos du doc dans Supabase
+    const { data: doc, error } = await supabase
+      .from('historique')
+      .select('*')
+      .eq('num', num)
+      .single();
+    if (error || !doc) return res.status(404).json({ success: false, error: 'Document non trouvé' });
+
+    const email = doc.email;
+    if (!email) return res.status(400).json({ success: false, error: 'Pas d\'email pour ce client' });
+
+    // Récupérer le PDF stocké
+    const pdfStorePath = path.join(__dirname, `${num}_stored.pdf`);
+    let pdfB64;
+    if (fs.existsSync(pdfStorePath)) {
+      pdfB64 = fs.readFileSync(pdfStorePath).toString('base64');
+    } else {
+      // Fallback : régénérer depuis /api/pdf/:num
+      return res.status(404).json({ success: false, error: 'PDF non trouvé — régénère le document' });
+    }
+
+    const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+    const lienSig = `${appUrl}/signer/${num}`;
+    const type = doc.type;
+    const client = doc.client;
+    const total_ht = doc.total_ht;
+    const htmlFinal = (type === 'devis' ? CONFIG.email.template_devis : CONFIG.email.template_facture)
+      .replace(/\{num\}/g, num)
+      .replace(/\{lien_signature\}/g, lienSig);
+
+    // Envoyer au client
+    await envoyerEmail(
+      email,
+      `${type === 'devis' ? 'Devis' : 'Facture'} SINELEC ${num}`,
+      htmlFinal,
+      { content: pdfB64, name: `${num}.pdf` }
+    );
+    // Copie à Diahe
+    try {
+      await envoyerEmail(
+        'sinelec.paris@gmail.com',
+        `${type === 'devis' ? '📋 DEVIS' : '💶 FACTURE'} ${num} — ${client} — ${parseFloat(total_ht).toFixed(0)}€`,
+        `<p>Client: ${client} | Montant: ${parseFloat(total_ht).toFixed(2)}€</p>`,
+        { content: pdfB64, name: `${num}.pdf` }
+      );
+    } catch(e) {}
+
+    // Nettoyer le PDF stocké
+    try { fs.unlinkSync(pdfStorePath); } catch(e) {}
+
+    console.log(`✉️ Email envoyé : ${num} → ${email}`);
+    res.json({ success: true, message: `Email envoyé à ${email}` });
+  } catch(e) {
+    console.error('Envoi email:', e.message);
+    res.status(500).json({ success: false, error: e.message });
   }
 });
 
