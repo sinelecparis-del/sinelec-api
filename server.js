@@ -1227,15 +1227,18 @@ app.patch('/api/historique/:num/statut', async (req, res) => {
 
 app.get('/api/ca-complet', async (req, res) => {
   try {
-    const { data: histo } = await supabase.from('historique').select('*').order('created_at', { ascending: false });
-    const { data: obat } = await supabase.from('factures_obat').select('*').eq('statut', 'Payée');
-    const obatFormate = (obat || []).map(f => ({
+    // Les 2 requêtes en parallèle — factures_obat non bloquante
+    const [{ data: histo }, obatResult] = await Promise.all([
+      supabase.from('historique').select('*').order('created_at', { ascending: false }),
+      supabase.from('factures_obat').select('*').eq('statut', 'Payée').then(r => r).catch(() => ({ data: [] }))
+    ]);
+    const obat = obatResult?.data || [];
+    const obatFormate = obat.map(f => ({
       type: 'facture', client: f.client, total_ht: f.montant,
-      montant_diahe: f.montant, // Obat = 100% Diahe
+      montant_diahe: f.montant,
       statut: 'paye', created_at: f.date_facture + 'T00:00:00.000Z',
       num: f.reference, prestations: [{ nom: f.chantier, prix: f.montant, quantite: 1 }], source: 'obat'
     }));
-    // Enrichir chaque doc avec montant_diahe
     const histoEnrichi = (histo || []).map(h => {
       const pdiahe = h.part_diahe || 100;
       const montant_diahe = parseFloat(h.total_ht || 0) * pdiahe / 100;
@@ -2110,16 +2113,6 @@ async function relancerFacturesImpayees() {
   }
 }
 
-// Lancer chaque matin à 9h05
-cron.schedule('5 9 * * *', relancerFacturesImpayees);
-
-// Route GET pour tester depuis le navigateur
-app.get('/api/relances/lancer', authMiddleware, async (req, res) => {
-  try {
-    await relancerFacturesImpayees();
-    res.json({ success: true, message: 'Relances lancées — vérifiez vos SMS et emails' });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
 
 // Lancer chaque matin à 9h05
 cron.schedule('5 9 * * *', relancerFacturesImpayees);
