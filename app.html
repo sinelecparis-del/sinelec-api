@@ -6366,14 +6366,30 @@ async function modifierDevis(num) {
     if (descEl)    descEl.value     = doc.description || '';
 
     // ── Charger les prestations dans le panier ──
-    panierD = (doc.prestations || []).map(p => ({
-      designation: p.nom || p.designation || '',
-      prixUnit:    parseFloat(p.prix || p.prixUnit || 0),
-      qte:         parseInt(p.quantite  || p.qte   || 1),
-      categorie:   p.categorie || 'Autre',
-      // desc peut être dans p.desc (string) ou p.details[0] (tableau) selon la source
-      desc:        p.desc || (Array.isArray(p.details) ? p.details[0] : p.details) || ''
-    })).filter(p => p.prixUnit >= 0); // filtrer la remise — elle sera recalculée
+    // Helper : retrouver la desc originale depuis la GRILLE par nom de prestation
+    const getDescGrille = (nom) => {
+      for (const cat of Object.values(GRILLE)) {
+        for (const [n, v] of Object.entries(cat)) {
+          if (n === nom) return typeof v === 'object' ? (v.desc || '') : '';
+        }
+      }
+      return '';
+    };
+
+    panierD = (doc.prestations || []).map(p => {
+      const nom  = p.nom || p.designation || '';
+      const prix = parseFloat(p.prix || p.prixUnit || 0);
+      // Priorité : desc sauvegardée → details[0] → desc GRILLE originale
+      const descSauvee = p.desc || (Array.isArray(p.details) ? p.details[0] : p.details) || '';
+      const descFinale = descSauvee || getDescGrille(nom);
+      return {
+        designation: nom,
+        prixUnit:    prix,
+        qte:         parseInt(p.quantite || p.qte || 1),
+        categorie:   p.categorie || 'Autre',
+        desc:        descFinale
+      };
+    }).filter(p => p.prixUnit >= 0); // filtrer la remise — elle sera recalculée
 
     renderPanier('d');
 
