@@ -166,7 +166,79 @@ body {
 .mobile-tab.active .mobile-tab-label { color:var(--gold); }
 
 .main-content { margin-left:var(--sidebar-width); min-height:100vh; position:relative; z-index:1; }
-@media(max-width:768px){ body{padding-bottom:70px;} .sidebar{display:none;} .main-content{margin-left:0;} .mobile-tabs{display:block;} }
+/* ══════════════════════════════════════════════════════
+   RESPONSIVE MOBILE < 768px
+   Règle : CSS only — aucun JS modifié
+   Breakpoint unique — sidebar cachée + bottom tabs
+══════════════════════════════════════════════════════ */
+@media(max-width:768px){
+
+  /* Body */
+  body { padding-bottom:72px; }
+
+  /* Sidebar cachée */
+  .sidebar { display:none; }
+  .main-content { margin-left:0; }
+
+  /* Bottom tabs visibles */
+  .mobile-tabs { display:block; }
+
+  /* Topbar compact */
+  .obat-topbar { padding:10px 12px; gap:8px; flex-wrap:wrap; }
+  .obat-topbar-left h2 { font-size:15px; }
+  .obat-topbar-left span { font-size:11px; }
+  .btn-obat-primary, .btn-obat-gold { padding:7px 12px; font-size:11px; }
+  .obat-content { padding:10px 12px; }
+  .content { padding:14px 12px; }
+
+  /* Accueil — KPI 2 colonnes */
+  .obat-kpi-grid { grid-template-columns:repeat(2,1fr) !important; gap:8px !important; }
+  .obat-kpi { padding:12px 14px !important; }
+  .obat-kpi-val { font-size:18px !important; }
+  .obat-kpi-lbl { font-size:9px !important; }
+  .obat-kpi-sub { font-size:9px !important; }
+
+  /* Accueil — actions 2 colonnes */
+  .obat-quick { grid-template-columns:repeat(2,1fr) !important; gap:8px !important; }
+  .obat-quick-btn { padding:12px 12px !important; flex-direction:row !important; align-items:center !important; gap:10px !important; }
+
+  /* Accueil — rows 1 colonne */
+  .obat-row2 { grid-template-columns:1fr !important; }
+  .obat-row3 { grid-template-columns:1fr !important; }
+
+  /* Historique */
+  .histo-stats { grid-template-columns:repeat(2,1fr) !important; }
+  .histo-stat { padding:10px 12px; }
+  .histo-stat-val { font-size:15px; }
+  .histo-table-filters { padding:10px 12px; gap:5px; flex-wrap:wrap; }
+  .histo-filter-btn { padding:5px 10px; font-size:11px; }
+  .histo-search { width:100%; margin-left:0; }
+  .histo-table-wrap { overflow-x:auto; }
+  table.histo-table { min-width:480px; }
+  table.histo-table th, table.histo-table td { padding:8px 8px; font-size:11px; }
+  .histo-table th:nth-child(4), .histo-table td:nth-child(4),
+  .histo-table th:nth-child(5), .histo-table td:nth-child(5) { display:none; }
+
+  /* Devis / Facture */
+  .cat-grid { grid-template-columns:repeat(2,1fr) !important; gap:8px !important; }
+  .cat-btn { padding:12px 10px; font-size:12px; }
+  .total-bar { padding:14px 16px; }
+  .total-amount { font-size:24px; }
+  .section { padding:14px 12px; }
+
+  /* Popup — slide du bas */
+  .popup-overlay { align-items:flex-end; }
+  .popup-box { width:100%; max-width:100%; border-radius:22px 22px 0 0; max-height:90vh; margin:0; }
+
+  /* Tiroir CA plein écran */
+  .tiroir-ca { width:100%; }
+
+  /* FAB lead au-dessus des tabs */
+  .fab-lead { bottom:80px; right:14px; }
+
+  /* Stats CA */
+  .stat-grid { grid-template-columns:repeat(2,1fr) !important; gap:10px !important; }
+}
 @media(min-width:640px){ .cat-grid{grid-template-columns:repeat(3,1fr);} }
 .cat-btn {
   background: #f9f9f9;
