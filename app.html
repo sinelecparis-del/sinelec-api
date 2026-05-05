@@ -6371,7 +6371,8 @@ async function modifierDevis(num) {
       prixUnit:    parseFloat(p.prix || p.prixUnit || 0),
       qte:         parseInt(p.quantite  || p.qte   || 1),
       categorie:   p.categorie || 'Autre',
-      desc:        p.desc || ''
+      // desc peut être dans p.desc (string) ou p.details[0] (tableau) selon la source
+      desc:        p.desc || (Array.isArray(p.details) ? p.details[0] : p.details) || ''
     })).filter(p => p.prixUnit >= 0); // filtrer la remise — elle sera recalculée
 
     renderPanier('d');
