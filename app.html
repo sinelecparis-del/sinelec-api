@@ -5287,6 +5287,7 @@ function renderTableauHistorique() {
       <div class="ht-more" onclick="toggleDropdown('${moreId}',event)" title="Plus">
         ···
         <div class="ht-dropdown" id="${moreId}">
+          ${type === 'devis' && statut === 'envoye' ? `<div class="ht-dropdown-item" onclick="modifierDevis('${item.num}')" style="color:#E8B84B;font-weight:800;">✏️ Modifier le devis</div>` : ''}
           ${type === 'devis' ? `<div class="ht-dropdown-item" onclick="convertirEnFacture('${item.num}')">💶 → Facture</div>` : ''}
           ${type === 'devis' && !estSigne ? `<div class="ht-dropdown-item" onclick="ouvrirPopupSig('${item.num}')">✍️ Signature</div>` : ''}
           ${type === 'devis' && !estSigne ? `<div class="ht-dropdown-item" onclick="marquerSigne('${item.num}')">✅ Marquer signé</div>` : ''}
@@ -6324,6 +6325,67 @@ async function genererEtTelecharger(type) {
   }
 }
 
+async function modifierDevis(num) {
+  // Charger les données du devis depuis Supabase
+  showToast('⏳ Chargement du devis...', '✏️');
+  try {
+    const res = await fetch('/api/ca-complet');
+    if (!res.ok) throw new Error('Erreur chargement');
+    const docs = await res.json();
+    const doc = docs.find(d => d.num === num);
+    if (!doc) throw new Error('Devis introuvable');
+    if ((doc.statut||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'') !== 'envoye') {
+      showToast('⚠️ Ce devis ne peut plus être modifié', '❌'); return;
+    }
+
+    // ── Naviguer sur la page devis ──
+    switchPage('devis', document.querySelector('.sidebar-item[onclick*="devis"]'));
+
+    // Attendre que la page soit rendue
+    await new Promise(r => setTimeout(r, 200));
+
+    // ── Pré-remplir le client ──
+    const prenomEl   = document.getElementById('d-prenom');
+    const clientEl   = document.getElementById('d-client');
+    const adresseEl  = document.getElementById('d-adresse');
+    const telEl      = document.getElementById('d-tel');
+    const emailEl    = document.getElementById('d-email');
+    const descEl     = document.getElementById('d-description');
+
+    // Séparer prénom et nom si possible (ex: "DUPONT MARIE" → prenom=MARIE nom=DUPONT)
+    const clientParts = (doc.client || '').split(' ');
+    if (prenomEl && clientParts.length > 1) {
+      prenomEl.value  = clientParts.slice(1).join(' ');
+      if (clientEl) clientEl.value = clientParts[0];
+    } else {
+      if (clientEl) clientEl.value = doc.client || '';
+    }
+    if (adresseEl) adresseEl.value  = doc.adresse  || '';
+    if (telEl)     telEl.value      = doc.telephone || '';
+    if (emailEl)   emailEl.value    = doc.email     || '';
+    if (descEl)    descEl.value     = doc.description || '';
+
+    // ── Charger les prestations dans le panier ──
+    panierD = (doc.prestations || []).map(p => ({
+      designation: p.nom || p.designation || '',
+      prixUnit:    parseFloat(p.prix || p.prixUnit || 0),
+      qte:         parseInt(p.quantite  || p.qte   || 1),
+      categorie:   p.categorie || 'Autre',
+      desc:        p.desc || ''
+    })).filter(p => p.prixUnit >= 0); // filtrer la remise — elle sera recalculée
+
+    renderPanier('d');
+
+    // ── Stocker le numéro original pour le supprimer après regénération ──
+    window._devisARemplacer = num;
+
+    showToast('✏️ Devis chargé — modifie et renvoie !', '✅');
+
+  } catch(e) {
+    showToast('❌ ' + e.message, '⚠️');
+  }
+}
+
 async function generer(type) {
   const prefix = type === 'devis' ? 'd' : 'f';
   const btn = document.getElementById(`${prefix}-btn`);
@@ -6398,6 +6460,14 @@ async function generer(type) {
       showToast(`✅ ${type === 'devis' ? 'Devis' : 'Facture'} ${data.num} généré !`, '⚡');
       if (type === 'devis') { panierD = []; renderPanier('d'); }
       else { panierF = []; renderPanier('f'); }
+      // Si modification d'un devis existant → supprimer l'ancien
+      if (type === 'devis' && window._devisARemplacer && window._devisARemplacer !== data.num) {
+        try {
+          await fetch(`/api/supprimer/${window._devisARemplacer}`, { method: 'DELETE' });
+          showToast(`🗑️ Ancien devis ${window._devisARemplacer} supprimé`, '✅');
+        } catch(e) { /* non bloquant */ }
+        window._devisARemplacer = null;
+      }
       // Ouvrir la prévisualisation avec actions
       ouvrirPreviewAvecActions(data.num, data.pdf_b64, data.email_client, type);
     } else {
