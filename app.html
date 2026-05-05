@@ -166,7 +166,116 @@ body {
 .mobile-tab.active .mobile-tab-label { color:var(--gold); }
 
 .main-content { margin-left:var(--sidebar-width); min-height:100vh; position:relative; z-index:1; }
-@media(max-width:768px){ body{padding-bottom:70px;} .sidebar{display:none;} .main-content{margin-left:0;} .mobile-tabs{display:block;} }
+
+/* ══════════════════════════════════════════
+   TABLETTE — 768px à 1199px
+   Sidebar réduite icônes 64px
+══════════════════════════════════════════ */
+@media(min-width:768px) and (max-width:1199px){
+  :root { --sidebar-width: 64px; }
+  body { padding-bottom: 0; }
+  .mobile-tabs { display:none !important; }
+
+  /* Sidebar icônes seulement */
+  .sidebar-logo { padding:14px 0; justify-content:center; }
+  .sidebar-logo-text { display:none; }
+  .sidebar-logo-icon { margin:0 auto; }
+  .sidebar-section { display:none; }
+  .sidebar-item { padding:10px 0; justify-content:center; border-radius:10px; margin:1px 6px; position:relative; }
+  .sidebar-item > span:last-of-type { display:none; }
+  .sidebar-item-badge { position:absolute; top:4px; right:4px; padding:1px 4px; font-size:9px; }
+  .sidebar-footer { padding:10px 8px; flex-direction:column; gap:8px; align-items:center; }
+  .sidebar-avatar-info { display:none; }
+  .theme-toggle { margin-left:0 !important; width:28px; height:28px; font-size:13px; }
+
+  /* Topbar + contenu */
+  .obat-topbar { padding:10px 16px; }
+  .obat-topbar-left h2 { font-size:15px; }
+  .obat-content { padding:14px 16px; }
+  .content { padding:18px 16px; }
+
+  /* Accueil grilles */
+  .obat-kpi-grid { grid-template-columns:repeat(2,1fr) !important; gap:10px !important; }
+  .obat-quick { grid-template-columns:repeat(4,1fr) !important; gap:8px !important; }
+  .obat-quick-btn { padding:12px 10px; }
+  .obat-row2 { grid-template-columns:1fr !important; }
+  .obat-row3 { grid-template-columns:1fr 260px !important; }
+
+  /* Historique */
+  .histo-stats { grid-template-columns:repeat(2,1fr) !important; }
+  .tiroir-ca { width:380px; }
+  .popup-box { max-width:520px; }
+}
+
+/* ══════════════════════════════════════════
+   MOBILE — moins de 768px
+   Sidebar cachée, bottom tabs, 1 colonne
+══════════════════════════════════════════ */
+@media(max-width:767px){
+  body { padding-bottom:72px; }
+  .sidebar { display:none; }
+  .main-content { margin-left:0; }
+  .mobile-tabs { display:block; }
+
+  /* Topbar compact */
+  .obat-topbar { padding:10px 12px; flex-wrap:wrap; gap:6px; }
+  .obat-topbar-left h2 { font-size:15px; }
+  .btn-obat-primary, .btn-obat-gold { padding:7px 12px; font-size:11px; }
+  .obat-content { padding:10px 12px; }
+  .content { padding:14px 12px; }
+
+  /* KPI 2x2 */
+  .obat-kpi-grid { grid-template-columns:repeat(2,1fr) !important; gap:8px !important; }
+  .obat-kpi { padding:12px 14px !important; }
+  .obat-kpi-val { font-size:18px !important; }
+  .obat-kpi-lbl { font-size:9px !important; }
+  .obat-kpi-sub { font-size:9px !important; }
+
+  /* Quick 2x2 */
+  .obat-quick { grid-template-columns:repeat(2,1fr) !important; gap:8px !important; }
+  .obat-quick-btn { padding:12px !important; flex-direction:row !important; align-items:center !important; gap:10px !important; }
+
+  /* Rows 1 colonne */
+  .obat-row2 { grid-template-columns:1fr !important; }
+  .obat-row3 { grid-template-columns:1fr !important; }
+
+  /* Historique */
+  .histo-stats { grid-template-columns:repeat(2,1fr) !important; }
+  .histo-stat { padding:10px 12px; }
+  .histo-stat-val { font-size:15px; }
+  .histo-table-filters { padding:10px 12px; gap:5px; flex-wrap:wrap; }
+  .histo-filter-btn { padding:5px 10px; font-size:11px; }
+  .histo-search { width:100%; margin-left:0; }
+  .histo-table th:nth-child(4), .histo-table td:nth-child(4),
+  .histo-table th:nth-child(5), .histo-table td:nth-child(5) { display:none; }
+  table.histo-table th, table.histo-table td { padding:10px 8px; font-size:11px; }
+  .histo-table-wrap { overflow-x:auto; }
+  table.histo-table { min-width:500px; }
+
+  /* Devis/Facture */
+  .cat-grid { grid-template-columns:repeat(2,1fr) !important; gap:8px !important; }
+  .cat-btn { padding:12px 10px; font-size:12px; }
+  .total-bar { padding:16px 18px; }
+  .total-amount { font-size:26px; }
+  .section { padding:16px; }
+
+  /* Popup bas de page */
+  .popup-overlay { align-items:flex-end; }
+  .popup-box { width:100%; max-width:100%; border-radius:24px 24px 0 0; max-height:90vh; margin:0; }
+
+  /* Tiroir + FAB */
+  .tiroir-ca { width:100%; }
+  .fab-lead { bottom:80px; right:14px; }
+
+  /* Stats */
+  .stat-grid { grid-template-columns:1fr 1fr !important; gap:10px !important; }
+
+  /* Mobile tabs améliorés */
+  .mobile-tabs { padding:6px 0 10px; box-shadow:0 -4px 24px rgba(0,0,0,0.08); }
+  .mobile-tab { padding:6px 4px; }
+  .mobile-tab-icon { font-size:24px; }
+  .mobile-tab-label { font-size:10px; font-weight:700; }
+}
 
 /* ══ ANIMATIONS ══ */
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -6450,38 +6559,4 @@ async function generer(type) {
         client,
         prenom: (document.getElementById(`${prefix}-prenom`)?.value || '').trim(),
         email: document.getElementById(`${prefix}-email`)?.value.trim() || '',
-        telephone: document.getElementById(`${prefix}-tel`)?.value.trim() || '',
-        adresse,
-        siret_client: getSiret(prefix),
-        description: document.getElementById(`${prefix}-description`)?.value.trim() || '',
-        prestations: prestationsAEnvoyer,
-        partenaire: prefix === 'd' ? partenaireActifD : false,
-        part_diahe: prefix === 'd' ? parseInt(document.getElementById('d-part-diahe')?.value || 60) : 100,
-        part_partenaire: prefix === 'd' ? parseInt(document.getElementById('d-part-alopronto')?.value || 40) : 0,
-        nom_partenaire: 'Alopronto',
-        intervention_type: type === 'devis' ? typeIntervention : 'immediat'
-      })
-    });
-    const data = await res.json();
-    if (data.success) {
-      showToast(`✅ ${type === 'devis' ? 'Devis' : 'Facture'} ${data.num} généré !`, '⚡');
-      if (type === 'devis') { panierD = []; renderPanier('d'); }
-      else { panierF = []; renderPanier('f'); }
-      // Ouvrir la prévisualisation avec actions
-      ouvrirPreviewAvecActions(data.num, data.pdf_b64, data.email_client, type);
-    } else {
-      showToast('❌ ' + (data.error || 'Erreur'), '⚠️');
-    }
-  } catch(e) {
-    showToast('❌ ' + e.message, '⚠️');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = type === 'devis'
-      ? (typeIntervention === 'immediat' ? '⚡ Générer le devis — Immédiat' : '📅 Générer le devis — Planifié')
-      : '💶 Générer la facture PDF';
-  }
-}
-</script>
-
-</body>
-</html>
+        telephone: document.getElementById(`
