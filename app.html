@@ -5026,17 +5026,26 @@ async function relancerDevis(num, tel, client) {
 
 async function chargerAccueil() {
   const now = new Date();
-  const jours = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
-  const moisN = ['janvier','fevrier','mars','avril','mai','juin','juillet','aout','septembre','octobre','novembre','decembre'];
+  const jours   = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
   const moisNFR = ['janvier','f\u00e9vrier','mars','avril','mai','juin','juillet','ao\u00fbt','septembre','octobre','novembre','d\u00e9cembre'];
-  const dateEl = document.getElementById('accueil-date');
+  const dateEl  = document.getElementById('accueil-date');
   if (dateEl) dateEl.textContent = `${jours[now.getDay()]} ${now.getDate()} ${moisNFR[now.getMonth()]} ${now.getFullYear()}`;
+
+  // Attendre que le token soit disponible (max 3s) — fix mobile
+  let waited = 0;
+  while (!getToken() && waited < 3000) {
+    await new Promise(r => setTimeout(r, 100));
+    waited += 100;
+  }
+  if (!getToken()) return;
 
   try {
     const [resCA, resAgenda] = await Promise.all([
       fetch('/api/ca-complet'),
       fetch('/api/agenda')
     ]);
+    // Retry si 401 — token pas encore propagé
+    if (resCA.status === 401) { setTimeout(chargerAccueil, 600); return; }
     const docs   = await resCA.json();
     const agenda = await resAgenda.json();
     const norm   = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
@@ -6556,7 +6565,4 @@ async function generer(type) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         type,
-        client,
-        prenom: (document.getElementById(`${prefix}-prenom`)?.value || '').trim(),
-        email: document.getElementById(`${prefix}-email`)?.value.trim() || '',
-        telephone: document.getElementById(`
+  
