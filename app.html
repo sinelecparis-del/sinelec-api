@@ -5044,18 +5044,27 @@ async function chargerAccueil() {
   }
   if (!getToken()) return;
 
+  // Timeout helper
+  const fetchAvecTimeout = (url, ms=8000) => {
+    const ctrl = new AbortController();
+    const id = setTimeout(() => ctrl.abort(), ms);
+    return fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(id));
+  };
+
   try {
-    const [resCA, resAgenda] = await Promise.all([
-      fetch('/api/ca-complet'),
-      fetch('/api/agenda')
-    ]);
-    // Retry si 401 — token pas encore propagé
+    // Charger CA — bloquant
+    const resCA = await fetchAvecTimeout('/api/ca-complet', 10000);
+    // Retry si 401
     if (resCA.status === 401) { setTimeout(chargerAccueil, 800); return; }
     if (!resCA.ok) throw new Error('CA API ' + resCA.status);
-    const docs   = await resCA.json();
-    // Agenda non bloquant — continue même si erreur
+    const docs = await resCA.json();
+
+    // Agenda — non bloquant, timeout 5s
     let agenda = [];
-    try { if (resAgenda.ok) agenda = await resAgenda.json(); } catch(e) {}
+    try {
+      const resAgenda = await fetchAvecTimeout('/api/agenda', 5000);
+      if (resAgenda.ok) agenda = await resAgenda.json();
+    } catch(e) { console.log('Agenda ignoré:', e.message); }
     const norm   = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
     const ageH   = d => (new Date() - new Date(d.created_at||d.date)) / 3600000;
     const ageStr = d => {
@@ -6542,10 +6551,4 @@ async function generer(type) {
   const client = getClientComplet(prefix);
   const adresse = document.getElementById(`${prefix}-adresse`)?.value.trim();
   if (!client || !adresse) { showToast('⚠️ Remplis le nom et l\'adresse !', '❌'); return; }
-  const emailVal = document.getElementById(`${prefix}-email`)?.value.trim();
-  if (!emailVal) {
-    const go = confirm('⚠️ Email client manquant !\n\nSans email, le client ne recevra pas son PDF.\n\nContinuer quand même ?');
-    if (!go) return;
-  }
-
-  // ── BUG 2 CORRIGÉ : lire les textareas DOM juste avan
+  c
