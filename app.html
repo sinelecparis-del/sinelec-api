@@ -193,6 +193,92 @@ body {
 
 
 
+
+/* ══ FORMULAIRE CLIENT — STYLE AMÉLIORÉ ══ */
+#page-devis .section:first-child,
+#page-facture .section:first-child {
+  background:#fff;
+  border:1.5px solid #EAEAF0;
+  border-radius:20px;
+  padding:20px;
+  box-shadow:0 2px 12px rgba(0,0,0,0.04);
+}
+#page-devis .section-title,
+#page-facture .section:first-child .section-title {
+  font-size:13px;
+  font-weight:900;
+  color:#1B2A4A;
+  letter-spacing:0;
+  text-transform:none;
+  margin-bottom:16px;
+  padding-bottom:12px;
+  border-bottom:1.5px solid #F0F0F6;
+}
+.input-group {
+  margin-bottom:12px;
+  position:relative;
+}
+.input-group label {
+  font-size:10px !important;
+  font-weight:800 !important;
+  color:#8896A8 !important;
+  text-transform:uppercase;
+  letter-spacing:0.8px;
+  display:block;
+  margin-bottom:6px;
+}
+.input-group input,
+.input-group textarea,
+.input-group select {
+  width:100%;
+  padding:11px 14px;
+  border:1.5px solid #E8E8F0;
+  border-radius:12px;
+  font-size:13px;
+  font-weight:600;
+  color:#0B1F3A;
+  font-family:inherit;
+  background:#FAFAFA;
+  transition:border-color 0.15s, background 0.15s;
+  outline:none;
+}
+.input-group input:focus,
+.input-group textarea:focus {
+  border-color:#E8B84B;
+  background:#FFFDF5;
+}
+.input-group input::placeholder,
+.input-group textarea::placeholder {
+  color:#C8D0DC;
+  font-weight:500;
+}
+.client-toggle {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:0;
+  background:#F0F0F6;
+  border-radius:12px;
+  padding:3px;
+  margin-bottom:16px;
+}
+.client-toggle-btn {
+  padding:9px;
+  border:none;
+  border-radius:9px;
+  font-size:12px;
+  font-weight:700;
+  cursor:pointer;
+  font-family:inherit;
+  background:transparent;
+  color:#8896A8;
+  transition:all 0.2s;
+}
+.client-toggle-btn.active {
+  background:#fff;
+  color:#1B2A4A;
+  box-shadow:0 2px 8px rgba(0,0,0,0.08);
+}
+
 /* ══ PANIER ══ */
 .panier {
   background:#ffffff; border:1px solid rgba(0,0,0,0.07);
