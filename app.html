@@ -2576,6 +2576,8 @@ function initialiserApp() {
     const sidebarEl = document.querySelector('.sidebar-item[onclick*="accueil"]');
     const mobileEl  = document.getElementById('mob-tab-accueil');
     switchPage('accueil', sidebarEl || mobileEl || null);
+    // Forcer chargement accueil après délai suffisant pour que le token soit propagé
+    setTimeout(chargerAccueil, 400);
   }, 100);
   // Démarrer le polling signature
   setTimeout(demarrerPollingSignature, 3000);
@@ -5315,7 +5317,20 @@ async function chargerAccueil() {
     }
 
   } catch(e) {
-    console.error('chargerAccueil:', e);
+    console.error('chargerAccueil erreur:', e.message);
+    // Retry automatique jusqu'à 3 fois si erreur réseau
+    if (!chargerAccueil._retries) chargerAccueil._retries = 0;
+    chargerAccueil._retries++;
+    if (chargerAccueil._retries < 3) {
+      setTimeout(chargerAccueil, 1000 * chargerAccueil._retries);
+    } else {
+      // Afficher un message d'erreur dans les KPI
+      const setErr = id => { const e = document.getElementById(id); if(e) e.textContent = '—'; };
+      ['acc-ca-mois','acc-ca-annee','acc-reste','acc-devis-attente'].forEach(setErr);
+      const t = document.getElementById('acc-ca-mois-trend');
+      if(t) { t.textContent = '⚠️ Erreur chargement — rechargez'; t.style.color='#dc2626'; }
+      chargerAccueil._retries = 0;
+    }
   }
 }
 
@@ -6533,26 +6548,4 @@ async function generer(type) {
     if (!go) return;
   }
 
-  // ── BUG 2 CORRIGÉ : lire les textareas DOM juste avant d'envoyer
-  document.querySelectorAll(`#${prefix}-panier-items textarea[data-idx]`).forEach(ta => {
-    const idx = parseInt(ta.getAttribute('data-idx'));
-    if (!isNaN(idx) && panier[idx]) panier[idx].desc = ta.value;
-  });
-
-  btn.disabled = true;
-  btn.textContent = '⏳ Génération...';
-
-  // ── BUG 1 CORRIGÉ : calculer la remise et l'injecter comme ligne dans les prestations
-  const totalBrut = panier.reduce((s, p) => s + p.prixUnit * p.qte, 0);
-  const remiseMontant = getRemise(prefix, totalBrut);
-
-  const prestationsAEnvoyer = panier.map(item => ({
-    nom: item.designation,
-    prix: item.prixUnit,
-    quantite: item.qte,
-    desc: item.desc || ''
-  }));
-
-  if (remiseMontant > 0) {
-    const isPct = (prefix === 'd' ? remiseTypeD : remiseTypeF) === 'pct';
-    const val = parseFloat(document.getElementById(`${prefix}-remi
+  // ── BUG 2 CORRIGÉ : lire les textareas DOM juste avan
