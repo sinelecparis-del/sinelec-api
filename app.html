@@ -191,6 +191,35 @@ body {
 .prest-name { font-size:14px; font-weight:600; color:rgba(0,0,0,0.8); flex:1; }
 .prest-price { font-size:15px; font-weight:800; color:var(--accent); }
 
+
+/* ══ FORMULAIRE CLIENT V2 ══ */
+.client-card { background:var(--glass); border:1.5px solid var(--border); border-radius:16px; padding:16px; margin-bottom:12px; }
+.client-card-title { font-size:10px; font-weight:800; letter-spacing:1.5px; text-transform:uppercase; color:var(--text-3); margin-bottom:14px; display:flex; align-items:center; gap:7px; }
+.client-card-title::after { content:''; flex:1; height:1px; background:var(--border); }
+.client-row2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.client-field { margin-bottom:11px; position:relative; }
+.client-field:last-child { margin-bottom:0; }
+.client-field label { font-size:10px; font-weight:800; color:var(--text-3); text-transform:uppercase; letter-spacing:0.5px; display:flex; align-items:center; gap:5px; margin-bottom:5px; }
+.client-field .lbl-opt { font-size:9px; font-weight:600; color:var(--text-3); text-transform:none; letter-spacing:0; background:rgba(0,0,0,0.04); border-radius:5px; padding:1px 6px; }
+.client-field .lbl-gps { font-size:9px; font-weight:700; color:#3b82f6; background:#eff6ff; border-radius:5px; padding:1px 7px; display:inline-flex; align-items:center; gap:3px; }
+.inp-icon-wrap { position:relative; }
+.inp-icon-wrap input { padding-left:34px; }
+.inp-field-icon { position:absolute; left:11px; top:50%; transform:translateY(-50%); font-size:13px; pointer-events:none; }
+.client-suggest { position:absolute; top:calc(100% + 4px); left:0; right:0; background:#fff; border:1.5px solid var(--border); border-radius:12px; z-index:200; overflow:hidden; box-shadow:0 8px 28px rgba(0,0,0,0.1); max-height:240px; overflow-y:auto; }
+.client-suggest-item { padding:10px 13px; cursor:pointer; border-bottom:1px solid var(--bg); display:flex; align-items:center; gap:10px; transition:background 0.1s; }
+.client-suggest-item:last-child { border-bottom:none; }
+.client-suggest-item:hover { background:#FFFDF5; }
+.client-suggest-avatar { width:28px; height:28px; border-radius:50%; background:linear-gradient(135deg,#E8B84B,#C9962A); display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:900; color:#0B1F3A; flex-shrink:0; }
+.client-suggest-name { font-size:12px; font-weight:800; color:var(--text); }
+.client-suggest-detail { font-size:10px; color:var(--text-3); margin-top:1px; }
+.client-suggest-count { background:rgba(201,168,76,0.12); color:#C9A84C; border-radius:6px; padding:2px 7px; font-size:9px; font-weight:700; margin-left:auto; flex-shrink:0; }
+.adresse-suggest-item { padding:10px 13px; cursor:pointer; border-bottom:1px solid var(--bg); display:flex; align-items:flex-start; gap:9px; transition:background 0.1s; }
+.adresse-suggest-item:last-child { border-bottom:none; }
+.adresse-suggest-item:hover { background:#FFFDF5; }
+.adresse-suggest-rue { font-size:12px; font-weight:700; color:var(--text); }
+.adresse-suggest-cp { font-size:10px; color:var(--text-3); margin-top:2px; }
+.client-row2-fields { display:grid; grid-template-columns:2fr 1fr; gap:10px; }
+
 /* ══ PANIER ══ */
 .panier {
   background:#ffffff; border:1px solid rgba(0,0,0,0.07);
@@ -1680,33 +1709,122 @@ table.histo-table tr:hover td { background:#fafbff; }
 <!-- ════════════ PAGE DEVIS ════════════ -->
 <div id="page-devis" class="page">
 <div class="content">
-  <!-- Infos client -->
+  <!-- Infos client V2 -->
   <div class="section">
     <div class="section-title">📋 Informations client</div>
-    <div class="client-toggle">
+
+    <!-- Toggle particulier / société -->
+    <div class="client-toggle" style="margin-bottom:14px;">
       <div class="client-toggle-btn active" id="d-toggle-part" onclick="setClientType('d','particulier')">👤 Particulier</div>
       <div class="client-toggle-btn" id="d-toggle-soc" onclick="setClientType('d','societe')">🏢 Société</div>
     </div>
+
+    <!-- Bloc particulier -->
     <div id="d-bloc-particulier">
-      <div class="input-group"><label>Prénom</label><input type="text" id="d-prenom" placeholder="MARIE" oninput="this.value=this.value.toUpperCase();autocompleteClient('d',this.value,'prenom')" autocomplete="off"></div>
-      <div class="input-group">
-        <label>Nom</label>
-        <input type="text" id="d-client" placeholder="DUPONT" oninput="this.value=this.value.toUpperCase();autocompleteClient('d',this.value,'nom')" autocomplete="off">
-        <div id="d-client-suggestions" style="background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:12px;margin-top:6px;max-height:240px;overflow-y:auto;display:none;z-index:999;position:relative;"></div>
+      <div class="client-card">
+        <div class="client-card-title">👤 Identité</div>
+        <div class="client-row2">
+          <div class="client-field">
+            <label>Prénom <span style="color:#ef4444;">*</span></label>
+            <div class="inp-icon-wrap">
+              <span class="inp-field-icon">👤</span>
+              <input type="text" id="d-prenom" placeholder="MARIE" oninput="this.value=this.value.toUpperCase();autocompleteClient('d',this.value,'prenom')" autocomplete="off">
+            </div>
+          </div>
+          <div class="client-field">
+            <label>Nom <span style="color:#ef4444;">*</span></label>
+            <div class="inp-icon-wrap" style="position:relative;">
+              <span class="inp-field-icon">👤</span>
+              <input type="text" id="d-client" placeholder="DUPONT" oninput="this.value=this.value.toUpperCase();autocompleteClient('d',this.value,'nom')" autocomplete="off">
+              <div id="d-client-suggestions" class="client-suggest" style="display:none;"></div>
+            </div>
+          </div>
+        </div>
+        <div class="client-row2">
+          <div class="client-field">
+            <label>Téléphone <span style="color:#ef4444;">*</span></label>
+            <div class="inp-icon-wrap">
+              <span class="inp-field-icon">📞</span>
+              <input type="tel" id="d-tel" placeholder="06 12 34 56 78">
+            </div>
+          </div>
+          <div class="client-field">
+            <label>Email <span class="lbl-opt">envoi auto</span></label>
+            <div class="inp-icon-wrap">
+              <span class="inp-field-icon">✉️</span>
+              <input type="email" id="d-email" placeholder="client@email.com">
+            </div>
+          </div>
+        </div>
       </div>
     </div>
+
+    <!-- Bloc société -->
     <div id="d-bloc-societe" style="display:none;">
-      <div class="input-group"><label>Nom société</label><input type="text" id="d-societe" placeholder="JAS INVEST" oninput="this.value=this.value.toUpperCase()" autocomplete="off"></div>
-      <div class="input-group"><label>SIRET <span style="font-size:11px;color:var(--text-3);font-weight:400;text-transform:none;">(optionnel)</span></label><input type="text" id="d-siret" placeholder="123 456 789 00010" maxlength="17" oninput="formatSiret(this)"></div>
+      <div class="client-card">
+        <div class="client-card-title">🏢 Société</div>
+        <div class="client-field">
+          <label>Nom société <span style="color:#ef4444;">*</span></label>
+          <div class="inp-icon-wrap">
+            <span class="inp-field-icon">🏢</span>
+            <input type="text" id="d-societe" placeholder="JAS INVEST" oninput="this.value=this.value.toUpperCase()" autocomplete="off">
+          </div>
+        </div>
+        <div class="client-row2">
+          <div class="client-field">
+            <label>SIRET <span class="lbl-opt">optionnel</span></label>
+            <input type="text" id="d-siret" placeholder="123 456 789 00010" maxlength="17" oninput="formatSiret(this)">
+          </div>
+          <div class="client-field">
+            <label>Téléphone <span style="color:#ef4444;">*</span></label>
+            <div class="inp-icon-wrap">
+              <span class="inp-field-icon">📞</span>
+              <input type="tel" id="d-tel-soc" placeholder="01 23 45 67 89" oninput="document.getElementById('d-tel').value=this.value">
+            </div>
+          </div>
+        </div>
+        <div class="client-field">
+          <label>Email <span class="lbl-opt">envoi auto</span></label>
+          <div class="inp-icon-wrap">
+            <span class="inp-field-icon">✉️</span>
+            <input type="email" id="d-email-soc" placeholder="contact@societe.fr" oninput="document.getElementById('d-email').value=this.value">
+          </div>
+        </div>
+      </div>
     </div>
-    <div class="input-group">
-      <label>Adresse</label>
-      <input type="text" id="d-adresse" placeholder="12 rue de la Paix, 75001 Paris" oninput="autocompleteAdresse('d-adresse', this.value)" autocomplete="off">
-      <div id="d-adresse-suggestions" style="background:var(--glass);border:1px solid var(--border);border-radius:12px;margin-top:6px;max-height:220px;overflow-y:auto;display:none;"></div>
+
+    <!-- Adresse -->
+    <div class="client-card">
+      <div class="client-card-title">📍 Adresse intervention</div>
+      <div class="client-field">
+        <label>Adresse <span style="color:#ef4444;">*</span> <span class="lbl-gps">📡 GPS · IDF</span></label>
+        <div class="inp-icon-wrap" style="position:relative;">
+          <span class="inp-field-icon">🏠</span>
+          <input type="text" id="d-adresse" placeholder="12 rue de la Paix, 75001 Paris" oninput="autocompleteAdresse('d-adresse',this.value)" autocomplete="off">
+          <div id="d-adresse-suggestions" class="client-suggest" style="display:none;"></div>
+        </div>
+      </div>
+      <div class="client-row2">
+        <div class="client-field">
+          <label>Étage / Apt <span class="lbl-opt">optionnel</span></label>
+          <input type="text" id="d-complement" placeholder="Apt 3B — 2ème étage">
+        </div>
+        <div class="client-field">
+          <label>Code accès <span class="lbl-opt">optionnel</span></label>
+          <input type="text" id="d-code-acces" placeholder="1234A">
+        </div>
+      </div>
     </div>
-    <div class="input-group"><label>Téléphone</label><input type="tel" id="d-tel" placeholder="06 12 34 56 78"></div>
-    <div class="input-group"><label>Email (envoi auto)</label><input type="email" id="d-email" placeholder="client@email.com"></div>
-    <div class="input-group"><label>Objet des travaux <span style="font-size:11px;color:var(--text-3);">(optionnel)</span></label><textarea id="d-description" placeholder="Ex: Rénovation électrique complète" rows="2" style="resize:vertical;"></textarea></div>
+
+    <!-- Objet -->
+    <div class="client-card">
+      <div class="client-card-title">📝 Intervention</div>
+      <div class="client-field">
+        <label>Objet des travaux <span class="lbl-opt">optionnel</span></label>
+        <textarea id="d-description" placeholder="Ex: Remplacement tableau électrique, mise aux normes NF C 15-100" rows="2" style="resize:vertical;"></textarea>
+      </div>
+    </div>
+
   </div>
 
   <!-- Prestations -->
@@ -1817,30 +1935,114 @@ table.histo-table tr:hover td { background:#fafbff; }
 <div class="content">
   <div class="section">
     <div class="section-title">💶 Informations client</div>
-    <div class="client-toggle">
+
+    <div class="client-toggle" style="margin-bottom:14px;">
       <div class="client-toggle-btn active" id="f-toggle-part" onclick="setClientType('f','particulier')">👤 Particulier</div>
       <div class="client-toggle-btn" id="f-toggle-soc" onclick="setClientType('f','societe')">🏢 Société</div>
     </div>
+
     <div id="f-bloc-particulier">
-      <div class="input-group"><label>Prénom</label><input type="text" id="f-prenom" placeholder="MARIE" oninput="this.value=this.value.toUpperCase();autocompleteClient('f',this.value,'prenom')" autocomplete="off"></div>
-      <div class="input-group">
-        <label>Nom</label>
-        <input type="text" id="f-client" placeholder="DUPONT" oninput="this.value=this.value.toUpperCase();autocompleteClient('f',this.value,'nom')" autocomplete="off">
-        <div id="f-client-suggestions" style="background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:12px;margin-top:6px;max-height:240px;overflow-y:auto;display:none;z-index:999;position:relative;"></div>
+      <div class="client-card">
+        <div class="client-card-title">👤 Identité</div>
+        <div class="client-row2">
+          <div class="client-field">
+            <label>Prénom <span style="color:#ef4444;">*</span></label>
+            <div class="inp-icon-wrap">
+              <span class="inp-field-icon">👤</span>
+              <input type="text" id="f-prenom" placeholder="MARIE" oninput="this.value=this.value.toUpperCase();autocompleteClient('f',this.value,'prenom')" autocomplete="off">
+            </div>
+          </div>
+          <div class="client-field">
+            <label>Nom <span style="color:#ef4444;">*</span></label>
+            <div class="inp-icon-wrap" style="position:relative;">
+              <span class="inp-field-icon">👤</span>
+              <input type="text" id="f-client" placeholder="DUPONT" oninput="this.value=this.value.toUpperCase();autocompleteClient('f',this.value,'nom')" autocomplete="off">
+              <div id="f-client-suggestions" class="client-suggest" style="display:none;"></div>
+            </div>
+          </div>
+        </div>
+        <div class="client-row2">
+          <div class="client-field">
+            <label>Téléphone <span style="color:#ef4444;">*</span></label>
+            <div class="inp-icon-wrap">
+              <span class="inp-field-icon">📞</span>
+              <input type="tel" id="f-tel" placeholder="06 12 34 56 78">
+            </div>
+          </div>
+          <div class="client-field">
+            <label>Email <span class="lbl-opt">envoi auto</span></label>
+            <div class="inp-icon-wrap">
+              <span class="inp-field-icon">✉️</span>
+              <input type="email" id="f-email" placeholder="client@email.com">
+            </div>
+          </div>
+        </div>
       </div>
     </div>
+
     <div id="f-bloc-societe" style="display:none;">
-      <div class="input-group"><label>Nom société</label><input type="text" id="f-societe" placeholder="JAS INVEST" oninput="this.value=this.value.toUpperCase()" autocomplete="off"></div>
-      <div class="input-group"><label>SIRET <span style="font-size:11px;color:var(--text-3);font-weight:400;text-transform:none;">(optionnel)</span></label><input type="text" id="f-siret" placeholder="123 456 789 00010" maxlength="17" oninput="formatSiret(this)"></div>
+      <div class="client-card">
+        <div class="client-card-title">🏢 Société</div>
+        <div class="client-field">
+          <label>Nom société <span style="color:#ef4444;">*</span></label>
+          <div class="inp-icon-wrap">
+            <span class="inp-field-icon">🏢</span>
+            <input type="text" id="f-societe" placeholder="JAS INVEST" oninput="this.value=this.value.toUpperCase()" autocomplete="off">
+          </div>
+        </div>
+        <div class="client-row2">
+          <div class="client-field">
+            <label>SIRET <span class="lbl-opt">optionnel</span></label>
+            <input type="text" id="f-siret" placeholder="123 456 789 00010" maxlength="17" oninput="formatSiret(this)">
+          </div>
+          <div class="client-field">
+            <label>Téléphone <span style="color:#ef4444;">*</span></label>
+            <div class="inp-icon-wrap">
+              <span class="inp-field-icon">📞</span>
+              <input type="tel" id="f-tel-soc" placeholder="01 23 45 67 89" oninput="document.getElementById('f-tel').value=this.value">
+            </div>
+          </div>
+        </div>
+        <div class="client-field">
+          <label>Email <span class="lbl-opt">envoi auto</span></label>
+          <div class="inp-icon-wrap">
+            <span class="inp-field-icon">✉️</span>
+            <input type="email" id="f-email-soc" placeholder="contact@societe.fr" oninput="document.getElementById('f-email').value=this.value">
+          </div>
+        </div>
+      </div>
     </div>
-    <div class="input-group">
-      <label>Adresse</label>
-      <input type="text" id="f-adresse" placeholder="12 rue de la Paix, 75001 Paris" oninput="autocompleteAdresse('f-adresse', this.value)" autocomplete="off">
-      <div id="f-adresse-suggestions" style="background:var(--glass);border:1px solid var(--border);border-radius:12px;margin-top:6px;max-height:220px;overflow-y:auto;display:none;"></div>
+
+    <div class="client-card">
+      <div class="client-card-title">📍 Adresse intervention</div>
+      <div class="client-field">
+        <label>Adresse <span style="color:#ef4444;">*</span> <span class="lbl-gps">📡 GPS · IDF</span></label>
+        <div class="inp-icon-wrap" style="position:relative;">
+          <span class="inp-field-icon">🏠</span>
+          <input type="text" id="f-adresse" placeholder="12 rue de la Paix, 75001 Paris" oninput="autocompleteAdresse('f-adresse',this.value)" autocomplete="off">
+          <div id="f-adresse-suggestions" class="client-suggest" style="display:none;"></div>
+        </div>
+      </div>
+      <div class="client-row2">
+        <div class="client-field">
+          <label>Étage / Apt <span class="lbl-opt">optionnel</span></label>
+          <input type="text" id="f-complement" placeholder="Apt 3B — 2ème étage">
+        </div>
+        <div class="client-field">
+          <label>Code accès <span class="lbl-opt">optionnel</span></label>
+          <input type="text" id="f-code-acces" placeholder="1234A">
+        </div>
+      </div>
     </div>
-    <div class="input-group"><label>Téléphone</label><input type="tel" id="f-tel" placeholder="06 12 34 56 78"></div>
-    <div class="input-group"><label>Email (envoi auto)</label><input type="email" id="f-email" placeholder="client@email.com"></div>
-    <div class="input-group"><label>Description des travaux</label><textarea id="f-description" placeholder="Ex: Remplacement tableau réalisé"></textarea></div>
+
+    <div class="client-card">
+      <div class="client-card-title">📝 Intervention</div>
+      <div class="client-field">
+        <label>Description des travaux <span class="lbl-opt">optionnel</span></label>
+        <textarea id="f-description" placeholder="Ex: Remplacement tableau réalisé, mise aux normes NF C 15-100" rows="2" style="resize:vertical;"></textarea>
+      </div>
+    </div>
+
   </div>
   <div class="section">
     <div class="section-title">⚡ Prestations réalisées</div>
@@ -6333,173 +6535,4 @@ async function modifierDevis(num) {
     if (!res.ok) throw new Error('Erreur chargement');
     const docs = await res.json();
     const doc = docs.find(d => d.num === num);
-    if (!doc) throw new Error('Devis introuvable');
-    if ((doc.statut||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'') !== 'envoye') {
-      showToast('⚠️ Ce devis ne peut plus être modifié', '❌'); return;
-    }
-
-    // ── Naviguer sur la page devis ──
-    switchPage('devis', document.querySelector('.sidebar-item[onclick*="devis"]'));
-
-    // Attendre que la page soit rendue
-    await new Promise(r => setTimeout(r, 200));
-
-    // ── Pré-remplir le client ──
-    const prenomEl   = document.getElementById('d-prenom');
-    const clientEl   = document.getElementById('d-client');
-    const adresseEl  = document.getElementById('d-adresse');
-    const telEl      = document.getElementById('d-tel');
-    const emailEl    = document.getElementById('d-email');
-    const descEl     = document.getElementById('d-description');
-
-    // Séparer prénom et nom si possible (ex: "DUPONT MARIE" → prenom=MARIE nom=DUPONT)
-    const clientParts = (doc.client || '').split(' ');
-    if (prenomEl && clientParts.length > 1) {
-      prenomEl.value  = clientParts.slice(1).join(' ');
-      if (clientEl) clientEl.value = clientParts[0];
-    } else {
-      if (clientEl) clientEl.value = doc.client || '';
-    }
-    if (adresseEl) adresseEl.value  = doc.adresse  || '';
-    if (telEl)     telEl.value      = doc.telephone || '';
-    if (emailEl)   emailEl.value    = doc.email     || '';
-    if (descEl)    descEl.value     = doc.description || '';
-
-    // ── Charger les prestations dans le panier ──
-    // Helper : retrouver la desc originale depuis la GRILLE par nom de prestation
-    const getDescGrille = (nom) => {
-      for (const cat of Object.values(GRILLE)) {
-        for (const [n, v] of Object.entries(cat)) {
-          if (n === nom) return typeof v === 'object' ? (v.desc || '') : '';
-        }
-      }
-      return '';
-    };
-
-    panierD = (doc.prestations || []).map(p => {
-      const nom  = p.nom || p.designation || '';
-      const prix = parseFloat(p.prix || p.prixUnit || 0);
-      // Priorité : desc sauvegardée → details[0] → desc GRILLE originale
-      const descSauvee = p.desc || (Array.isArray(p.details) ? p.details[0] : p.details) || '';
-      const descFinale = descSauvee || getDescGrille(nom);
-      return {
-        designation: nom,
-        prixUnit:    prix,
-        qte:         parseInt(p.quantite || p.qte || 1),
-        categorie:   p.categorie || 'Autre',
-        desc:        descFinale
-      };
-    }).filter(p => p.prixUnit >= 0); // filtrer la remise — elle sera recalculée
-
-    renderPanier('d');
-
-    // ── Stocker le numéro original pour le supprimer après regénération ──
-    window._devisARemplacer = num;
-
-    showToast('✏️ Devis chargé — modifie et renvoie !', '✅');
-
-  } catch(e) {
-    showToast('❌ ' + e.message, '⚠️');
-  }
-}
-
-async function generer(type) {
-  const prefix = type === 'devis' ? 'd' : 'f';
-  const btn = document.getElementById(`${prefix}-btn`);
-  const panier = type === 'devis' ? panierD : panierF;
-
-  if (panier.length === 0) { showToast('⚠️ Ajoute des prestations !', '❌'); return; }
-
-  const client = getClientComplet(prefix);
-  const adresse = document.getElementById(`${prefix}-adresse`)?.value.trim();
-  if (!client || !adresse) { showToast('⚠️ Remplis le nom et l\'adresse !', '❌'); return; }
-  const emailVal = document.getElementById(`${prefix}-email`)?.value.trim();
-  if (!emailVal) {
-    const go = confirm('⚠️ Email client manquant !\n\nSans email, le client ne recevra pas son PDF.\n\nContinuer quand même ?');
-    if (!go) return;
-  }
-
-  // ── BUG 2 CORRIGÉ : lire les textareas DOM juste avant d'envoyer
-  document.querySelectorAll(`#${prefix}-panier-items textarea[data-idx]`).forEach(ta => {
-    const idx = parseInt(ta.getAttribute('data-idx'));
-    if (!isNaN(idx) && panier[idx]) panier[idx].desc = ta.value;
-  });
-
-  btn.disabled = true;
-  btn.textContent = '⏳ Génération...';
-
-  // ── BUG 1 CORRIGÉ : calculer la remise et l'injecter comme ligne dans les prestations
-  const totalBrut = panier.reduce((s, p) => s + p.prixUnit * p.qte, 0);
-  const remiseMontant = getRemise(prefix, totalBrut);
-
-  const prestationsAEnvoyer = panier.map(item => ({
-    nom: item.designation,
-    prix: item.prixUnit,
-    quantite: item.qte,
-    desc: item.desc || ''
-  }));
-
-  if (remiseMontant > 0) {
-    const isPct = (prefix === 'd' ? remiseTypeD : remiseTypeF) === 'pct';
-    const val = parseFloat(document.getElementById(`${prefix}-remise-val`)?.value) || 0;
-    const label = isPct ? `Remise ${val}%` : `Remise commerciale`;
-    prestationsAEnvoyer.push({
-      nom: label,
-      prix: -Math.round(remiseMontant * 100) / 100,
-      quantite: 1,
-      desc: `Remise accordée sur cette intervention`
-    });
-  }
-
-  try {
-    const res = await fetch('/api/generer', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type,
-        client,
-        prenom: (document.getElementById(`${prefix}-prenom`)?.value || '').trim(),
-        email: document.getElementById(`${prefix}-email`)?.value.trim() || '',
-        telephone: document.getElementById(`${prefix}-tel`)?.value.trim() || '',
-        adresse,
-        siret_client: getSiret(prefix),
-        description: document.getElementById(`${prefix}-description`)?.value.trim() || '',
-        prestations: prestationsAEnvoyer,
-        partenaire: prefix === 'd' ? partenaireActifD : false,
-        part_diahe: prefix === 'd' ? parseInt(document.getElementById('d-part-diahe')?.value || 60) : 100,
-        part_partenaire: prefix === 'd' ? parseInt(document.getElementById('d-part-alopronto')?.value || 40) : 0,
-        nom_partenaire: 'Alopronto',
-        intervention_type: type === 'devis' ? typeIntervention : 'immediat'
-      })
-    });
-    const data = await res.json();
-    if (data.success) {
-      showToast(`✅ ${type === 'devis' ? 'Devis' : 'Facture'} ${data.num} généré !`, '⚡');
-      if (type === 'devis') { panierD = []; renderPanier('d'); }
-      else { panierF = []; renderPanier('f'); }
-      // Si modification d'un devis existant → supprimer l'ancien
-      if (type === 'devis' && window._devisARemplacer && window._devisARemplacer !== data.num) {
-        try {
-          await fetch(`/api/supprimer/${window._devisARemplacer}`, { method: 'DELETE' });
-          showToast(`🗑️ Ancien devis ${window._devisARemplacer} supprimé`, '✅');
-        } catch(e) { /* non bloquant */ }
-        window._devisARemplacer = null;
-      }
-      // Ouvrir la prévisualisation avec actions
-      ouvrirPreviewAvecActions(data.num, data.pdf_b64, data.email_client, type);
-    } else {
-      showToast('❌ ' + (data.error || 'Erreur'), '⚠️');
-    }
-  } catch(e) {
-    showToast('❌ ' + e.message, '⚠️');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = type === 'devis'
-      ? (typeIntervention === 'immediat' ? '⚡ Générer le devis — Immédiat' : '📅 Générer le devis — Planifié')
-      : '💶 Générer la facture PDF';
-  }
-}
-</script>
-
-</body>
-</html>
+    if (!doc) t
