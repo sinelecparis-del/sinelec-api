@@ -5241,6 +5241,23 @@ function renderTableauHistorique() {
   const tbody = document.getElementById('histo-table-body');
   if (!tbody) return;
 
+  const isMobile = window.innerWidth < 768;
+
+  // Créer/récupérer container cartes mobile
+  let mobileDiv = document.getElementById('histo-cards-mobile');
+  if (!mobileDiv) {
+    mobileDiv = document.createElement('div');
+    mobileDiv.id = 'histo-cards-mobile';
+    mobileDiv.style.cssText = 'padding:10px 12px;';
+    const wrap = document.querySelector('.histo-table-wrap');
+    const tbl = wrap ? wrap.querySelector('table') : null;
+    if (wrap && tbl) wrap.insertBefore(mobileDiv, tbl);
+  }
+  // Cacher/montrer tableau vs cartes
+  const tblEl = tbody.closest('table');
+  if (tblEl) tblEl.style.display = isMobile ? 'none' : '';
+  if (mobileDiv) mobileDiv.style.display = isMobile ? 'block' : 'none';
+
   // Filtrer
   let data = [...historiqueData];
   if (histoFiltre !== 'tous') data = data.filter(d => d.type === histoFiltre);
@@ -5311,7 +5328,84 @@ function renderTableauHistorique() {
     btnsEl.innerHTML += `<div class="histo-page-btn" onclick="histoChangePage(${histoPage+1})">›</div>`;
   }
 
-  // Tableau
+  // ── RENDU MOBILE (cartes) ─────────────────────────────────────
+  if (isMobile) {
+    if (!pageData.length) {
+      mobileDiv.innerHTML = '<div style="text-align:center;padding:40px;color:#999;font-size:14px;">Aucun document trouvé</div>';
+      return;
+    }
+    mobileDiv.innerHTML = pageData.map(item => {
+      const statut = (item.statut||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+      const type = item.type || 'facture';
+      const isObat = item.source === 'obat';
+      const montant = parseInt(parseFloat(item.total_ht||0)).toLocaleString('fr-FR');
+      const date = new Date(item.created_at||item.date).toLocaleDateString('fr-FR');
+      const estPaye   = ['paye','payee','acquitte'].includes(statut);
+      const estSigne  = statut === 'signe';
+      const estAnnule = statut === 'annule';
+      const ageH = (new Date()-new Date(item.created_at||item.date))/3600000;
+      const estAlerte = type === 'devis' && statut === 'envoye' && ageH > 48;
+      const prestNom = ((item.prestations||[{nom:'—'}])[0]?.nom||'—').substring(0,38);
+
+      let sBg, sColor, sLabel;
+      if (estPaye)        { sBg='#d1fae5'; sColor='#065f46'; sLabel='💰 Payée'; }
+      else if (estSigne)  { sBg='#dcfce7'; sColor='#15803d'; sLabel='✅ Signé'; }
+      else if (estAnnule) { sBg='#f3f4f6'; sColor='#6b7280'; sLabel='❌ Annulé'; }
+      else if (estAlerte) { sBg='#fee2e2'; sColor='#dc2626'; sLabel='⚠️ +48h'; }
+      else                { sBg='#fef9c3'; sColor='#854d0e'; sLabel='⏳ En attente'; }
+
+      const typeBadge = type === 'devis'
+        ? '<span style="background:#eff6ff;color:#3b82f6;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;">📋 Devis</span>'
+        : '<span style="background:#f0fdf4;color:#16a34a;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;">💶 Facture</span>';
+
+      const bs = 'flex:1;min-width:58px;padding:9px 4px;border-radius:9px;font-size:11px;font-weight:700;cursor:pointer;text-align:center;';
+      let btns = '';
+      btns += `<button onclick="previsualiserPDF('${item.num}')" style="${bs}border:1px solid #e8e8f0;background:#fff;">👁️ Aperçu</button>`;
+      btns += `<button onclick="telechargerPDF('${item.num}')" style="${bs}border:1px solid #e8e8f0;background:#fff;">⬇️ PDF</button>`;
+      if (!isObat) {
+        if (type === 'devis' && !estSigne) {
+          btns += `<button onclick="ouvrirPopupSig('${item.num}')" style="${bs}border:1px solid #fde68a;background:#fef9c3;color:#854d0e;">✍️ Signer</button>`;
+          btns += `<button onclick="convertirEnFacture('${item.num}')" style="${bs}border:1px solid #bbf7d0;background:#f0fdf4;color:#15803d;">→ Facture</button>`;
+          btns += `<button onclick="marquerSigne('${item.num}')" style="${bs}border:1px solid #bbf7d0;background:#f0fdf4;color:#15803d;">✅ Signé</button>`;
+        }
+        if (type === 'facture' && !estPaye && !estAnnule) {
+          btns += `<button onclick="marquerPaye('${item.num}','terminal')" style="${bs}border:1px solid #c7d2fe;background:#eef2ff;color:#4338ca;">💳 CB</button>`;
+          btns += `<button onclick="marquerPaye('${item.num}','virement')" style="${bs}border:1px solid #bbf7d0;background:#f0fdf4;color:#15803d;">🏦 Vir.</button>`;
+          btns += `<button onclick="marquerPaye('${item.num}','especes')" style="${bs}border:1px solid #fde68a;background:#fef9c3;color:#854d0e;">💶 Esp.</button>`;
+          btns += `<button onclick="genererLienPaiement('${item.num}')" style="${bs}border:1px solid #bbf7d0;background:#f0fdf4;color:#15803d;">🔗 Lien</button>`;
+          btns += `<button onclick="marquerTermine('${item.num}')" style="${bs}border:none;background:#16a34a;color:#fff;">✅ Terminé</button>`;
+          btns += `<button onclick="annulerFacture('${item.num}')" style="${bs}border:1px solid #fecaca;background:#fef2f2;color:#dc2626;">❌ Annuler</button>`;
+        }
+        btns += `<button onclick="dupliquerDoc('${item.num}')" style="${bs}border:1px solid #e8e8f0;background:#fff;">📋 Dup.</button>`;
+        btns += `<button onclick="supprimerDoc('${item.num}')" style="${bs}border:1px solid #fecaca;background:#fef2f2;color:#dc2626;">🗑️</button>`;
+      }
+
+      const dateIntervHtml = item.date_intervention
+        ? `<div style="font-size:11px;color:#16a34a;font-weight:600;margin:6px 0;">📅 ${new Date(item.date_intervention).toLocaleDateString('fr-FR')}</div>`
+        : `<input type="date" onchange="majDateIntervention('${item.num}',this.value)" style="width:100%;border:1px solid #e8e8f0;border-radius:7px;padding:5px 8px;font-size:11px;background:#f8f8fc;color:#999;margin:6px 0;box-sizing:border-box;">`;
+
+      return `<div style="background:${estPaye?'rgba(16,185,129,0.04)':'#fff'};border:1.5px solid ${estAlerte?'#fecaca':estPaye?'rgba(16,185,129,0.35)':'#e8e8f0'};border-radius:14px;padding:14px;margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:3px;">${typeBadge}<span style="font-size:12px;font-weight:800;color:#C9A84C;">${item.num}</span></div>
+            <div style="font-size:15px;font-weight:800;color:#1a1a2e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${item.client||'—'}</div>
+            <div style="font-size:11px;color:#999;margin-top:2px;">${prestNom}</div>
+          </div>
+          <div style="text-align:right;margin-left:10px;flex-shrink:0;">
+            <div style="font-size:20px;font-weight:900;color:#C9A84C;">${montant} €</div>
+            <div style="font-size:11px;color:#999;">${date}</div>
+          </div>
+        </div>
+        <span style="background:${sBg};color:${sColor};border-radius:8px;padding:4px 12px;font-size:12px;font-weight:700;">${sLabel}</span>
+        ${dateIntervHtml}
+        <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;">${btns}</div>
+      </div>`;
+    }).join('');
+    return;
+  }
+  // ── FIN RENDU MOBILE ──────────────────────────────────────────
+
+  // Tableau desktop
   if (!pageData.length) {
     tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:40px;color:#999;font-size:14px;">Aucun document trouvé</td></tr>`;
     return;
@@ -6384,106 +6478,4 @@ async function genererEtTelecharger(type) {
     document.body.removeChild(a); URL.revokeObjectURL(url);
 
     showToast(`✅ ${data.num} téléchargé — prêt pour WhatsApp !`, '📲');
-    shootConfetti();
-    if (prefix === 'd') panierD = []; else panierF = [];
-    renderPanier(prefix);
-
-  } catch(e) {
-    showToast('❌ ' + e.message, '⚠️');
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '⬇️ Générer et télécharger (WhatsApp)'; }
-  }
-}
-
-async function generer(type) {
-  const prefix = type === 'devis' ? 'd' : 'f';
-  const btn = document.getElementById(`${prefix}-btn`);
-  const panier = type === 'devis' ? panierD : panierF;
-
-  if (panier.length === 0) { showToast('⚠️ Ajoute des prestations !', '❌'); return; }
-
-  const client = getClientComplet(prefix);
-  const adresse = document.getElementById(`${prefix}-adresse`)?.value.trim();
-  if (!client || !adresse) { showToast('⚠️ Remplis le nom et l\'adresse !', '❌'); return; }
-  const emailVal = document.getElementById(`${prefix}-email`)?.value.trim();
-  if (!emailVal) {
-    const go = confirm('⚠️ Email client manquant !\n\nSans email, le client ne recevra pas son PDF.\n\nContinuer quand même ?');
-    if (!go) return;
-  }
-
-  // ── BUG 2 CORRIGÉ : lire les textareas DOM juste avant d'envoyer
-  document.querySelectorAll(`#${prefix}-panier-items textarea[data-idx]`).forEach(ta => {
-    const idx = parseInt(ta.getAttribute('data-idx'));
-    if (!isNaN(idx) && panier[idx]) panier[idx].desc = ta.value;
-  });
-
-  btn.disabled = true;
-  btn.textContent = '⏳ Génération...';
-
-  // ── BUG 1 CORRIGÉ : calculer la remise et l'injecter comme ligne dans les prestations
-  const totalBrut = panier.reduce((s, p) => s + p.prixUnit * p.qte, 0);
-  const remiseMontant = getRemise(prefix, totalBrut);
-
-  const prestationsAEnvoyer = panier.map(item => ({
-    nom: item.designation,
-    prix: item.prixUnit,
-    quantite: item.qte,
-    desc: item.desc || ''
-  }));
-
-  if (remiseMontant > 0) {
-    const isPct = (prefix === 'd' ? remiseTypeD : remiseTypeF) === 'pct';
-    const val = parseFloat(document.getElementById(`${prefix}-remise-val`)?.value) || 0;
-    const label = isPct ? `Remise ${val}%` : `Remise commerciale`;
-    prestationsAEnvoyer.push({
-      nom: label,
-      prix: -Math.round(remiseMontant * 100) / 100,
-      quantite: 1,
-      desc: `Remise accordée sur cette intervention`
-    });
-  }
-
-  try {
-    const res = await fetch('/api/generer', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type,
-        client,
-        prenom: (document.getElementById(`${prefix}-prenom`)?.value || '').trim(),
-        email: document.getElementById(`${prefix}-email`)?.value.trim() || '',
-        telephone: document.getElementById(`${prefix}-tel`)?.value.trim() || '',
-        adresse,
-        siret_client: getSiret(prefix),
-        description: document.getElementById(`${prefix}-description`)?.value.trim() || '',
-        prestations: prestationsAEnvoyer,
-        partenaire: prefix === 'd' ? partenaireActifD : false,
-        part_diahe: prefix === 'd' ? parseInt(document.getElementById('d-part-diahe')?.value || 60) : 100,
-        part_partenaire: prefix === 'd' ? parseInt(document.getElementById('d-part-alopronto')?.value || 40) : 0,
-        nom_partenaire: 'Alopronto',
-        intervention_type: type === 'devis' ? typeIntervention : 'immediat'
-      })
-    });
-    const data = await res.json();
-    if (data.success) {
-      showToast(`✅ ${type === 'devis' ? 'Devis' : 'Facture'} ${data.num} généré !`, '⚡');
-      if (type === 'devis') { panierD = []; renderPanier('d'); }
-      else { panierF = []; renderPanier('f'); }
-      // Ouvrir la prévisualisation avec actions
-      ouvrirPreviewAvecActions(data.num, data.pdf_b64, data.email_client, type);
-    } else {
-      showToast('❌ ' + (data.error || 'Erreur'), '⚠️');
-    }
-  } catch(e) {
-    showToast('❌ ' + e.message, '⚠️');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = type === 'devis'
-      ? (typeIntervention === 'immediat' ? '⚡ Générer le devis — Immédiat' : '📅 Générer le devis — Planifié')
-      : '💶 Générer la facture PDF';
-  }
-}
-</script>
-
-</body>
-</html>
+    shootCon
