@@ -5048,9 +5048,12 @@ async function chargerAccueil() {
       fetch('/api/agenda')
     ]);
     // Retry si 401 — token pas encore propagé
-    if (resCA.status === 401) { setTimeout(chargerAccueil, 600); return; }
+    if (resCA.status === 401) { setTimeout(chargerAccueil, 800); return; }
+    if (!resCA.ok) throw new Error('CA API ' + resCA.status);
     const docs   = await resCA.json();
-    const agenda = await resAgenda.json();
+    // Agenda non bloquant — continue même si erreur
+    let agenda = [];
+    try { if (resAgenda.ok) agenda = await resAgenda.json(); } catch(e) {}
     const norm   = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
     const ageH   = d => (new Date() - new Date(d.created_at||d.date)) / 3600000;
     const ageStr = d => {
@@ -6552,8 +6555,4 @@ async function generer(type) {
 
   if (remiseMontant > 0) {
     const isPct = (prefix === 'd' ? remiseTypeD : remiseTypeF) === 'pct';
-    const val = parseFloat(document.getElementById(`${prefix}-remise-val`)?.value) || 0;
-    const label = isPct ? `Remise ${val}%` : `Remise commerciale`;
-    prestationsAEnvoyer.push({
-      nom: label,
-      prix: -Math.round(remis
+    const val = parseFloat(document.getElementById(`${prefix}-remi
