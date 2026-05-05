@@ -213,11 +213,42 @@ body {
   .histo-table-filters { padding:10px 12px; gap:5px; flex-wrap:wrap; }
   .histo-filter-btn { padding:5px 10px; font-size:11px; }
   .histo-search { width:100%; margin-left:0; }
-  .histo-table-wrap { overflow-x:auto; }
-  table.histo-table { min-width:480px; }
-  table.histo-table th, table.histo-table td { padding:8px 8px; font-size:11px; }
+  /* Historique mobile — pas de scroll horizontal, colonnes réduites */
+  .histo-table-wrap { overflow-x:visible; }
+  table.histo-table { min-width:unset; width:100%; }
+  table.histo-table th, table.histo-table td { padding:8px 6px; font-size:11px; }
+  /* Cacher colonnes secondaires pour faire rentrer le tout */
+  .histo-table th:nth-child(3), .histo-table td:nth-child(3),
   .histo-table th:nth-child(4), .histo-table td:nth-child(4),
   .histo-table th:nth-child(5), .histo-table td:nth-child(5) { display:none; }
+  /* Colonne actions toujours visible */
+  .histo-table th:last-child, .histo-table td:last-child { display:table-cell !important; }
+
+  /* Cartes historique mobile */
+  .histo-card {
+    background:#fff; border:1.5px solid #E4E7EF; border-radius:14px;
+    padding:12px 14px; margin-bottom:10px;
+  }
+  .histo-card-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+  .histo-card-num { font-family:monospace; font-size:11px; font-weight:700; color:#C9A84C; }
+  .histo-card-montant { font-size:16px; font-weight:900; color:#1B2A4A; }
+  .histo-card-montant.paye { color:#16a34a; }
+  .histo-card-mid { display:flex; align-items:center; gap:8px; margin-bottom:8px; flex-wrap:wrap; }
+  .histo-card-client { font-size:13px; font-weight:700; color:#1B2A4A; flex:1; }
+  .histo-card-desc { font-size:11px; color:#8896A8; margin-bottom:8px; }
+  .histo-card-btns { display:flex; gap:7px; flex-wrap:wrap; }
+  .histo-card-btn {
+    flex:1; min-width:70px; padding:8px 6px; border:none; border-radius:9px;
+    font-size:11px; font-weight:700; cursor:pointer; font-family:inherit;
+    display:flex; align-items:center; justify-content:center; gap:4px;
+  }
+  .hcb-voir   { background:#EFF4FF; color:#1B2A4A; }
+  .hcb-dl     { background:#F0FDF4; color:#16a34a; }
+  .hcb-paye   { background:#D1FAE5; color:#065f46; }
+  .hcb-cb     { background:#FEF3C7; color:#92400E; }
+  .hcb-fact   { background:#DBEAFE; color:#1d4ed8; }
+  .hcb-signe  { background:#DCFCE7; color:#15803d; }
+  .hcb-annul  { background:#FEE2E2; color:#dc2626; }
 
   /* Devis / Facture */
   .cat-grid { grid-template-columns:repeat(2,1fr) !important; gap:8px !important; }
@@ -4924,14 +4955,9 @@ async function chargerAccueil() {
   if (dateEl) dateEl.textContent = `${jours[now.getDay()]} ${now.getDate()} ${moisNFR[now.getMonth()]} ${now.getFullYear()}`;
 
   try {
-    const fetchWithTimeout = (url, ms=10000) => {
-      const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), ms);
-      return fetch(url, {signal: ctrl.signal}).finally(() => clearTimeout(t));
-    };
     const [resCA, resAgenda] = await Promise.all([
-      fetchWithTimeout('/api/ca-complet'),
-      fetchWithTimeout('/api/agenda')
+      fetch('/api/ca-complet'),
+      fetch('/api/agenda')
     ]);
     if (!resCA.ok) throw new Error('ca-complet ' + resCA.status);
     const docs   = await resCA.json();
@@ -5199,21 +5225,6 @@ async function chargerAccueil() {
 
   } catch(e) {
     console.error('chargerAccueil:', e);
-    // Afficher l'erreur dans les KPI pour ne pas rester bloqué sur "Chargement..."
-    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-    set('acc-ca-mois',       '— €');
-    set('acc-ca-mois-trend', '❌ ' + (e.message || 'Erreur réseau'));
-    set('acc-ca-annee',      '— €');
-    set('acc-nb-factures',   '');
-    set('acc-reste',         '— €');
-    set('acc-retard',        '');
-    set('acc-nb-att-fact',   '');
-    set('acc-devis-attente', '—');
-    set('acc-devis-relance', '');
-    set('acc-total-devis',   '');
-    set('acc-chart-total',   '❌ Erreur chargement données');
-    const traiterEl = document.getElementById('acc-traiter');
-    if (traiterEl) traiterEl.innerHTML = `<div style="padding:20px;text-align:center;color:#dc2626;font-size:13px;">❌ Erreur : ${e.message}<br><br><button onclick="chargerAccueil()" style="background:#E8B84B;border:none;border-radius:8px;padding:8px 16px;font-weight:700;cursor:pointer;">🔄 Réessayer</button></div>`;
   }
 }
 
@@ -5260,23 +5271,6 @@ function filtrerHistorique(type) {
 function renderTableauHistorique() {
   const tbody = document.getElementById('histo-table-body');
   if (!tbody) return;
-
-  const isMobile = window.innerWidth < 768;
-
-  // Créer/récupérer container cartes mobile
-  let mobileDiv = document.getElementById('histo-cards-mobile');
-  if (!mobileDiv) {
-    mobileDiv = document.createElement('div');
-    mobileDiv.id = 'histo-cards-mobile';
-    mobileDiv.style.cssText = 'padding:10px 12px;';
-    const wrap = document.querySelector('.histo-table-wrap');
-    const tbl = wrap ? wrap.querySelector('table') : null;
-    if (wrap && tbl) wrap.insertBefore(mobileDiv, tbl);
-  }
-  // Cacher/montrer tableau vs cartes
-  const tblEl = tbody.closest('table');
-  if (tblEl) tblEl.style.display = isMobile ? 'none' : '';
-  if (mobileDiv) mobileDiv.style.display = isMobile ? 'block' : 'none';
 
   // Filtrer
   let data = [...historiqueData];
@@ -5348,88 +5342,59 @@ function renderTableauHistorique() {
     btnsEl.innerHTML += `<div class="histo-page-btn" onclick="histoChangePage(${histoPage+1})">›</div>`;
   }
 
-  // ── RENDU MOBILE (cartes) ─────────────────────────────────────
-  if (isMobile) {
-    if (!pageData.length) {
-      mobileDiv.innerHTML = '<div style="text-align:center;padding:40px;color:#999;font-size:14px;">Aucun document trouvé</div>';
-      return;
-    }
-    mobileDiv.innerHTML = pageData.map(item => {
-      const statut = (item.statut||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
-      const type = item.type || 'facture';
-      const isObat = item.source === 'obat';
-      const montant = parseInt(parseFloat(item.total_ht||0)).toLocaleString('fr-FR');
-      const date = new Date(item.created_at||item.date).toLocaleDateString('fr-FR');
-      const estPaye   = ['paye','payee','acquitte'].includes(statut);
-      const estSigne  = statut === 'signe';
-      const estAnnule = statut === 'annule';
-      const ageH = (new Date()-new Date(item.created_at||item.date))/3600000;
-      const estAlerte = type === 'devis' && statut === 'envoye' && ageH > 48;
-      const prestNom = ((item.prestations||[{nom:'—'}])[0]?.nom||'—').substring(0,38);
-
-      let sBg, sColor, sLabel;
-      if (estPaye)        { sBg='#d1fae5'; sColor='#065f46'; sLabel='💰 Payée'; }
-      else if (estSigne)  { sBg='#dcfce7'; sColor='#15803d'; sLabel='✅ Signé'; }
-      else if (estAnnule) { sBg='#f3f4f6'; sColor='#6b7280'; sLabel='❌ Annulé'; }
-      else if (estAlerte) { sBg='#fee2e2'; sColor='#dc2626'; sLabel='⚠️ +48h'; }
-      else                { sBg='#fef9c3'; sColor='#854d0e'; sLabel='⏳ En attente'; }
-
-      const typeBadge = type === 'devis'
-        ? '<span style="background:#eff6ff;color:#3b82f6;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;">📋 Devis</span>'
-        : '<span style="background:#f0fdf4;color:#16a34a;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;">💶 Facture</span>';
-
-      const bs = 'flex:1;min-width:58px;padding:9px 4px;border-radius:9px;font-size:11px;font-weight:700;cursor:pointer;text-align:center;';
-      let btns = '';
-      btns += `<button onclick="previsualiserPDF('${item.num}')" style="${bs}border:1px solid #e8e8f0;background:#fff;">👁️ Aperçu</button>`;
-      btns += `<button onclick="telechargerPDF('${item.num}')" style="${bs}border:1px solid #e8e8f0;background:#fff;">⬇️ PDF</button>`;
-      if (!isObat) {
-        if (type === 'devis' && !estSigne) {
-          btns += `<button onclick="ouvrirPopupSig('${item.num}')" style="${bs}border:1px solid #fde68a;background:#fef9c3;color:#854d0e;">✍️ Signer</button>`;
-          btns += `<button onclick="convertirEnFacture('${item.num}')" style="${bs}border:1px solid #bbf7d0;background:#f0fdf4;color:#15803d;">→ Facture</button>`;
-          btns += `<button onclick="marquerSigne('${item.num}')" style="${bs}border:1px solid #bbf7d0;background:#f0fdf4;color:#15803d;">✅ Signé</button>`;
-        }
-        if (type === 'facture' && !estPaye && !estAnnule) {
-          btns += `<button onclick="marquerPaye('${item.num}','terminal')" style="${bs}border:1px solid #c7d2fe;background:#eef2ff;color:#4338ca;">💳 CB</button>`;
-          btns += `<button onclick="marquerPaye('${item.num}','virement')" style="${bs}border:1px solid #bbf7d0;background:#f0fdf4;color:#15803d;">🏦 Vir.</button>`;
-          btns += `<button onclick="marquerPaye('${item.num}','especes')" style="${bs}border:1px solid #fde68a;background:#fef9c3;color:#854d0e;">💶 Esp.</button>`;
-          btns += `<button onclick="genererLienPaiement('${item.num}')" style="${bs}border:1px solid #bbf7d0;background:#f0fdf4;color:#15803d;">🔗 Lien</button>`;
-          btns += `<button onclick="marquerTermine('${item.num}')" style="${bs}border:none;background:#16a34a;color:#fff;">✅ Terminé</button>`;
-          btns += `<button onclick="annulerFacture('${item.num}')" style="${bs}border:1px solid #fecaca;background:#fef2f2;color:#dc2626;">❌ Annuler</button>`;
-        }
-        btns += `<button onclick="dupliquerDoc('${item.num}')" style="${bs}border:1px solid #e8e8f0;background:#fff;">📋 Dup.</button>`;
-        btns += `<button onclick="supprimerDoc('${item.num}')" style="${bs}border:1px solid #fecaca;background:#fef2f2;color:#dc2626;">🗑️</button>`;
-      }
-
-      const dateIntervHtml = item.date_intervention
-        ? `<div style="font-size:11px;color:#16a34a;font-weight:600;margin:6px 0;">📅 ${new Date(item.date_intervention).toLocaleDateString('fr-FR')}</div>`
-        : `<input type="date" onchange="majDateIntervention('${item.num}',this.value)" style="width:100%;border:1px solid #e8e8f0;border-radius:7px;padding:5px 8px;font-size:11px;background:#f8f8fc;color:#999;margin:6px 0;box-sizing:border-box;">`;
-
-      return `<div style="background:${estPaye?'rgba(16,185,129,0.04)':'#fff'};border:1.5px solid ${estAlerte?'#fecaca':estPaye?'rgba(16,185,129,0.35)':'#e8e8f0'};border-radius:14px;padding:14px;margin-bottom:10px;">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
-          <div style="flex:1;min-width:0;">
-            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:3px;">${typeBadge}<span style="font-size:12px;font-weight:800;color:#C9A84C;">${item.num}</span></div>
-            <div style="font-size:15px;font-weight:800;color:#1a1a2e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${item.client||'—'}</div>
-            <div style="font-size:11px;color:#999;margin-top:2px;">${prestNom}</div>
-          </div>
-          <div style="text-align:right;margin-left:10px;flex-shrink:0;">
-            <div style="font-size:20px;font-weight:900;color:#C9A84C;">${montant} €</div>
-            <div style="font-size:11px;color:#999;">${date}</div>
-          </div>
-        </div>
-        <span style="background:${sBg};color:${sColor};border-radius:8px;padding:4px 12px;font-size:12px;font-weight:700;">${sLabel}</span>
-        ${dateIntervHtml}
-        <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;">${btns}</div>
-      </div>`;
-    }).join('');
-    return;
-  }
-  // ── FIN RENDU MOBILE ──────────────────────────────────────────
-
-  // Tableau desktop
+  // Tableau
   if (!pageData.length) {
     tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:40px;color:#999;font-size:14px;">Aucun document trouvé</td></tr>`;
     return;
   }
+
+  // ── MODE MOBILE : cartes ──
+  if (window.innerWidth < 768) {
+    const tableEl = tbody.closest('table');
+    if (tableEl) tableEl.style.display = 'none';
+    let cards = document.getElementById('histo-cards-mobile');
+    if (!cards) {
+      cards = document.createElement('div');
+      cards.id = 'histo-cards-mobile';
+      tableEl?.closest('.histo-table-wrap')?.before(cards);
+    }
+    cards.style.display = 'block';
+    const n2 = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    if (!pageData.length) {
+      cards.innerHTML = '<div style="text-align:center;padding:40px;color:#999;">Aucun document</div>';
+    } else {
+      cards.innerHTML = pageData.map(item => {
+        const st = n2(item.statut); const tp = item.type||'facture';
+        const mt = parseInt(parseFloat(item.total_ht||0)).toLocaleString('fr-FR');
+        const dt = new Date(item.created_at||item.date).toLocaleDateString('fr-FR');
+        const ep = ['paye','payee','acquitte'].includes(st);
+        const es = st==='signe'; const ea=st==='annule';
+        const ah = (new Date()-new Date(item.created_at||item.date))/3600000;
+        const el = tp==='devis'&&st==='envoye'&&ah>48;
+        let bs = ep?'💰 Payée':es?'✅ Signé':ea?'❌ Annulé':el?'⚠️ +48h':'⏳ Attente';
+        const bg2 = ep?'#d1fae5':es?'#dcfce7':ea?'#f3f4f6':el?'#fef2f2':'#fef9c3';
+        const tc2 = ep?'#065f46':es?'#15803d':ea?'#6b7280':el?'#dc2626':'#854d0e';
+        const pn = ((item.prestations||[{nom:'—'}])[0]?.nom||'—').substring(0,48);
+        let btns = '<button class="histo-card-btn hcb-voir" onclick="previsualiserPDF(\'' + item.num + '\')">👁️ Voir</button><button class="histo-card-btn hcb-dl" onclick="telechargerPDF(\'' + item.num + '\')">⬇️ PDF</button>';
+        if (item.source !== 'obat') {
+          if (tp==='devis'&&!es&&!ea) btns+='<button class="histo-card-btn hcb-signe" onclick="marquerSigne(\'' + item.num + '\')">✅ Signer</button>';
+          if (tp==='devis'&&es)       btns+='<button class="histo-card-btn hcb-fact"  onclick="convertirEnFacture(\'' + item.num + '\')">💶 Facturer</button>';
+          if (tp==='facture'&&!ep&&!ea) btns+='<button class="histo-card-btn hcb-paye" onclick="marquerPaye(\'' + item.num + '\',\'terminal\')">💳 CB</button><button class="histo-card-btn hcb-paye" onclick="marquerPaye(\'' + item.num + '\',\'virement\')">🏦 Vir</button><button class="histo-card-btn hcb-cb" onclick="genererLienPaiement(\'' + item.num + '\')">🔗 Lien</button>';
+          btns+='<button class="histo-card-btn hcb-annul" onclick="supprimerDoc(\'' + item.num + '\')">🗑️</button>';
+        }
+        const bgtp = tp==='devis'?'#eff6ff':'#f0fdf4';
+        const tctp = tp==='devis'?'#3b82f6':'#16a34a';
+        const lbtp = tp==='devis'?'📋 Devis':'💶 Facture';
+        return '<div class="histo-card"><div class="histo-card-top"><span class="histo-card-num">' + item.num + '</span><span class="histo-card-montant' + (ep?' paye':'') + '">' + mt + ' €</span></div><div class="histo-card-mid"><span style="background:' + bgtp + ';color:' + tctp + ';border-radius:20px;padding:2px 9px;font-size:10px;font-weight:700;">' + lbtp + '</span> <span style="background:' + bg2 + ';color:' + tc2 + ';border-radius:20px;padding:2px 9px;font-size:10px;font-weight:700;">' + bs + '</span> <span style="font-size:10px;color:#8896A8;">' + dt + '</span></div><div class="histo-card-client">' + (item.client||'—') + '</div><div class="histo-card-desc">' + pn + '</div><div class="histo-card-btns">' + btns + '</div></div>';
+      }).join('');
+    }
+    return;
+  }
+  // ── MODE DESKTOP : tableau ──
+  const cardsEl = document.getElementById('histo-cards-mobile');
+  if (cardsEl) cardsEl.style.display = 'none';
+  const tEl = tbody.closest('table');
+  if (tEl) tEl.style.display = '';
 
   tbody.innerHTML = pageData.map(item => {
     const statut = (item.statut||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
@@ -6472,4 +6437,60 @@ async function genererEtTelecharger(type) {
     // Sauvegarder les descriptions éditées
     document.querySelectorAll(`#${prefix}-panier-items textarea[data-idx]`).forEach(ta => {
       const idx = parseInt(ta.getAttribute('data-idx'));
-      
+      if (!isNaN(idx) && panier[idx]) panier[idx].desc = ta.value;
+    });
+
+    const prestations = panier.map(p => ({ nom: p.designation, prix: p.prixUnit, quantite: p.qte, desc: p.desc || '' }));
+
+    // Générer SANS email — pas d'envoi
+    const res = await fetch('/api/generer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('sinelec_token') || '') },
+      body: JSON.stringify({ type, client, email: '', telephone, adresse, prenom, description: desc, prestations })
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Erreur génération');
+
+    // Télécharger le PDF directement
+    const token = localStorage.getItem('sinelec_token') || '';
+    const pdfRes = await fetch(`/api/pdf/${data.num}?token=${token}`);
+    if (!pdfRes.ok) throw new Error('PDF non disponible');
+    const blob = await pdfRes.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `${data.num}.pdf`;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
+
+    showToast(`✅ ${data.num} téléchargé — prêt pour WhatsApp !`, '📲');
+    shootConfetti();
+    if (prefix === 'd') panierD = []; else panierF = [];
+    renderPanier(prefix);
+
+  } catch(e) {
+    showToast('❌ ' + e.message, '⚠️');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '⬇️ Générer et télécharger (WhatsApp)'; }
+  }
+}
+
+async function generer(type) {
+  const prefix = type === 'devis' ? 'd' : 'f';
+  const btn = document.getElementById(`${prefix}-btn`);
+  const panier = type === 'devis' ? panierD : panierF;
+
+  if (panier.length === 0) { showToast('⚠️ Ajoute des prestations !', '❌'); return; }
+
+  const client = getClientComplet(prefix);
+  const adresse = document.getElementById(`${prefix}-adresse`)?.value.trim();
+  if (!client || !adresse) { showToast('⚠️ Remplis le nom et l\'adresse !', '❌'); return; }
+  const emailVal = document.getElementById(`${prefix}-email`)?.value.trim();
+  if (!emailVal) {
+    const go = confirm('⚠️ Email client manquant !\n\nSans email, le client ne recevra pas son PDF.\n\nContinuer quand même ?');
+    if (!go) return;
+  }
+
+  // ── BUG 2 CORRIGÉ : lire les textareas DOM juste avant d'envoyer
+  document.querySelectorAll(`#${prefix}-panier-items textarea[data-idx]`).forEach(ta => {
+    const idx = parseInt(ta.getAttribute('data-idx'));
+    if (!isNaN(id
