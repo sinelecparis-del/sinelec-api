@@ -4924,9 +4924,14 @@ async function chargerAccueil() {
   if (dateEl) dateEl.textContent = `${jours[now.getDay()]} ${now.getDate()} ${moisNFR[now.getMonth()]} ${now.getFullYear()}`;
 
   try {
+    const fetchWithTimeout = (url, ms=10000) => {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), ms);
+      return fetch(url, {signal: ctrl.signal}).finally(() => clearTimeout(t));
+    };
     const [resCA, resAgenda] = await Promise.all([
-      fetch('/api/ca-complet'),
-      fetch('/api/agenda')
+      fetchWithTimeout('/api/ca-complet'),
+      fetchWithTimeout('/api/agenda')
     ]);
     if (!resCA.ok) throw new Error('ca-complet ' + resCA.status);
     const docs   = await resCA.json();
@@ -5194,6 +5199,21 @@ async function chargerAccueil() {
 
   } catch(e) {
     console.error('chargerAccueil:', e);
+    // Afficher l'erreur dans les KPI pour ne pas rester bloqué sur "Chargement..."
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    set('acc-ca-mois',       '— €');
+    set('acc-ca-mois-trend', '❌ ' + (e.message || 'Erreur réseau'));
+    set('acc-ca-annee',      '— €');
+    set('acc-nb-factures',   '');
+    set('acc-reste',         '— €');
+    set('acc-retard',        '');
+    set('acc-nb-att-fact',   '');
+    set('acc-devis-attente', '—');
+    set('acc-devis-relance', '');
+    set('acc-total-devis',   '');
+    set('acc-chart-total',   '❌ Erreur chargement données');
+    const traiterEl = document.getElementById('acc-traiter');
+    if (traiterEl) traiterEl.innerHTML = `<div style="padding:20px;text-align:center;color:#dc2626;font-size:13px;">❌ Erreur : ${e.message}<br><br><button onclick="chargerAccueil()" style="background:#E8B84B;border:none;border-radius:8px;padding:8px 16px;font-weight:700;cursor:pointer;">🔄 Réessayer</button></div>`;
   }
 }
 
@@ -6452,30 +6472,4 @@ async function genererEtTelecharger(type) {
     // Sauvegarder les descriptions éditées
     document.querySelectorAll(`#${prefix}-panier-items textarea[data-idx]`).forEach(ta => {
       const idx = parseInt(ta.getAttribute('data-idx'));
-      if (!isNaN(idx) && panier[idx]) panier[idx].desc = ta.value;
-    });
-
-    const prestations = panier.map(p => ({ nom: p.designation, prix: p.prixUnit, quantite: p.qte, desc: p.desc || '' }));
-
-    // Générer SANS email — pas d'envoi
-    const res = await fetch('/api/generer', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('sinelec_token') || '') },
-      body: JSON.stringify({ type, client, email: '', telephone, adresse, prenom, description: desc, prestations })
-    });
-    const data = await res.json();
-    if (!data.success) throw new Error(data.error || 'Erreur génération');
-
-    // Télécharger le PDF directement
-    const token = localStorage.getItem('sinelec_token') || '';
-    const pdfRes = await fetch(`/api/pdf/${data.num}?token=${token}`);
-    if (!pdfRes.ok) throw new Error('PDF non disponible');
-    const blob = await pdfRes.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `${data.num}.pdf`;
-    document.body.appendChild(a); a.click();
-    document.body.removeChild(a); URL.revokeObjectURL(url);
-
-    showToast(`✅ ${data.num} téléchargé — prêt pour WhatsApp !`, '📲');
-    shootCon
+      
