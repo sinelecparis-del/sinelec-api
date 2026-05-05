@@ -1402,17 +1402,17 @@ table.histo-table tr:hover td { background:#fafbff; }
 <!-- ════════════ MOBILE TABS ════════════ -->
 <div class="mobile-tabs">
   <div class="mobile-tabs-grid">
-    <div class="mobile-tab active" onclick="switchPage('devis', this)">
-      <div class="mobile-tab-icon">📋</div><div class="mobile-tab-label">Devis</div>
+    <div class="mobile-tab active" id="mob-tab-accueil" onclick="switchPage('accueil', this)">
+      <div class="mobile-tab-icon">🏠</div><div class="mobile-tab-label">Accueil</div>
     </div>
-    <div class="mobile-tab" onclick="switchPage('facture', this)">
-      <div class="mobile-tab-icon">💶</div><div class="mobile-tab-label">Facture</div>
+    <div class="mobile-tab" id="mob-tab-depannage" onclick="switchPage('depannage', this)">
+      <div class="mobile-tab-icon">⚡</div><div class="mobile-tab-label">Devis</div>
     </div>
-    <div class="mobile-tab" onclick="switchPage('dashboard', this)">
-      <div class="mobile-tab-icon">📊</div><div class="mobile-tab-label">CA</div>
+    <div class="mobile-tab" id="mob-tab-agenda" onclick="switchPage('agenda', this)">
+      <div class="mobile-tab-icon">📅</div><div class="mobile-tab-label">Agenda</div>
     </div>
-    <div class="mobile-tab" onclick="switchPage('historique', this)">
-      <div class="mobile-tab-icon">📋</div><div class="mobile-tab-label">Histo</div>
+    <div class="mobile-tab" id="mob-tab-historique" onclick="switchPage('historique', this)">
+      <div class="mobile-tab-icon">📁</div><div class="mobile-tab-label">Histo</div>
     </div>
     <div class="mobile-tab" onclick="switchPageMenu()">
       <div class="mobile-tab-icon">⋮</div><div class="mobile-tab-label">Plus</div>
@@ -2572,7 +2572,10 @@ function initialiserApp() {
     window._histoFiltreMois = null;
     window._histoFiltreStatut = null;
     // Naviguer sur l'accueil
-    switchPage('accueil', document.querySelector('.sidebar-item[onclick*="accueil"]'));
+    // Sur mobile la sidebar est cachée — on cherche aussi le tab mobile
+    const sidebarEl = document.querySelector('.sidebar-item[onclick*="accueil"]');
+    const mobileEl  = document.getElementById('mob-tab-accueil');
+    switchPage('accueil', sidebarEl || mobileEl || null);
   }, 100);
   // Démarrer le polling signature
   setTimeout(demarrerPollingSignature, 3000);
@@ -6553,16 +6556,4 @@ async function generer(type) {
     const label = isPct ? `Remise ${val}%` : `Remise commerciale`;
     prestationsAEnvoyer.push({
       nom: label,
-      prix: -Math.round(remiseMontant * 100) / 100,
-      quantite: 1,
-      desc: `Remise accordée sur cette intervention`
-    });
-  }
-
-  try {
-    const res = await fetch('/api/generer', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type,
-  
+      prix: -Math.round(remis
