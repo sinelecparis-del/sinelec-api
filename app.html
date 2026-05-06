@@ -11,7 +11,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-<script src="config-v2.js"></script>
 
 <style>
 :root {
@@ -1876,6 +1875,21 @@ table.histo-table tr:hover td { background:#fafbff; }
         <div style="font-size:13px;font-weight:800;color:#C9962A;margin-bottom:3px;">Immédiat</div>
         <div style="font-size:10px;color:rgba(0,0,0,0.45);line-height:1.4;">Sur place,<br>je travaille direct</div>
       </div>
+  <div class="section">
+    <div class="section-title">💶 Informations client</div>
+    <div class="client-toggle" style="margin-bottom:12px;">
+      <div class="client-toggle-btn active" id="f-toggle-part" onclick="setClientType('f','particulier')">👤 Particulier</div>
+      <div class="client-toggle-btn" id="f-toggle-soc" onclick="setClientType('f','societe')">🏢 Société</div>
+    </div>
+    <div id="f-bloc-particulier">
+      
+    </div>
+    <div id="f-bloc-societe" style="display:none;">
+      
+    </div>
+    
+    
+  </div>
     <div class="section-title">💶 Informations client</div>
 
     <div class="client-toggle" style="margin-bottom:14px;">
@@ -2309,231 +2323,46 @@ table.histo-table tr:hover td { background:#fafbff; }
 
 <!-- POPUP SIGNATURE -->
 <!-- POPUP PRÉVISUALISATION PDF -->
-<div class="popup-overlay" id="popup-preview" onclick="if(event.target===this)fermerPreview()" style="padding:16px;">
-  <!--
-    POPUP PREVIEW STYLE OBAT
-    Layout : colonne gauche PDF | colonne droite formulaire email
-    Mobile  : empilé vertical (PDF puis email)
-  -->
-  <div id="preview-modal" style="
-    background:#fff;
-    border-radius:16px;
-    width:100%;
-    max-width:960px;
-    max-height:90vh;
-    display:flex;
-    flex-direction:column;
-    overflow:hidden;
-    box-shadow:0 24px 80px rgba(11,31,58,0.2);
-    animation:popup-appear 0.28s cubic-bezier(0.34,1.56,0.64,1);
-  ">
+<div class="popup-overlay" id="popup-preview" onclick="if(event.target===this)fermerPreview()">
+  <div style="background:#ffffff;border-radius:20px;padding:0;width:95%;max-width:700px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 32px 80px rgba(0,0,0,0.2);">
 
-    <!-- ── HEADER ── -->
-    <div style="
-      display:flex; align-items:center; justify-content:space-between;
-      padding:13px 18px;
-      border-bottom:1px solid #EEF0F6;
-      flex-shrink:0;
-    ">
-      <div style="display:flex;align-items:center;gap:10px;">
-        <div style="width:32px;height:32px;background:linear-gradient(135deg,#E8B84B,#C9962A);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;">📄</div>
-        <div>
-          <div style="font-size:14px;font-weight:800;color:#0B1F3A;" id="preview-title">Aperçu</div>
-          <div style="font-size:11px;color:#8896A8;margin-top:1px;" id="preview-subtitle">Vérifie avant d'envoyer</div>
-        </div>
+    <!-- Header -->
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid rgba(0,0,0,0.08);">
+      <div>
+        <div style="font-size:15px;font-weight:800;color:#0a0a0a;" id="preview-title">Aperçu</div>
+        <div style="font-size:11px;color:#8896A8;margin-top:2px;" id="preview-subtitle">Vérifie avant d'envoyer</div>
       </div>
-      <button onclick="fermerPreview()" style="
-        width:30px;height:30px;background:#F5F6FA;border:none;
-        border-radius:50%;cursor:pointer;font-size:14px;color:#8896A8;
-        display:flex;align-items:center;justify-content:center;
-        transition:background 0.15s;
-      " onmouseover="this.style.background='#EEF0F6'" onmouseout="this.style.background='#F5F6FA'">✕</button>
+      <button onclick="fermerPreview()" style="background:rgba(0,0,0,0.08);border:none;border-radius:10px;padding:8px 14px;font-size:13px;cursor:pointer;">✕</button>
     </div>
 
-    <!-- ── BODY : PDF gauche + Email droite ── -->
-    <div id="preview-body" style="display:flex;flex:1;overflow:hidden;min-height:0;">
-
-      <!-- ▌ COLONNE GAUCHE — PDF viewer ▌ -->
-      <div style="flex:1;display:flex;flex-direction:column;min-width:0;background:#E8ECF0;">
-
-        <!-- Toolbar PDF -->
-        <div style="
-          display:flex;align-items:center;gap:8px;
-          padding:7px 14px;
-          background:#fff;border-bottom:1px solid #EEF0F6;
-          flex-shrink:0;
-        ">
-          <span style="font-size:11px;font-weight:700;color:#8896A8;">1 / 1</span>
-          <div style="flex:1;"></div>
-          <button onclick="telechargerDepuisPreview()" style="
-            background:#F5F6FA;border:none;border-radius:7px;
-            padding:5px 12px;font-size:11px;font-weight:700;color:#1B2A4A;
-            cursor:pointer;font-family:inherit;transition:background 0.15s;
-          " onmouseover="this.style.background='#EEF0F6'" onmouseout="this.style.background='#F5F6FA'">⬇️ Télécharger</button>
-          <button onclick="telechargerDepuisPreview()" style="
-            background:rgba(37,211,102,0.1);
-            border:1px solid rgba(37,211,102,0.35);
-            border-radius:7px;padding:5px 12px;
-            font-size:11px;font-weight:700;color:#16a34a;
-            cursor:pointer;font-family:inherit;
-          ">📱 WhatsApp</button>
-        </div>
-
-        <!-- Zone PDF -->
-        <div style="flex:1;overflow:hidden;position:relative;">
-          <div id="preview-loading" style="
-            position:absolute;inset:0;
-            display:flex;align-items:center;justify-content:center;
-            flex-direction:column;gap:12px;
-            background:#E8ECF0;z-index:2;
-          ">
-            <div style="width:36px;height:36px;border:3px solid rgba(232,184,75,0.3);border-top-color:#E8B84B;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
-            <div style="font-size:12px;color:rgba(0,0,0,0.45);font-weight:600;">Chargement du PDF...</div>
-          </div>
-          <iframe id="preview-iframe" style="width:100%;height:100%;border:none;display:none;min-height:360px;"></iframe>
-        </div>
-
+    <!-- PDF viewer -->
+    <div style="flex:1;overflow:hidden;background:#f0f0f0;position:relative;min-height:400px;">
+      <div id="preview-loading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;background:#f0f0f0;z-index:2;">
+        <div style="width:40px;height:40px;border:3px solid rgba(232,184,75,0.3);border-top-color:#E8B84B;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+        <div style="font-size:13px;color:rgba(0,0,0,0.5);font-weight:600;">Génération PDF...</div>
       </div>
-
-      <!-- ▌ COLONNE DROITE — Formulaire email ▌ -->
-      <div id="preview-email-col" style="
-        width:320px;flex-shrink:0;
-        display:flex;flex-direction:column;
-        border-left:1px solid #EEF0F6;
-        overflow-y:auto;
-      ">
-
-        <!-- Titre section -->
-        <div style="
-          padding:14px 18px 12px;
-          font-size:14px;font-weight:800;color:#0B1F3A;
-          border-bottom:1px solid #EEF0F6;
-          flex-shrink:0;
-        ">Envoyer par email</div>
-
-        <!-- Formulaire -->
-        <div style="padding:14px 18px;display:flex;flex-direction:column;gap:13px;flex:1;">
-
-          <!-- Toggle virement -->
-          <div style="
-            display:flex;align-items:center;justify-content:space-between;
-            background:#F5F6FA;border-radius:10px;padding:11px 12px;
-          ">
-            <div style="display:flex;align-items:center;gap:7px;">
-              <span style="font-size:15px;">🏦</span>
-              <span style="font-size:11px;font-weight:600;color:#1B2A4A;">Autoriser le paiement par virement</span>
-            </div>
-            <div id="preview-virement-toggle" onclick="toggleVirementPreview()" style="
-              width:36px;height:20px;background:#E4E7EF;border-radius:10px;
-              position:relative;cursor:pointer;transition:background 0.25s;flex-shrink:0;
-            ">
-              <div id="preview-virement-dot" style="
-                width:16px;height:16px;background:#fff;border-radius:50%;
-                position:absolute;top:2px;left:2px;
-                transition:left 0.25s;
-                box-shadow:0 1px 3px rgba(0,0,0,0.2);
-              "></div>
-            </div>
-          </div>
-
-          <!-- Email destinataires -->
-          <div>
-            <div style="font-size:10px;font-weight:800;color:#8896A8;text-transform:uppercase;letter-spacing:0.7px;margin-bottom:5px;">Email du/des destinataires *</div>
-            <div id="preview-chips-wrap" style="
-              display:flex;flex-wrap:wrap;align-items:center;gap:5px;
-              background:#F5F6FA;border:1.5px solid #E4E7EF;
-              border-radius:10px;padding:7px 10px;
-              min-height:38px;
-            ">
-              <span id="preview-email-chip" style="
-                background:#1B2A4A;color:#fff;border-radius:20px;
-                padding:3px 10px;font-size:11px;font-weight:600;
-                display:inline-flex;align-items:center;gap:5px;
-              ">
-                <span id="preview-email-text">—</span>
-                <span onclick="supprimerEmailChip()" style="opacity:0.55;cursor:pointer;font-size:13px;line-height:1;">×</span>
-              </span>
-            </div>
-            <div style="margin-top:4px;">
-              <span onclick="ajouterDestPreview()" style="font-size:11px;color:#C9A84C;font-weight:600;cursor:pointer;">
-                + Autres destinataires et réponse ▾
-              </span>
-            </div>
-          </div>
-
-          <!-- Sujet -->
-          <div>
-            <div style="font-size:10px;font-weight:800;color:#8896A8;text-transform:uppercase;letter-spacing:0.7px;margin-bottom:5px;">Sujet *</div>
-            <input id="preview-sujet" type="text" style="
-              width:100%;padding:9px 12px;
-              border:1.5px solid #E4E7EF;border-radius:10px;
-              font-size:12px;font-weight:500;color:#0B1F3A;
-              background:#fff;font-family:inherit;outline:none;
-              box-sizing:border-box;transition:border-color 0.15s;
-            "
-            onfocus="this.style.borderColor='#E8B84B'"
-            onblur="this.style.borderColor='#E4E7EF'">
-          </div>
-
-          <!-- Message -->
-          <div style="flex:1;display:flex;flex-direction:column;">
-            <div style="font-size:10px;font-weight:800;color:#8896A8;text-transform:uppercase;letter-spacing:0.7px;margin-bottom:5px;">Message *</div>
-            <textarea id="preview-message" style="
-              flex:1;width:100%;
-              padding:9px 12px;
-              border:1.5px solid #E4E7EF;border-radius:10px;
-              font-size:12px;color:#0B1F3A;line-height:1.55;
-              background:#fff;font-family:inherit;outline:none;
-              resize:none;min-height:100px;
-              box-sizing:border-box;transition:border-color 0.15s;
-            "
-            onfocus="this.style.borderColor='#E8B84B'"
-            onblur="this.style.borderColor='#E4E7EF'"></textarea>
-          </div>
-
-          <!-- Pièce jointe -->
-          <div style="
-            display:flex;align-items:center;gap:8px;
-            background:#F5F6FA;border-radius:10px;padding:9px 12px;
-          ">
-            <span style="font-size:16px;">📎</span>
-            <div style="flex:1;min-width:0;">
-              <div id="preview-pj-nom" style="font-size:11px;font-weight:700;color:#1B2A4A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Document.pdf</div>
-              <div style="font-size:10px;color:#8896A8;margin-top:1px;">Pièce jointe</div>
-            </div>
-          </div>
-
-        </div>
-
-        <!-- Boutons footer -->
-        <div style="
-          padding:12px 18px;border-top:1px solid #EEF0F6;
-          display:flex;gap:8px;flex-shrink:0;
-        ">
-          <button onclick="fermerPreview()" style="
-            flex:1;padding:10px;border-radius:10px;
-            border:1.5px solid #E4E7EF;background:#fff;
-            font-size:12px;font-weight:600;color:#8896A8;
-            cursor:pointer;font-family:inherit;transition:all 0.15s;
-          "
-          onmouseover="this.style.background='#F5F6FA'"
-          onmouseout="this.style.background='#fff'">Annuler</button>
-          <button id="preview-btn-envoyer" onclick="envoyerDepuisPreview()" style="
-            flex:2;padding:10px;border-radius:10px;border:none;
-            background:linear-gradient(135deg,#1B2A4A,#243660);
-            color:#fff;font-size:12px;font-weight:800;
-            cursor:pointer;font-family:inherit;
-            box-shadow:0 4px 14px rgba(27,42,74,0.2);
-            transition:all 0.15s;
-          "
-          onmouseover="this.style.boxShadow='0 6px 20px rgba(27,42,74,0.3)'"
-          onmouseout="this.style.boxShadow='0 4px 14px rgba(27,42,74,0.2)'">
-            Envoyer le document
-          </button>
-        </div>
-
-      </div>
+      <iframe id="preview-iframe" style="width:100%;height:100%;min-height:420px;border:none;display:none;"></iframe>
     </div>
+
+    <!-- Actions -->
+    <div id="preview-actions" style="padding:14px 20px;border-top:1px solid rgba(0,0,0,0.08);display:flex;gap:10px;flex-wrap:wrap;background:#fff;">
+      <!-- Bouton envoyer (visible si email dispo) -->
+      <button id="preview-btn-envoyer" onclick="envoyerDepuisPreview()"
+        style="flex:1;min-width:140px;background:linear-gradient(135deg,#1B2A4A,#243660);color:#fff;border:none;border-radius:11px;padding:13px 16px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:7px;">
+        ✉️ Envoyer au client
+      </button>
+      <!-- Télécharger WhatsApp -->
+      <button onclick="telechargerDepuisPreview()"
+        style="flex:1;min-width:120px;background:rgba(37,211,102,0.1);color:#16a34a;border:1.5px solid rgba(37,211,102,0.3);border-radius:11px;padding:13px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:7px;">
+        ⬇️ WhatsApp
+      </button>
+      <!-- Annuler -->
+      <button onclick="annulerEtSupprimerDoc()"
+        style="background:rgba(239,68,68,0.08);color:#dc2626;border:1.5px solid rgba(239,68,68,0.2);border-radius:11px;padding:13px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">
+        🗑️ Annuler
+      </button>
+    </div>
+
   </div>
 </div>
 
@@ -3295,74 +3124,27 @@ function ouvrirPreviewAvecActions(num, pdfB64, emailClient, type) {
   const titleEl    = document.getElementById('preview-title');
   const subtitleEl = document.getElementById('preview-subtitle');
   const btnEnvoyer = document.getElementById('preview-btn-envoyer');
-  const typeLabel  = type === 'facture' ? 'Facture' : 'Devis';
 
-  // ── Header ──
-  if (titleEl) titleEl.textContent = `${type === 'facture' ? '💶' : '📋'} ${typeLabel} ${num}`;
+  if (titleEl) titleEl.textContent = `${type === 'facture' ? '💶 Facture' : '📋 Devis'} ${num}`;
   if (subtitleEl) subtitleEl.textContent = emailClient
-    ? `Prêt à envoyer à ${emailClient}`
+    ? `Vérifie puis envoie à ${emailClient}`
     : '⚠️ Pas d\'email — télécharge pour WhatsApp';
 
-  // ── Pré-remplir formulaire email ──
-  const emailTextEl = document.getElementById('preview-email-text');
-  const emailChipEl = document.getElementById('preview-email-chip');
-  const sujetEl     = document.getElementById('preview-sujet');
-  const messageEl   = document.getElementById('preview-message');
-  const pjNomEl     = document.getElementById('preview-pj-nom');
-  const virToggle   = document.getElementById('preview-virement-toggle');
-  const virDot      = document.getElementById('preview-virement-dot');
-
-  if (emailTextEl) emailTextEl.textContent = emailClient || '—';
-  if (emailChipEl) emailChipEl.style.display = emailClient ? 'inline-flex' : 'none';
-  if (sujetEl)     sujetEl.value = `Votre ${typeLabel.toLowerCase()} n° ${num}`;
-  if (messageEl)   messageEl.value = `Bonjour,\n\nVous trouverez ci-joint votre ${typeLabel.toLowerCase()} n° ${num}.\n\nDans l'attente de votre aimable règlement.\n\nCordialement,\nDiahe — SINELEC ⚡`;
-  if (pjNomEl)     pjNomEl.textContent = `${typeLabel}_${num}.pdf`;
-
-  // Reset toggle virement
-  _virementActif = false;
-  if (virToggle) virToggle.style.background = '#E4E7EF';
-  if (virDot)    virDot.style.left = '2px';
-
-  // ── Bouton envoyer ──
   if (btnEnvoyer) {
     if (emailClient) {
       btnEnvoyer.disabled = false;
       btnEnvoyer.style.opacity = '1';
       btnEnvoyer.style.cursor = 'pointer';
-      btnEnvoyer.textContent = 'Envoyer le document';
     } else {
       btnEnvoyer.disabled = true;
-      btnEnvoyer.style.opacity = '0.4';
+      btnEnvoyer.style.opacity = '0.35';
       btnEnvoyer.style.cursor = 'not-allowed';
-      btnEnvoyer.textContent = '⚠️ Email manquant';
-    }
-  }
-
-  // ── Responsive mobile ──
-  const body = document.getElementById('preview-body');
-  const emailCol = document.getElementById('preview-email-col');
-  if (body && emailCol) {
-    if (window.innerWidth < 700) {
-      body.style.flexDirection = 'column';
-      emailCol.style.width = '100%';
-      emailCol.style.borderLeft = 'none';
-      emailCol.style.borderTop = '1px solid #EEF0F6';
-      emailCol.style.maxHeight = '50vh';
-    } else {
-      body.style.flexDirection = 'row';
-      emailCol.style.width = '320px';
-      emailCol.style.borderLeft = '1px solid #EEF0F6';
-      emailCol.style.borderTop = 'none';
-      emailCol.style.maxHeight = '';
     }
   }
 
   overlay.classList.add('active');
-  if (iframe) iframe.style.display = 'none';
-  if (loading) {
-    loading.style.display = 'flex';
-    loading.innerHTML = `<div style="width:36px;height:36px;border:3px solid rgba(232,184,75,0.3);border-top-color:#E8B84B;border-radius:50%;animation:spin 0.8s linear infinite;"></div><div style="font-size:12px;color:rgba(0,0,0,0.45);font-weight:600;margin-top:4px;">Chargement du PDF...</div>`;
-  }
+  if (iframe)  iframe.style.display = 'none';
+  if (loading) { loading.style.display = 'flex'; loading.innerHTML = `<div style="width:40px;height:40px;border:3px solid rgba(232,184,75,0.3);border-top-color:#E8B84B;border-radius:50%;animation:spin 0.8s linear infinite;"></div><div style="font-size:13px;color:rgba(0,0,0,0.5);font-weight:600;">Chargement PDF...</div>`; }
 
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
 
@@ -3396,42 +3178,6 @@ function ouvrirPreviewAvecActions(num, pdfB64, emailClient, type) {
   }
 }
 
-// ── Helpers popup email ──────────────────────────
-let _virementActif = false;
-
-function toggleVirementPreview() {
-  _virementActif = !_virementActif;
-  const toggle = document.getElementById('preview-virement-toggle');
-  const dot    = document.getElementById('preview-virement-dot');
-  if (_virementActif) {
-    if (toggle) toggle.style.background = '#E8B84B';
-    if (dot)    dot.style.left = 'calc(100% - 18px)';
-  } else {
-    if (toggle) toggle.style.background = '#E4E7EF';
-    if (dot)    dot.style.left = '2px';
-  }
-}
-
-function supprimerEmailChip() {
-  const chip = document.getElementById('preview-email-chip');
-  if (chip) chip.style.display = 'none';
-  previewEmailClient = null;
-  const btn = document.getElementById('preview-btn-envoyer');
-  if (btn) { btn.disabled = true; btn.style.opacity = '0.4'; btn.style.cursor = 'not-allowed'; btn.textContent = '⚠️ Email supprimé'; }
-}
-
-function ajouterDestPreview() {
-  const email = prompt('Ajouter un destinataire (email) :');
-  if (!email || !email.includes('@')) return;
-  const wrap = document.getElementById('preview-chips-wrap');
-  if (!wrap) return;
-  const chip = document.createElement('span');
-  chip.style.cssText = 'background:#1B2A4A;color:#fff;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:5px;';
-  chip.innerHTML = `${email} <span onclick="this.parentElement.remove()" style="opacity:0.55;cursor:pointer;font-size:13px;line-height:1;">×</span>`;
-  wrap.appendChild(chip);
-}
-
-
 async function previsualiserPDF(num) {
   const item = historiqueData.find(i => i.num === num);
   ouvrirPreviewAvecActions(num, null, item?.email || '', item?.type || 'devis');
@@ -3450,11 +3196,11 @@ async function envoyerDepuisPreview() {
       fermerPreview();
     } else {
       showToast('❌ ' + (data.error || 'Erreur envoi'), '⚠️');
-      if (btn) { btn.disabled = false; btn.textContent = 'Envoyer le document'; }
+      if (btn) { btn.disabled = false; btn.textContent = '✉️ Envoyer au client'; }
     }
   } catch(e) {
     showToast('❌ Erreur réseau', '⚠️');
-    if (btn) { btn.disabled = false; btn.textContent = 'Envoyer le document'; }
+    if (btn) { btn.disabled = false; btn.textContent = '✉️ Envoyer au client'; }
   }
 }
 
@@ -3486,15 +3232,8 @@ function fermerPreview() {
   if (previewBlobUrl) { URL.revokeObjectURL(previewBlobUrl); previewBlobUrl = null; }
   previewNumActuel   = null;
   previewEmailClient = null;
-  // Reset bouton envoyer
   const btn = document.getElementById('preview-btn-envoyer');
-  if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.style.cursor = 'pointer'; btn.textContent = 'Envoyer le document'; }
-  // Reset toggle virement
-  _virementActif = false;
-  const virToggle = document.getElementById('preview-virement-toggle');
-  const virDot    = document.getElementById('preview-virement-dot');
-  if (virToggle) virToggle.style.background = '#E4E7EF';
-  if (virDot)    virDot.style.left = '2px';
+  if (btn) { btn.disabled = false; btn.textContent = '✉️ Envoyer au client'; }
 }
 
 
