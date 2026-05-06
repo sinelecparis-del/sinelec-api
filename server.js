@@ -6,7 +6,6 @@ const express = require('express');
 const cors = require('cors');
 const cron = require('node-cron');
 const { createClient } = require('@supabase/supabase-js');
-const ws = require('ws');
 const Anthropic = require('@anthropic-ai/sdk');
 const crypto = require('crypto');
 const { execSync } = require('child_process');
@@ -74,7 +73,7 @@ app.get('/api/auth/check', (req, res) => {
 // CLIENTS
 // ═══════════════════════════════════════════════════
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY, { realtime: { transport: ws } });
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 const anthropic = new Anthropic({ apiKey: (process.env.ANTHROPIC_API_KEY || '').trim() });
 const BREVO_API_KEY = process.env.BREVO_API_KEY;
 const SUMUP_API_KEY = process.env.SUMUP_API_KEY;
@@ -629,10 +628,28 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       </div>
 
       <div class="err-msg" id="err-cgv">Veuillez cocher les 3 cases pour continuer.</div>
-      <button class="btn-otp" id="btn-get-otp" onclick="passerALaSignature()">✍️ Accéder à la signature</button>
+      <button class="btn-otp" id="btn-get-otp" onclick="signerDirectement()">✍️ Signer le devis</button>
+      <p style="font-size:11px;color:#bbb;text-align:center;margin-top:8px;">Un code à 6 chiffres sera envoyé au ${telMasque}</p>
     </div>
 
-    <!-- ÉTAPE 2 : SIGNATURE (directe, sans OTP) -->
+    <!-- ÉTAPE 2 : OTP -->
+    <div class="otp-section card" id="section-otp" style="display:none;">
+      <div class="lbl">🔐 Code de vérification</div>
+      <p class="otp-info">Un code à 6 chiffres a été envoyé par SMS au <strong>${telMasque}</strong>.<br>Valable <strong>10 minutes</strong>. Ne le communiquez à personne.</p>
+      <div class="otp-input-wrap">
+        <input class="otp-digit" id="otp0" type="tel" maxlength="1" inputmode="numeric" oninput="focusNext(0)" onkeydown="focusPrev(event,0)">
+        <input class="otp-digit" id="otp1" type="tel" maxlength="1" inputmode="numeric" oninput="focusNext(1)" onkeydown="focusPrev(event,1)">
+        <input class="otp-digit" id="otp2" type="tel" maxlength="1" inputmode="numeric" oninput="focusNext(2)" onkeydown="focusPrev(event,2)">
+        <input class="otp-digit" id="otp3" type="tel" maxlength="1" inputmode="numeric" oninput="focusNext(3)" onkeydown="focusPrev(event,3)">
+        <input class="otp-digit" id="otp4" type="tel" maxlength="1" inputmode="numeric" oninput="focusNext(4)" onkeydown="focusPrev(event,4)">
+        <input class="otp-digit" id="otp5" type="tel" maxlength="1" inputmode="numeric" oninput="focusNext(5)" onkeydown="focusPrev(event,5)">
+      </div>
+      <div class="err-msg" id="err-otp">Code incorrect ou expiré. Réessayez.</div>
+      <button class="btn-sign" id="btn-verif-otp" onclick="verifierOTP()">Vérifier le code →</button>
+      <div class="otp-resend" id="btn-resend" onclick="demanderOTP(true)">🔄 Renvoyer un code</div>
+    </div>
+
+    <!-- ÉTAPE 3 : SIGNATURE -->
     <div class="sig-section card" id="section-sig">
       <div class="lbl">✍️ Votre signature manuscrite</div>
       <p style="font-size:12px;color:#888;margin-bottom:10px;">Signez avec votre doigt dans la zone ci-dessous</p>
@@ -669,16 +686,98 @@ function toggleCGV(i) {
   document.getElementById('err-cgv').style.display = 'none';
 }
 
-// ── PASSAGE DIRECT À LA SIGNATURE (sans OTP) ──
-function passerALaSignature() {
+// ── OTP — DEMANDE ──
+async function signerDirectement() {
+  // Vérifier CGV cochées
+  const cgvOk = ['cgv1','cgv2','cgv3'].every(id => document.getElementById(id)?.checked);
+  if (!cgvOk) { document.getElementById('err-cgv').style.display='block'; return; }
+  document.getElementById('err-cgv').style.display='none';
+  // Afficher la zone de signature directement
+  document.getElementById('section-otp').style.display = 'none';
+  document.getElementById('section-sig').style.display = 'block';
+  document.getElementById('section-sig').scrollIntoView({behavior:'smooth'});
+  setTimeout(initSignaturePad, 100);
+}
+
+async function demanderOTP(resend) {
   const toutCoche = cgvChecked.every(v => v);
   if (!toutCoche) { document.getElementById('err-cgv').style.display = 'block'; return; }
-  document.getElementById('section-cgv').style.display = 'none';
-  document.getElementById('section-sig').style.display = 'block';
-  document.getElementById('step1').classList.remove('active'); document.getElementById('step1').classList.add('done');
-  document.getElementById('step2').classList.add('active');
-  otpToken = 'direct';
-  setTimeout(initCanvas, 200);
+  const btn = document.getElementById('btn-get-otp');
+  btn.disabled = true; btn.textContent = '⏳ Envoi du code...';
+  try {
+    const r = await fetch('/api/otp-signature', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'send', num: '${num}' })
+    });
+    const d = await r.json();
+    if (d.success) {
+      document.getElementById('section-cgv').style.display = 'none';
+      document.getElementById('section-otp').style.display = 'block';
+      document.getElementById('err-otp').style.display = 'none';
+      document.getElementById('step1').classList.remove('active'); document.getElementById('step1').classList.add('done');
+      document.getElementById('step2').classList.add('active');
+      setTimeout(() => document.getElementById('otp0').focus(), 300);
+      if (resend) { btn.disabled = false; btn.textContent = '📱 Recevoir mon code de vérification'; }
+    } else {
+      btn.disabled = false; btn.textContent = '📱 Recevoir mon code de vérification';
+      alert(d.error || 'Erreur envoi SMS. Réessayez.');
+    }
+  } catch(e) {
+    btn.disabled = false; btn.textContent = '📱 Recevoir mon code de vérification';
+    alert('Erreur réseau. Réessayez.');
+  }
+}
+
+// ── OTP — NAVIGATION CHAMPS ──
+function focusNext(i) {
+  const v = document.getElementById('otp' + i).value;
+  if (v && i < 5) document.getElementById('otp' + (i + 1)).focus();
+  checkOTPFull();
+}
+function focusPrev(e, i) {
+  if (e.key === 'Backspace' && !document.getElementById('otp' + i).value && i > 0) {
+    document.getElementById('otp' + (i - 1)).focus();
+  }
+}
+function getOTPValue() {
+  return [0,1,2,3,4,5].map(i => document.getElementById('otp' + i).value).join('');
+}
+function checkOTPFull() {
+  const full = getOTPValue().length === 6;
+  document.getElementById('btn-verif-otp').disabled = !full;
+}
+
+// ── OTP — VÉRIFICATION ──
+async function verifierOTP() {
+  const code = getOTPValue();
+  if (code.length !== 6) return;
+  const btn = document.getElementById('btn-verif-otp');
+  btn.disabled = true; btn.textContent = '⏳ Vérification...';
+  try {
+    const r = await fetch('/api/otp-signature', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'verify', num: '${num}', code })
+    });
+    const d = await r.json();
+    if (d.success) {
+      otpToken = d.token;
+      document.getElementById('section-otp').style.display = 'none';
+      document.getElementById('section-sig').style.display = 'block';
+      document.getElementById('step2').classList.remove('active'); document.getElementById('step2').classList.add('done');
+      document.getElementById('step3').classList.add('active');
+      setTimeout(initCanvas, 200);
+    } else {
+      document.getElementById('err-otp').style.display = 'block';
+      btn.disabled = false; btn.textContent = 'Vérifier le code →';
+      [0,1,2,3,4,5].forEach(i => { document.getElementById('otp' + i).value = ''; });
+      document.getElementById('otp0').focus();
+    }
+  } catch(e) {
+    btn.disabled = false; btn.textContent = 'Vérifier le code →';
+    alert('Erreur réseau. Réessayez.');
+  }
 }
 
 // ── CANVAS SIGNATURE ──
@@ -711,7 +810,7 @@ function clearCanvas() {
 // ── SOUMISSION FINALE ──
 async function soumettre() {
   if (!hasDrawn) { document.getElementById('err-sig').style.display = 'block'; return; }
-  if (!otpToken) { otpToken = 'direct'; }
+  if (!otpToken) { alert('Session expirée. Recommencez.'); return; }
   const btn = document.getElementById('btn-sign');
   btn.disabled = true; btn.textContent = '⏳ Signature en cours...';
   try {
