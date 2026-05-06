@@ -437,6 +437,17 @@ body {
 .client-toggle-btn { flex:1; padding:10px; text-align:center; font-size:13px; font-weight:700; border-radius:9px; cursor:pointer; transition:all 0.2s; color:var(--text-3); user-select:none; }
 .client-toggle-btn.active { background:linear-gradient(135deg,rgba(232,184,75,0.15),rgba(255,215,0,0.08)); color:var(--gold); border:1px solid rgba(232,184,75,0.2); }
 
+/* ── CIVILITÉ ── */
+.civilite-group { display:flex; gap:8px; margin-bottom:14px; }
+.civilite-btn { flex:1; padding:10px 8px; border:1.5px solid var(--border); border-radius:12px; font-size:13px; font-weight:700; cursor:pointer; background:rgba(255,255,255,0.6); color:var(--text-2); font-family:inherit; text-align:center; transition:all 0.15s; }
+.civilite-btn.active { border-color:var(--accent); background:rgba(212,165,116,0.12); color:var(--accent); }
+
+/* ── TEL INDICATIF ── */
+.tel-row { display:flex; gap:8px; }
+.tel-indicatif { display:flex; align-items:center; gap:6px; border:1.5px solid var(--border); border-radius:12px; padding:11px 12px; font-size:13px; font-weight:700; color:var(--text-2); cursor:pointer; white-space:nowrap; background:rgba(255,255,255,0.6); transition:border-color 0.2s; flex-shrink:0; }
+.tel-indicatif:hover { border-color:rgba(212,165,116,0.4); }
+.tel-indicatif select { border:none; background:none; outline:none; font-size:13px; font-weight:700; color:var(--text-2); cursor:pointer; font-family:inherit; }
+
 /* ══ PAGE ACCUEIL STYLE OBAT ══ */
 /* ══ TOPBAR ACCUEIL ══ */
 .obat-topbar {
@@ -1600,6 +1611,10 @@ table.histo-table tr:hover td { background:#fafbff; }
       <label>Adresse</label>
       <input type="text" id="dep-adresse" placeholder="12 rue de la Paix, 75001 Paris" oninput="autocompleteAdresse('dep-adresse',this.value)" autocomplete="off" style="width:100%;background:rgba(255,255,255,0.65);border:1.5px solid rgba(218,165,32,0.15);border-radius:12px;padding:13px 16px;font-size:15px;color:var(--text);outline:none;">
       <div id="dep-adresse-suggestions" style="background:var(--glass);border:1px solid var(--border);border-radius:12px;margin-top:6px;max-height:200px;overflow-y:auto;display:none;"></div>
+      <div style="display:grid;grid-template-columns:1fr 2fr;gap:8px;margin-top:8px;">
+        <input type="text" id="dep-cp" placeholder="75008" maxlength="5" style="background:rgba(255,255,255,0.65);border:1.5px solid rgba(218,165,32,0.15);border-radius:12px;padding:11px 14px;font-size:14px;color:var(--text);outline:none;transition:border-color 0.3s;">
+        <input type="text" id="dep-ville" placeholder="Paris" style="background:rgba(255,255,255,0.65);border:1.5px solid rgba(218,165,32,0.15);border-radius:12px;padding:11px 14px;font-size:14px;color:var(--text);outline:none;transition:border-color 0.3s;">
+      </div>
     </div>
   </div>
 
@@ -1769,11 +1784,20 @@ table.histo-table tr:hover td { background:#fafbff; }
     </div>
 
     <div id="d-bloc-particulier">
-      <div class="input-group"><label>Prénom</label><input type="text" id="d-prenom" placeholder="MARIE" oninput="this.value=this.value.toUpperCase();autocompleteClient('d',this.value,'prenom')" autocomplete="off"></div>
-      <div class="input-group">
-        <label>Nom</label>
-        <input type="text" id="d-client" placeholder="DUPONT" oninput="this.value=this.value.toUpperCase();autocompleteClient('d',this.value,'nom')" autocomplete="off">
-        <div id="d-client-suggestions" style="position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #E8E8EC;border-radius:12px;margin-top:4px;max-height:240px;overflow-y:auto;display:none;z-index:999;box-shadow:0 8px 24px rgba(0,0,0,0.08);"></div>
+      <!-- Civilité -->
+      <div class="civilite-group">
+        <button class="civilite-btn active" id="d-civ-m"   onclick="setCivilite('d','M.')">M.</button>
+        <button class="civilite-btn"        id="d-civ-mme" onclick="setCivilite('d','Mme')">Mme</button>
+        <button class="civilite-btn"        id="d-civ-aut" onclick="setCivilite('d','')">–</button>
+      </div>
+      <input type="hidden" id="d-civilite" value="M.">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="input-group" style="margin-bottom:0;"><label>Prénom</label><input type="text" id="d-prenom" placeholder="MARIE" oninput="this.value=this.value.toUpperCase();autocompleteClient('d',this.value,'prenom')" autocomplete="off"></div>
+        <div class="input-group" style="margin-bottom:0;">
+          <label>Nom *</label>
+          <input type="text" id="d-client" placeholder="DUPONT" oninput="this.value=this.value.toUpperCase();autocompleteClient('d',this.value,'nom')" autocomplete="off">
+          <div id="d-client-suggestions" style="position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #E8E8EC;border-radius:12px;margin-top:4px;max-height:240px;overflow-y:auto;display:none;z-index:999;box-shadow:0 8px 24px rgba(0,0,0,0.08);"></div>
+        </div>
       </div>
     </div>
     <div id="d-bloc-societe" style="display:none;">
@@ -1782,10 +1806,22 @@ table.histo-table tr:hover td { background:#fafbff; }
     </div>
     <div class="input-group">
       <label>Adresse</label>
-      <input type="text" id="d-adresse" placeholder="12 rue de la Paix, 75001 Paris" oninput="autocompleteAdresse('d-adresse', this.value)" autocomplete="off">
-      <div id="d-adresse-suggestions" style="position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #E8E8EC;border-radius:12px;margin-top:4px;max-height:220px;overflow-y:auto;display:none;z-index:999;box-shadow:0 8px 24px rgba(0,0,0,0.08);"></div>
+      <div style="position:relative;">
+        <input type="text" id="d-adresse" placeholder="12 rue de la Paix" oninput="autocompleteAdresse('d-adresse', this.value)" autocomplete="off">
+        <div id="d-adresse-suggestions" style="position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #E8E8EC;border-radius:12px;margin-top:4px;max-height:220px;overflow-y:auto;display:none;z-index:999;box-shadow:0 8px 24px rgba(0,0,0,0.08);"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 2fr;gap:8px;margin-top:8px;">
+        <input type="text" id="d-cp" placeholder="75008" maxlength="5" style="width:100%;padding:11px 13px;border:1.5px solid var(--border);border-radius:12px;font-size:14px;color:var(--text);background:rgba(255,255,255,0.65);outline:none;font-family:inherit;transition:border-color 0.3s;">
+        <input type="text" id="d-ville" placeholder="Paris" style="width:100%;padding:11px 13px;border:1.5px solid var(--border);border-radius:12px;font-size:14px;color:var(--text);background:rgba(255,255,255,0.65);outline:none;font-family:inherit;transition:border-color 0.3s;">
+      </div>
     </div>
-    <div class="input-group"><label>Téléphone</label><input type="tel" id="d-tel" placeholder="06 12 34 56 78"></div>
+    <div class="input-group">
+      <label>Téléphone</label>
+      <div class="tel-row">
+        <div class="tel-indicatif">🇫🇷 <select id="d-indicatif"><option value="+33">+33</option><option value="+32">🇧🇪 +32</option><option value="+41">🇨🇭 +41</option><option value="+1">🇺🇸 +1</option><option value="+44">🇬🇧 +44</option></select></div>
+        <input type="tel" id="d-tel" placeholder="06 12 34 56 78" style="flex:1;">
+      </div>
+    </div>
     <div class="input-group"><label>Email (envoi auto)</label><input type="email" id="d-email" placeholder="client@email.com"></div>
     <div class="input-group"><label>Objet des travaux <span style="font-size:11px;color:var(--text-3);">(optionnel)</span></label><textarea id="d-description" placeholder="Ex: Rénovation électrique complète" rows="2" style="resize:vertical;"></textarea></div>
   </div>
@@ -1901,11 +1937,20 @@ table.histo-table tr:hover td { background:#fafbff; }
       <div class="client-toggle-btn" id="f-toggle-soc" onclick="setClientType('f','societe')">🏢 Société</div>
     </div>
     <div id="f-bloc-particulier">
-      <div class="input-group"><label>Prénom</label><input type="text" id="f-prenom" placeholder="MARIE" oninput="this.value=this.value.toUpperCase();autocompleteClient('f',this.value,'prenom')" autocomplete="off"></div>
-      <div class="input-group">
-        <label>Nom</label>
-        <input type="text" id="f-client" placeholder="DUPONT" oninput="this.value=this.value.toUpperCase();autocompleteClient('f',this.value,'nom')" autocomplete="off">
-        <div id="f-client-suggestions" style="position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #E8E8EC;border-radius:12px;margin-top:4px;max-height:240px;overflow-y:auto;display:none;z-index:999;box-shadow:0 8px 24px rgba(0,0,0,0.08);"></div>
+      <!-- Civilité -->
+      <div class="civilite-group">
+        <button class="civilite-btn active" id="f-civ-m"   onclick="setCivilite('f','M.')">M.</button>
+        <button class="civilite-btn"        id="f-civ-mme" onclick="setCivilite('f','Mme')">Mme</button>
+        <button class="civilite-btn"        id="f-civ-aut" onclick="setCivilite('f','')">–</button>
+      </div>
+      <input type="hidden" id="f-civilite" value="M.">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="input-group" style="margin-bottom:0;"><label>Prénom</label><input type="text" id="f-prenom" placeholder="MARIE" oninput="this.value=this.value.toUpperCase();autocompleteClient('f',this.value,'prenom')" autocomplete="off"></div>
+        <div class="input-group" style="margin-bottom:0;">
+          <label>Nom *</label>
+          <input type="text" id="f-client" placeholder="DUPONT" oninput="this.value=this.value.toUpperCase();autocompleteClient('f',this.value,'nom')" autocomplete="off">
+          <div id="f-client-suggestions" style="position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #E8E8EC;border-radius:12px;margin-top:4px;max-height:240px;overflow-y:auto;display:none;z-index:999;box-shadow:0 8px 24px rgba(0,0,0,0.08);"></div>
+        </div>
       </div>
     </div>
     <div id="f-bloc-societe" style="display:none;">
@@ -1914,10 +1959,22 @@ table.histo-table tr:hover td { background:#fafbff; }
     </div>
     <div class="input-group">
       <label>Adresse</label>
-      <input type="text" id="f-adresse" placeholder="12 rue de la Paix, 75001 Paris" oninput="autocompleteAdresse('f-adresse', this.value)" autocomplete="off">
-      <div id="f-adresse-suggestions" style="position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #E8E8EC;border-radius:12px;margin-top:4px;max-height:220px;overflow-y:auto;display:none;z-index:999;box-shadow:0 8px 24px rgba(0,0,0,0.08);"></div>
+      <div style="position:relative;">
+        <input type="text" id="f-adresse" placeholder="12 rue de la Paix" oninput="autocompleteAdresse('f-adresse', this.value)" autocomplete="off">
+        <div id="f-adresse-suggestions" style="position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #E8E8EC;border-radius:12px;margin-top:4px;max-height:220px;overflow-y:auto;display:none;z-index:999;box-shadow:0 8px 24px rgba(0,0,0,0.08);"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 2fr;gap:8px;margin-top:8px;">
+        <input type="text" id="f-cp" placeholder="75008" maxlength="5" style="width:100%;padding:11px 13px;border:1.5px solid var(--border);border-radius:12px;font-size:14px;color:var(--text);background:rgba(255,255,255,0.65);outline:none;font-family:inherit;transition:border-color 0.3s;">
+        <input type="text" id="f-ville" placeholder="Paris" style="width:100%;padding:11px 13px;border:1.5px solid var(--border);border-radius:12px;font-size:14px;color:var(--text);background:rgba(255,255,255,0.65);outline:none;font-family:inherit;transition:border-color 0.3s;">
+      </div>
     </div>
-    <div class="input-group"><label>Téléphone</label><input type="tel" id="f-tel" placeholder="06 12 34 56 78"></div>
+    <div class="input-group">
+      <label>Téléphone</label>
+      <div class="tel-row">
+        <div class="tel-indicatif">🇫🇷 <select id="f-indicatif"><option value="+33">+33</option><option value="+32">🇧🇪 +32</option><option value="+41">🇨🇭 +41</option><option value="+1">🇺🇸 +1</option><option value="+44">🇬🇧 +44</option></select></div>
+        <input type="tel" id="f-tel" placeholder="06 12 34 56 78" style="flex:1;">
+      </div>
+    </div>
     <div class="input-group"><label>Email (envoi auto)</label><input type="email" id="f-email" placeholder="client@email.com"></div>
     <div class="input-group"><label>Description des travaux</label><textarea id="f-description" placeholder="Ex: Remplacement tableau réalisé"></textarea></div>
   </div>
@@ -2298,7 +2355,16 @@ table.histo-table tr:hover td { background:#fafbff; }
       <div class="input-group" style="margin-bottom:0;"><label>Prénom Nom</label><input type="text" id="lead-nom" placeholder="DUPONT Sophie" oninput="this.value=this.value.toUpperCase()"></div>
       <div class="input-group" style="margin-bottom:0;"><label>Téléphone</label><input type="tel" id="lead-tel" placeholder="06 12 34 56 78"></div>
     </div>
-    <div class="input-group"><label>Adresse</label><input type="text" id="lead-adresse" placeholder="12 rue de la Paix, 75001 Paris" oninput="majWazeLead(this.value)"></div>
+    <div class="input-group"><label>Adresse</label>
+      <div style="position:relative;">
+        <input type="text" id="lead-adresse" placeholder="12 rue de la Paix" oninput="autocompleteAdresse('lead-adresse',this.value);majWazeLead(this.value)" autocomplete="off">
+        <div id="lead-adresse-suggestions" style="position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid var(--border);border-radius:12px;margin-top:4px;max-height:200px;overflow-y:auto;display:none;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,0.12);"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 2fr;gap:8px;margin-top:8px;">
+        <input type="text" id="lead-cp" placeholder="75008" maxlength="5" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-size:13px;color:var(--text);background:rgba(255,255,255,0.65);outline:none;font-family:inherit;transition:border-color 0.3s;">
+        <input type="text" id="lead-ville" placeholder="Paris" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-size:13px;color:var(--text);background:rgba(255,255,255,0.65);outline:none;font-family:inherit;transition:border-color 0.3s;">
+      </div>
+    </div>
     <div class="input-group"><label>Type</label>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
         <div class="lead-type-btn" data-type="depannage" onclick="selectLeadType(this,'depannage')" style="padding:8px;border-radius:10px;border:2px solid var(--accent);background:rgba(212,165,116,0.1);text-align:center;font-size:12px;font-weight:600;cursor:pointer;color:var(--accent);">⚡ Dépannage</div>
@@ -2327,43 +2393,101 @@ table.histo-table tr:hover td { background:#fafbff; }
 <!-- POPUP SIGNATURE -->
 <!-- POPUP PRÉVISUALISATION PDF -->
 <div class="popup-overlay" id="popup-preview" onclick="if(event.target===this)fermerPreview()">
-  <div style="background:#ffffff;border-radius:20px;padding:0;width:95%;max-width:700px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 32px 80px rgba(0,0,0,0.2);">
+  <div style="background:#ffffff;border-radius:20px;padding:0;width:95%;max-width:620px;max-height:94vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 32px 80px rgba(0,0,0,0.22);">
 
     <!-- Header -->
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid rgba(0,0,0,0.08);">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-bottom:1px solid #f0f0f0;">
+      <div style="font-size:16px;font-weight:800;color:#0a0a0a;" id="preview-title">✉️ Envoyer par email</div>
+      <button onclick="fermerPreview()" style="background:rgba(0,0,0,0.07);border:none;border-radius:50%;width:32px;height:32px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#555;">✕</button>
+    </div>
+
+    <!-- Formulaire email -->
+    <div style="flex:1;overflow-y:auto;padding:20px 22px;display:flex;flex-direction:column;gap:16px;">
+
+      <!-- Email destinataire -->
       <div>
-        <div style="font-size:15px;font-weight:800;color:#0a0a0a;" id="preview-title">Aperçu</div>
-        <div style="font-size:11px;color:#8896A8;margin-top:2px;" id="preview-subtitle">Vérifie avant d'envoyer</div>
+        <label style="font-size:12px;font-weight:700;color:#555;display:block;margin-bottom:7px;">Email du destinataire *</label>
+        <div style="border:1.5px solid #e0e0e0;border-radius:10px;padding:8px 12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-height:44px;cursor:text;" onclick="document.getElementById('preview-email-input').focus()">
+          <span id="preview-email-chip" style="background:#eef2ff;color:#3b4a9a;border-radius:6px;padding:4px 10px 4px 10px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;">
+            <span id="preview-email-chip-text">—</span>
+            <span onclick="document.getElementById('preview-email-chip').style.display='none';document.getElementById('preview-email-input').style.display='block';document.getElementById('preview-email-input').focus();" style="cursor:pointer;color:#aaa;font-size:15px;line-height:1;">×</span>
+          </span>
+          <input id="preview-email-input" type="email" placeholder="email@client.com"
+            style="border:none;outline:none;font-size:13px;color:#333;flex:1;min-width:140px;display:none;font-family:inherit;"
+            onblur="majEmailChip()">
+        </div>
+        <div style="margin-top:6px;font-size:12px;color:#888;cursor:pointer;" onclick="toggleDestinatairesSup()">
+          🔽 Autres destinataires et réponse
+        </div>
+        <div id="preview-dest-sup" style="display:none;margin-top:8px;">
+          <input type="email" id="preview-email-cc" placeholder="CC : email@copie.com"
+            style="width:100%;border:1.5px solid #e0e0e0;border-radius:10px;padding:10px 14px;font-size:13px;color:#333;outline:none;font-family:inherit;">
+        </div>
       </div>
-      <button onclick="fermerPreview()" style="background:rgba(0,0,0,0.08);border:none;border-radius:10px;padding:8px 14px;font-size:13px;cursor:pointer;">✕</button>
+
+      <!-- Sujet -->
+      <div>
+        <label style="font-size:12px;font-weight:700;color:#555;display:block;margin-bottom:7px;">Sujet *</label>
+        <input id="preview-sujet-input" type="text"
+          style="width:100%;border:1.5px solid #e0e0e0;border-radius:10px;padding:11px 14px;font-size:13px;color:#333;outline:none;font-family:inherit;box-sizing:border-box;">
+      </div>
+
+      <!-- Message -->
+      <div>
+        <label style="font-size:12px;font-weight:700;color:#555;display:block;margin-bottom:7px;">Message *</label>
+        <textarea id="preview-message-input" rows="6"
+          style="width:100%;border:1.5px solid #e0e0e0;border-radius:10px;padding:11px 14px;font-size:13px;color:#333;outline:none;font-family:inherit;resize:vertical;box-sizing:border-box;line-height:1.6;"></textarea>
+      </div>
+
+      <!-- Pièce jointe -->
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;background:#f7f7f7;border:1px solid #e8e8e8;border-radius:8px;padding:10px 14px;">
+          <span style="font-size:18px;">📎</span>
+          <span id="preview-attachment-name" style="font-size:13px;font-weight:600;color:#333;flex:1;">Document.pdf</span>
+          <span style="font-size:11px;color:#aaa;">PDF</span>
+        </div>
+        <!-- Bouton voir PDF -->
+        <button onclick="togglePDFPreview()"
+          style="margin-top:8px;background:none;border:none;color:#3b4a9a;font-size:12px;font-weight:600;cursor:pointer;padding:0;font-family:inherit;">
+          👁️ Voir / masquer l'aperçu PDF
+        </button>
+      </div>
+
+      <!-- PDF viewer (masqué par défaut) -->
+      <div id="preview-pdf-section" style="display:none;border-radius:12px;overflow:hidden;border:1px solid #e8e8e8;background:#f0f0f0;min-height:300px;position:relative;">
+        <div id="preview-loading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;background:#f0f0f0;z-index:2;">
+          <div style="width:36px;height:36px;border:3px solid rgba(232,184,75,0.3);border-top-color:#E8B84B;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+          <div style="font-size:12px;color:rgba(0,0,0,0.4);font-weight:600;">Chargement PDF...</div>
+        </div>
+        <iframe id="preview-iframe" style="width:100%;height:380px;border:none;display:none;"></iframe>
+      </div>
+
     </div>
 
-    <!-- PDF viewer -->
-    <div style="flex:1;overflow:hidden;background:#f0f0f0;position:relative;min-height:400px;">
-      <div id="preview-loading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;background:#f0f0f0;z-index:2;">
-        <div style="width:40px;height:40px;border:3px solid rgba(232,184,75,0.3);border-top-color:#E8B84B;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
-        <div style="font-size:13px;color:rgba(0,0,0,0.5);font-weight:600;">Génération PDF...</div>
+    <!-- Footer -->
+    <div style="padding:14px 22px;border-top:1px solid #f0f0f0;display:flex;gap:10px;justify-content:space-between;align-items:center;background:#fafafa;">
+      <div style="display:flex;gap:8px;">
+        <!-- WhatsApp -->
+        <button onclick="telechargerDepuisPreview()"
+          style="background:rgba(37,211,102,0.1);color:#16a34a;border:1.5px solid rgba(37,211,102,0.3);border-radius:10px;padding:11px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">
+          ⬇️ WhatsApp
+        </button>
+        <!-- Supprimer -->
+        <button onclick="annulerEtSupprimerDoc()"
+          style="background:rgba(239,68,68,0.06);color:#dc2626;border:1.5px solid rgba(239,68,68,0.18);border-radius:10px;padding:11px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">
+          🗑️
+        </button>
       </div>
-      <iframe id="preview-iframe" style="width:100%;height:100%;min-height:420px;border:none;display:none;"></iframe>
-    </div>
-
-    <!-- Actions -->
-    <div id="preview-actions" style="padding:14px 20px;border-top:1px solid rgba(0,0,0,0.08);display:flex;gap:10px;flex-wrap:wrap;background:#fff;">
-      <!-- Bouton envoyer (visible si email dispo) -->
-      <button id="preview-btn-envoyer" onclick="envoyerDepuisPreview()"
-        style="flex:1;min-width:140px;background:linear-gradient(135deg,#1B2A4A,#243660);color:#fff;border:none;border-radius:11px;padding:13px 16px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:7px;">
-        ✉️ Envoyer au client
-      </button>
-      <!-- Télécharger WhatsApp -->
-      <button onclick="telechargerDepuisPreview()"
-        style="flex:1;min-width:120px;background:rgba(37,211,102,0.1);color:#16a34a;border:1.5px solid rgba(37,211,102,0.3);border-radius:11px;padding:13px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:7px;">
-        ⬇️ WhatsApp
-      </button>
-      <!-- Annuler -->
-      <button onclick="annulerEtSupprimerDoc()"
-        style="background:rgba(239,68,68,0.08);color:#dc2626;border:1.5px solid rgba(239,68,68,0.2);border-radius:11px;padding:13px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">
-        🗑️ Annuler
-      </button>
+      <div style="display:flex;gap:8px;">
+        <button onclick="fermerPreview()"
+          style="background:#fff;border:1.5px solid #e0e0e0;border-radius:10px;padding:11px 18px;font-size:13px;font-weight:700;cursor:pointer;color:#555;font-family:inherit;">
+          Annuler
+        </button>
+        <button id="preview-btn-envoyer" onclick="envoyerDepuisPreview()"
+          style="background:#1B2A4A;color:#fff;border:none;border-radius:10px;padding:11px 20px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;">
+          Envoyer le document
+        </button>
+      </div>
     </div>
 
   </div>
@@ -2569,23 +2693,43 @@ function switchPageMenu() {
 // AUTOCOMPLETE ADRESSE
 // ═══════════════════════════════════════════════════
 async function autocompleteAdresse(id, value) {
-  if (!value || value.length < 3) { document.getElementById(`${id}-suggestions`).style.display = 'none'; return; }
+  if (!value || value.length < 3) { const s = document.getElementById(`${id}-suggestions`); if(s) s.style.display = 'none'; return; }
   try {
-    const res = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(value)}&limit=8&autocomplete=1`);
+    const res = await _originalFetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(value)}&limit=8&autocomplete=1`);
     const data = await res.json();
     const idf = ['75','77','78','91','92','93','94','95'];
     const results = (data.features || []).filter(item => idf.some(d => (item.properties?.postcode||'').startsWith(d)));
     const suggestionsDiv = document.getElementById(`${id}-suggestions`);
+    if (!suggestionsDiv) return;
     if (!results.length) { suggestionsDiv.style.display = 'none'; return; }
     suggestionsDiv.innerHTML = '';
     suggestionsDiv.style.display = 'block';
     results.forEach(item => {
+      const p = item.properties;
       const div = document.createElement('div');
-      div.style.cssText = 'padding:12px 16px;cursor:pointer;font-size:14px;color:var(--text);border-bottom:1px solid var(--border);';
-      div.textContent = item.properties.label;
-      div.onmouseover = () => div.style.background = 'rgba(212,165,116,0.1)';
-      div.onmouseout = () => div.style.background = '';
-      div.onclick = () => { document.getElementById(id).value = item.properties.label; suggestionsDiv.style.display = 'none'; };
+      div.style.cssText = 'padding:11px 16px;cursor:pointer;font-size:13px;color:var(--text);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;';
+      div.innerHTML = `<span style="font-size:15px;">📍</span><div><div style="font-weight:600;">${p.name || p.label}</div><div style="font-size:11px;color:#8896A8;">${p.postcode} ${p.city}</div></div>`;
+      div.onmouseover = () => div.style.background = 'rgba(212,165,116,0.08)';
+      div.onmouseout  = () => div.style.background = '';
+      div.onclick = () => {
+        // Remplir le champ adresse (rue seulement, plus lisible)
+        const adresseEl = document.getElementById(id);
+        if (adresseEl) adresseEl.value = p.name ? `${p.name}` : p.label;
+
+        // Dériver le préfixe pour remplir CP + Ville
+        const prefix = id.replace(/-adresse$/, '');
+        const cpEl    = document.getElementById(`${prefix}-cp`);
+        const villeEl = document.getElementById(`${prefix}-ville`);
+        if (cpEl    && p.postcode) cpEl.value    = p.postcode;
+        if (villeEl && p.city)     villeEl.value = p.city;
+
+        // Fermer les suggestions
+        suggestionsDiv.style.display = 'none';
+
+        // Feedback visuel
+        if (cpEl)    { cpEl.style.borderColor    = '#10b981'; setTimeout(() => cpEl.style.borderColor    = '', 2000); }
+        if (villeEl) { villeEl.style.borderColor = '#10b981'; setTimeout(() => villeEl.style.borderColor = '', 2000); }
+      };
       suggestionsDiv.appendChild(div);
     });
   } catch(e) {}
@@ -3121,45 +3265,64 @@ function ouvrirPreviewAvecActions(num, pdfB64, emailClient, type) {
   previewNumActuel   = num;
   previewEmailClient = emailClient;
 
-  const overlay    = document.getElementById('popup-preview');
-  const iframe     = document.getElementById('preview-iframe');
-  const loading    = document.getElementById('preview-loading');
-  const titleEl    = document.getElementById('preview-title');
-  const subtitleEl = document.getElementById('preview-subtitle');
-  const btnEnvoyer = document.getElementById('preview-btn-envoyer');
+  const overlay = document.getElementById('popup-preview');
+  const iframe  = document.getElementById('preview-iframe');
+  const loading = document.getElementById('preview-loading');
 
-  if (titleEl) titleEl.textContent = `${type === 'facture' ? '💶 Facture' : '📋 Devis'} ${num}`;
-  if (subtitleEl) subtitleEl.textContent = emailClient
-    ? `Vérifie puis envoie à ${emailClient}`
-    : '⚠️ Pas d\'email — télécharge pour WhatsApp';
+  // Remplir le formulaire email style OBAT
+  const chipText  = document.getElementById('preview-email-chip-text');
+  const chip      = document.getElementById('preview-email-chip');
+  const emailInp  = document.getElementById('preview-email-input');
+  const sujetInp  = document.getElementById('preview-sujet-input');
+  const msgInp    = document.getElementById('preview-message-input');
+  const attachEl  = document.getElementById('preview-attachment-name');
+  const titleEl   = document.getElementById('preview-title');
 
-  if (btnEnvoyer) {
-    if (emailClient) {
-      btnEnvoyer.disabled = false;
-      btnEnvoyer.style.opacity = '1';
-      btnEnvoyer.style.cursor = 'pointer';
-    } else {
-      btnEnvoyer.disabled = true;
-      btnEnvoyer.style.opacity = '0.35';
-      btnEnvoyer.style.cursor = 'not-allowed';
-    }
+  const typeLabel = type === 'facture' ? 'Facture' : 'Devis';
+  const prenomClient = (emailClient ? '' : ''); // sera récupéré si dispo
+
+  if (titleEl)   titleEl.textContent  = `✉️ Envoyer ${typeLabel.toLowerCase()} ${num}`;
+  if (attachEl)  attachEl.textContent = `${typeLabel}_${num}.pdf`;
+
+  // Email chip
+  if (emailClient) {
+    if (chipText)  chipText.textContent  = emailClient;
+    if (chip)      chip.style.display    = 'flex';
+    if (emailInp)  emailInp.style.display = 'none';
+    if (emailInp)  emailInp.value         = emailClient;
+  } else {
+    if (chip)      chip.style.display    = 'none';
+    if (emailInp)  { emailInp.style.display = 'block'; emailInp.value = ''; }
   }
 
-  overlay.classList.add('active');
+  // Sujet
+  if (sujetInp) sujetInp.value = `Votre ${typeLabel.toLowerCase()} n° ${num}`;
+
+  // Message
+  if (msgInp) msgInp.value = `Bonjour,\n\nVeuillez trouver ci-joint votre ${typeLabel.toLowerCase()} n° ${num}.\n\n${type === 'devis' ? 'Merci de nous le retourner daté et signé.' : 'Merci de procéder au règlement selon les modalités indiquées.'}\n\nCordialement,\nDiahe — SINELEC Paris\n📞 07 87 38 86 22`;
+
+  // Bouton envoyer
+  const btnEnvoyer = document.getElementById('preview-btn-envoyer');
+  if (btnEnvoyer) {
+    btnEnvoyer.disabled = false;
+    btnEnvoyer.style.opacity = '1';
+    btnEnvoyer.style.cursor = 'pointer';
+    btnEnvoyer.textContent = 'Envoyer le document';
+  }
+
+  // Masquer PDF par défaut
+  const pdfSection = document.getElementById('preview-pdf-section');
+  if (pdfSection) pdfSection.style.display = 'none';
   if (iframe)  iframe.style.display = 'none';
-  if (loading) { loading.style.display = 'flex'; loading.innerHTML = `<div style="width:40px;height:40px;border:3px solid rgba(232,184,75,0.3);border-top-color:#E8B84B;border-radius:50%;animation:spin 0.8s linear infinite;"></div><div style="font-size:13px;color:rgba(0,0,0,0.5);font-weight:600;">Chargement PDF...</div>`; }
+  if (loading) { loading.style.display = 'flex'; loading.innerHTML = `<div style="width:36px;height:36px;border:3px solid rgba(232,184,75,0.3);border-top-color:#E8B84B;border-radius:50%;animation:spin 0.8s linear infinite;"></div><div style="font-size:12px;color:rgba(0,0,0,0.4);font-weight:600;">Chargement PDF...</div>`; }
+
+  overlay.classList.add('active');
 
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-
   const afficherBlob = (blob) => {
     if (previewBlobUrl) URL.revokeObjectURL(previewBlobUrl);
     previewBlobUrl = URL.createObjectURL(blob);
-    if (isIOS) {
-      window.open(previewBlobUrl, '_blank');
-      fermerPreview();
-      showToast('📄 PDF ouvert — vérifie puis envoie', '👁️');
-      return;
-    }
+    if (isIOS) { window.open(previewBlobUrl, '_blank'); return; }
     if (iframe) {
       iframe.src = previewBlobUrl;
       iframe.onload = () => { iframe.style.display = 'block'; if (loading) loading.style.display = 'none'; };
@@ -3192,24 +3355,69 @@ async function previsualiserPDF(num) {
   ouvrirPreviewAvecActions(num, null, item?.email || '', item?.type || 'devis');
 }
 
+function majEmailChip() {
+  const emailInp = document.getElementById('preview-email-input');
+  const chip     = document.getElementById('preview-email-chip');
+  const chipText = document.getElementById('preview-email-chip-text');
+  const val = (emailInp?.value || '').trim();
+  if (val) {
+    previewEmailClient = val;
+    if (chipText) chipText.textContent = val;
+    if (chip)     chip.style.display = 'flex';
+    if (emailInp) emailInp.style.display = 'none';
+  }
+}
+
+function toggleDestinatairesSup() {
+  const el = document.getElementById('preview-dest-sup');
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function togglePDFPreview() {
+  const section = document.getElementById('preview-pdf-section');
+  if (section) section.style.display = section.style.display === 'none' ? 'block' : 'none';
+}
+
 async function envoyerDepuisPreview() {
   if (!previewNumActuel) return;
   const btn = document.getElementById('preview-btn-envoyer');
+
+  // Lire les valeurs du formulaire
+  const chipText  = document.getElementById('preview-email-chip-text');
+  const emailInp  = document.getElementById('preview-email-input');
+  const sujetInp  = document.getElementById('preview-sujet-input');
+  const msgInp    = document.getElementById('preview-message-input');
+  const ccInp     = document.getElementById('preview-email-cc');
+
+  const emailFinal = (emailInp?.style.display !== 'none' ? emailInp?.value : chipText?.textContent)?.trim() || previewEmailClient;
+  const sujet      = sujetInp?.value?.trim() || '';
+  const message    = msgInp?.value?.trim() || '';
+  const cc         = ccInp?.value?.trim() || '';
+
+  if (!emailFinal || emailFinal === '—') {
+    showToast('⚠️ Renseigne l\'email du destinataire', '⚠️');
+    return;
+  }
+
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Envoi en cours...'; }
   try {
-    const res  = await fetch(`/api/envoyer/${previewNumActuel}`, { method: 'POST' });
+    const res  = await fetch(`/api/envoyer/${previewNumActuel}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: emailFinal, sujet, message, cc })
+    });
     const data = await res.json();
     if (data.success) {
-      showToast(`✉️ Envoyé à ${previewEmailClient} !`, '✅');
+      showToast(`✉️ Envoyé à ${emailFinal} !`, '✅');
       shootConfetti();
       fermerPreview();
     } else {
       showToast('❌ ' + (data.error || 'Erreur envoi'), '⚠️');
-      if (btn) { btn.disabled = false; btn.textContent = '✉️ Envoyer au client'; }
+      if (btn) { btn.disabled = false; btn.textContent = 'Envoyer le document'; }
     }
   } catch(e) {
     showToast('❌ Erreur réseau', '⚠️');
-    if (btn) { btn.disabled = false; btn.textContent = '✉️ Envoyer au client'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Envoyer le document'; }
   }
 }
 
@@ -3860,7 +4068,7 @@ function ouvrirLead() {
 
 function fermerLead() {
   document.getElementById('lead-overlay').classList.remove('active');
-  ['lead-nom','lead-tel','lead-adresse','lead-notes'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  ['lead-nom','lead-tel','lead-adresse','lead-cp','lead-ville','lead-notes'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
   document.getElementById('lead-waze-btn').style.display = 'none';
 }
 
@@ -3880,7 +4088,10 @@ function majWazeLead(val) {
 async function enregistrerLead(creerDevis) {
   const nom = document.getElementById('lead-nom').value.trim();
   const tel = document.getElementById('lead-tel').value.trim();
-  const adresse = document.getElementById('lead-adresse').value.trim();
+  const rue   = document.getElementById('lead-adresse').value.trim();
+  const cp    = document.getElementById('lead-cp')?.value.trim() || '';
+  const ville = document.getElementById('lead-ville')?.value.trim() || '';
+  const adresse = [rue, cp && ville ? `${cp} ${ville}` : cp || ville].filter(Boolean).join(', ');
   const date = document.getElementById('lead-date').value;
   const heure = document.getElementById('lead-heure').value;
   const notes = document.getElementById('lead-notes').value.trim();
@@ -6136,6 +6347,19 @@ const GRILLE = {
 let panierD = [];
 let panierF = [];
 
+function setCivilite(prefix, val) {
+  const el = document.getElementById(`${prefix}-civilite`);
+  if (el) el.value = val;
+  ['m','mme','aut'].forEach(k => {
+    const btn = document.getElementById(`${prefix}-civ-${k}`);
+    if (btn) btn.classList.toggle('active',
+      (k === 'm' && val === 'M.') ||
+      (k === 'mme' && val === 'Mme') ||
+      (k === 'aut' && val === '')
+    );
+  });
+}
+
 function setClientType(prefix, type) {
   document.getElementById(`${prefix}-toggle-part`).classList.toggle('active', type === 'particulier');
   document.getElementById(`${prefix}-toggle-soc`).classList.toggle('active', type === 'societe');
@@ -6146,9 +6370,10 @@ function setClientType(prefix, type) {
 function getClientComplet(prefix) {
   const isSoc = document.getElementById(`${prefix}-bloc-particulier`)?.style.display === 'none';
   if (isSoc) return (document.getElementById(`${prefix}-societe`)?.value || '').trim();
-  const p = (document.getElementById(`${prefix}-prenom`)?.value || '').trim();
-  const n = (document.getElementById(`${prefix}-client`)?.value || '').trim();
-  return [p, n].filter(Boolean).join(' ');
+  const civ = (document.getElementById(`${prefix}-civilite`)?.value || '').trim();
+  const p   = (document.getElementById(`${prefix}-prenom`)?.value || '').trim();
+  const n   = (document.getElementById(`${prefix}-client`)?.value || '').trim();
+  return [civ, p, n].filter(Boolean).join(' ');
 }
 
 function initCategories(prefix) {
@@ -6364,7 +6589,10 @@ async function genererEtTelecharger(type) {
   if (!panier.length) { showToast('⚠️ Panier vide !', '❌'); return; }
 
   const client  = getClientComplet(prefix);
-  const adresse = document.getElementById(`${prefix}-adresse`)?.value.trim();
+  const _rue = document.getElementById(`${prefix}-adresse`)?.value.trim() || '';
+  const _cp = document.getElementById(`${prefix}-cp`)?.value.trim() || '';
+  const _ville = document.getElementById(`${prefix}-ville`)?.value.trim() || '';
+  const adresse = [_rue, _cp && _ville ? `${_cp} ${_ville}` : _cp || _ville].filter(Boolean).join(', ');
   if (!client || !adresse) { showToast('⚠️ Remplis le nom et l\'adresse !', '❌'); return; }
 
   const btn = document.getElementById('f-btn-dl');
@@ -6501,7 +6729,10 @@ async function generer(type) {
   if (panier.length === 0) { showToast('⚠️ Ajoute des prestations !', '❌'); return; }
 
   const client = getClientComplet(prefix);
-  const adresse = document.getElementById(`${prefix}-adresse`)?.value.trim();
+  const _rue = document.getElementById(`${prefix}-adresse`)?.value.trim() || '';
+  const _cp = document.getElementById(`${prefix}-cp`)?.value.trim() || '';
+  const _ville = document.getElementById(`${prefix}-ville`)?.value.trim() || '';
+  const adresse = [_rue, _cp && _ville ? `${_cp} ${_ville}` : _cp || _ville].filter(Boolean).join(', ');
   if (!client || !adresse) { showToast('⚠️ Remplis le nom et l\'adresse !', '❌'); return; }
   const emailVal = document.getElementById(`${prefix}-email`)?.value.trim();
   if (!emailVal) {
