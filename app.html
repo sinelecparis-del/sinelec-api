@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <title>SINELEC OS v2.0</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -194,24 +194,12 @@ body {
 
 
 /* ══ FORMULAIRE CLIENT — STYLE AMÉLIORÉ ══ */
-#page-devis .section:first-child,
-#page-facture .section:first-child {
-  background:#fff;
-  border:1.5px solid #EAEAF0;
-  border-radius:20px;
-  padding:20px;
-  box-shadow:0 2px 12px rgba(0,0,0,0.04);
-}
-#page-devis .section-title,
-#page-facture .section:first-child .section-title {
-  font-size:13px;
-  font-weight:900;
-  color:#1B2A4A;
-  letter-spacing:0;
-  text-transform:none;
-  margin-bottom:16px;
-  padding-bottom:12px;
-  border-bottom:1.5px solid #F0F0F6;
+/* Formulaire client — section uniquement */
+#page-devis #d-bloc-particulier,
+#page-devis #d-bloc-societe,
+#page-facture #f-bloc-particulier,
+#page-facture #f-bloc-societe {
+  /* style géré par .input-group */
 }
 .input-group {
   margin-bottom:12px;
