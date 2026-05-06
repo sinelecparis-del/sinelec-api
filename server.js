@@ -11,7 +11,26 @@ const crypto = require('crypto');
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-const CONFIG = require('./config-v2.js');
+const CONFIG = {
+  meta: { version: '2.0' },
+  dev: { skip_email: false },
+  email: {
+    sender_name: 'SINELEC',
+    sender_email: 'sinelec.paris@gmail.com',
+    template_devis: null,
+    template_facture: null
+  },
+  features: {
+    chatbot_claude: true,
+    devis_factures: true,
+    email_auto: true,
+    historique: true,
+    rapports_intervention: true,
+    relances_auto: true,
+    signature_client: true,
+    veille_tarifaire: false
+  }
+};
 
 const app = express();
 const PORT = process.env.PORT || 3000;
