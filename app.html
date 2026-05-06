@@ -166,16 +166,21 @@ body {
 
 .main-content { margin-left:var(--sidebar-width); min-height:100vh; position:relative; z-index:1; }
 @media(max-width:768px){ body{padding-bottom:70px;} .sidebar{display:none;} .main-content{margin-left:0;} .mobile-tabs{display:block;} }
+.cat-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:4px; }
 @media(min-width:640px){ .cat-grid{grid-template-columns:repeat(3,1fr);} }
 .cat-btn {
-  background: #f9f9f9;
-  border: 1px solid rgba(0,0,0,0.08);
-  border-radius:12px; padding:15px 14px;
-  font-size:13px; font-weight:700; color:rgba(0,0,0,0.7);
-  cursor:pointer; transition:all 0.25s; text-align:center;
+  background:rgba(255,255,255,0.75);
+  border:1.5px solid rgba(0,0,0,0.07);
+  border-radius:14px; padding:14px 10px;
+  font-size:12px; font-weight:700; color:var(--text-2);
+  cursor:pointer; transition:all 0.2s; text-align:center;
+  display:flex; flex-direction:column; align-items:center; gap:5px;
+  box-shadow:0 1px 4px rgba(0,0,0,0.04);
 }
-.cat-btn:hover { background:rgba(232,184,75,0.08); border-color:rgba(232,184,75,0.2); color:var(--gold); transform:translateY(-2px); }
-.cat-btn.selected { background:linear-gradient(135deg,rgba(232,184,75,0.15),rgba(255,215,0,0.08)); color:var(--gold); border-color:rgba(232,184,75,0.4); }
+.cat-btn .cat-emoji { font-size:22px; line-height:1; }
+.cat-btn .cat-label { font-size:11.5px; font-weight:700; line-height:1.3; }
+.cat-btn:hover { background:rgba(232,184,75,0.1); border-color:rgba(232,184,75,0.35); color:var(--gold); transform:translateY(-2px); box-shadow:0 4px 12px rgba(232,184,75,0.15); }
+.cat-btn.selected { background:linear-gradient(135deg,rgba(232,184,75,0.18),rgba(255,215,0,0.08)); color:var(--gold); border-color:rgba(232,184,75,0.5); box-shadow:0 4px 14px rgba(232,184,75,0.2); }
 
 /* ══ PRESTATIONS ══ */
 .prestations { display:none; flex-direction:column; gap:10px; margin-bottom:20px; }
@@ -6153,7 +6158,10 @@ function initCategories(prefix) {
   Object.keys(GRILLE).forEach(cat => {
     const btn = document.createElement('div');
     btn.className = 'cat-btn';
-    btn.textContent = cat;
+    const emojiMatch = cat.match(/^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)\s*/u);
+    const emoji = emojiMatch ? emojiMatch[0].trim() : '';
+    const label = emoji ? cat.replace(emojiMatch[0], '').trim() : cat;
+    btn.innerHTML = `<span class="cat-emoji">${emoji}</span><span class="cat-label">${label}</span>`;
     btn.onclick = () => selectCategory(prefix, cat, btn);
     catsDiv.appendChild(btn);
   });
