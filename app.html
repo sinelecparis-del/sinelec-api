@@ -1872,7 +1872,7 @@ table.histo-table tr:hover td { background:#fafbff; }
     </div>
     <div id="info-immediat" style="display:flex;align-items:center;gap:8px;background:rgba(232,184,75,0.08);border:1px solid rgba(232,184,75,0.2);border-radius:10px;padding:10px 14px;">
       <span style="font-size:16px;">⚡</span>
-      <span style="font-size:12px;color:#C9962A;font-weight:700;">Déplacement offert si intervention > 200€</span>
+      <span style="font-size:12px;color:#C9962A;font-weight:700;">Intervention immédiate sur place</span>
     </div>
     <div id="info-planifie" style="display:none;align-items:center;gap:8px;background:rgba(27,42,74,0.06);border:1px solid rgba(27,42,74,0.15);border-radius:10px;padding:10px 14px;">
       <span style="font-size:16px;">📅</span>
@@ -3174,6 +3174,12 @@ function ouvrirPreviewAvecActions(num, pdfB64, emailClient, type) {
       .then(blob => afficherBlob(blob))
       .catch(() => { if (loading) loading.innerHTML = `<div style="color:#dc2626;font-size:13px;">❌ PDF non disponible</div>`; });
   }
+}
+
+async function renvoyerDevis(num, email, client) {
+  showToast('⏳ Chargement du devis...', '📧');
+  const item = historiqueData.find(i => i.num === num);
+  ouvrirPreviewAvecActions(num, null, email || item?.email || '', 'devis');
 }
 
 async function previsualiserPDF(num) {
@@ -5361,7 +5367,9 @@ function renderTableauHistorique() {
       <div class="ht-more" onclick="toggleDropdown('${moreId}',event)" title="Plus">
         ···
         <div class="ht-dropdown" id="${moreId}">
-          ${type === 'devis' && statut === 'envoye' ? `<div class="ht-dropdown-item" onclick="modifierDevis('${item.num}')" style="color:#E8B84B;font-weight:800;">✏️ Modifier le devis</div>` : ''}
+          ${type === 'devis' && statut === 'envoye' ? `
+          <div class="ht-dropdown-item" onclick="renvoyerDevis('${item.num}','${(item.email||'').replace(/'/g,"\\'")}','${(item.client||'').replace(/'/g,"\\'")}')">📧 Renvoyer le devis</div>
+          <div class="ht-dropdown-item" onclick="modifierDevis('${item.num}')" style="color:#E8B84B;font-weight:800;">✏️ Modifier le devis</div>` : ''}
           ${type === 'devis' ? `<div class="ht-dropdown-item" onclick="convertirEnFacture('${item.num}')">💶 → Facture</div>` : ''}
           ${type === 'devis' && !estSigne ? `<div class="ht-dropdown-item" onclick="ouvrirPopupSig('${item.num}')">✍️ Signature</div>` : ''}
           ${type === 'devis' && !estSigne ? `<div class="ht-dropdown-item" onclick="marquerSigne('${item.num}')">✅ Marquer signé</div>` : ''}
@@ -6562,21 +6570,4 @@ async function generer(type) {
       // Ouvrir la prévisualisation avec actions
       ouvrirPreviewAvecActions(data.num, data.pdf_b64, data.email_client, type);
     } else {
-      showToast('❌ ' + (data.error || 'Erreur'), '⚠️');
-    }
-  } catch(e) {
-    showToast('❌ ' + e.message, '⚠️');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = type === 'devis'
-      ? (typeIntervention === 'immediat' ? '⚡ Générer le devis — Immédiat' : '📅 Générer le devis — Planifié')
-      : '💶 Générer la facture PDF';
-  }
-}
-</script>
-
-</div>
-</div>
-</div>
-</body>
-</html>
+      showToast('❌ ' + (data.error 
