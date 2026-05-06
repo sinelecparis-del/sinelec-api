@@ -6571,3 +6571,16 @@ async function generer(type) {
       ouvrirPreviewAvecActions(data.num, data.pdf_b64, data.email_client, type);
     } else {
       showToast('❌ ' + (data.error 
+|| 'Erreur génération'), '❌');
+    }
+  } catch(e) {
+    console.error('generer:', e);
+    showToast('❌ Erreur réseau : ' + e.message, '❌');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = type === 'devis' ? '⚡ Générer le devis' : '💶 Générer et envoyer la facture';
+  }
+}
+</script>
+</body>
+</html>
