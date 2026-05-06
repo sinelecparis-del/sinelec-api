@@ -1863,13 +1863,38 @@ table.histo-table tr:hover td { background:#fafbff; }
         <div style="font-size:13px;font-weight:800;color:#C9962A;margin-bottom:3px;">Immédiat</div>
         <div style="font-size:10px;color:rgba(0,0,0,0.45);line-height:1.4;">Sur place,<br>je travaille direct</div>
       </div>
-    <div class="section-title">💶 Informations client</div>
+      <div id="toggle-planifie" onclick="setTypeIntervention('planifie')"
+        style="border-radius:14px;padding:16px 12px;cursor:pointer;border:1.5px solid rgba(0,0,0,0.08);background:#f9f9f9;text-align:center;transition:all 0.25s;">
+        <div style="font-size:26px;margin-bottom:6px;">📅</div>
+        <div style="font-size:13px;font-weight:800;color:rgba(0,0,0,0.5);margin-bottom:3px;">Planifié</div>
+        <div style="font-size:10px;color:rgba(0,0,0,0.45);line-height:1.4;">Rendez-vous<br>à programmer</div>
+      </div>
+    </div>
+    <div id="info-immediat" style="display:flex;align-items:center;gap:8px;background:rgba(232,184,75,0.08);border:1px solid rgba(232,184,75,0.2);border-radius:10px;padding:10px 14px;">
+      <span style="font-size:16px;">⚡</span>
+      <span style="font-size:12px;color:#C9962A;font-weight:700;">Déplacement offert si intervention > 200€</span>
+    </div>
+    <div id="info-planifie" style="display:none;align-items:center;gap:8px;background:rgba(27,42,74,0.06);border:1px solid rgba(27,42,74,0.15);border-radius:10px;padding:10px 14px;">
+      <span style="font-size:16px;">📅</span>
+      <div style="flex:1;">
+        <div style="font-size:12px;font-weight:700;color:#1B2A4A;margin-bottom:6px;">Date d'intervention</div>
+        <input type="date" id="d-date-intervention" style="width:100%;padding:8px 10px;border:1.5px solid rgba(27,42,74,0.2);border-radius:8px;font-size:13px;color:#1B2A4A;background:#fff;outline:none;">
+      </div>
+    </div>
+  </div>
+</div>
+</div>
 
-    <div class="client-toggle" style="margin-bottom:14px;">
+<!-- ════════════ PAGE FACTURE ════════════ -->
+<div id="page-facture" class="page">
+<div class="content">
+  <!-- Infos client -->
+  <div class="section">
+    <div class="section-title">💶 Informations client</div>
+    <div class="client-toggle">
       <div class="client-toggle-btn active" id="f-toggle-part" onclick="setClientType('f','particulier')">👤 Particulier</div>
       <div class="client-toggle-btn" id="f-toggle-soc" onclick="setClientType('f','societe')">🏢 Société</div>
     </div>
-
     <div id="f-bloc-particulier">
       <div class="input-group"><label>Prénom</label><input type="text" id="f-prenom" placeholder="MARIE" oninput="this.value=this.value.toUpperCase();autocompleteClient('f',this.value,'prenom')" autocomplete="off"></div>
       <div class="input-group">
@@ -6550,6 +6575,8 @@ async function generer(type) {
 }
 </script>
 
+</div>
+</div>
 </div>
 </body>
 </html>
