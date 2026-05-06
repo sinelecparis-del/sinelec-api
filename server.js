@@ -6,6 +6,7 @@ const express = require('express');
 const cors = require('cors');
 const cron = require('node-cron');
 const { createClient } = require('@supabase/supabase-js');
+const ws = require('ws');
 const Anthropic = require('@anthropic-ai/sdk');
 const crypto = require('crypto');
 const { execSync } = require('child_process');
@@ -92,7 +93,9 @@ app.get('/api/auth/check', (req, res) => {
 // CLIENTS
 // ═══════════════════════════════════════════════════
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY, {
+  realtime: { transport: ws }
+});
 const anthropic = new Anthropic({ apiKey: (process.env.ANTHROPIC_API_KEY || '').trim() });
 const BREVO_API_KEY = process.env.BREVO_API_KEY;
 const SUMUP_API_KEY = process.env.SUMUP_API_KEY;
