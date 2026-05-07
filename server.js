@@ -472,15 +472,113 @@ app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
     const email = (req.body?.email || doc.email || '').trim();
     if (!email) return res.status(400).json({ success: false, error: 'Pas d\'email pour ce client' });
 
-    // Récupérer le PDF — priorité : body (popup) → fichier disque
+    // Récupérer le PDF — priorité : body → disque → régénération automatique
     const pdfStorePath = path.join(__dirname, `${num}_stored.pdf`);
     let pdfB64;
-    if (req.body?.pdfB64) {
+    if (req.body?.pdfB64 && req.body.pdfB64.length > 100) {
+      // Priorité 1 : PDF envoyé directement par le client (popup)
       pdfB64 = req.body.pdfB64;
+      console.log(`✅ PDF reçu du client pour ${num} (${Math.round(pdfB64.length/1000)}Ko)`);
     } else if (fs.existsSync(pdfStorePath)) {
+      // Priorité 2 : fichier disque temporaire
       pdfB64 = fs.readFileSync(pdfStorePath).toString('base64');
+      console.log(`✅ PDF lu depuis disque pour ${num}`);
     } else {
-      return res.status(404).json({ success: false, error: 'PDF non trouvé — régénère le document' });
+      // Priorité 3 : régénérer le PDF depuis Supabase (Railway = disque éphémère)
+      console.log(`⚠️ PDF manquant pour ${num} — régénération automatique`);
+      try {
+        const typeLabelUpper = doc.type === 'devis' ? 'DEVIS' : 'FACTURE';
+        const dateStr = new Date(doc.date_envoi || doc.created_at).toLocaleDateString('fr-FR');
+        const dateValide = new Date(new Date(doc.date_envoi || doc.created_at).getTime() + 30*24*60*60*1000).toLocaleDateString('fr-FR');
+        const detailsPath = path.join(__dirname, `_regen_details_${num}.json`);
+        const pyPath2 = path.join(__dirname, `_regen_${num}.py`);
+        const pdfPath2 = path.join(__dirname, `_regen_${num}.pdf`);
+        const detailsData = (doc.prestations || []).map(p => ({
+          designation: p.nom || p.designation, qte: p.quantite || 1,
+          prixUnit: p.prix || 0, total: (p.prix || 0) * (p.quantite || 1),
+          details: p.desc ? [p.desc] : []
+        }));
+        fs.writeFileSync(detailsPath, JSON.stringify(detailsData));
+        const clientEsc = String(doc.client || '').replace(/'/g, ' ');
+        const adresseParts = (doc.adresse || '').split(',');
+        const clientRue = String(adresseParts[0] || '').trim().replace(/'/g, ' ');
+        const clientVille = adresseParts.slice(1).join(',').trim().replace(/'/g, ' ');
+        const descObjet = String(doc.description || 'Travaux electricite').replace(/'/g,' ').replace(/"/g,' ').replace(/\n/g,' ').substring(0,120);
+        // Script Python minimal pour régénération rapide
+        const pyRegen = `# -*- coding: utf-8 -*-
+import json,base64,io,sys
+from reportlab.lib.pagesizes import A4;from reportlab.lib import colors;from reportlab.lib.units import cm
+from reportlab.platypus import *;from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.enums import TA_LEFT,TA_CENTER,TA_RIGHT;from reportlab.pdfgen import canvas as c2
+from reportlab.lib.utils import ImageReader;from reportlab.platypus.flowables import HRFlowable
+W,H=A4;MARINE=colors.HexColor('#1B2A4A');OR=colors.HexColor('#C9A84C')
+OR_PALE=colors.HexColor('#FBF7EC');BLANC=colors.white;CREME=colors.HexColor('#FDFCF9')
+GRIS=colors.HexColor('#3A3A3A');GRIS_S=colors.HexColor('#777777');GRIS_L=colors.HexColor('#E0DDD6');GRIS_B=colors.HexColor('#F5F4F0')
+def p(t,sz=9,f='Helvetica',col=None,al=TA_LEFT,sb=0,sa=2):
+    if col is None:col=GRIS
+    return Paragraph(str(t),ParagraphStyle('s',fontName=f,fontSize=sz,textColor=col,alignment=al,spaceBefore=sb,spaceAfter=sa,leading=sz*1.35,wordWrap='CJK'))
+data=json.loads(open(sys.argv[1],encoding='utf-8').read());tot=sum(l['total'] for l in data)
+logo=base64.b64decode(open('/app/logo_b64.txt').read().strip())
+class SC(c2.Canvas):
+    def __init__(self,fn,**kw):c2.Canvas.__init__(self,fn,**kw);self._pg=0;self.saveState();self._bg()
+    def showPage(self):self._footer();c2.Canvas.showPage(self);self._pg+=1
+    def save(self):self._footer();c2.Canvas.save(self)
+    def _bg(self):
+        self.saveState();self.setFillColor(CREME);self.rect(0,0,W,H,fill=1,stroke=0)
+        self.setFillColor(MARINE);self.rect(0,0,0.7*cm,H,fill=1,stroke=0)
+        self.setFillColor(OR);self.rect(0.7*cm,0,0.08*cm,H,fill=1,stroke=0)
+        self.setFillColor(MARINE);self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,5.4*cm,fill=1,stroke=0)
+        self.setFillColor(OR);self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,0.12*cm,fill=1,stroke=0)
+        self.drawImage(ImageReader(io.BytesIO(logo)),0.9*cm,H-5.05*cm,width=4.2*cm,height=4.2*cm,preserveAspectRatio=True,mask='auto')
+        self.setFont('Helvetica-Bold',15);self.setFillColor(BLANC);self.drawString(5.9*cm,H-1.7*cm,'SINELEC PARIS')
+        self.setFont('Helvetica',8.5);self.setFillColor(colors.HexColor('#BFC8D6'))
+        self.drawString(5.9*cm,H-3.0*cm,'07 87 38 86 22');self.drawString(5.9*cm,H-3.4*cm,'sinelec.paris@gmail.com')
+        self.setFont('Helvetica-Bold',40);self.setFillColor(BLANC);self.drawRightString(W-1.2*cm,H-2.2*cm,'${typeLabelUpper}')
+        self.setFillColor(OR);self.roundRect(W-6.5*cm,H-3.55*cm,5.3*cm,0.65*cm,0.15*cm,fill=1,stroke=0)
+        self.setFont('Helvetica-Bold',9);self.setFillColor(MARINE);self.drawCentredString(W-3.85*cm,H-3.22*cm,'N\\u00b0 ${num}')
+        self.setFont('Helvetica',8);self.setFillColor(colors.HexColor('#BFC8D6'));self.drawRightString(W-1.2*cm,H-3.9*cm,'${dateStr}')
+        self.restoreState()
+    def _footer(self):
+        self.saveState();self.setFillColor(MARINE);self.rect(0,0,W,1.0*cm,fill=1,stroke=0)
+        self.setFillColor(OR);self.rect(0,1.0*cm,W,0.08*cm,fill=1,stroke=0)
+        self.setFont('Helvetica',6.5);self.setFillColor(colors.HexColor('#8899BB'))
+        self.drawCentredString(W/2,0.5*cm,'SINELEC EI \\u2022 128 Rue La Boetie 75008 Paris \\u2022 SIRET : 91015824500019 \\u2022 TVA non applicable art. 293B CGI')
+        self.restoreState()
+doc=SimpleDocTemplate(sys.argv[2],pagesize=A4,leftMargin=1.2*cm,rightMargin=1.0*cm,topMargin=5.6*cm,bottomMargin=1.6*cm)
+story=[]
+cb=Table([[p('CLIENT',7,'Helvetica-Bold',OR,sa=4)],[p('${clientEsc}',10,'Helvetica-Bold',MARINE)],[p('${clientRue}',8.5)],[p('${clientVille}',8.5)]],colWidths=[18.2*cm])
+cb.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('BACKGROUND',(0,0),(-1,-1),OR_PALE),('BOX',(0,0),(-1,-1),1,OR),('LINEBEFORE',(0,0),(0,-1),4,MARINE),('TOPPADDING',(0,0),(0,0),10),('BOTTOMPADDING',(0,-1),(-1,-1),10)]))
+story.append(cb);story.append(Spacer(1,0.4*cm))
+cw=[0.7*cm,9.5*cm,1.5*cm,0.9*cm,2.4*cm,3.2*cm]
+rows=[[p('#',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('DESIGNATION',7.5,'Helvetica-Bold',BLANC),p('QTE',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('U.',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('PRIX U. HT',7.5,'Helvetica-Bold',BLANC,TA_RIGHT),p('TOTAL HT',7.5,'Helvetica-Bold',BLANC,TA_RIGHT)]]
+for i,l in enumerate(data):
+    q=int(l['qte']) if l['qte']==int(l['qte']) else l['qte']
+    rows.append([p(str(i+1),9,col=OR,al=TA_CENTER),p('<b>'+l['designation']+'</b>',9,col=MARINE),p(str(q),9,al=TA_CENTER),p('u.',9,al=TA_CENTER,col=GRIS_S),p('%.2f \\u20ac'%l['prixUnit'],9,al=TA_RIGHT),p('<b>%.2f \\u20ac</b>'%l['total'],9,'Helvetica-Bold',MARINE,TA_RIGHT)])
+    for det in l.get('details',[]):
+        rows.append(['',p('   - '+det,7.5,'Helvetica-Oblique',col=GRIS_S),'','','',''])
+t=Table(rows,colWidths=cw);ts=[('BACKGROUND',(0,0),(-1,0),MARINE),('LINEBELOW',(0,0),(-1,0),2.5,OR),('VALIGN',(0,0),(-1,-1),'TOP'),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),('LEFTPADDING',(0,0),(-1,-1),7),('RIGHTPADDING',(0,0),(-1,-1),7),('BOX',(0,0),(-1,-1),0.3,GRIS_L)]
+ri=1;bg=True
+for l in data:
+    nb=1+len(l.get('details',[]));c3=BLANC if bg else GRIS_B
+    ts.append(('BACKGROUND',(0,ri),(-1,ri+nb-1),c3));ts.append(('LINEBELOW',(0,ri+nb-1),(-1,ri+nb-1),0.3,GRIS_L));ri+=nb;bg=not bg
+t.setStyle(TableStyle(ts));story.append(t);story.append(Spacer(1,0.15*cm))
+tt=Table([['',p('Total HT',9,col=GRIS_S,al=TA_RIGHT),p('%.2f \\u20ac'%tot,9,'Helvetica-Bold',GRIS,TA_RIGHT)],['',p('TVA',9,col=GRIS_S,al=TA_RIGHT),p('Non applicable (art. 293B)',8,col=GRIS_S,al=TA_RIGHT)]],colWidths=[9.0*cm,4.5*cm,4.7*cm])
+tt.setStyle(TableStyle([('LINEABOVE',(1,0),(-1,0),0.5,GRIS_L),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('LEFTPADDING',(0,0),(-1,-1),6),('RIGHTPADDING',(0,0),(-1,-1),6)]))
+story.append(tt);story.append(Spacer(1,0.12*cm))
+net=Table([[p('NET \\u00c0 PAYER',13,'Helvetica-Bold',BLANC),p('%.2f \\u20ac'%tot,16,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
+net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('LINEBELOW',(0,0),(-1,-1),3,OR),('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
+story.append(net)
+doc.build(story,canvasmaker=lambda fn,**kw:SC(fn,**kw));print('REGEN_OK')
+`;
+        fs.writeFileSync(pyPath2, pyRegen, 'utf8');
+        execSync(`python3 "${pyPath2}" "${detailsPath}" "${pdfPath2}"`, { cwd: __dirname, timeout: 30000 });
+        pdfB64 = fs.readFileSync(pdfPath2).toString('base64');
+        console.log(`✅ PDF régénéré pour ${num}`);
+        try { fs.unlinkSync(pyPath2); fs.unlinkSync(detailsPath); fs.unlinkSync(pdfPath2); } catch(e) {}
+      } catch(regenErr) {
+        console.error('Régénération PDF échouée:', regenErr.message);
+        return res.status(500).json({ success: false, error: 'Impossible de régénérer le PDF : ' + regenErr.message });
+      }
     }
 
     const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
