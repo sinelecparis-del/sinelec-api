@@ -5670,10 +5670,23 @@ function renderTableauHistorique() {
 
     const prestNom = (item.prestations||[{nom:'—'}])[0]?.nom || '—';
 
+    // Badge espion email
+    let emailBadge = '';
+    if (item.email_ouvert) {
+      const nbFois = item.nb_ouvertures > 1 ? ` ×${item.nb_ouvertures}` : '';
+      const dateOuv = item.premiere_ouverture ? new Date(item.premiere_ouverture).toLocaleDateString('fr-FR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+      emailBadge = `<span title="Ouvert le ${dateOuv}" style="background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700;white-space:nowrap;cursor:default;">👁️ Lu${nbFois}</span>`;
+    } else if (item.email) {
+      emailBadge = `<span style="background:#f3f4f6;color:#9ca3af;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:600;white-space:nowrap;">📧 Non lu</span>`;
+    }
+
     return `<tr>
       <td class="ht-num">${item.num}</td>
       <td>${typeBadge}</td>
-      <td>${statutBadge}</td>
+      <td>
+        ${statutBadge}
+        ${emailBadge ? `<div style="margin-top:4px;">${emailBadge}</div>` : ''}
+      </td>
       <td>
         <div class="ht-client">${item.client||'—'}</div>
         <div class="ht-desc">${prestNom.substring(0,40)}${prestNom.length>40?'...':''}</div>
