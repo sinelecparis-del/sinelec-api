@@ -1248,22 +1248,6 @@ class SC(pdfcanvas.Canvas):
         self.setFillColor(OR); self.roundRect(W-6.5*cm,H-3.55*cm,5.3*cm,0.65*cm,0.15*cm,fill=1,stroke=0)
         self.setFont('Helvetica-Bold',9); self.setFillColor(MARINE); self.drawCentredString(W-3.85*cm,H-3.22*cm,'N\\u00b0 ${num}')
         self.setFont('Helvetica',8); self.setFillColor(colors.HexColor('#BFC8D6')); self.drawRightString(W-1.2*cm,H-3.9*cm,'Date : ${dateStr}')
-        # Tampon SIGNÉ rond vert
-        self.saveState()
-        cx=W-5.0*cm; cy=H/2+1.0*cm; r=1.9*cm
-        self.setStrokeColor(VERT); self.setFillColor(VERT)
-        self.setFillAlpha(0.85); self.setLineWidth(3.5); self.circle(cx,cy,r,fill=0,stroke=1)
-        self.setLineWidth(0.8); self.setFillAlpha(0.4); self.circle(cx,cy,r-0.22*cm,fill=0,stroke=1)
-        self.setLineWidth(0.3); self.setFillAlpha(0.2)
-        self.setDash([0.08*cm,0.28*cm]); self.circle(cx,cy,r-0.52*cm,fill=0,stroke=1); self.setDash()
-        self.translate(cx,cy); self.rotate(-15)
-        nom_court = '${clientEsc}'.upper()[:16]
-        self.setFillAlpha(0.92); self.setFillColor(VERT)
-        self.setFont('Helvetica-Bold',7); self.drawCentredString(0,1.05*cm,nom_court)
-        self.setFillAlpha(0.9); self.setFont('Helvetica-Bold',20); self.drawCentredString(0,0.18*cm,'SIGNE')
-        self.setFont('Helvetica-Bold',7.5); self.setFillAlpha(0.75); self.drawCentredString(0,-0.52*cm,'${dateSig}')
-        self.setFont('Helvetica',6); self.setFillAlpha(0.45); self.drawCentredString(0,-1.02*cm,'PARIS')
-        self.restoreState()
     def _draw_header_small(self):
         self.setFillColor(MARINE); self.rect(0.78*cm,H-1.5*cm,W-0.78*cm,1.5*cm,fill=1,stroke=0)
         self.setFillColor(OR); self.rect(0.78*cm,H-1.5*cm,W-0.78*cm,0.08*cm,fill=1,stroke=0)
@@ -1315,9 +1299,29 @@ story.append(t_sig_lbl)
 t_mention=Table([[p('Bon pour accord — Devis recu avant execution des travaux',9,'Helvetica-Bold',MARINE),p('Lu et approuve — Signe le : ${dateSig}',9,'Helvetica-Oblique',GRIS_SOFT,TA_RIGHT)]],colWidths=[11.0*cm,7.2*cm])
 t_mention.setStyle(TableStyle([('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),10)]))
 story.append(t_mention)
-sig_img=Image(io.BytesIO(sig_bytes),width=7.0*cm,height=2.5*cm)
+nom_court_sig='${clientEsc}'.upper()[:14]
+date_sig_tampon='${dateSig}'
+sig_img=Image(io.BytesIO(sig_bytes),width=7.0*cm,height=2.8*cm)
 sig_img.hAlign='LEFT'
-story.append(sig_img)
+class TamponSigne(Flowable):
+    def __init__(self):
+        Flowable.__init__(self)
+        self.width=3.8*cm; self.height=3.8*cm
+    def draw(self):
+        cx=self.width/2; cy=self.height/2; r=1.75*cm
+        c=self.canv; c.saveState()
+        c.setStrokeColor(VERT); c.setFillColor(VERT)
+        c.setLineWidth(3); c.circle(cx,cy,r,fill=0,stroke=1)
+        c.setLineWidth(0.8); c.setFillAlpha(0.35); c.circle(cx,cy,r-0.18*cm,fill=0,stroke=1)
+        c.setFillAlpha(1); c.translate(cx,cy); c.rotate(-15)
+        c.setFillColor(VERT); c.setFont('Helvetica-Bold',6.5); c.drawCentredString(0,r-0.45*cm,nom_court_sig)
+        c.setFont('Helvetica-Bold',17); c.drawCentredString(0,0.1*cm,'SIGNE')
+        c.setFont('Helvetica-Bold',7); c.drawCentredString(0,-0.45*cm,date_sig_tampon)
+        c.setFont('Helvetica',5.5); c.setFillAlpha(0.5); c.drawCentredString(0,-0.85*cm,'PARIS')
+        c.restoreState()
+t_sig_final=Table([[sig_img,TamponSigne()]],colWidths=[10.4*cm,3.8*cm])
+t_sig_final.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'MIDDLE'),('ALIGN',(1,0),(1,-1),'CENTER'),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0)]))
+story.append(t_sig_final)
 iban=Table([[p('IBAN',7,'Helvetica-Bold',GRIS_SOFT),p('FR76 1695 8000 0174 2540 5920 931',9,'Helvetica-Bold',MARINE),p('BIC',7,'Helvetica-Bold',GRIS_SOFT,TA_RIGHT),p('QNTOFRP1XXX',9,'Helvetica-Bold',MARINE,TA_RIGHT)]],colWidths=[1.5*cm,9.5*cm,1.8*cm,5.4*cm])
 iban.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),OR_PALE),('BOX',(0,0),(-1,-1),0.5,OR),('LINEBEFORE',(0,0),(0,-1),4,MARINE),('TOPPADDING',(0,0),(-1,-1),9),('BOTTOMPADDING',(0,0),(-1,-1),9),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
 story.append(Spacer(1,0.2*cm)); story.append(iban)
