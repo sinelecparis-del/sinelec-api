@@ -271,6 +271,27 @@ body {
   box-shadow:0 2px 8px rgba(0,0,0,0.08);
 }
 
+/* ══ BROUILLONS ══ */
+.brouillon-section{background:#fff;border:1.5px solid rgba(232,184,75,0.35);border-radius:16px;margin-bottom:16px;overflow:hidden;}
+.brouillon-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;cursor:pointer;background:linear-gradient(135deg,rgba(232,184,75,0.08),rgba(255,215,0,0.04));user-select:none;}
+.brouillon-header-left{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:700;color:#1B2A4A;}
+.brouillon-count{background:#E8B84B;color:#000;border-radius:20px;padding:2px 9px;font-size:11px;font-weight:800;}
+.brouillon-list{padding:12px 14px;display:flex;flex-direction:column;gap:8px;}
+.brouillon-card{background:#FAFAFA;border:1px solid rgba(0,0,0,0.07);border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:12px;transition:all 0.2s;}
+.brouillon-card:hover{border-color:rgba(232,184,75,0.4);background:#fffbf0;}
+.brouillon-info{flex:1;min-width:0;}
+.brouillon-client{font-size:14px;font-weight:700;color:#0B1F3A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.brouillon-meta{font-size:11px;color:#8896A8;margin-top:2px;}
+.brouillon-montant{font-size:16px;font-weight:800;color:var(--accent);white-space:nowrap;}
+.brouillon-actions{display:flex;gap:6px;flex-shrink:0;}
+.btn-brouillon-load{padding:7px 14px;border-radius:9px;border:none;background:#1B2A4A;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.15s;}
+.btn-brouillon-load:hover{background:#243660;}
+.btn-brouillon-del{padding:7px 10px;border-radius:9px;border:1px solid rgba(239,68,68,0.2);background:rgba(239,68,68,0.06);color:#ef4444;font-size:13px;cursor:pointer;font-family:inherit;transition:all 0.15s;}
+.btn-brouillon-del:hover{background:rgba(239,68,68,0.14);border-color:rgba(239,68,68,0.4);}
+.btn-save-brouillon{width:100%;padding:13px;background:rgba(27,42,74,0.06);color:#1B2A4A;border:1.5px dashed rgba(27,42,74,0.25);border-radius:14px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:10px;transition:all 0.2s;}
+.btn-save-brouillon:hover{background:rgba(27,42,74,0.1);border-color:rgba(27,42,74,0.4);}
+.brouillon-empty{padding:20px;text-align:center;color:#8896A8;font-size:13px;}
+
 /* ══ PANIER ══ */
 .panier {
   background:#ffffff; border:1px solid rgba(0,0,0,0.07);
@@ -1775,6 +1796,22 @@ table.histo-table tr:hover td { background:#fafbff; }
 <!-- ════════════ PAGE DEVIS ════════════ -->
 <div id="page-devis" class="page">
 <div class="content">
+
+  <!-- ══ BROUILLONS ══ -->
+  <div class="brouillon-section" id="brouillon-section" style="display:none;">
+    <div class="brouillon-header" onclick="toggleBrouillons()">
+      <div class="brouillon-header-left">
+        <span>💾</span>
+        <span>Brouillons enregistrés</span>
+        <span class="brouillon-count" id="brouillon-count">0</span>
+      </div>
+      <span id="brouillon-chevron" style="font-size:16px;color:#8896A8;transition:transform 0.2s;">▾</span>
+    </div>
+    <div id="brouillon-list-container" style="display:none;">
+      <div class="brouillon-list" id="brouillon-list"></div>
+    </div>
+  </div>
+
   <!-- Infos client -->
   <div class="section">
     <div class="section-title">📋 Informations client</div>
@@ -1950,6 +1987,9 @@ table.histo-table tr:hover td { background:#fafbff; }
     </div>
   </div>
 
+  <button class="btn-save-brouillon" onclick="sauvegarderBrouillon()">
+    💾 Sauvegarder en brouillon
+  </button>
   <button class="btn-gen" id="d-btn" onclick="generer('devis')">⚡ Générer le devis</button>
   <button id="d-btn-dl" onclick="genererEtTelecharger('devis')" style="width:100%;margin-top:10px;padding:15px;background:rgba(255,255,255,0.08);border:1.5px solid rgba(232,184,75,0.3);border-radius:16px;color:var(--accent);font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;letter-spacing:0.3px;">⬇️ Générer et télécharger (WhatsApp)</button>
   <div class="status" id="d-status"></div>
@@ -2706,6 +2746,7 @@ function switchPage(page, el) {
   window.scrollTo(0, 0);
   setTimeout(() => { window.scrollTo(0, 0); if (pageEl) pageEl.scrollIntoView({ behavior:'instant', block:'start' }); }, 50);
   if (page === 'depannage') setTimeout(initDepannage, 100);
+  if (page === 'devis') setTimeout(initBrouillons, 100);
   if (page === 'accueil') setTimeout(chargerAccueil, 100);
   if (page === 'historique') setTimeout(chargerHistorique, 100);
   if (page === 'dashboard') setTimeout(chargerDashboard, 100);
@@ -3475,6 +3516,10 @@ async function envoyerDepuisPreview() {
     if (data.success) {
       showToast(`✉️ Envoyé à ${emailFinal} !`, '✅');
       shootConfetti();
+      // Vider le panier maintenant que l'envoi est confirmé
+      const prefixActuel = previewNumActuel?.startsWith('OS-') ? 'd' : 'f';
+      if (prefixActuel === 'd') { panierD = []; renderPanier('d'); }
+      else { panierF = []; renderPanier('f'); }
       fermerPreview();
     } else {
       showToast('❌ ' + (data.error || 'Erreur envoi'), '⚠️');
@@ -3514,8 +3559,9 @@ function fermerPreview() {
   if (previewBlobUrl) { URL.revokeObjectURL(previewBlobUrl); previewBlobUrl = null; }
   previewNumActuel   = null;
   previewEmailClient = null;
+  previewPdfB64      = null;
   const btn = document.getElementById('preview-btn-envoyer');
-  if (btn) { btn.disabled = false; btn.textContent = '✉️ Envoyer au client'; }
+  if (btn) { btn.disabled = false; btn.textContent = 'Envoyer le document'; }
 }
 
 
@@ -6420,6 +6466,215 @@ const GRILLE = {
 };
 
 // ═══════════════════════════════════════════════════
+// BROUILLONS
+// ═══════════════════════════════════════════════════
+const BROUILLON_KEY = 'sinelec_brouillons';
+const BROUILLON_MAX = 10;
+
+// Lire tous les brouillons depuis localStorage
+function getBrouillons() {
+  try { return JSON.parse(localStorage.getItem(BROUILLON_KEY) || '[]'); }
+  catch(e) { return []; }
+}
+
+// Sauvegarder les brouillons dans localStorage
+function setBrouillons(liste) {
+  localStorage.setItem(BROUILLON_KEY, JSON.stringify(liste));
+}
+
+// Capturer l'état complet du formulaire devis
+function capturerEtatDevis() {
+  const val = id => document.getElementById(id)?.value?.trim() || '';
+  const panier = panierD.map(p => ({...p})); // copie profonde
+  const total = panier.reduce((s,p) => s + p.prixUnit * p.qte, 0);
+  const clientNom = [val('d-civilite'), val('d-prenom'), val('d-client')].filter(Boolean).join(' ')
+    || val('d-societe') || 'Sans nom';
+  return {
+    id: Date.now(),
+    date: new Date().toISOString(),
+    label: clientNom,
+    total,
+    // Type client
+    type_client: document.getElementById('d-bloc-societe')?.style.display === 'none' ? 'particulier' : 'societe',
+    // Client
+    civilite: val('d-civilite'),
+    prenom: val('d-prenom'),
+    nom: val('d-client'),
+    societe: val('d-societe'),
+    siret: val('d-siret'),
+    // Contact
+    adresse: val('d-adresse'),
+    cp: val('d-cp'),
+    ville: val('d-ville'),
+    tel: val('d-tel'),
+    indicatif: val('d-indicatif'),
+    email: val('d-email'),
+    description: val('d-description'),
+    // Panier
+    panier,
+    // Remise
+    remise_active: document.getElementById('d-remise-bar')?.style.display !== 'none',
+    remise_val: parseFloat(val('d-remise-val')) || 0,
+    remise_type: remiseTypeD || 'pct',
+    // Intervention
+    type_intervention: typeIntervention || 'immediat',
+    date_intervention: val('d-date-intervention'),
+  };
+}
+
+// Restaurer l'état complet du formulaire devis
+function restaurerEtatDevis(data) {
+  const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
+
+  // Type client
+  setClientType('d', data.type_client || 'particulier');
+
+  // Civilité
+  if (data.civilite) setCivilite('d', data.civilite);
+
+  // Client
+  setVal('d-prenom',  data.prenom);
+  setVal('d-client',  data.nom);
+  setVal('d-societe', data.societe);
+  setVal('d-siret',   data.siret);
+
+  // Contact
+  setVal('d-adresse', data.adresse);
+  setVal('d-cp',      data.cp);
+  setVal('d-ville',   data.ville);
+  setVal('d-tel',     data.tel);
+  setVal('d-indicatif', data.indicatif || '+33');
+  setVal('d-email',   data.email);
+  setVal('d-description', data.description);
+
+  // Panier
+  panierD = (data.panier || []).map(p => ({...p}));
+  renderPanier('d');
+
+  // Remise
+  const remiseBar = document.getElementById('d-remise-bar');
+  if (data.remise_active && remiseBar) {
+    remiseBar.style.display = 'flex';
+    setVal('d-remise-val', data.remise_val);
+    setRemiseType('d', data.remise_type || 'pct');
+    document.getElementById('d-remise-btn').textContent = '✕ Retirer la remise';
+  }
+
+  // Intervention
+  setTypeIntervention(data.type_intervention || 'immediat');
+  if (data.type_intervention === 'planifie') setVal('d-date-intervention', data.date_intervention);
+
+  // Scroll en haut
+  window.scrollTo(0, 0);
+}
+
+// Sauvegarder le brouillon courant
+function sauvegarderBrouillon() {
+  // Vérifier qu'il y a au moins un client ou une prestation
+  const nom = document.getElementById('d-client')?.value.trim() || document.getElementById('d-societe')?.value.trim();
+  if (!nom && panierD.length === 0) {
+    showToast('⚠️ Remplis au moins le nom client ou une prestation', '❌');
+    return;
+  }
+  const etat = capturerEtatDevis();
+  let liste = getBrouillons();
+  // Limite à BROUILLON_MAX brouillons
+  if (liste.length >= BROUILLON_MAX) {
+    liste = liste.slice(0, BROUILLON_MAX - 1); // supprimer le plus vieux
+  }
+  liste.unshift(etat); // ajouter en tête
+  setBrouillons(liste);
+  afficherBrouillons();
+  showToast(`💾 Brouillon "${etat.label}" sauvegardé !`, '✅');
+  // Ouvrir la section brouillons si fermée
+  const container = document.getElementById('brouillon-list-container');
+  if (container && container.style.display === 'none') toggleBrouillons();
+}
+
+// Charger un brouillon dans le formulaire
+function chargerBrouillon(id) {
+  const liste = getBrouillons();
+  const b = liste.find(x => x.id === id);
+  if (!b) { showToast('Brouillon introuvable', '⚠️'); return; }
+  // Confirmation si panier non vide
+  if (panierD.length > 0) {
+    const ok = confirm(`Charger "${b.label}" ?\nTon formulaire actuel sera remplacé.`);
+    if (!ok) return;
+  }
+  restaurerEtatDevis(b);
+  showToast(`✅ Brouillon "${b.label}" chargé !`, '💾');
+  // Fermer la section brouillons
+  const container = document.getElementById('brouillon-list-container');
+  if (container) { container.style.display = 'none'; }
+  const chevron = document.getElementById('brouillon-chevron');
+  if (chevron) chevron.style.transform = 'rotate(0deg)';
+}
+
+// Supprimer un brouillon
+function supprimerBrouillon(id, event) {
+  event?.stopPropagation();
+  let liste = getBrouillons();
+  const b = liste.find(x => x.id === id);
+  if (!b) return;
+  if (!confirm(`Supprimer le brouillon "${b.label}" ?`)) return;
+  liste = liste.filter(x => x.id !== id);
+  setBrouillons(liste);
+  afficherBrouillons();
+  showToast('🗑️ Brouillon supprimé', '✅');
+}
+
+// Afficher la liste des brouillons
+function afficherBrouillons() {
+  const liste = getBrouillons();
+  const section = document.getElementById('brouillon-section');
+  const countEl = document.getElementById('brouillon-count');
+  const listEl = document.getElementById('brouillon-list');
+  if (!section) return;
+  // Afficher la section seulement s'il y a des brouillons
+  section.style.display = liste.length > 0 ? 'block' : 'none';
+  if (countEl) countEl.textContent = liste.length;
+  if (!listEl) return;
+  if (liste.length === 0) {
+    listEl.innerHTML = '<div class="brouillon-empty">Aucun brouillon sauvegardé</div>';
+    return;
+  }
+  listEl.innerHTML = liste.map(b => {
+    const date = new Date(b.date).toLocaleDateString('fr-FR', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'});
+    const nb = (b.panier||[]).length;
+    const total = Math.round(b.total || 0);
+    const prestLabel = nb > 0 ? `${nb} prestation${nb>1?'s':''}` : 'Panier vide';
+    return `
+    <div class="brouillon-card">
+      <div style="font-size:22px;">📝</div>
+      <div class="brouillon-info">
+        <div class="brouillon-client">${b.label}</div>
+        <div class="brouillon-meta">${date} · ${prestLabel}</div>
+      </div>
+      <div class="brouillon-montant">${total > 0 ? total.toLocaleString('fr-FR') + ' €' : '—'}</div>
+      <div class="brouillon-actions">
+        <button class="btn-brouillon-load" onclick="chargerBrouillon(${b.id})">Charger</button>
+        <button class="btn-brouillon-del" onclick="supprimerBrouillon(${b.id}, event)" title="Supprimer">🗑️</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// Toggle ouverture/fermeture de la section brouillons
+function toggleBrouillons() {
+  const container = document.getElementById('brouillon-list-container');
+  const chevron = document.getElementById('brouillon-chevron');
+  if (!container) return;
+  const isOpen = container.style.display !== 'none';
+  container.style.display = isOpen ? 'none' : 'block';
+  if (chevron) chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+}
+
+// Initialiser les brouillons quand la page devis s'ouvre
+function initBrouillons() {
+  afficherBrouillons();
+}
+
+// ═══════════════════════════════════════════════════
 // PANIER
 // ═══════════════════════════════════════════════════
 let panierD = [];
@@ -6900,8 +7155,8 @@ async function generer(type) {
     const data = await res.json();
     if (data.success) {
       showToast(`✅ ${type === 'devis' ? 'Devis' : 'Facture'} ${data.num} généré !`, '⚡');
-      if (type === 'devis') { panierD = []; renderPanier('d'); }
-      else { panierF = []; renderPanier('f'); }
+      // ⚠️ On ne vide PAS le panier ici — l'utilisateur peut revenir en arrière
+      // Le panier sera vidé seulement après envoi réussi (dans envoyerDepuisPreview)
       // Si modification d'un devis existant → supprimer l'ancien
       if (type === 'devis' && window._devisARemplacer && window._devisARemplacer !== data.num) {
         try {
