@@ -6741,10 +6741,11 @@ async function generer(type) {
   const _cp = document.getElementById(`${prefix}-cp`)?.value.trim() || '';
   const _ville = document.getElementById(`${prefix}-ville`)?.value.trim() || '';
   const adresse = [_rue, _cp && _ville ? `${_cp} ${_ville}` : _cp || _ville].filter(Boolean).join(', ');
-  if (!client || !adresse) { showToast('⚠️ Remplis le nom et l\'adresse !', '❌'); return; }
-  const clientNom2 = (document.getElementById(`${prefix}-client`)?.value || document.getElementById(`${prefix}-societe`)?.value || '').trim();
-  if (!clientNom2) { showToast('⚠️ Remplis le nom du client !', '❌'); return; }
-  if (!adresse) { showToast("⚠️ Remplis l'adresse !", '❌'); return; }
+  const clientNom = (document.getElementById(`${prefix}-client`)?.value || document.getElementById(`${prefix}-societe`)?.value || '').trim();
+  if (!clientNom) { showToast('⚠️ Remplis le nom du client !', '❌'); return; }
+  if (!adresse)   { showToast("⚠️ Remplis l'adresse !", '❌'); return; }
+
+  const emailVal = document.getElementById(`${prefix}-email`)?.value.trim();
   if (!emailVal) {
     const go = confirm('⚠️ Email client manquant !\n\nSans email, le client ne recevra pas son PDF.\n\nContinuer quand même ?');
     if (!go) return;
