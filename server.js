@@ -187,15 +187,15 @@ app.post('/api/generer', async (req, res) => {
     const pdiahe = isPartenaire ? (part_diahe || 60) : 100;
     const ppartenaire = isPartenaire ? (part_partenaire || 40) : 0;
 
-    await supabase.from('historique').insert({
+    const { error: insertErr } = await supabase.from('historique').upsert({
       num, type, client, email, telephone, adresse, prestations, total_ht,
       statut: 'envoye', date_envoi: new Date().toISOString(), source: 'app',
-      partenaire: isPartenaire,
-      part_diahe: pdiahe,
-      part_partenaire: ppartenaire,
+      partenaire: isPartenaire, part_diahe: pdiahe, part_partenaire: ppartenaire,
       nom_partenaire: isPartenaire ? (nom_partenaire || 'Alopronto') : null,
       intervention_type: intervention_type || 'immediat'
-    });
+    }, { onConflict: 'num' });
+    if (insertErr) console.error('INSERT échoué:', insertErr.message, num);
+    else console.log('✅ Inséré:', num);
 
     // ── UPSERT FICHE CLIENT AUTO ──────────────────
     if (client && (email || telephone)) {
@@ -466,11 +466,17 @@ app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
       .select('*')
       .eq('num', num)
       .single();
-    if (error || !doc) return res.status(404).json({ success: false, error: 'Document non trouvé' });
+    // Si doc absent de Supabase (INSERT raté) → on utilise le body si pdfB64 dispo
+    if ((error || !doc) && !req.body?.pdfB64) {
+      console.error('Doc absent + pas de PDF body:', num);
+      return res.status(400).json({ success: false, error: 'Document introuvable. Regenere le devis depuis l app.' });
+    }
+    const docData = doc || { type: num.startsWith('OS-') ? 'devis' : 'facture', client: num, email: '', total_ht: 0 };
+    if (error) console.warn('Doc absent pour', num, '- envoi avec body uniquement');
 
-    // Email : priorité au body (popup), fallback doc
-    const email = (req.body?.email || doc.email || '').trim();
-    if (!email) return res.status(400).json({ success: false, error: 'Pas d\'email pour ce client' });
+    // Email : priorite au body (popup), fallback doc
+    const email = (req.body?.email || docData.email || '').trim();
+    if (!email) return res.status(400).json({ success: false, error: 'Pas email pour ce client' });
 
     // Récupérer le PDF — priorité : body → disque → régénération automatique
     const pdfStorePath = path.join(__dirname, `${num}_stored.pdf`);
@@ -583,9 +589,9 @@ doc.build(story,canvasmaker=lambda fn,**kw:SC(fn,**kw));print('REGEN_OK')
 
     const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
     const lienSig = `${appUrl}/signer/${num}`;
-    const type = doc.type;
-    const client = doc.client;
-    const total_ht = doc.total_ht;
+    const type = docData.type;
+    const client = docData.client;
+    const total_ht = docData.total_ht;
 
     // Sujet personnalisé ou par défaut
     const sujet = (req.body?.sujet || '').trim() ||
