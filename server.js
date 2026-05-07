@@ -421,10 +421,28 @@ story.append(HRFlowable(width='100%',thickness=0.3,color=GRIS_LIGNE,spaceAfter=8
 IS_DEVIS = '${type}' == 'devis'
 IS_PAYE = False
 if IS_DEVIS:
-    story.append(p('CONDITIONS',8,'Helvetica-Bold',MARINE,sa=6))
-    cond=Table([[p('Acompte 40% a la signature',9,color=GRIS_TEXTE),p('%.2f \\u20ac'%(totalHT*0.4),9,'Helvetica-Bold',OR_FONCE,TA_RIGHT)],[p('Solde a la fin des travaux',9,color=GRIS_TEXTE),p('%.2f \\u20ac'%(totalHT*0.6),9,align=TA_RIGHT)],[p('Validite 30 jours  \\u2022  Virement, especes, CB',8,color=GRIS_SOFT),'']],colWidths=[14.2*cm,4.0*cm])
-    cond.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,1),0.3,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),('SPAN',(0,2),(1,2))]))
-    story.append(cond); story.append(Spacer(1,0.15*cm))
+    # ── CARD ACOMPTE / SOLDE ──────────────────────────
+    OR_CARD=colors.HexColor('#fffbf0')
+    OR_BORDER=colors.HexColor('#E8B84B')
+    GRIS_CARD=colors.HexColor('#f8f9fb')
+    GRIS_BORDER=colors.HexColor('#E4E7EF')
+    # Cellule acompte
+    ac_inner=[[p('ACOMPTE',7,'Helvetica-Bold',OR_FONCE,sa=2)],[p('A la signature',7,col=GRIS_SOFT,sa=1)],[p('40%',9,'Helvetica-Bold',OR_FONCE,sa=1)],[p('%.2f \u20ac'%(totalHT*0.4),14,'Helvetica-Bold',MARINE,TA_CENTER)]]
+    t_ac=Table(ac_inner,colWidths=[8.2*cm])
+    t_ac.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),OR_CARD),('BOX',(0,0),(-1,-1),1.2,OR_BORDER),('LINEBEFORE',(0,0),(0,-1),3.5,OR_BORDER),('TOPPADDING',(0,0),(-1,-1),2),('BOTTOMPADDING',(0,0),(-1,-1),2),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(0,0),10),('BOTTOMPADDING',(0,-1),(-1,-1),10),('ROWBACKGROUNDS',(0,0),(-1,-1),[OR_CARD])]))
+    # Cellule solde
+    sl_inner=[[p('SOLDE',7,'Helvetica-Bold',GRIS_SOFT,sa=2)],[p('Fin des travaux',7,col=GRIS_SOFT,sa=1)],[p('60%',9,'Helvetica-Bold',GRIS_SOFT,sa=1)],[p('%.2f \u20ac'%(totalHT*0.6),14,'Helvetica-Bold',MARINE,TA_CENTER)]]
+    t_sl=Table(sl_inner,colWidths=[8.2*cm])
+    t_sl.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GRIS_CARD),('BOX',(0,0),(-1,-1),1.0,GRIS_BORDER),('LINEBEFORE',(0,0),(0,-1),3.5,GRIS_BORDER),('TOPPADDING',(0,0),(-1,-1),2),('BOTTOMPADDING',(0,0),(-1,-1),2),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(0,0),10),('BOTTOMPADDING',(0,-1),(-1,-1),10)]))
+    # Grille 2 cartes
+    t_cards=Table([[t_ac,t_sl]],colWidths=[8.65*cm,8.65*cm])
+    t_cards.setStyle(TableStyle([('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(0,-1),7)]))
+    story.append(t_cards); story.append(Spacer(1,0.12*cm))
+    # Modes paiement chips
+    modes_data=[['\u2022 Especes','\u2022 Virement bancaire','\u2022 CB / PayPal','\u2022 Validite 30 jours']]
+    t_modes=Table(modes_data,colWidths=[3.5*cm,4.5*cm,3.2*cm,7.0*cm])
+    t_modes.setStyle(TableStyle([('FONTNAME',(0,0),(-1,-1),'Helvetica'),('FONTSIZE',(0,0),(-1,-1),7.5),('TEXTCOLOR',(0,0),(-1,-1),GRIS_SOFT),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),4)]))
+    story.append(t_modes); story.append(Spacer(1,0.2*cm))
 else:
     story.append(p('MODALITES DE PAIEMENT',8,'Helvetica-Bold',MARINE,sa=6))
     pays=Table([[p('Virement bancaire',9,color=GRIS_TEXTE),p('IBAN ci-dessous',8,color=GRIS_SOFT,align=TA_RIGHT)],[p('Especes',9,color=GRIS_TEXTE),p('Remis en main propre',8,color=GRIS_SOFT,align=TA_RIGHT)],[p('Carte bancaire',9,color=GRIS_TEXTE),p('Terminal SumUp',8,color=GRIS_SOFT,align=TA_RIGHT)]],colWidths=[8.0*cm,10.2*cm])
@@ -1339,8 +1357,24 @@ net=Table([[p('NET \\u00c0 PAYER',13,'Helvetica-Bold',BLANC),p('%.2f \\u20ac'%to
 net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('LINEBELOW',(0,0),(-1,-1),3,OR),('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
 story.append(net); story.append(Spacer(1,0.35*cm))
 story.append(HRFlowable(width='100%',thickness=0.3,color=GRIS_LIGNE,spaceAfter=8))
-cond=Table([[p('Acompte 40% a la signature',9,color=GRIS_TEXTE),p('%.2f \\u20ac'%(totalHT*0.4),9,'Helvetica-Bold',OR_FONCE,TA_RIGHT)],[p('Solde a la fin des travaux',9,color=GRIS_TEXTE),p('%.2f \\u20ac'%(totalHT*0.6),9,align=TA_RIGHT)],[p('Validite 30 jours \\u2022 Virement, especes, CB',8,color=GRIS_SOFT),'']],colWidths=[14.2*cm,4.0*cm])
-cond.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,1),0.3,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),('SPAN',(0,2),(1,2))]))
+# ── CARD ACOMPTE / SOLDE ──────────────────────────
+OR_CARD=colors.HexColor('#fffbf0')
+OR_BORDER=colors.HexColor('#E8B84B')
+GRIS_CARD=colors.HexColor('#f8f9fb')
+GRIS_BORDER=colors.HexColor('#E4E7EF')
+ac_inner=[[p('ACOMPTE',7,'Helvetica-Bold',OR_FONCE,sa=2)],[p('A la signature',7,col=GRIS_SOFT,sa=1)],[p('40%',9,'Helvetica-Bold',OR_FONCE,sa=1)],[p('%.2f \u20ac'%(totalHT*0.4),14,'Helvetica-Bold',MARINE,TA_CENTER)]]
+t_ac=Table(ac_inner,colWidths=[8.2*cm])
+t_ac.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),OR_CARD),('BOX',(0,0),(-1,-1),1.2,OR_BORDER),('LINEBEFORE',(0,0),(0,-1),3.5,OR_BORDER),('TOPPADDING',(0,0),(-1,-1),2),('BOTTOMPADDING',(0,0),(-1,-1),2),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(0,0),10),('BOTTOMPADDING',(0,-1),(-1,-1),10)]))
+sl_inner=[[p('SOLDE',7,'Helvetica-Bold',GRIS_SOFT,sa=2)],[p('Fin des travaux',7,col=GRIS_SOFT,sa=1)],[p('60%',9,'Helvetica-Bold',GRIS_SOFT,sa=1)],[p('%.2f \u20ac'%(totalHT*0.6),14,'Helvetica-Bold',MARINE,TA_CENTER)]]
+t_sl=Table(sl_inner,colWidths=[8.2*cm])
+t_sl.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GRIS_CARD),('BOX',(0,0),(-1,-1),1.0,GRIS_BORDER),('LINEBEFORE',(0,0),(0,-1),3.5,GRIS_BORDER),('TOPPADDING',(0,0),(-1,-1),2),('BOTTOMPADDING',(0,0),(-1,-1),2),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(0,0),10),('BOTTOMPADDING',(0,-1),(-1,-1),10)]))
+t_cards=Table([[t_ac,t_sl]],colWidths=[8.65*cm,8.65*cm])
+t_cards.setStyle(TableStyle([('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(0,-1),7)]))
+story.append(t_cards); story.append(Spacer(1,0.12*cm))
+modes_data=[['\u2022 Especes','\u2022 Virement bancaire','\u2022 CB / PayPal','\u2022 Validite 30 jours']]
+t_modes=Table(modes_data,colWidths=[3.5*cm,4.5*cm,3.2*cm,7.0*cm])
+t_modes.setStyle(TableStyle([('FONTNAME',(0,0),(-1,-1),'Helvetica'),('FONTSIZE',(0,0),(-1,-1),7.5),('TEXTCOLOR',(0,0),(-1,-1),GRIS_SOFT),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),4)]))
+story.append(t_modes); story.append(Spacer(1,0.2*cm))
 story.append(cond); story.append(Spacer(1,0.3*cm))
 story.append(HRFlowable(width='100%',thickness=0.5,color=VERT,spaceAfter=8))
 t_sig_lbl=Table([[p('SIGNATURE CLIENT',8,'Helvetica-Bold',VERT,sa=0)]],colWidths=[18.2*cm])
@@ -1375,6 +1409,80 @@ story.append(t_sig_final)
 iban=Table([[p('IBAN',7,'Helvetica-Bold',GRIS_SOFT),p('FR76 1695 8000 0174 2540 5920 931',9,'Helvetica-Bold',MARINE),p('BIC',7,'Helvetica-Bold',GRIS_SOFT,TA_RIGHT),p('QNTOFRP1XXX',9,'Helvetica-Bold',MARINE,TA_RIGHT)]],colWidths=[1.5*cm,9.5*cm,1.8*cm,5.4*cm])
 iban.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),OR_PALE),('BOX',(0,0),(-1,-1),0.5,OR),('LINEBEFORE',(0,0),(0,-1),4,MARINE),('TOPPADDING',(0,0),(-1,-1),9),('BOTTOMPADDING',(0,0),(-1,-1),9),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
 story.append(Spacer(1,0.2*cm)); story.append(iban)
+# ════════════════════════════════════
+# PAGE CGV
+# ════════════════════════════════════
+story.append(PageBreak())
+# Header page CGV — fond marine pleine largeur
+class CGVHeader(Flowable):
+    def __init__(self):
+        Flowable.__init__(self); self.width=18.2*cm; self.height=1.4*cm
+    def draw(self):
+        c=self.canv; c.saveState()
+        c.setFillColor(MARINE); c.rect(0,0,self.width,self.height,fill=1,stroke=0)
+        c.setFillColor(OR); c.rect(0,0,self.width,0.12*cm,fill=1,stroke=0)
+        c.setFont('Helvetica-Bold',13); c.setFillColor(BLANC)
+        c.drawString(0.4*cm,0.45*cm,'CONDITIONS GENERALES DE VENTE')
+        c.setFont('Helvetica',8); c.setFillColor(colors.HexColor('#BFC8D6'))
+        c.drawRightString(self.width-0.4*cm,0.45*cm,'SINELEC Paris • 91015824500019 • Auto-entrepreneur')
+        c.restoreState()
+story.append(CGVHeader())
+story.append(Spacer(1,0.3*cm))
+
+# Contenu CGV — 2 colonnes
+from reportlab.platypus import KeepTogether
+
+def cgv_titre(txt):
+    return Paragraph('<b>'+txt+'</b>',ParagraphStyle('ct',fontName='Helvetica-Bold',fontSize=8,textColor=MARINE,spaceBefore=8,spaceAfter=3,leading=10))
+def cgv_texte(txt):
+    return Paragraph(txt,ParagraphStyle('cx',fontName='Helvetica',fontSize=7.5,textColor=GRIS_TEXTE,spaceBefore=0,spaceAfter=3,leading=10,wordWrap='CJK'))
+
+cgv_col1 = [
+    cgv_titre('Art. 1 - Objet et champ d\'application'),
+    cgv_texte('Les presentes CGV regissent les relations contractuelles entre SINELEC, auto-entrepreneur domicilie 128 Rue La Boetie 75008 Paris (SIRET 91015824500019), ci-apres "le Prestataire", et tout client particulier ou professionnel, ci-apres "le Client". Toute acceptation d\'un devis implique l\'adhesion pleine et entiere aux presentes CGV.'),
+
+    cgv_titre('Art. 2 - Devis et commande'),
+    cgv_texte('Les devis sont etablis gratuitement et restent valables 30 jours. Ils deviennent contractuels uniquement apres signature du Client avec la mention "Bon pour accord". Toute modification demandee apres acceptation peut entrainer une revision du devis.'),
+
+    cgv_titre('Art. 3 - Prix et modalites de paiement'),
+    cgv_texte('Les prix sont exprimes en euros HT. TVA non applicable, art. 293B du CGI. Un acompte de 40% est exigible a la signature pour tout devis superieur a 400€. Le solde est du a la fin des travaux. Modes acceptes : especes, virement bancaire (IBAN FR76 1695 8000 0174 2540 5920 931), CB via terminal SumUp. Tout retard de paiement entraine des penalites de 3 fois le taux d\'interet legal.'),
+
+    cgv_titre('Art. 4 - Delais d\'execution'),
+    cgv_texte('Les delais d\'intervention sont donnes a titre indicatif et dependent des conditions d\'acces, de la disponibilite des materiaux et de la charge de travail. Aucune indemnite ne pourra etre reclamee pour un retard hors de notre volonte (approvisionnement, conditions meteorologiques, etc.).'),
+]
+
+cgv_col2 = [
+    cgv_titre('Art. 5 - Garanties et conformite'),
+    cgv_texte('Tous les travaux sont realises conformement a la norme NF C 15-100 en vigueur. SINELEC est couvert par une garantie decennale ORUS (attestation disponible sur demande). La garantie de bon fonctionnement couvre les travaux realises pendant 2 ans a compter de la reception. Elle ne couvre pas les dommages resultant d\'un usage anormal ou d\'une modification par un tiers.'),
+
+    cgv_titre('Art. 6 - Responsabilite'),
+    cgv_texte('Le Prestataire ne saurait etre tenu responsable des dommages indirects ou immateriels. Sa responsabilite est limitee au montant HT de la prestation concernee. Le Client s\'assure que les conditions d\'acces au chantier sont reunies et que les autorisations necessaires ont ete obtenues.'),
+
+    cgv_titre('Art. 7 - Droit de retractation'),
+    cgv_texte('Conformement aux articles L.221-18 et suivants du Code de la consommation, le consommateur dispose d\'un delai de 14 jours pour exercer son droit de retractation pour les contrats conclus a distance ou hors etablissement. Ce droit ne s\'applique pas si les travaux ont commence avec accord express du client avant l\'expiration du delai.'),
+
+    cgv_titre('Art. 8 - Donnees personnelles (RGPD)'),
+    cgv_texte('Les donnees collectees (nom, adresse, email, telephone) sont utilisees uniquement pour la realisation des prestations et ne sont jamais transmises a des tiers. Conformement au RGPD, le Client dispose d\'un droit d\'acces, de rectification et de suppression de ses donnees (contact : sinelec.paris@gmail.com).'),
+
+    cgv_titre('Art. 9 - Litiges'),
+    cgv_texte('En cas de litige, les parties s\'efforceront de trouver une solution amiable. A defaut, le tribunal competent sera celui du ressort du domicile du Prestataire. Pour les consommateurs, la mediation est accessible via la plateforme europeenne de reglement en ligne des litiges.'),
+]
+
+col_style = [('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(0,-1),14),('RIGHTPADDING',(1,0),(1,-1),0),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0)]
+t_cgv = Table([[cgv_col1, cgv_col2]], colWidths=[9.1*cm, 9.1*cm])
+t_cgv.setStyle(TableStyle(col_style))
+story.append(t_cgv)
+story.append(Spacer(1,0.4*cm))
+
+# Pied CGV
+story.append(HRFlowable(width='100%',thickness=0.5,color=OR,spaceAfter=8))
+cgv_pied = Table([[
+    p('Document contractuel • Signature vaut acceptation des presentes CGV',7,'Helvetica-Oblique',GRIS_SOFT),
+    p('SINELEC EI • RCS Paris • SIRET 91015824500019',7,'Helvetica',GRIS_SOFT,TA_RIGHT)
+]], colWidths=[10.0*cm,8.2*cm])
+cgv_pied.setStyle(TableStyle([('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0)]))
+story.append(cgv_pied)
+
 doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw))
 print('PDF_SIG_OK')
 `;
