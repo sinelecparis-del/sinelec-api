@@ -271,6 +271,27 @@ body {
   box-shadow:0 2px 8px rgba(0,0,0,0.08);
 }
 
+/* ══ SMS TOGGLE POPUP ══ */
+.sms-toggle-block{background:linear-gradient(135deg,#f0fff4,#ecfdf5);border:1.5px solid rgba(22,163,74,0.3);border-radius:12px;padding:12px 14px;transition:all 0.2s;}
+.sms-toggle-block.off{background:#fafafa;border-color:rgba(0,0,0,0.08);}
+.sms-toggle-row{display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;}
+.sms-toggle-left{display:flex;align-items:center;gap:10px;}
+.sms-icon-box{width:34px;height:34px;background:linear-gradient(135deg,#16a34a,#22c55e);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;transition:all 0.2s;}
+.sms-toggle-block.off .sms-icon-box{background:#e0e0e0;}
+.sms-toggle-title{font-size:13px;font-weight:700;color:#0B1F3A;}
+.sms-toggle-sub{font-size:11px;color:#16a34a;margin-top:1px;transition:color 0.2s;}
+.sms-toggle-block.off .sms-toggle-sub{color:#999;}
+.sms-switch{width:42px;height:24px;border-radius:12px;background:#16a34a;position:relative;flex-shrink:0;transition:background 0.2s;cursor:pointer;}
+.sms-switch.off{background:#e0e0e0;}
+.sms-switch-dot{width:18px;height:18px;border-radius:50%;background:#fff;position:absolute;top:3px;left:21px;transition:left 0.2s;box-shadow:0 1px 4px rgba(0,0,0,0.2);}
+.sms-switch.off .sms-switch-dot{left:3px;}
+.sms-detail{margin-top:10px;padding-top:10px;border-top:1px solid rgba(22,163,74,0.2);}
+.sms-phone-chip{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid rgba(22,163,74,0.25);border-radius:8px;padding:7px 12px;margin-bottom:8px;}
+.sms-phone-num{font-size:13px;font-weight:600;color:#0B1F3A;flex:1;}
+.sms-phone-badge{font-size:10px;font-weight:700;color:#16a34a;background:rgba(22,163,74,0.1);border-radius:20px;padding:2px 7px;}
+.sms-preview-box{background:#fff;border-radius:8px;padding:9px 12px;font-size:11px;color:#555;line-height:1.6;border-left:3px solid #16a34a;}
+.sms-preview-box strong{color:#0B1F3A;font-weight:700;}
+
 /* ══ BROUILLONS ══ */
 .brouillon-section{background:#fff;border:1.5px solid rgba(232,184,75,0.35);border-radius:16px;margin-bottom:16px;overflow:hidden;}
 .brouillon-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;cursor:pointer;background:linear-gradient(135deg,rgba(232,184,75,0.08),rgba(255,215,0,0.04));user-select:none;}
@@ -2541,6 +2562,31 @@ table.histo-table tr:hover td { background:#fafbff; }
         </button>
       </div>
 
+      <!-- ✅ NOUVEAU : Toggle SMS signature -->
+      <div class="sms-toggle-block" id="sms-toggle-block" style="display:none;">
+        <div class="sms-toggle-row" onclick="toggleSMSPreview()">
+          <div class="sms-toggle-left">
+            <div class="sms-icon-box">📱</div>
+            <div>
+              <div class="sms-toggle-title">Envoyer aussi par SMS</div>
+              <div class="sms-toggle-sub" id="sms-toggle-sub">Lien de signature direct sur le téléphone</div>
+            </div>
+          </div>
+          <div class="sms-switch" id="sms-switch"><div class="sms-switch-dot"></div></div>
+        </div>
+        <div class="sms-detail" id="sms-detail" style="display:none;">
+          <div class="sms-phone-chip">
+            <span style="font-size:14px;">📞</span>
+            <span class="sms-phone-num" id="sms-phone-display">—</span>
+            <span class="sms-phone-badge">Vérifié</span>
+          </div>
+          <div class="sms-preview-box">
+            <strong>SMS envoyé :</strong><br>
+            <span id="sms-preview-text">—</span>
+          </div>
+        </div>
+      </div>
+
       <!-- PDF viewer (masqué par défaut) -->
       <div id="preview-pdf-section" style="display:none;border-radius:12px;overflow:hidden;border:1px solid #e8e8e8;background:#f0f0f0;min-height:300px;position:relative;">
         <div id="preview-loading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;background:#f0f0f0;z-index:2;">
@@ -2572,8 +2618,8 @@ table.histo-table tr:hover td { background:#fafbff; }
           Annuler
         </button>
         <button id="preview-btn-envoyer" onclick="envoyerDepuisPreview()"
-          style="background:#1B2A4A;color:#fff;border:none;border-radius:10px;padding:11px 20px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;">
-          Envoyer le document
+          style="background:#1B2A4A;color:#fff;border:none;border-radius:10px;padding:11px 20px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;transition:background 0.2s;">
+          <span id="preview-btn-envoyer-text">Envoyer le document</span>
         </button>
       </div>
     </div>
@@ -3350,11 +3396,15 @@ let previewNumActuel  = null;
 let previewEmailClient = null;
 let previewBlobUrl     = null;
 let previewPdfB64      = null;
+let previewTelephone   = null;  // téléphone client pour SMS
+let smsPreviewActif    = false; // état du toggle SMS
 
-function ouvrirPreviewAvecActions(num, pdfB64, emailClient, type) {
+function ouvrirPreviewAvecActions(num, pdfB64, emailClient, type, telephone) {
   previewNumActuel   = num;
   previewEmailClient = emailClient;
   previewPdfB64      = pdfB64 || null;
+  previewTelephone   = telephone || null;
+  smsPreviewActif    = false; // reset à chaque ouverture
 
   const overlay = document.getElementById('popup-preview');
   const iframe  = document.getElementById('preview-iframe');
@@ -3408,6 +3458,29 @@ function ouvrirPreviewAvecActions(num, pdfB64, emailClient, type) {
   if (loading) { loading.style.display = 'flex'; loading.innerHTML = `<div style="width:36px;height:36px;border:3px solid rgba(232,184,75,0.3);border-top-color:#E8B84B;border-radius:50%;animation:spin 0.8s linear infinite;"></div><div style="font-size:12px;color:rgba(0,0,0,0.4);font-weight:600;">Chargement PDF...</div>`; }
 
   overlay.classList.add('active');
+
+  // ── Init toggle SMS ──────────────────────────────
+  const smsBlock = document.getElementById('sms-toggle-block');
+  const smsSwitch = document.getElementById('sms-switch');
+  const smsDetail = document.getElementById('sms-detail');
+  const smsPhoneDisplay = document.getElementById('sms-phone-display');
+  const smsPrevText = document.getElementById('sms-preview-text');
+  const btnTxt = document.getElementById('preview-btn-envoyer-text');
+  // Afficher le toggle seulement pour les devis ET si le client a un tel
+  if (type === 'devis' && telephone) {
+    if (smsBlock) smsBlock.style.display = 'block';
+    // Reset toggle OFF
+    if (smsSwitch) { smsSwitch.classList.add('off'); }
+    if (smsDetail) smsDetail.style.display = 'none';
+    if (smsBlock) smsBlock.classList.add('off');
+    if (smsPhoneDisplay) smsPhoneDisplay.textContent = telephone;
+    // Preview du SMS
+    const appUrl = 'https://sinelec-api-production.up.railway.app';
+    if (smsPrevText) smsPrevText.textContent = `Bonjour, votre devis SINELEC n°${num} est prêt. Signez-le ici : ${appUrl}/signer/${num} — SINELEC ⚡`;
+    if (btnTxt) btnTxt.textContent = 'Envoyer le document';
+  } else {
+    if (smsBlock) smsBlock.style.display = 'none';
+  }
 
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
   const afficherBlob = (blob) => {
@@ -3474,6 +3547,32 @@ function toggleDestinatairesSup() {
   if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
 
+function toggleSMSPreview() {
+  smsPreviewActif = !smsPreviewActif;
+  const block   = document.getElementById('sms-toggle-block');
+  const sw      = document.getElementById('sms-switch');
+  const detail  = document.getElementById('sms-detail');
+  const sub     = document.getElementById('sms-toggle-sub');
+  const btnTxt  = document.getElementById('preview-btn-envoyer-text');
+  const btn     = document.getElementById('preview-btn-envoyer');
+
+  if (smsPreviewActif) {
+    if (sw)     sw.classList.remove('off');
+    if (block)  block.classList.remove('off');
+    if (detail) detail.style.display = 'block';
+    if (sub)    sub.textContent = 'SMS + Email envoyés simultanément';
+    if (btnTxt) btnTxt.textContent = '📧 + 📱 Envoyer';
+    if (btn)    btn.style.background = 'linear-gradient(135deg,#1B2A4A 55%,#16a34a)';
+  } else {
+    if (sw)     sw.classList.add('off');
+    if (block)  block.classList.add('off');
+    if (detail) detail.style.display = 'none';
+    if (sub)    sub.textContent = 'Activer pour envoyer aussi par SMS';
+    if (btnTxt) btnTxt.textContent = 'Envoyer le document';
+    if (btn)    btn.style.background = '#1B2A4A';
+  }
+}
+
 function togglePDFPreview() {
   const section = document.getElementById('preview-pdf-section');
   if (section) section.style.display = section.style.display === 'none' ? 'block' : 'none';
@@ -3510,7 +3609,7 @@ async function envoyerDepuisPreview() {
     const res  = await fetch(`/api/envoyer/${previewNumActuel}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: emailFinal, sujet, message, cc, pdfB64: previewPdfB64 })
+      body: JSON.stringify({ email: emailFinal, sujet, message, cc, pdfB64: previewPdfB64, sms: smsPreviewActif, telephone: previewTelephone })
     });
     const data = await res.json();
     if (data.success) {
@@ -3560,8 +3659,14 @@ function fermerPreview() {
   previewNumActuel   = null;
   previewEmailClient = null;
   previewPdfB64      = null;
+  previewTelephone   = null;
+  smsPreviewActif    = false;
+  const smsBlock = document.getElementById('sms-toggle-block');
+  if (smsBlock) smsBlock.style.display = 'none';
   const btn = document.getElementById('preview-btn-envoyer');
-  if (btn) { btn.disabled = false; btn.textContent = 'Envoyer le document'; }
+  if (btn) { btn.disabled = false; btn.style.background = '#1B2A4A'; }
+  const btnTxt = document.getElementById('preview-btn-envoyer-text');
+  if (btnTxt) btnTxt.textContent = 'Envoyer le document';
 }
 
 
@@ -7166,7 +7271,9 @@ async function generer(type) {
         window._devisARemplacer = null;
       }
       // Ouvrir la prévisualisation avec actions
-      ouvrirPreviewAvecActions(data.num, data.pdf_b64, data.email_client, type);
+      // Récupérer le téléphone depuis le formulaire
+      const telForPreview = (document.getElementById(`${prefix}-tel`)?.value || '').trim();
+      ouvrirPreviewAvecActions(data.num, data.pdf_b64, data.email_client, type, telForPreview);
     } else {
       showToast('❌ ' + (data.error 
 || 'Erreur génération'), '❌');
