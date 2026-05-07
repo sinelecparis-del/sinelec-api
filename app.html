@@ -1793,7 +1793,7 @@ table.histo-table tr:hover td { background:#fafbff; }
       <input type="hidden" id="d-civilite" value="M.">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
         <div class="input-group" style="margin-bottom:0;"><label>Prénom</label><input type="text" id="d-prenom" placeholder="MARIE" oninput="this.value=this.value.toUpperCase();autocompleteClient('d',this.value,'prenom')" autocomplete="off"></div>
-        <div class="input-group" style="margin-bottom:0;">
+        <div class="input-group" style="margin-bottom:0;position:relative;">
           <label>Nom *</label>
           <input type="text" id="d-client" placeholder="DUPONT" oninput="this.value=this.value.toUpperCase();autocompleteClient('d',this.value,'nom')" autocomplete="off">
           <div id="d-client-suggestions" style="position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #E8E8EC;border-radius:12px;margin-top:4px;max-height:240px;overflow-y:auto;display:none;z-index:999;box-shadow:0 8px 24px rgba(0,0,0,0.08);"></div>
@@ -1950,7 +1950,7 @@ table.histo-table tr:hover td { background:#fafbff; }
       <input type="hidden" id="f-civilite" value="M.">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
         <div class="input-group" style="margin-bottom:0;"><label>Prénom</label><input type="text" id="f-prenom" placeholder="MARIE" oninput="this.value=this.value.toUpperCase();autocompleteClient('f',this.value,'prenom')" autocomplete="off"></div>
-        <div class="input-group" style="margin-bottom:0;">
+        <div class="input-group" style="margin-bottom:0;position:relative;">
           <label>Nom *</label>
           <input type="text" id="f-client" placeholder="DUPONT" oninput="this.value=this.value.toUpperCase();autocompleteClient('f',this.value,'nom')" autocomplete="off">
           <div id="f-client-suggestions" style="position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #E8E8EC;border-radius:12px;margin-top:4px;max-height:240px;overflow-y:auto;display:none;z-index:999;box-shadow:0 8px 24px rgba(0,0,0,0.08);"></div>
@@ -3264,10 +3264,12 @@ async function creerFicheClient(num) {
 let previewNumActuel  = null;
 let previewEmailClient = null;
 let previewBlobUrl     = null;
+let previewPdfB64      = null;
 
 function ouvrirPreviewAvecActions(num, pdfB64, emailClient, type) {
   previewNumActuel   = num;
   previewEmailClient = emailClient;
+  previewPdfB64      = pdfB64 || null;
 
   const overlay = document.getElementById('popup-preview');
   const iframe  = document.getElementById('preview-iframe');
@@ -3408,7 +3410,7 @@ async function envoyerDepuisPreview() {
     const res  = await fetch(`/api/envoyer/${previewNumActuel}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: emailFinal, sujet, message, cc })
+      body: JSON.stringify({ email: emailFinal, sujet, message, cc, pdfB64: previewPdfB64 })
     });
     const data = await res.json();
     if (data.success) {
@@ -6597,7 +6599,9 @@ async function genererEtTelecharger(type) {
   const _cp = document.getElementById(`${prefix}-cp`)?.value.trim() || '';
   const _ville = document.getElementById(`${prefix}-ville`)?.value.trim() || '';
   const adresse = [_rue, _cp && _ville ? `${_cp} ${_ville}` : _cp || _ville].filter(Boolean).join(', ');
-  if (!client || !adresse) { showToast('⚠️ Remplis le nom et l\'adresse !', '❌'); return; }
+  const clientNom = (document.getElementById(`${prefix}-client`)?.value || document.getElementById(`${prefix}-societe`)?.value || '').trim();
+  if (!clientNom) { showToast('⚠️ Remplis le nom du client !', '❌'); return; }
+  if (!adresse) { showToast("⚠️ Remplis l'adresse !", '❌'); return; }
 
   const btn = document.getElementById('f-btn-dl');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Génération...'; }
@@ -6738,7 +6742,9 @@ async function generer(type) {
   const _ville = document.getElementById(`${prefix}-ville`)?.value.trim() || '';
   const adresse = [_rue, _cp && _ville ? `${_cp} ${_ville}` : _cp || _ville].filter(Boolean).join(', ');
   if (!client || !adresse) { showToast('⚠️ Remplis le nom et l\'adresse !', '❌'); return; }
-  const emailVal = document.getElementById(`${prefix}-email`)?.value.trim();
+  const clientNom2 = (document.getElementById(`${prefix}-client`)?.value || document.getElementById(`${prefix}-societe`)?.value || '').trim();
+  if (!clientNom2) { showToast('⚠️ Remplis le nom du client !', '❌'); return; }
+  if (!adresse) { showToast("⚠️ Remplis l'adresse !", '❌'); return; }
   if (!emailVal) {
     const go = confirm('⚠️ Email client manquant !\n\nSans email, le client ne recevra pas son PDF.\n\nContinuer quand même ?');
     if (!go) return;
