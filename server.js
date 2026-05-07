@@ -654,11 +654,32 @@ doc.build(story,canvasmaker=lambda fn,**kw:SC(fn,**kw));print('REGEN_OK')
       );
     } catch(e) {}
 
+    // ── SMS signature si demandé ──────────────────────
+    if (req.body?.sms === true) {
+      const telSMS = (req.body?.telephone || docData.telephone || '').toString().trim();
+      if (telSMS && telSMS.replace(/\D/g,'').length >= 8) {
+        try {
+          const prenomSMS = (client || '').split(' ')[0] || 'Bonjour';
+          const montantSMS = parseFloat(total_ht || 0).toFixed(0);
+          const lienSMS = `${appUrl}/signer/${num}`;
+          const msgSMS = `${prenomSMS}, votre devis SINELEC n°${num} de ${montantSMS}€ est prêt. Signez-le ici : ${lienSMS} — SINELEC Paris ⚡`;
+          await envoyerSMS(telSMS, msgSMS);
+          console.log(`📱 SMS signature envoyé : ${num} → ${telSMS}`);
+        } catch(eSMS) {
+          console.error('SMS signature error:', eSMS.message);
+          // Non bloquant — l'email a déjà été envoyé
+        }
+      } else {
+        console.warn('SMS demandé mais numéro invalide:', req.body?.telephone);
+      }
+    }
+
     // Nettoyer le PDF stocké
     try { fs.unlinkSync(pdfStorePath); } catch(e) {}
 
-    console.log(`✉️ Email envoyé : ${num} → ${email}`);
-    res.json({ success: true, message: `Email envoyé à ${email}` });
+    const smsSent = req.body?.sms === true;
+    console.log(`✉️ Email envoyé : ${num} → ${email}${smsSent ? ' + 📱 SMS' : ''}`);
+    res.json({ success: true, message: `Email envoyé à ${email}${smsSent ? ' + SMS' : ''}` });
   } catch(e) {
     console.error('Envoi email:', e.message);
     res.status(500).json({ success: false, error: e.message });
