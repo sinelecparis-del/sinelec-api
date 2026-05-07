@@ -1864,9 +1864,35 @@ table.histo-table tr:hover td { background:#fafbff; }
     <span>🏷️ Remise appliquée</span>
     <span id="d-remise-montant" style="color:var(--success);">-0,00 €</span>
   </div>
-  <div id="d-total-apres-remise" style="display:none;justify-content:space-between;align-items:center;padding:8px 0;font-size:16px;font-weight:900;">
-    <span>NET À PAYER</span>
-    <span id="d-net-payer" style="color:var(--accent);">0,00 €</span>
+
+  <!-- Section paiement complète -->
+  <div style="background:linear-gradient(135deg,rgba(27,42,74,0.06),rgba(201,168,76,0.06));border:1.5px solid rgba(201,168,76,0.25);border-radius:16px;padding:14px 16px;margin-bottom:16px;">
+
+    <!-- NET À PAYER -->
+    <div id="d-net-payer" style="display:flex;justify-content:space-between;align-items:center;padding-bottom:10px;border-bottom:1px solid rgba(201,168,76,0.2);margin-bottom:10px;">
+      <span style="font-size:15px;font-weight:900;color:#1B2A4A;">🧾 NET À PAYER</span>
+      <span id="d-net-payer-amount" style="font-size:18px;font-weight:900;color:var(--accent);">0,00 €</span>
+    </div>
+
+    <!-- Acompte 40% -->
+    <div id="d-acompte-row" style="display:none;justify-content:space-between;align-items:center;padding:5px 0;">
+      <span style="font-size:13px;font-weight:700;color:var(--text-2);">📋 Acompte à la signature (40%)</span>
+      <span id="d-acompte-amount" style="font-size:14px;font-weight:800;color:#1B2A4A;">0,00 €</span>
+    </div>
+
+    <!-- Fin de travaux 60% -->
+    <div id="d-reste-row" style="display:none;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(0,0,0,0.06);margin-bottom:10px;">
+      <span style="font-size:13px;font-weight:700;color:var(--text-2);">🔧 Solde fin de travaux (60%)</span>
+      <span id="d-reste-amount" style="font-size:14px;font-weight:800;color:#1B2A4A;">0,00 €</span>
+    </div>
+
+    <!-- Modalités -->
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px;">
+      <span style="font-size:11px;color:var(--text-3);font-weight:600;">Paiement accepté :</span>
+      <span style="background:rgba(255,255,255,0.8);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:11px;font-weight:700;color:var(--text-2);">💵 Espèces</span>
+      <span style="background:rgba(255,255,255,0.8);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:11px;font-weight:700;color:var(--text-2);">🏦 Virement</span>
+      <span style="background:rgba(255,255,255,0.8);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:11px;font-weight:700;color:var(--text-2);">💳 CB / PayPal</span>
+    </div>
   </div>
 
   <!-- Toggle partenaire Alopronto -->
@@ -2010,9 +2036,27 @@ table.histo-table tr:hover td { background:#fafbff; }
     <span>🏷️ Remise appliquée</span>
     <span id="f-remise-montant" style="color:var(--success);">-0,00 €</span>
   </div>
-  <div id="f-total-apres-remise" style="display:none;justify-content:space-between;align-items:center;padding:8px 0;font-size:16px;font-weight:900;">
-    <span>NET À PAYER</span>
-    <span id="f-net-payer" style="color:var(--accent);">0,00 €</span>
+
+  <!-- Section paiement complète -->
+  <div style="background:linear-gradient(135deg,rgba(27,42,74,0.06),rgba(201,168,76,0.06));border:1.5px solid rgba(201,168,76,0.25);border-radius:16px;padding:14px 16px;margin-bottom:16px;">
+    <div id="f-net-payer" style="display:flex;justify-content:space-between;align-items:center;padding-bottom:10px;border-bottom:1px solid rgba(201,168,76,0.2);margin-bottom:10px;">
+      <span style="font-size:15px;font-weight:900;color:#1B2A4A;">🧾 NET À PAYER</span>
+      <span id="f-net-payer-amount" style="font-size:18px;font-weight:900;color:var(--accent);">0,00 €</span>
+    </div>
+    <div id="f-acompte-row" style="display:none;justify-content:space-between;align-items:center;padding:5px 0;">
+      <span style="font-size:13px;font-weight:700;color:var(--text-2);">📋 Acompte à la signature (40%)</span>
+      <span id="f-acompte-amount" style="font-size:14px;font-weight:800;color:#1B2A4A;">0,00 €</span>
+    </div>
+    <div id="f-reste-row" style="display:none;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(0,0,0,0.06);margin-bottom:10px;">
+      <span style="font-size:13px;font-weight:700;color:var(--text-2);">🔧 Solde fin de travaux (60%)</span>
+      <span id="f-reste-amount" style="font-size:14px;font-weight:800;color:#1B2A4A;">0,00 €</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px;">
+      <span style="font-size:11px;color:var(--text-3);font-weight:600;">Paiement accepté :</span>
+      <span style="background:rgba(255,255,255,0.8);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:11px;font-weight:700;color:var(--text-2);">💵 Espèces</span>
+      <span style="background:rgba(255,255,255,0.8);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:11px;font-weight:700;color:var(--text-2);">🏦 Virement</span>
+      <span style="background:rgba(255,255,255,0.8);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:11px;font-weight:700;color:var(--text-2);">💳 CB / PayPal</span>
+    </div>
   </div>
   <button class="btn-gen" id="f-btn" onclick="generer('facture')">💶 Générer et envoyer la facture</button>
   <button id="f-btn-dl" onclick="genererEtTelecharger('facture')" style="width:100%;margin-top:10px;padding:15px;background:rgba(255,255,255,0.08);border:1.5px solid rgba(232,184,75,0.3);border-radius:16px;color:var(--accent);font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;letter-spacing:0.3px;">⬇️ Générer et télécharger (WhatsApp)</button>
@@ -6457,10 +6501,7 @@ function renderPanier(prefix) {
     itemsDiv.innerHTML = '<div class="panier-empty">Aucune prestation ajoutée</div>';
     countEl.textContent = '0 prestation(s)';
     totalEl.textContent = '0,00 €';
-    const remiseLine = document.getElementById(`${prefix}-remise-line`);
-    const netDiv = document.getElementById(`${prefix}-total-apres-remise`);
-    if (remiseLine) remiseLine.style.display = 'none';
-    if (netDiv) netDiv.style.display = 'none';
+    rafraichirTotaux(prefix, 0);
     return;
   }
 
@@ -6487,12 +6528,13 @@ function renderPanier(prefix) {
           <span class="qte-val">${item.qte}</span>
           <button class="qte-btn" onclick="changeQte('${prefix}',${idx},1)">+</button>
         </div>
-        <div style="display:flex;align-items:center;gap:4px;">
+      <div style="display:flex;align-items:center;gap:4px;">
           <input type="number" value="${item.prixUnit}" min="0" step="5"
-            onchange="modifierPrix('${prefix}',${idx},this.value)" onclick="this.select()"
+            oninput="modifierPrix('${prefix}',${idx},this.value)" onclick="this.select()"
             style="width:72px;text-align:right;padding:4px 6px;border-radius:8px;border:1.5px solid var(--accent);background:rgba(255,255,255,0.9);color:var(--accent);font-weight:700;font-size:13px;outline:none;">
           <span style="font-size:12px;color:var(--text-3);">€</span>
         </div>
+        <span id="${prefix}-subtotal-${idx}" style="font-size:12px;font-weight:800;color:var(--text-2);min-width:52px;text-align:right;">${subtotal.toFixed(0)} €</span>
         <button class="del-btn" onclick="removeFromPanier('${prefix}',${idx})">×</button>
       </div>
       <textarea data-idx="${idx}"
@@ -6508,24 +6550,39 @@ function renderPanier(prefix) {
 
   countEl.textContent = `${panier.length} prestation(s)`;
   totalEl.textContent = `${total.toFixed(2)} €`;
-
-  const remise = getRemise(prefix, total);
-  const remiseLine = document.getElementById(`${prefix}-remise-line`);
-  const remiseMontant = document.getElementById(`${prefix}-remise-montant`);
-  const netPayer = document.getElementById(`${prefix}-net-payer`);
-  const netDiv = document.getElementById(`${prefix}-total-apres-remise`);
-  if (remise > 0) {
-    if (remiseLine) remiseLine.style.display = 'flex';
-    if (remiseMontant) remiseMontant.textContent = `-${remise.toFixed(2)} €`;
-    if (netPayer) netPayer.textContent = `${(total - remise).toFixed(2)} €`;
-    if (netDiv) netDiv.style.display = 'flex';
-  } else {
-    if (remiseLine) remiseLine.style.display = 'none';
-    if (netDiv) netDiv.style.display = 'none';
-  }
+  rafraichirTotaux(prefix, total);
 }
 
-// ── CORRECTION BUG 2 : modifierDesc sauvegarde en temps réel
+function rafraichirTotaux(prefix, total) {
+  const remise       = getRemise(prefix, total);
+  const netApayer    = total - remise;
+  const acompte40    = netApayer * 0.4;
+  const reste60      = netApayer * 0.6;
+  const showDetails  = netApayer > 0;
+
+  // Remise
+  const remiseLine   = document.getElementById(`${prefix}-remise-line`);
+  const remiseMontant= document.getElementById(`${prefix}-remise-montant`);
+  if (remiseLine)    remiseLine.style.display    = remise > 0 ? 'flex' : 'none';
+  if (remiseMontant) remiseMontant.textContent   = `-${remise.toFixed(2)} €`;
+
+  // NET À PAYER — toujours visible
+  const netPayerEl   = document.getElementById(`${prefix}-net-payer`);
+  const netPayerAmt  = document.getElementById(`${prefix}-net-payer-amount`);
+  if (netPayerEl)   netPayerEl.style.display    = 'flex';
+  if (netPayerAmt)  netPayerAmt.textContent     = `${netApayer.toFixed(2)} €`;
+
+  // Acompte 40% + Solde 60% — visibles dès qu'il y a un montant
+  const acompteRow   = document.getElementById(`${prefix}-acompte-row`);
+  const acompteAmt   = document.getElementById(`${prefix}-acompte-amount`);
+  const resteRow     = document.getElementById(`${prefix}-reste-row`);
+  const resteAmt     = document.getElementById(`${prefix}-reste-amount`);
+  if (acompteRow)   acompteRow.style.display    = showDetails ? 'flex' : 'none';
+  if (acompteAmt)   acompteAmt.textContent      = `${acompte40.toFixed(2)} €`;
+  if (resteRow)     resteRow.style.display      = showDetails ? 'flex' : 'none';
+  if (resteAmt)     resteAmt.textContent        = `${reste60.toFixed(2)} €`;
+}
+
 function modifierDesc(prefix, idx, valeur) {
   const panier = prefix === 'd' ? panierD : panierF;
   if (panier[idx] !== undefined) panier[idx].desc = valeur;
@@ -6533,9 +6590,17 @@ function modifierDesc(prefix, idx, valeur) {
 
 function modifierPrix(prefix, idx, valeur) {
   const panier = prefix === 'd' ? panierD : panierF;
-  if (panier[idx]) panier[idx].prixUnit = parseFloat(valeur) || 0;
-  if (prefix === 'd') panierD = panier; else panierF = panier;
-  renderPanier(prefix);
+  if (!panier[idx]) return;
+  const newPrix = parseFloat(valeur) || 0;
+  panier[idx].prixUnit = newPrix;
+  // Mettre à jour le sous-total de cette ligne
+  const subtotalEl = document.getElementById(`${prefix}-subtotal-${idx}`);
+  if (subtotalEl) subtotalEl.textContent = `${(newPrix * panier[idx].qte).toFixed(0)} €`;
+  // Recalculer les totaux sans re-rendre tout le DOM
+  const total = panier.reduce((s, p) => s + p.prixUnit * p.qte, 0);
+  const totalEl = document.getElementById(`${prefix}-total`);
+  if (totalEl) totalEl.textContent = `${total.toFixed(2)} €`;
+  rafraichirTotaux(prefix, total);
 }
 
 function changeQte(prefix, idx, delta) {
