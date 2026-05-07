@@ -3335,6 +3335,12 @@ function ouvrirPreviewAvecActions(num, pdfB64, emailClient, type) {
     }
   };
 
+  const blobToB64 = (blob) => new Promise(resolve => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result.split(',')[1]);
+    r.readAsDataURL(blob);
+  });
+
   if (pdfB64) {
     try {
       const byteArr = Uint8Array.from(atob(pdfB64), c => c.charCodeAt(0));
@@ -3345,7 +3351,11 @@ function ouvrirPreviewAvecActions(num, pdfB64, emailClient, type) {
   } else {
     fetch(`/api/pdf/${num}`)
       .then(r => { if (!r.ok) throw new Error('PDF non disponible'); return r.blob(); })
-      .then(blob => afficherBlob(blob))
+      .then(async (blob) => {
+        // Stocker en base64 pour l'envoi email
+        previewPdfB64 = await blobToB64(blob);
+        afficherBlob(blob);
+      })
       .catch(() => { if (loading) loading.innerHTML = `<div style="color:#dc2626;font-size:13px;">❌ PDF non disponible</div>`; });
   }
 }
@@ -3402,6 +3412,11 @@ async function envoyerDepuisPreview() {
 
   if (!emailFinal || emailFinal === '—') {
     showToast('⚠️ Renseigne l\'email du destinataire', '⚠️');
+    return;
+  }
+
+  if (!previewPdfB64) {
+    showToast('⏳ PDF encore en chargement, réessaie dans 2s', '⚠️');
     return;
   }
 
