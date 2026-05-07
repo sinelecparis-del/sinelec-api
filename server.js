@@ -614,16 +614,26 @@ doc.build(story,canvasmaker=lambda fn,**kw:SC(fn,**kw));print('REGEN_OK')
     const sujet = (req.body?.sujet || '').trim() ||
       `${type === 'devis' ? 'Devis' : 'Facture'} SINELEC ${num}`;
 
-    // Message personnalisé ou template par défaut
-    let htmlFinal;
-    if (req.body?.message && req.body.message.trim()) {
-      const msgTexte = req.body.message.trim().replace(/\n/g, '<br>');
-      htmlFinal = `<div style="font-family:Arial,sans-serif;font-size:14px;color:#333;line-height:1.6;">${msgTexte}<br><br><p style="font-size:12px;color:#888;">Ce document est joint en pièce jointe au format PDF.</p></div>`;
-    } else {
-      htmlFinal = (type === 'devis' ? CONFIG.email.template_devis : CONFIG.email.template_facture)
-        .replace(/\{num\}/g, num)
-        .replace(/\{lien_signature\}/g, lienSig);
-    }
+    // Email : message perso + TOUJOURS le bouton signature pour les devis
+    const msgTexte = (req.body?.message || '').trim().replace(/\n/g, '<br>');
+    const boutonSignature = type === 'devis' ? `
+      <div style="background:#fffbf0;border:1.5px solid #C9A84C;border-radius:12px;padding:20px;text-align:center;margin:24px 0;">
+        <p style="font-size:13px;color:#555;margin-bottom:14px;">Pour accepter ce devis, signez-le directement en ligne :</p>
+        <a href="${lienSig}" style="background:linear-gradient(135deg,#C9A84C,#daa520);color:#fff;text-decoration:none;border-radius:10px;padding:14px 28px;font-size:15px;font-weight:800;display:inline-block;">✍️ Signer le devis en ligne</a>
+        <p style="font-size:11px;color:#aaa;margin-top:10px;">Signature électronique valide — Loi n°2000-230</p>
+      </div>` : '';
+    const htmlFinal = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;">
+      <div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:22px;text-align:center;border-radius:10px 10px 0 0;">
+        <div style="font-size:28px;">${type === 'devis' ? '⚡' : '💶'}</div>
+        <h2 style="color:#fff;margin:6px 0 0;font-size:17px;">SINELEC Paris</h2>
+      </div>
+      <div style="padding:24px;border:1px solid #e8e8e8;border-top:none;border-radius:0 0 10px 10px;">
+        ${msgTexte ? `<p style="font-size:14px;color:#333;line-height:1.7;white-space:pre-line;">${msgTexte}</p>` : `<p style="font-size:14px;color:#333;">Bonjour,<br><br>Veuillez trouver ci-joint votre ${type === 'devis' ? 'devis' : 'facture'} n° <strong>${num}</strong>.</p>`}
+        ${boutonSignature}
+        <p style="font-size:12px;color:#aaa;margin-top:16px;">📎 PDF joint en pièce jointe<br>📞 07 87 38 86 22 | sinelec.paris@gmail.com</p>
+      </div>
+      <p style="font-size:10px;color:#ccc;text-align:center;margin-top:8px;">SINELEC Paris • 128 Rue La Boétie 75008 Paris • SIRET : 91015824500019</p>
+    </div>`;
 
     // Envoyer au client
     await envoyerEmail(email, sujet, htmlFinal, { content: pdfB64, name: `${num}.pdf` });
