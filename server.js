@@ -796,7 +796,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       </div>
 
       <div class="err-msg" id="err-cgv">Veuillez cocher les 3 cases pour continuer.</div>
-      <button class="btn-otp" id="btn-get-otp" onclick="signerDirectement()">✍️ Signer le devis</button>
+      <button class="btn-otp" id="btn-get-otp" onclick="demarrerSignature()">✍️ Signer le devis</button>
       <p style="font-size:11px;color:#bbb;text-align:center;margin-top:8px;">Un code à 6 chiffres sera envoyé au ${telMasque}</p>
     </div>
 
@@ -854,17 +854,30 @@ function toggleCGV(i) {
   document.getElementById('err-cgv').style.display = 'none';
 }
 
-// ── OTP — DEMANDE ──
-async function signerDirectement() {
-  // Vérifier CGV cochées
-  const cgvOk = ['cgv1','cgv2','cgv3'].every(id => document.getElementById(id)?.checked);
-  if (!cgvOk) { document.getElementById('err-cgv').style.display='block'; return; }
+// ── DÉMARRER SIGNATURE ──
+async function demarrerSignature() {
+  if (!cgvChecked.every(v => v)) { document.getElementById('err-cgv').style.display='block'; return; }
   document.getElementById('err-cgv').style.display='none';
-  // Afficher la zone de signature directement
-  document.getElementById('section-otp').style.display = 'none';
-  document.getElementById('section-sig').style.display = 'block';
-  document.getElementById('section-sig').scrollIntoView({behavior:'smooth'});
-  setTimeout(initSignaturePad, 100);
+  await demanderOTP(false);
+}
+// Bypass sans téléphone
+async function signerSansOTP() {
+  try {
+    const r = await fetch('/api/otp-signature', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'bypass', num: '${num}' })
+    });
+    const d = await r.json();
+    if (d.success) {
+      otpToken = d.token;
+      document.getElementById('section-cgv').style.display = 'none';
+      document.getElementById('section-sig').style.display = 'block';
+      document.getElementById('step1').classList.add('done');
+      document.getElementById('step2').classList.add('done');
+      document.getElementById('step3').classList.add('active');
+      setTimeout(initCanvas, 200);
+    } else { alert(d.error || 'Erreur. Contactez SINELEC : 07 87 38 86 22'); }
+  } catch(e) { alert('Erreur réseau. Réessayez.'); }
 }
 
 async function demanderOTP(resend) {
@@ -889,7 +902,7 @@ async function demanderOTP(resend) {
       if (resend) { btn.disabled = false; btn.textContent = '📱 Recevoir mon code de vérification'; }
     } else {
       btn.disabled = false; btn.textContent = '📱 Recevoir mon code de vérification';
-      alert(d.error || 'Erreur envoi SMS. Réessayez.');
+      if (d.error && d.error.includes('phone')) { signerSansOTP(); } else { alert(d.error || 'Erreur envoi SMS. Réessayez.'); }
     }
   } catch(e) {
     btn.disabled = false; btn.textContent = '📱 Recevoir mon code de vérification';
@@ -1014,7 +1027,8 @@ app.post('/api/otp-signature', async (req, res) => {
     const { data: devis } = await supabase.from('historique').select('telephone,statut,client').eq('num', num).single();
     if (!devis) return res.status(404).json({ error: 'Devis introuvable' });
     if (devis.statut === 'signe' || devis.statut === 'signé') return res.status(400).json({ error: 'Devis déjà signé' });
-    if (!devis.telephone) return res.status(400).json({ error: 'Numéro de téléphone manquant sur ce devis' });
+    const telValide = devis.telephone && String(devis.telephone).replace(/\D/g,'').length >= 8;
+    if (!telValide) return res.status(400).json({ error: 'Numéro de téléphone manquant sur ce devis' });
 
     if (action === 'send') {
       // Générer code 6 chiffres aléatoire
@@ -1083,6 +1097,14 @@ app.post('/api/otp-signature', async (req, res) => {
       return res.json({ success: true, token: otpToken });
     }
 
+    // Bypass sans téléphone
+    if (action === 'bypass') {
+      const tokenPayload = JSON.stringify({ num, bypass: true, exp: Date.now() + 30 * 60 * 1000 });
+      const tokenB64 = Buffer.from(tokenPayload).toString('base64');
+      const tokenSig = require('crypto').createHmac('sha256', JWT_SECRET).update(tokenB64).digest('hex');
+      return res.json({ success: true, token: `${tokenB64}.${tokenSig}` });
+    }
+
     return res.status(400).json({ error: 'Action inconnue' });
   } catch(e) {
     console.error('OTP error:', e.message);
@@ -1095,8 +1117,8 @@ app.post('/api/signature', async (req, res) => {
   try {
     const { num, signature, cgv_acceptees, otp_token } = req.body;
 
-    // Vérifier le token OTP
-    if (!otp_token) return res.status(403).json({ error: 'Token OTP manquant. Recommencez la vérification.' });
+    // Vérifier le token OTP (ou bypass sans téléphone)
+    if (!otp_token) return res.status(403).json({ error: 'Token manquant. Recommencez.' });
     try {
       const [b64, sig] = otp_token.split('.');
       const expectedSig = require('crypto').createHmac('sha256', JWT_SECRET).update(b64).digest('hex');
@@ -1104,7 +1126,7 @@ app.post('/api/signature', async (req, res) => {
       const payload = JSON.parse(Buffer.from(b64, 'base64').toString());
       if (payload.num !== num) return res.status(403).json({ error: 'Token invalide pour ce devis' });
       if (Date.now() > payload.exp) return res.status(403).json({ error: 'Session expirée. Recommencez.' });
-    } catch(e) { return res.status(403).json({ error: 'Token corrompu' }); }
+    } catch(e) { return res.status(403).json({ error: 'Token invalide' }); }
 
     const now = new Date();
     const ipClient = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || 'N/A';
