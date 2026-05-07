@@ -427,11 +427,11 @@ if IS_DEVIS:
     GRIS_CARD=colors.HexColor('#f8f9fb')
     GRIS_BORDER=colors.HexColor('#E4E7EF')
     # Cellule acompte
-    ac_inner=[[p('ACOMPTE',7,'Helvetica-Bold',OR_FONCE,sa=2)],[p('A la signature',7,col=GRIS_SOFT,sa=1)],[p('40%',9,'Helvetica-Bold',OR_FONCE,sa=1)],[p('%.2f \u20ac'%(totalHT*0.4),14,'Helvetica-Bold',MARINE,TA_CENTER)]]
+    ac_inner=[[p('ACOMPTE',7,'Helvetica-Bold',OR_FONCE,sa=2)],[p('A la signature',7,color=GRIS_SOFT,sa=1)],[p('40%',9,'Helvetica-Bold',OR_FONCE,sa=1)],[p('%.2f \u20ac'%(totalHT*0.4),14,'Helvetica-Bold',MARINE,TA_CENTER)]]
     t_ac=Table(ac_inner,colWidths=[8.2*cm])
     t_ac.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),OR_CARD),('BOX',(0,0),(-1,-1),1.2,OR_BORDER),('LINEBEFORE',(0,0),(0,-1),3.5,OR_BORDER),('TOPPADDING',(0,0),(-1,-1),2),('BOTTOMPADDING',(0,0),(-1,-1),2),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(0,0),10),('BOTTOMPADDING',(0,-1),(-1,-1),10),('ROWBACKGROUNDS',(0,0),(-1,-1),[OR_CARD])]))
     # Cellule solde
-    sl_inner=[[p('SOLDE',7,'Helvetica-Bold',GRIS_SOFT,sa=2)],[p('Fin des travaux',7,col=GRIS_SOFT,sa=1)],[p('60%',9,'Helvetica-Bold',GRIS_SOFT,sa=1)],[p('%.2f \u20ac'%(totalHT*0.6),14,'Helvetica-Bold',MARINE,TA_CENTER)]]
+    sl_inner=[[p('SOLDE',7,'Helvetica-Bold',GRIS_SOFT,sa=2)],[p('Fin des travaux',7,color=GRIS_SOFT,sa=1)],[p('60%',9,'Helvetica-Bold',GRIS_SOFT,sa=1)],[p('%.2f \u20ac'%(totalHT*0.6),14,'Helvetica-Bold',MARINE,TA_CENTER)]]
     t_sl=Table(sl_inner,colWidths=[8.2*cm])
     t_sl.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GRIS_CARD),('BOX',(0,0),(-1,-1),1.0,GRIS_BORDER),('LINEBEFORE',(0,0),(0,-1),3.5,GRIS_BORDER),('TOPPADDING',(0,0),(-1,-1),2),('BOTTOMPADDING',(0,0),(-1,-1),2),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(0,0),10),('BOTTOMPADDING',(0,-1),(-1,-1),10)]))
     # Grille 2 cartes
@@ -1362,10 +1362,10 @@ OR_CARD=colors.HexColor('#fffbf0')
 OR_BORDER=colors.HexColor('#E8B84B')
 GRIS_CARD=colors.HexColor('#f8f9fb')
 GRIS_BORDER=colors.HexColor('#E4E7EF')
-ac_inner=[[p('ACOMPTE',7,'Helvetica-Bold',OR_FONCE,sa=2)],[p('A la signature',7,col=GRIS_SOFT,sa=1)],[p('40%',9,'Helvetica-Bold',OR_FONCE,sa=1)],[p('%.2f \u20ac'%(totalHT*0.4),14,'Helvetica-Bold',MARINE,TA_CENTER)]]
+ac_inner=[[p('ACOMPTE',7,'Helvetica-Bold',OR_FONCE,sa=2)],[p('A la signature',7,color=GRIS_SOFT,sa=1)],[p('40%',9,'Helvetica-Bold',OR_FONCE,sa=1)],[p('%.2f \u20ac'%(totalHT*0.4),14,'Helvetica-Bold',MARINE,TA_CENTER)]]
 t_ac=Table(ac_inner,colWidths=[8.2*cm])
 t_ac.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),OR_CARD),('BOX',(0,0),(-1,-1),1.2,OR_BORDER),('LINEBEFORE',(0,0),(0,-1),3.5,OR_BORDER),('TOPPADDING',(0,0),(-1,-1),2),('BOTTOMPADDING',(0,0),(-1,-1),2),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(0,0),10),('BOTTOMPADDING',(0,-1),(-1,-1),10)]))
-sl_inner=[[p('SOLDE',7,'Helvetica-Bold',GRIS_SOFT,sa=2)],[p('Fin des travaux',7,col=GRIS_SOFT,sa=1)],[p('60%',9,'Helvetica-Bold',GRIS_SOFT,sa=1)],[p('%.2f \u20ac'%(totalHT*0.6),14,'Helvetica-Bold',MARINE,TA_CENTER)]]
+sl_inner=[[p('SOLDE',7,'Helvetica-Bold',GRIS_SOFT,sa=2)],[p('Fin des travaux',7,color=GRIS_SOFT,sa=1)],[p('60%',9,'Helvetica-Bold',GRIS_SOFT,sa=1)],[p('%.2f \u20ac'%(totalHT*0.6),14,'Helvetica-Bold',MARINE,TA_CENTER)]]
 t_sl=Table(sl_inner,colWidths=[8.2*cm])
 t_sl.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GRIS_CARD),('BOX',(0,0),(-1,-1),1.0,GRIS_BORDER),('LINEBEFORE',(0,0),(0,-1),3.5,GRIS_BORDER),('TOPPADDING',(0,0),(-1,-1),2),('BOTTOMPADDING',(0,0),(-1,-1),2),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(0,0),10),('BOTTOMPADDING',(0,-1),(-1,-1),10)]))
 t_cards=Table([[t_ac,t_sl]],colWidths=[8.65*cm,8.65*cm])
@@ -1564,11 +1564,20 @@ app.get('/api/historique', async (req, res) => {
 });
 
 app.delete('/api/historique/:num', async (req, res) => {
+  const { num } = req.params;
   try {
-    const { error } = await supabase.from('historique').delete().eq('num', req.params.num);
-    if (error) throw error;
+    console.log(`🗑️ Suppression demandée : ${num}`);
+    const { error, data } = await supabase.from('historique').delete().eq('num', num).select();
+    if (error) {
+      console.error(`❌ Supabase delete error pour ${num}:`, error.message, error.code);
+      return res.status(500).json({ error: error.message });
+    }
+    console.log(`✅ Supprimé : ${num} — ${JSON.stringify(data)}`);
     res.json({ success: true });
-  } catch(error) { res.status(500).json({ error: error.message }); }
+  } catch(e) {
+    console.error(`❌ Delete catch pour ${num}:`, e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.patch('/api/historique/:num/statut', async (req, res) => {
