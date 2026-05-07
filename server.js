@@ -187,15 +187,32 @@ app.post('/api/generer', async (req, res) => {
     const pdiahe = isPartenaire ? (part_diahe || 60) : 100;
     const ppartenaire = isPartenaire ? (part_partenaire || 40) : 0;
 
-    const { error: insertErr } = await supabase.from('historique').upsert({
+    // ── INSERT HISTORIQUE AVEC FALLBACK ──────────────
+    // Tentative 1 : payload complet
+    let insertOk = false;
+    const payloadComplet = {
       num, type, client, email, telephone, adresse, prestations, total_ht,
       statut: 'envoye', date_envoi: new Date().toISOString(), source: 'app',
       partenaire: isPartenaire, part_diahe: pdiahe, part_partenaire: ppartenaire,
       nom_partenaire: isPartenaire ? (nom_partenaire || 'Alopronto') : null,
       intervention_type: intervention_type || 'immediat'
-    }, { onConflict: 'num' });
-    if (insertErr) console.error('INSERT échoué:', insertErr.message, num);
-    else console.log('✅ Inséré:', num);
+    };
+    const { error: insertErr1 } = await supabase.from('historique').upsert(payloadComplet, { onConflict: 'num' });
+    if (!insertErr1) {
+      insertOk = true;
+      console.log('✅ Historique inséré (complet):', num);
+    } else {
+      console.warn('⚠️ Insert complet échoué:', insertErr1.message, '— tentative payload minimal');
+      // Tentative 2 : payload minimal (colonnes de base uniquement)
+      const payloadMinimal = { num, type, client, email, telephone, adresse, prestations, total_ht, statut: 'envoye', date_envoi: new Date().toISOString(), source: 'app' };
+      const { error: insertErr2 } = await supabase.from('historique').upsert(payloadMinimal, { onConflict: 'num' });
+      if (!insertErr2) {
+        insertOk = true;
+        console.log('✅ Historique inséré (minimal):', num);
+      } else {
+        console.error('❌ INSERT historique échoué (2 tentatives):', insertErr2.message, '— num:', num, '— VERIFIER TABLE SUPABASE');
+      }
+    }
 
     // ── UPSERT FICHE CLIENT AUTO ──────────────────
     if (client && (email || telephone)) {
