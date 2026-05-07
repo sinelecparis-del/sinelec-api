@@ -633,6 +633,7 @@ doc.build(story,canvasmaker=lambda fn,**kw:SC(fn,**kw));print('REGEN_OK')
         <p style="font-size:12px;color:#aaa;margin-top:16px;">📎 PDF joint en pièce jointe<br>📞 07 87 38 86 22 | sinelec.paris@gmail.com</p>
       </div>
       <p style="font-size:10px;color:#ccc;text-align:center;margin-top:8px;">SINELEC Paris • 128 Rue La Boétie 75008 Paris • SIRET : 91015824500019</p>
+      <img src="${appUrl}/api/track/open/${num}" width="1" height="1" style="display:none;width:1px;height:1px;opacity:0;" alt="">
     </div>`;
 
     // Envoyer au client
@@ -662,6 +663,34 @@ doc.build(story,canvasmaker=lambda fn,**kw:SC(fn,**kw));print('REGEN_OK')
     console.error('Envoi email:', e.message);
     res.status(500).json({ success: false, error: e.message });
   }
+});
+
+// ═══════════════════════════════════════════════════
+// TRACKING OUVERTURE EMAIL
+// ═══════════════════════════════════════════════════
+
+// Pixel espion 1x1 — enregistre quand le client ouvre l'email
+app.get('/api/track/open/:num', async (req, res) => {
+  const { num } = req.params;
+  // GIF transparent 1x1
+  const gif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
+  res.set({ 'Content-Type': 'image/gif', 'Cache-Control': 'no-cache, no-store', 'Pragma': 'no-cache' });
+  res.send(gif);
+  // Enregistrer l'ouverture en arrière-plan
+  setImmediate(async () => {
+    try {
+      const { data: doc } = await supabase.from('historique').select('email_ouvert, nb_ouvertures, premiere_ouverture').eq('num', num).single();
+      if (!doc) return;
+      const now = new Date().toISOString();
+      await supabase.from('historique').update({
+        email_ouvert: true,
+        nb_ouvertures: (doc.nb_ouvertures || 0) + 1,
+        premiere_ouverture: doc.premiere_ouverture || now,
+        derniere_ouverture: now
+      }).eq('num', num);
+      console.log(`👁️ Email ouvert : ${num} (${(doc.nb_ouvertures||0)+1}x)`);
+    } catch(e) {}
+  });
 });
 
 // ═══════════════════════════════════════════════════
