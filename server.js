@@ -468,16 +468,18 @@ app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
       .single();
     if (error || !doc) return res.status(404).json({ success: false, error: 'Document non trouvé' });
 
-    const email = doc.email;
+    // Email : priorité au body (popup), fallback doc
+    const email = (req.body?.email || doc.email || '').trim();
     if (!email) return res.status(400).json({ success: false, error: 'Pas d\'email pour ce client' });
 
-    // Récupérer le PDF stocké
+    // Récupérer le PDF — priorité : body (popup) → fichier disque
     const pdfStorePath = path.join(__dirname, `${num}_stored.pdf`);
     let pdfB64;
-    if (fs.existsSync(pdfStorePath)) {
+    if (req.body?.pdfB64) {
+      pdfB64 = req.body.pdfB64;
+    } else if (fs.existsSync(pdfStorePath)) {
       pdfB64 = fs.readFileSync(pdfStorePath).toString('base64');
     } else {
-      // Fallback : régénérer depuis /api/pdf/:num
       return res.status(404).json({ success: false, error: 'PDF non trouvé — régénère le document' });
     }
 
@@ -486,23 +488,36 @@ app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
     const type = doc.type;
     const client = doc.client;
     const total_ht = doc.total_ht;
-    const htmlFinal = (type === 'devis' ? CONFIG.email.template_devis : CONFIG.email.template_facture)
-      .replace(/\{num\}/g, num)
-      .replace(/\{lien_signature\}/g, lienSig);
+
+    // Sujet personnalisé ou par défaut
+    const sujet = (req.body?.sujet || '').trim() ||
+      `${type === 'devis' ? 'Devis' : 'Facture'} SINELEC ${num}`;
+
+    // Message personnalisé ou template par défaut
+    let htmlFinal;
+    if (req.body?.message && req.body.message.trim()) {
+      const msgTexte = req.body.message.trim().replace(/\n/g, '<br>');
+      htmlFinal = `<div style="font-family:Arial,sans-serif;font-size:14px;color:#333;line-height:1.6;">${msgTexte}<br><br><p style="font-size:12px;color:#888;">Ce document est joint en pièce jointe au format PDF.</p></div>`;
+    } else {
+      htmlFinal = (type === 'devis' ? CONFIG.email.template_devis : CONFIG.email.template_facture)
+        .replace(/\{num\}/g, num)
+        .replace(/\{lien_signature\}/g, lienSig);
+    }
 
     // Envoyer au client
-    await envoyerEmail(
-      email,
-      `${type === 'devis' ? 'Devis' : 'Facture'} SINELEC ${num}`,
-      htmlFinal,
-      { content: pdfB64, name: `${num}.pdf` }
-    );
+    await envoyerEmail(email, sujet, htmlFinal, { content: pdfB64, name: `${num}.pdf` });
+
+    // CC si renseigné
+    if (req.body?.cc) {
+      try { await envoyerEmail(req.body.cc.trim(), sujet, htmlFinal, { content: pdfB64, name: `${num}.pdf` }); } catch(e) {}
+    }
+
     // Copie à Diahe
     try {
       await envoyerEmail(
         'sinelec.paris@gmail.com',
         `${type === 'devis' ? '📋 DEVIS' : '💶 FACTURE'} ${num} — ${client} — ${parseFloat(total_ht).toFixed(0)}€`,
-        `<p>Client: ${client} | Montant: ${parseFloat(total_ht).toFixed(2)}€</p>`,
+        `<p>Client: ${client} | Email: ${email} | Montant: ${parseFloat(total_ht).toFixed(2)}€</p>`,
         { content: pdfB64, name: `${num}.pdf` }
       );
     } catch(e) {}
