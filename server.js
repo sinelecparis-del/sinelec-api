@@ -1375,18 +1375,18 @@ modes_data=[['\u2022 Especes','\u2022 Virement bancaire','\u2022 CB / PayPal','\
 t_modes=Table(modes_data,colWidths=[3.5*cm,4.5*cm,3.2*cm,7.0*cm])
 t_modes.setStyle(TableStyle([('FONTNAME',(0,0),(-1,-1),'Helvetica'),('FONTSIZE',(0,0),(-1,-1),7.5),('TEXTCOLOR',(0,0),(-1,-1),GRIS_SOFT),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),4)]))
 story.append(t_modes); story.append(Spacer(1,0.2*cm))
-story.append(cond); story.append(Spacer(1,0.3*cm))
 story.append(HRFlowable(width='100%',thickness=0.5,color=VERT,spaceAfter=8))
 t_sig_lbl=Table([[p('SIGNATURE CLIENT',8,'Helvetica-Bold',VERT,sa=0)]],colWidths=[18.2*cm])
 t_sig_lbl.setStyle(TableStyle([('LEFTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),6)]))
 story.append(t_sig_lbl)
-t_mention=Table([[p('Bon pour accord — Devis recu avant execution des travaux',9,'Helvetica-Bold',MARINE),p('Lu et approuve — Signe le : ${dateSig}',9,'Helvetica-Oblique',GRIS_SOFT,TA_RIGHT)]],colWidths=[11.0*cm,7.2*cm])
-t_mention.setStyle(TableStyle([('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),10)]))
-story.append(t_mention)
 nom_court_sig='${clientEsc}'.upper()[:14]
 date_sig_tampon='${dateSig}'
-sig_img=Image(io.BytesIO(sig_bytes),width=7.0*cm,height=2.8*cm)
+sig_img=Image(io.BytesIO(sig_bytes),width=9.5*cm,height=2.8*cm)
 sig_img.hAlign='LEFT'
+lu_cell=[p('Lu et approuve',7,'Helvetica-Bold',GRIS_SOFT,sa=3),p('Signature electronique valide',7,'Helvetica-Oblique',GRIS_SOFT,sa=2),p('Loi n\u00b02000-230 du 13 mars 2000',7,'Helvetica-Oblique',GRIS_SOFT,sa=6),p('Signe le : ${dateSig}',8,'Helvetica-Bold',MARINE)]
+t_sig_row=Table([[sig_img,lu_cell]],colWidths=[11.5*cm,6.7*cm])
+t_sig_row.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'MIDDLE'),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4),('LINEBEFORE',(1,0),(1,-1),1,GRIS_LIGNE)]))
+story.append(t_sig_row)
 class TamponSigne(Flowable):
     def __init__(self):
         Flowable.__init__(self)
@@ -1403,9 +1403,9 @@ class TamponSigne(Flowable):
         c.setFont('Helvetica-Bold',7); c.drawCentredString(0,-0.45*cm,date_sig_tampon)
         c.setFont('Helvetica',5.5); c.setFillAlpha(0.5); c.drawCentredString(0,-0.85*cm,'PARIS')
         c.restoreState()
-t_sig_final=Table([[sig_img,TamponSigne()]],colWidths=[10.4*cm,3.8*cm])
-t_sig_final.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'MIDDLE'),('ALIGN',(1,0),(1,-1),'CENTER'),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0)]))
-story.append(t_sig_final)
+t_tampon_row=Table([['',TamponSigne()]],colWidths=[14.4*cm,3.8*cm])
+t_tampon_row.setStyle(TableStyle([('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0),('ALIGN',(1,0),(1,-1),'CENTER')]))
+story.append(t_tampon_row)
 iban=Table([[p('IBAN',7,'Helvetica-Bold',GRIS_SOFT),p('FR76 1695 8000 0174 2540 5920 931',9,'Helvetica-Bold',MARINE),p('BIC',7,'Helvetica-Bold',GRIS_SOFT,TA_RIGHT),p('QNTOFRP1XXX',9,'Helvetica-Bold',MARINE,TA_RIGHT)]],colWidths=[1.5*cm,9.5*cm,1.8*cm,5.4*cm])
 iban.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),OR_PALE),('BOX',(0,0),(-1,-1),0.5,OR),('LINEBEFORE',(0,0),(0,-1),4,MARINE),('TOPPADDING',(0,0),(-1,-1),9),('BOTTOMPADDING',(0,0),(-1,-1),9),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
 story.append(Spacer(1,0.2*cm)); story.append(iban)
@@ -1903,6 +1903,10 @@ app.get('/api/pdf/:num', async (req, res) => {
     const clientParts = (data.adresse || '').split(',');
     const clientRue = String(clientParts[0] || '').trim().replace(/'/g, ' ');
     const clientVille = clientParts.slice(1).join(',').trim().replace(/'/g, ' ');
+    const isPaye = ['paye','payé','payee','acquitte','acquitté'].includes(docStatut.toLowerCase());
+    const datePaiement = data.date_paiement ? new Date(data.date_paiement).toLocaleDateString('fr-FR') : dateStr;
+    const modePaiement = String(data.mode_paiement || 'Reglement recu').replace(/'/g,' ').substring(0,30);
+    const nomCourt = clientEsc.toUpperCase().split(' ').slice(0,2).join(' ').substring(0,14);
 
     const py = `# -*- coding: utf-8 -*-
 import json, base64, io, sys
@@ -2004,27 +2008,75 @@ if IS_FACTURE:
     story.append(Spacer(1,0.35*cm))
     from reportlab.platypus.flowables import HRFlowable
     story.append(HRFlowable(width='100%',thickness=0.3,color=GRIS_LIGNE,spaceAfter=8))
-    story.append(p('MODALITES DE PAIEMENT',8,'Helvetica-Bold',MARINE,sa=6))
-    pays=Table([[p('Virement bancaire',9,color=GRIS_TEXTE),p('IBAN ci-dessous',8,color=GRIS_SOFT,align=TA_RIGHT)],[p('Especes',9,color=GRIS_TEXTE),p('Remis en main propre',8,color=GRIS_SOFT,align=TA_RIGHT)],[p('Carte bancaire',9,color=GRIS_TEXTE),p('Terminal SumUp',8,color=GRIS_SOFT,align=TA_RIGHT)]],colWidths=[8.0*cm,10.2*cm])
-    pays.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,-2),0.3,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)]))
-    story.append(pays)
+    IS_PAYE_NOW = '${isPaye}' == 'true'
+    if IS_PAYE_NOW:
+        # ── SECTION PAYE ──────────────────────────────
+        VERT_L=colors.HexColor('#f0fff4'); VERT_B=colors.HexColor('#bbf7d0'); VERT_T=colors.HexColor('#16a34a')
+        class TamponPaye(Flowable):
+            def __init__(self):
+                Flowable.__init__(self); self.width=3.2*cm; self.height=3.2*cm
+            def draw(self):
+                cx=self.width/2; cy=self.height/2; r=1.45*cm
+                c=self.canv; c.saveState()
+                c.setStrokeColor(VERT_T); c.setFillColor(VERT_T)
+                c.setLineWidth(3); c.circle(cx,cy,r,fill=0,stroke=1)
+                c.setLineWidth(0.8); c.setFillAlpha(0.3); c.circle(cx,cy,r-0.15*cm,fill=0,stroke=1)
+                c.setFillAlpha(1); c.translate(cx,cy); c.rotate(-15)
+                c.setFillColor(VERT_T)
+                c.setFont('Helvetica-Bold',6); c.drawCentredString(0,r-0.38*cm,'${nomCourt}')
+                c.setFont('Helvetica-Bold',16); c.drawCentredString(0,0.1*cm,'PAYE')
+                c.setFont('Helvetica-Bold',6); c.drawCentredString(0,-0.4*cm,'${datePaiement}')
+                c.setFont('Helvetica',5); c.setFillAlpha(0.5); c.drawCentredString(0,-0.75*cm,'PARIS')
+                c.restoreState()
+        paye_info=[p('PAIEMENT RECU',8,'Helvetica-Bold',VERT_T,sa=4),p('Date : ${datePaiement}',8.5,color=GRIS_TEXTE,sa=3),p('Mode : ${modePaiement}',8.5,color=GRIS_TEXTE,sa=3),p('Montant encaisse : %.2f \u20ac'%totalHT,9,'Helvetica-Bold',VERT_T)]
+        t_paye=Table([[paye_info,TamponPaye()]],colWidths=[14.0*cm,4.2*cm])
+        t_paye.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),VERT_L),('BOX',(0,0),(-1,-1),1,VERT_B),('LINEBEFORE',(0,0),(0,-1),4,VERT_T),('VALIGN',(0,0),(-1,-1),'MIDDLE'),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),('LEFTPADDING',(0,0),(0,-1),12),('RIGHTPADDING',(0,0),(-1,-1),8),('ALIGN',(1,0),(1,-1),'CENTER')]))
+        story.append(t_paye)
+    else:
+        # ── 3 CHIPS MODES PAIEMENT ─────────────────────
+        GRIS_CHIP=colors.HexColor('#f8f9fb'); GRIS_CHIP_B=colors.HexColor('#E4E7EF')
+        def chip(icon,label,sub):
+            inner=Table([[p(icon,14,sa=2)],[p(label,8,'Helvetica-Bold',MARINE,TA_CENTER,sa=1)],[p(sub,7,color=GRIS_SOFT,align=TA_CENTER)]],colWidths=[5.6*cm])
+            inner.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GRIS_CHIP),('BOX',(0,0),(-1,-1),1,GRIS_CHIP_B),('ALIGN',(0,0),(-1,-1),'CENTER'),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,-1),(-1,-1),8),('TOPPADDING',(0,0),(-1,0),10),('LEFTPADDING',(0,0),(-1,-1),6),('RIGHTPADDING',(0,0),(-1,-1),6)]))
+            return inner
+        t_chips=Table([[chip('\ud83d\udcb5','Especes','En main propre'),chip('\ud83c\udfe6','Virement','IBAN ci-dessous'),chip('\ud83d\udcb3','CB SumUp','Terminal sur place')]],colWidths=[6.0*cm,6.0*cm,6.2*cm])
+        t_chips.setStyle(TableStyle([('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(0,-1),8),('RIGHTPADDING',(1,0),(1,-1),8),('RIGHTPADDING',(2,0),(2,-1),0),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0)]))
+        story.append(t_chips)
 ${(docStatut === 'signe' || docStatut === 'signé') && data.signature ? `
 sig_b64 = '${data.signature.replace(/^data:image\/png;base64,/, '')}'
 sig_date_str = '${data.date_signature ? new Date(data.date_signature).toLocaleDateString("fr-FR") : dateStr}'
 from reportlab.platypus.flowables import HRFlowable
 story.append(Spacer(1,0.3*cm))
 story.append(HRFlowable(width='100%',thickness=0.5,color=GRIS_LIGNE,spaceAfter=6))
-sig_rows = [[p('SIGNATURE CLIENT',7,'Helvetica-Bold',OR,sa=0)]]
-t_sig_lbl = Table(sig_rows,colWidths=[18.2*cm])
-t_sig_lbl.setStyle(TableStyle([('LEFTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),2),('BOTTOMPADDING',(0,0),(-1,-1),4)]))
-story.append(t_sig_lbl)
-t_mention = Table([[p('Bon pour accord - Devis recu avant execution des travaux',8,'Helvetica-Bold',MARINE),p('Lu et approuve - Signe le : '+sig_date_str,8,'Helvetica-Oblique',GRIS_SOFT,align=TA_RIGHT)]],colWidths=[11.0*cm,7.2*cm])
-t_mention.setStyle(TableStyle([('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
-story.append(t_mention)
-sig_bytes = base64.b64decode(sig_b64)
-sig_img = Image(io.BytesIO(sig_bytes),width=7.0*cm,height=2.5*cm)
-sig_img.hAlign = 'LEFT'
-story.append(sig_img)
+t_sig_lbl2=Table([[p('SIGNATURE CLIENT',8,'Helvetica-Bold',VERT,sa=0)]],colWidths=[18.2*cm])
+t_sig_lbl2.setStyle(TableStyle([('LEFTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),6)]))
+story.append(t_sig_lbl2)
+sig_bytes2=base64.b64decode(sig_b64)
+nom_court2='${clientEsc}'.upper()[:14]
+sig_img2=Image(io.BytesIO(sig_bytes2),width=9.5*cm,height=2.8*cm); sig_img2.hAlign='LEFT'
+lu_cell2=[p('Lu et approuve',7,'Helvetica-Bold',GRIS_SOFT,sa=3),p('Signature electronique valide',7,'Helvetica-Oblique',GRIS_SOFT,sa=2),p('Loi n\u00b02000-230 du 13 mars 2000',7,'Helvetica-Oblique',GRIS_SOFT,sa=6),p('Signe le : '+sig_date_str,8,'Helvetica-Bold',MARINE)]
+t_sig_row2=Table([[sig_img2,lu_cell2]],colWidths=[11.5*cm,6.7*cm])
+t_sig_row2.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'MIDDLE'),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4),('LINEBEFORE',(1,0),(1,-1),1,GRIS_LIGNE)]))
+story.append(t_sig_row2)
+VERT2=colors.HexColor('#16a34a')
+class TamponSigne2(Flowable):
+    def __init__(self):
+        Flowable.__init__(self); self.width=3.2*cm; self.height=3.2*cm
+    def draw(self):
+        cx=self.width/2; cy=self.height/2; r=1.45*cm
+        c=self.canv; c.saveState()
+        c.setStrokeColor(VERT2); c.setFillColor(VERT2)
+        c.setLineWidth(3); c.circle(cx,cy,r,fill=0,stroke=1)
+        c.setLineWidth(0.8); c.setFillAlpha(0.35); c.circle(cx,cy,r-0.15*cm,fill=0,stroke=1)
+        c.setFillAlpha(1); c.translate(cx,cy); c.rotate(-15)
+        c.setFillColor(VERT2); c.setFont('Helvetica-Bold',6); c.drawCentredString(0,r-0.38*cm,nom_court2)
+        c.setFont('Helvetica-Bold',15); c.drawCentredString(0,0.1*cm,'SIGNE')
+        c.setFont('Helvetica-Bold',6); c.drawCentredString(0,-0.4*cm,sig_date_str)
+        c.setFont('Helvetica',5); c.setFillAlpha(0.5); c.drawCentredString(0,-0.75*cm,'PARIS')
+        c.restoreState()
+t_tampon2=Table([['',TamponSigne2()]],colWidths=[15.0*cm,3.2*cm])
+t_tampon2.setStyle(TableStyle([('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0),('ALIGN',(1,0),(1,-1),'CENTER')]))
+story.append(t_tampon2)
 ` : ''}
 doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
 `;
