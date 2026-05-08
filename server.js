@@ -904,7 +904,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <div class="success" id="success-block">
     <div style="font-size:70px;margin-bottom:16px;">✅</div>
     <h2 style="color:#1B2A4A;font-size:22px;margin-bottom:10px;">Devis signé !</h2>
-    <p style="color:#555;font-size:14px;line-height:1.8;">Merci <strong>${devis.client||''}</strong> !<br>Vous recevrez votre exemplaire par email.<br><br><span style="color:#C9A84C;font-weight:800;">SINELEC Paris — 07 87 38 86 22</span></p>
+    <p style="color:#555;font-size:14px;line-height:1.8;">Merci <strong>${devis.client||''}</strong> !<br>Votre signature a bien été enregistrée.</p>
+    <p id="pdf-status-msg" style="font-size:13px;margin-top:10px;font-weight:600;"></p>
+    <p style="color:#C9A84C;font-weight:800;font-size:14px;margin-top:12px;">SINELEC Paris — 07 87 38 86 22</p>
   </div>
 </div>
 
@@ -1073,6 +1075,20 @@ async function soumettre() {
       document.getElementById('main-content').style.display = 'none';
       document.getElementById('success-block').style.display = 'block';
       document.getElementById('step3').classList.remove('active'); document.getElementById('step3').classList.add('done');
+      // Afficher statut envoi PDF
+      const pdfMsg = document.getElementById('pdf-status-msg');
+      if (pdfMsg) {
+        if (d.pdf_sig === 'sent') {
+          pdfMsg.innerHTML = '📧 Votre exemplaire signé vous a été envoyé par email.';
+          pdfMsg.style.color = '#16a34a';
+        } else if (d.pdf_sig === 'error') {
+          pdfMsg.innerHTML = '⚠️ Signature enregistrée mais email non envoyé. Contactez SINELEC : 07 87 38 86 22';
+          pdfMsg.style.color = '#f59e0b';
+        } else if (d.pdf_sig === 'skipped') {
+          pdfMsg.innerHTML = '⚠️ Signature enregistrée. Aucun email renseigné sur ce devis.';
+          pdfMsg.style.color = '#f59e0b';
+        }
+      }
     } else {
       btn.disabled = false; btn.textContent = '✅ Signer et valider définitivement';
       alert('Erreur : ' + (d.error || 'Réessayez'));
@@ -1250,6 +1266,9 @@ app.post('/api/signature', async (req, res) => {
     try { await envoyerEmail('sinelec.paris@gmail.com', `🔔 SIGNÉ — ${num} — ${devisData.client||''} — ${montant.toFixed(0)}€`, htmlConfirm); } catch(e) {}
 
     // ── RÉGÉNÉRER PDF AVEC SIGNATURE + ENVOYER AU CLIENT ──
+    let pdfSigStatus = 'skipped';
+    let pdfSigError = null;
+    console.log(`🔍 PDF signé — email client: "${devisData.email}" | num: ${num}`);
     if (devisData.email) {
       try {
         const sigB64 = signature.replace(/^data:image\/png;base64,/, '');
@@ -1440,34 +1459,34 @@ def cgv_texte(txt):
     return Paragraph(txt,ParagraphStyle('cx',fontName='Helvetica',fontSize=7.5,textColor=GRIS_TEXTE,spaceBefore=0,spaceAfter=3,leading=10,wordWrap='CJK'))
 
 cgv_col1 = [
-    cgv_titre('Art. 1 - Objet et champ d\'application'),
-    cgv_texte('Les presentes CGV regissent les relations contractuelles entre SINELEC, auto-entrepreneur domicilie 128 Rue La Boetie 75008 Paris (SIRET 91015824500019), ci-apres "le Prestataire", et tout client particulier ou professionnel, ci-apres "le Client". Toute acceptation d\'un devis implique l\'adhesion pleine et entiere aux presentes CGV.'),
+    cgv_titre("""Art. 1 - Objet et champ d'application"""),
+    cgv_texte("""Les presentes CGV regissent les relations contractuelles entre SINELEC, auto-entrepreneur domicilie 128 Rue La Boetie 75008 Paris (SIRET 91015824500019), ci-apres "le Prestataire", et tout client particulier ou professionnel, ci-apres "le Client". Toute acceptation d'un devis implique l'adhesion pleine et entiere aux presentes CGV."""),
 
-    cgv_titre('Art. 2 - Devis et commande'),
-    cgv_texte('Les devis sont etablis gratuitement et restent valables 30 jours. Ils deviennent contractuels uniquement apres signature du Client avec la mention "Bon pour accord". Toute modification demandee apres acceptation peut entrainer une revision du devis.'),
+    cgv_titre("""Art. 2 - Devis et commande"""),
+    cgv_texte("""Les devis sont etablis gratuitement et restent valables 30 jours. Ils deviennent contractuels uniquement apres signature du Client avec la mention "Bon pour accord". Toute modification demandee apres acceptation peut entrainer une revision du devis."""),
 
-    cgv_titre('Art. 3 - Prix et modalites de paiement'),
-    cgv_texte('Les prix sont exprimes en euros HT. TVA non applicable, art. 293B du CGI. Un acompte de 40% est exigible a la signature pour tout devis superieur a 400€. Le solde est du a la fin des travaux. Modes acceptes : especes, virement bancaire (IBAN FR76 1695 8000 0174 2540 5920 931), CB via terminal SumUp. Tout retard de paiement entraine des penalites de 3 fois le taux d\'interet legal.'),
+    cgv_titre("""Art. 3 - Prix et modalites de paiement"""),
+    cgv_texte("""Les prix sont exprimes en euros HT. TVA non applicable, art. 293B du CGI. Un acompte de 40% est exigible a la signature pour tout devis superieur a 400€. Le solde est du a la fin des travaux. Modes acceptes : especes, virement bancaire (IBAN FR76 1695 8000 0174 2540 5920 931), CB via terminal SumUp. Tout retard de paiement entraine des penalites de 3 fois le taux d'interet legal."""),
 
-    cgv_titre('Art. 4 - Delais d\'execution'),
-    cgv_texte('Les delais d\'intervention sont donnes a titre indicatif et dependent des conditions d\'acces, de la disponibilite des materiaux et de la charge de travail. Aucune indemnite ne pourra etre reclamee pour un retard hors de notre volonte (approvisionnement, conditions meteorologiques, etc.).'),
+    cgv_titre("""Art. 4 - Delais d'execution"""),
+    cgv_texte("""Les delais d'intervention sont donnes a titre indicatif et dependent des conditions d'acces, de la disponibilite des materiaux et de la charge de travail. Aucune indemnite ne pourra etre reclamee pour un retard hors de notre volonte (approvisionnement, conditions meteorologiques, etc.)."""),
 ]
 
 cgv_col2 = [
-    cgv_titre('Art. 5 - Garanties et conformite'),
-    cgv_texte('Tous les travaux sont realises conformement a la norme NF C 15-100 en vigueur. SINELEC est couvert par une garantie decennale ORUS (attestation disponible sur demande). La garantie de bon fonctionnement couvre les travaux realises pendant 2 ans a compter de la reception. Elle ne couvre pas les dommages resultant d\'un usage anormal ou d\'une modification par un tiers.'),
+    cgv_titre("""Art. 5 - Garanties et conformite"""),
+    cgv_texte("""Tous les travaux sont realises conformement a la norme NF C 15-100 en vigueur. SINELEC est couvert par une garantie decennale ORUS (attestation disponible sur demande). La garantie de bon fonctionnement couvre les travaux realises pendant 2 ans a compter de la reception. Elle ne couvre pas les dommages resultant d'un usage anormal ou d'une modification par un tiers."""),
 
-    cgv_titre('Art. 6 - Responsabilite'),
-    cgv_texte('Le Prestataire ne saurait etre tenu responsable des dommages indirects ou immateriels. Sa responsabilite est limitee au montant HT de la prestation concernee. Le Client s\'assure que les conditions d\'acces au chantier sont reunies et que les autorisations necessaires ont ete obtenues.'),
+    cgv_titre("""Art. 6 - Responsabilite"""),
+    cgv_texte("""Le Prestataire ne saurait etre tenu responsable des dommages indirects ou immateriels. Sa responsabilite est limitee au montant HT de la prestation concernee. Le Client s'assure que les conditions d'acces au chantier sont reunies et que les autorisations necessaires ont ete obtenues."""),
 
-    cgv_titre('Art. 7 - Droit de retractation'),
-    cgv_texte('Conformement aux articles L.221-18 et suivants du Code de la consommation, le consommateur dispose d\'un delai de 14 jours pour exercer son droit de retractation pour les contrats conclus a distance ou hors etablissement. Ce droit ne s\'applique pas si les travaux ont commence avec accord express du client avant l\'expiration du delai.'),
+    cgv_titre("""Art. 7 - Droit de retractation"""),
+    cgv_texte("""Conformement aux articles L.221-18 et suivants du Code de la consommation, le consommateur dispose d'un delai de 14 jours pour exercer son droit de retractation pour les contrats conclus a distance ou hors etablissement. Ce droit ne s'applique pas si les travaux ont commence avec accord express du client avant l'expiration du delai."""),
 
-    cgv_titre('Art. 8 - Donnees personnelles (RGPD)'),
-    cgv_texte('Les donnees collectees (nom, adresse, email, telephone) sont utilisees uniquement pour la realisation des prestations et ne sont jamais transmises a des tiers. Conformement au RGPD, le Client dispose d\'un droit d\'acces, de rectification et de suppression de ses donnees (contact : sinelec.paris@gmail.com).'),
+    cgv_titre("""Art. 8 - Donnees personnelles (RGPD)"""),
+    cgv_texte("""Les donnees collectees (nom, adresse, email, telephone) sont utilisees uniquement pour la realisation des prestations et ne sont jamais transmises a des tiers. Conformement au RGPD, le Client dispose d'un droit d'acces, de rectification et de suppression de ses donnees (contact : sinelec.paris@gmail.com)."""),
 
-    cgv_titre('Art. 9 - Litiges'),
-    cgv_texte('En cas de litige, les parties s\'efforceront de trouver une solution amiable. A defaut, le tribunal competent sera celui du ressort du domicile du Prestataire. Pour les consommateurs, la mediation est accessible via la plateforme europeenne de reglement en ligne des litiges.'),
+    cgv_titre("""Art. 9 - Litiges"""),
+    cgv_texte("""En cas de litige, les parties s'efforceront de trouver une solution amiable. A defaut, le tribunal competent sera celui du ressort du domicile du Prestataire. Pour les consommateurs, la mediation est accessible via la plateforme europeenne de reglement en ligne des litiges."""),
 ]
 
 col_style = [('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(0,-1),14),('RIGHTPADDING',(1,0),(1,-1),0),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0)]
@@ -1540,13 +1559,20 @@ print('PDF_SIG_OK')
 
         // Nettoyage
         try { fs.unlinkSync(pyPath2); fs.unlinkSync(detPath2); fs.unlinkSync(pdfPath2); } catch(e) {}
+        pdfSigStatus = 'sent';
         console.log(`✅ PDF signé envoyé à ${devisData.email}`);
       } catch(e) {
-        console.error('PDF signé:', e.message);
+        pdfSigStatus = 'error';
+        pdfSigError = e.message;
+        console.error('❌ PDF signé error:', e.message);
+        // Log stack pour Railway
+        if (e.stack) console.error(e.stack.substring(0, 500));
       }
+    } else {
+      console.warn(`⚠️ PDF signé non envoyé — email manquant pour ${num}`);
     }
 
-    res.json({ success: true });
+    res.json({ success: true, pdf_sig: pdfSigStatus, pdf_sig_error: pdfSigError });
   } catch(error) {
     res.status(500).json({ error: error.message });
   }
