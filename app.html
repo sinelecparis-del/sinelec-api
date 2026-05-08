@@ -1583,7 +1583,7 @@ table.histo-table tr:hover td { background:#fafbff; }
 
     <!-- Filtres -->
     <div class="histo-table-filters">
-      <button class="histo-filter-btn active" onclick="filtrerHistorique('tous')">Tous</button>
+      <button class="histo-filter-btn active" id="histo-btn-tous" onclick="resetTousFiltres()">Tous</button>
       <button class="histo-filter-btn" onclick="filtrerHistorique('devis')">📋 Devis</button>
       <button class="histo-filter-btn" onclick="filtrerHistorique('facture')">💶 Factures</button>
       <button class="histo-filter-btn" onclick="filtrerHistoriqueStatut('signe')">✅ Signés</button>
@@ -3680,6 +3680,22 @@ function fermerPreview() {
 
 
 
+async function telechargerPDFObat(reference) {
+  showToast('⏳ Génération PDF OBAT...', '📄');
+  try {
+    const res = await fetch(`/api/pdf-obat/${reference}`);
+    const data = await res.json();
+    if (!data.success || !data.pdf_b64) { showToast('❌ Erreur génération PDF', '⚠️'); return; }
+    const byteArr = Uint8Array.from(atob(data.pdf_b64), c => c.charCodeAt(0));
+    const blob = new Blob([byteArr], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = data.filename || `Facture_OBAT_${reference}.pdf`;
+    a.click(); URL.revokeObjectURL(url);
+    showToast('✅ PDF téléchargé', '📄');
+  } catch(e) { showToast('❌ Erreur : ' + e.message, '⚠️'); }
+}
+
 async function telechargerPDF(num) {
   showToast('⏳ Génération PDF...', '📄');
   try {
@@ -5656,6 +5672,24 @@ let histoFiltre = 'tous';
 let histoStatutFiltre = null;
 let histoSearch = '';
 
+function resetTousFiltres() {
+  histoFiltre = 'tous';
+  histoStatutFiltre = null;
+  histoSearch = '';
+  histoPage = 1;
+  window._histoFiltreMois = null;
+  window._histoFiltreStatut = null;
+  // Reset visuel tous les boutons
+  document.querySelectorAll('.histo-filter-btn').forEach(b => b.classList.remove('active'));
+  const btnTous = document.getElementById('histo-btn-tous');
+  if (btnTous) btnTous.classList.add('active');
+  // Vider la recherche
+  const searchEl = document.getElementById('histo-search');
+  if (searchEl) searchEl.value = '';
+  renderTableauHistorique();
+  showToast('🔄 Tous les filtres effacés', '✅');
+}
+
 function filtrerHistoriqueStatut(statut) {
   histoStatutFiltre = statut;
   histoFiltre = 'tous';
@@ -5799,8 +5833,11 @@ function renderTableauHistorique() {
 
     // Actions
     let actions = `
-      <div class="ht-ico" onclick="previsualiserPDF('${item.num}')" title="Aperçu">👁️</div>
-      <div class="ht-ico" onclick="telechargerPDF('${item.num}')" title="Télécharger">⬇️</div>`;
+      ${isObat
+        ? `<div class="ht-ico" onclick="telechargerPDFObat('${item.num}')" title="Télécharger PDF">⬇️</div>`
+        : `<div class="ht-ico" onclick="previsualiserPDF('${item.num}')" title="Aperçu">👁️</div>
+      <div class="ht-ico" onclick="telechargerPDF('${item.num}')" title="Télécharger">⬇️</div>`
+      }`;
 
     if (!isObat) {
       const moreId = `more-${item.num}`;
@@ -7224,6 +7261,19 @@ async function generer(type) {
   const clientNom = (document.getElementById(`${prefix}-client`)?.value || document.getElementById(`${prefix}-societe`)?.value || '').trim();
   if (!clientNom) { showToast('⚠️ Remplis le nom du client !', '❌'); return; }
   if (!adresse)   { showToast("⚠️ Remplis l'adresse !", '❌'); return; }
+
+  // Vérifier que le champ Ville ne contient pas une adresse (ex: "128 Rue la Boétie")
+  const villeVal = document.getElementById(`${prefix}-ville`)?.value.trim() || '';
+  if (villeVal && /^\d+\s/.test(villeVal)) {
+    showToast('⚠️ Champ "Ville" incorrect — ex: Paris, Lyon, Argenteuil', '❌');
+    const villeEl = document.getElementById(`${prefix}-ville`);
+    if (villeEl) {
+      villeEl.style.border = '2px solid #ef4444';
+      villeEl.focus();
+      villeEl.addEventListener('input', () => villeEl.style.border = '', { once: true });
+    }
+    return;
+  }
 
   // ── VALIDATION EMAIL + TÉLÉPHONE (obligatoires pour signature et envoi) ──
   const emailVal = document.getElementById(`${prefix}-email`)?.value.trim();
