@@ -1685,14 +1685,21 @@ app.get('/api/ca-complet', async (req, res) => {
     // Les 2 requêtes en parallèle — factures_obat non bloquante
     const [{ data: histo }, obatResult] = await Promise.all([
       supabase.from('historique').select('*').order('created_at', { ascending: false }),
-      supabase.from('factures_obat').select('*').eq('statut', 'Payée').then(r => r).catch(() => ({ data: [] }))
+      supabase.from('factures_obat').select('*').order('date_facture', { ascending: false }).then(r => r).catch(() => ({ data: [] }))
     ]);
     const obat = obatResult?.data || [];
     const obatFormate = obat.map(f => ({
-      type: 'facture', client: f.client, total_ht: f.montant,
+      type: 'facture',
+      client: f.client,
+      total_ht: f.montant,
       montant_diahe: f.montant,
-      statut: 'paye', created_at: f.date_facture + 'T00:00:00.000Z',
-      num: f.reference, prestations: [{ nom: f.chantier, prix: f.montant, quantite: 1 }], source: 'obat'
+      statut: f.statut?.toLowerCase().includes('pay') ? 'paye' : (f.statut || 'envoye'),
+      created_at: f.date_facture ? f.date_facture + 'T00:00:00.000Z' : f.created_at,
+      num: f.reference,
+      adresse: f.chantier,
+      type_piece: f.type_piece || 'Facture',
+      prestations: [{ nom: f.chantier || 'Travaux', prix: f.montant, quantite: 1 }],
+      source: 'obat'
     }));
     const histoEnrichi = (histo || []).map(h => {
       const pdiahe = h.part_diahe || 100;
@@ -2222,6 +2229,183 @@ doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
     try { fs.unlinkSync(pdfPath); } catch(e) {}
   } catch(error) { res.status(500).json({ error: error.message }); }
 });
+
+
+// ═══════════════════════════════════════════════════
+// API: PDF OBAT (généré depuis données importées)
+// ═══════════════════════════════════════════════════
+app.get('/api/pdf-obat/:reference', async (req, res) => {
+  const { reference } = req.params;
+  try {
+    const { data: f, error } = await supabase.from('factures_obat').select('*').eq('reference', reference).single();
+    if (error || !f) return res.status(404).json({ error: 'Document OBAT non trouvé' });
+
+    const dateStr = f.date_facture ? new Date(f.date_facture).toLocaleDateString('fr-FR') : new Date().toLocaleDateString('fr-FR');
+    const montant = parseFloat(f.montant || 0);
+    const chantierEsc = String(f.chantier || 'Travaux electricite').replace(/'/g,' ').replace(/"/g,' ').replace(/\n/g,' ').substring(0,120);
+    const clientEsc = String(f.client || '').replace(/'/g,' ').replace(/"/g,' ');
+    const refEsc = String(f.reference || reference).replace(/'/g,' ');
+    const statutEsc = String(f.statut || '').replace(/'/g,' ');
+    const typePiece = String(f.type_piece || 'Facture').replace(/'/g,' ');
+    const isPaye = ['payee','paye','payée','payé','acquitte','acquitté'].includes(statutEsc.toLowerCase());
+
+    const pyPath = path.join(__dirname, `_obat_${reference}.py`);
+    const pdfPath = path.join(__dirname, `_obat_${reference}.pdf`);
+
+    const pyCode = `# -*- coding: utf-8 -*-
+import sys,io,base64
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.units import cm
+from reportlab.platypus import SimpleDocTemplate,Table,TableStyle,Paragraph,Spacer
+from reportlab.platypus.flowables import HRFlowable
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.enums import TA_LEFT,TA_CENTER,TA_RIGHT
+from reportlab.lib.utils import ImageReader
+from reportlab.pdfgen import canvas as pdfcanvas
+
+W,H=A4
+MARINE=colors.HexColor('#1B2A4A'); OR=colors.HexColor('#E8B84B')
+OR_PALE=colors.HexColor('#FBF7EC'); BLANC=colors.white
+GRIS_TEXTE=colors.HexColor('#3A3A3A'); GRIS_SOFT=colors.HexColor('#777777')
+GRIS_LIGNE=colors.HexColor('#E0DDD6'); GRIS_BG=colors.HexColor('#F5F4F0')
+VERT=colors.HexColor('#16a34a')
+OR_FONCE=colors.HexColor('#A07830')
+
+def p(txt,sz=9,font='Helvetica',color=GRIS_TEXTE,align=TA_LEFT,sb=0,sa=2,leading=None):
+    return Paragraph(str(txt),ParagraphStyle('s',fontName=font,fontSize=sz,textColor=color,alignment=align,spaceBefore=sb,spaceAfter=sa,leading=leading or sz*1.35,wordWrap='CJK'))
+
+logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
+
+class SC(pdfcanvas.Canvas):
+    def __init__(self,fn,**kw):
+        pdfcanvas.Canvas.__init__(self,fn,**kw)
+        self._pg=0; self._draw_bg()
+    def showPage(self):
+        self._draw_watermark(); self._draw_footer()
+        pdfcanvas.Canvas.showPage(self); self._pg+=1; self._draw_bg()
+    def save(self):
+        self._draw_watermark(); self._draw_footer()
+        pdfcanvas.Canvas.save(self)
+    def _draw_bg(self):
+        self.saveState()
+        self.setFillColor(colors.HexColor('#FDFCF9')); self.rect(0,0,W,H,fill=1,stroke=0)
+        self.setFillColor(MARINE); self.rect(0,0,0.7*cm,H,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0.7*cm,0,0.08*cm,H,fill=1,stroke=0)
+        self.setFillColor(MARINE); self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,5.4*cm,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,0.12*cm,fill=1,stroke=0)
+        self.drawImage(ImageReader(io.BytesIO(logo_bytes)),0.9*cm,H-5.05*cm,width=4.2*cm,height=4.2*cm,preserveAspectRatio=True,mask='auto')
+        self.setFont('Helvetica-Bold',15); self.setFillColor(BLANC)
+        self.drawString(5.9*cm,H-1.7*cm,'SINELEC PARIS')
+        self.setFont('Helvetica',8.5); self.setFillColor(colors.HexColor('#BFC8D6'))
+        self.drawString(5.9*cm,H-2.5*cm,'128 Rue La Boetie, 75008 Paris')
+        self.drawString(5.9*cm,H-3.0*cm,'07 87 38 86 22  |  sinelec.paris@gmail.com')
+        self.drawString(5.9*cm,H-3.4*cm,'SIRET : 91015824500019')
+        self.setFont('Helvetica-Bold',28); self.setFillColor(BLANC)
+        self.drawRightString(W-1.2*cm,H-2.0*cm,'FACTURE')
+        self.setFont('Helvetica-Bold',13); self.setFillColor(OR)
+        self.drawRightString(W-1.2*cm,H-2.65*cm,'${typePiece}'.upper())
+        self.setFillColor(OR); self.roundRect(W-7.0*cm,H-3.55*cm,5.8*cm,0.65*cm,0.15*cm,fill=1,stroke=0)
+        self.setFont('Helvetica-Bold',9); self.setFillColor(MARINE)
+        self.drawCentredString(W-4.1*cm,H-3.22*cm,'N\u00b0 ${refEsc}')
+        self.setFont('Helvetica',8); self.setFillColor(colors.HexColor('#BFC8D6'))
+        self.drawRightString(W-1.2*cm,H-3.9*cm,'${dateStr}')
+        self.setFont('Helvetica-Oblique',7); self.setFillColor(colors.HexColor('#BFC8D6'))
+        self.drawRightString(W-1.2*cm,H-4.2*cm,'Import\u00e9 depuis OBAT')
+        self.restoreState()
+    def _draw_watermark(self):
+        if not ${str(isPaye).lower()}: return
+        self.saveState()
+        self.setFillColor(VERT); self.setFillAlpha(0.12)
+        self.setFont('Helvetica-Bold',88)
+        self.translate(W/2,H/2); self.rotate(45)
+        self.drawCentredString(0,0,'PAYE')
+        self.setFillAlpha(0.08); self.setFont('Helvetica',16)
+        self.drawCentredString(0,-52,'SINELEC PARIS')
+        self.restoreState()
+    def _draw_footer(self):
+        self.saveState()
+        self.setFillColor(MARINE); self.rect(0,0,W,1.0*cm,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0,1.0*cm,W,0.08*cm,fill=1,stroke=0)
+        self.setFont('Helvetica',6.5); self.setFillColor(colors.HexColor('#8899BB'))
+        self.drawCentredString(W/2,0.5*cm,'SINELEC EI \u2022 128 Rue La Boetie 75008 Paris \u2022 SIRET : 91015824500019 \u2022 TVA non applicable art. 293B CGI')
+        self.setFont('Helvetica-Bold',7); self.setFillColor(OR)
+        self.drawRightString(W-1.2*cm,0.28*cm,'${refEsc}')
+        self.restoreState()
+
+doc=SimpleDocTemplate(sys.argv[1],pagesize=A4,leftMargin=1.2*cm,rightMargin=1.0*cm,topMargin=5.6*cm,bottomMargin=1.6*cm)
+story=[]
+
+# Client block
+client_b=Table([[p('CLIENT',7,'Helvetica-Bold',OR,sa=4)],[p('${clientEsc}',10,'Helvetica-Bold',MARINE)],[p('${typePiece} \u2022 Import OBAT',8,color=GRIS_SOFT)]],colWidths=[18.2*cm])
+client_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('BACKGROUND',(0,0),(-1,-1),OR_PALE),('BOX',(0,0),(-1,-1),1,OR),('LINEBEFORE',(0,0),(0,-1),4,MARINE),('TOPPADDING',(0,0),(0,0),10),('BOTTOMPADDING',(0,-1),(-1,-1),10)]))
+story.append(client_b); story.append(Spacer(1,0.5*cm))
+
+# Table prestations
+cw=[0.7*cm,13.5*cm,2.4*cm,2.0*cm]
+rows=[[p('#',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('ADRESSE DU CHANTIER',7.5,'Helvetica-Bold',BLANC),p('PRIX U. HT',7.5,'Helvetica-Bold',BLANC,TA_RIGHT),p('TOTAL HT',7.5,'Helvetica-Bold',BLANC,TA_RIGHT)],
+      [p('1',9,color=OR,align=TA_CENTER),p('<b>${chantierEsc}</b>',9,color=MARINE),p('%.2f \u20ac'%${montant},9,align=TA_RIGHT),p('<b>%.2f \u20ac</b>'%${montant},9,'Helvetica-Bold',MARINE,TA_RIGHT)]]
+t=Table(rows,colWidths=cw)
+t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),MARINE),('LINEBELOW',(0,0),(-1,0),2.5,OR),('VALIGN',(0,0),(-1,-1),'TOP'),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),('LEFTPADDING',(0,0),(-1,-1),7),('RIGHTPADDING',(0,0),(-1,-1),7),('BOX',(0,0),(-1,-1),0.3,GRIS_LIGNE),('BACKGROUND',(0,1),(-1,1),BLANC)]))
+story.append(t); story.append(Spacer(1,0.15*cm))
+
+# Totaux
+tt=Table([['',p('Total HT',9,color=GRIS_SOFT,align=TA_RIGHT),p('%.2f \u20ac'%${montant},9,'Helvetica-Bold',GRIS_TEXTE,TA_RIGHT)],['',p('TVA',9,color=GRIS_SOFT,align=TA_RIGHT),p('Non applicable (art. 293B)',8,color=GRIS_SOFT,align=TA_RIGHT)]],colWidths=[9.0*cm,4.5*cm,4.7*cm])
+tt.setStyle(TableStyle([('LINEABOVE',(1,0),(-1,0),0.5,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('LEFTPADDING',(0,0),(-1,-1),6),('RIGHTPADDING',(0,0),(-1,-1),6)]))
+story.append(tt); story.append(Spacer(1,0.12*cm))
+
+# NET
+net=Table([[p('NET \u00c0 PAYER',13,'Helvetica-Bold',BLANC),p('%.2f \u20ac'%${montant},16,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
+net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('LINEBELOW',(0,0),(-1,-1),3,OR),('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
+story.append(net)
+
+# Statut paiement
+story.append(Spacer(1,0.4*cm))
+if ${str(isPaye).lower()}:
+    VERT_L=colors.HexColor('#f0fff4'); VERT_B=colors.HexColor('#bbf7d0'); VERT_T=colors.HexColor('#16a34a')
+    paye_t=Table([[p('\u2705 PAIEMENT RECU \u2014 ${statutEsc}',9,'Helvetica-Bold',VERT_T)]],colWidths=[18.2*cm])
+    paye_t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),VERT_L),('BOX',(0,0),(-1,-1),1,VERT_B),('LINEBEFORE',(0,0),(0,-1),4,VERT_T),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),('LEFTPADDING',(0,0),(-1,-1),14)]))
+    story.append(paye_t)
+else:
+    # Modes paiement
+    GRIS_CHIP=colors.HexColor('#f8f9fb'); GRIS_CHIP_B=colors.HexColor('#E4E7EF')
+    modes_t=Table([[p('\u2022 Virement bancaire  \u2022 Especes  \u2022 CB SumUp',8,color=GRIS_SOFT)]],colWidths=[18.2*cm])
+    modes_t.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),('LEFTPADDING',(0,0),(-1,-1),4)]))
+    story.append(modes_t)
+
+# IBAN
+story.append(Spacer(1,0.3*cm))
+story.append(HRFlowable(width='100%',thickness=0.5,color=OR,spaceAfter=6))
+iban_t=Table([[p('IBAN',7,'Helvetica-Bold',GRIS_SOFT),p('FR76 1695 8000 0174 2540 5920 931',8,'Helvetica-Bold',MARINE),p('BIC',7,'Helvetica-Bold',GRIS_SOFT),p('QNTOFRP1XXX',8,'Helvetica-Bold',MARINE)]],colWidths=[1.8*cm,9.0*cm,1.5*cm,5.9*cm])
+iban_t.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),('BACKGROUND',(0,0),(-1,-1),OR_PALE),('BOX',(0,0),(-1,-1),1,OR)]))
+story.append(iban_t)
+
+doc.build(story,canvasmaker=lambda fn,**kw:SC(fn,**kw))
+print('OBAT_PDF_OK')
+`;
+
+    fs.writeFileSync(pyPath, pyCode, 'utf8');
+    const { execSync } = require('child_process');
+    try {
+      execSync(`python3 "${pyPath}" "${pdfPath}"`, { cwd: __dirname, timeout: 30000, stdio: ['pipe','pipe','pipe'] });
+    } catch(pyErr) {
+      const errMsg = pyErr.stderr?.toString() || pyErr.message;
+      console.error('PDF OBAT error:', errMsg.substring(0,300));
+      try { fs.unlinkSync(pyPath); } catch(e) {}
+      return res.status(500).json({ error: 'Génération PDF échouée: ' + errMsg.substring(0,100) });
+    }
+
+    if (!fs.existsSync(pdfPath)) return res.status(500).json({ error: 'PDF non généré' });
+
+    const pdfB64 = fs.readFileSync(pdfPath).toString('base64');
+    try { fs.unlinkSync(pyPath); fs.unlinkSync(pdfPath); } catch(e) {}
+    res.json({ success: true, pdf_b64: pdfB64, filename: `Facture_OBAT_${reference}.pdf` });
+  } catch(e) {
+    console.error('PDF OBAT catch:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 
 // ═══════════════════════════════════════════════════
 // API: SUMUP
