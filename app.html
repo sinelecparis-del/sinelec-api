@@ -3255,8 +3255,17 @@ async function supprimerDoc(num) {
   try {
     const res = await fetch('/api/historique/' + num, { method: 'DELETE' });
     const data = await res.json();
-    if (data.success) { showToast('🗑️ Supprimé', '✅'); chargerHistorique(); }
-  } catch(e) { showToast('❌ Erreur suppression', '⚠️'); }
+    if (res.ok && data.success) {
+      showToast('🗑️ Supprimé', '✅');
+      chargerHistorique();
+    } else {
+      console.error('Suppression échouée:', data);
+      showToast('❌ ' + (data.error || 'Erreur suppression'), '⚠️');
+    }
+  } catch(e) {
+    console.error('Suppression catch:', e);
+    showToast('❌ Erreur réseau', '⚠️');
+  }
 }
 
 async function convertirEnFacture(numDevis) {
