@@ -1874,13 +1874,13 @@ table.histo-table tr:hover td { background:#fafbff; }
       </div>
     </div>
     <div class="input-group">
-      <label>Téléphone</label>
+      <label>Téléphone <span style="color:#ef4444;font-size:13px;" title="Obligatoire pour la signature">*</span></label>
       <div class="tel-row">
         <div class="tel-indicatif">🇫🇷 <select id="d-indicatif"><option value="+33">+33</option><option value="+32">🇧🇪 +32</option><option value="+41">🇨🇭 +41</option><option value="+1">🇺🇸 +1</option><option value="+44">🇬🇧 +44</option></select></div>
         <input type="tel" id="d-tel" placeholder="06 12 34 56 78" style="flex:1;">
       </div>
     </div>
-    <div class="input-group"><label>Email (envoi auto)</label><input type="email" id="d-email" placeholder="client@email.com"></div>
+    <div class="input-group"><label>Email <span style="color:#ef4444;font-size:13px;" title="Obligatoire pour l'envoi">*</span></label><input type="email" id="d-email" placeholder="client@email.com"></div>
     <div class="input-group"><label>Objet des travaux <span style="font-size:11px;color:var(--text-3);">(optionnel)</span></label><textarea id="d-description" placeholder="Ex: Rénovation électrique complète" rows="2" style="resize:vertical;"></textarea></div>
   </div>
 
@@ -7065,6 +7065,24 @@ async function genererEtTelecharger(type) {
   if (!clientNom) { showToast('⚠️ Remplis le nom du client !', '❌'); return; }
   if (!adresse) { showToast("⚠️ Remplis l'adresse !", '❌'); return; }
 
+  // Email obligatoire même pour téléchargement (sinon pas de suivi possible)
+  const emailDl = document.getElementById(`${prefix}-email`)?.value.trim();
+  if (!emailDl) {
+    showToast('📧 Email obligatoire — nécessaire pour le suivi du devis', '❌');
+    const emailEl = document.getElementById(`${prefix}-email`);
+    if (emailEl) { emailEl.style.border = '2px solid #ef4444'; emailEl.focus(); emailEl.addEventListener('input', () => emailEl.style.border = '', { once: true }); }
+    return;
+  }
+  if (type === 'devis') {
+    const telDl = document.getElementById(`${prefix}-tel`)?.value.trim();
+    if (!telDl) {
+      showToast('📞 Téléphone obligatoire — nécessaire pour la signature', '❌');
+      const telEl = document.getElementById(`${prefix}-tel`);
+      if (telEl) { telEl.style.border = '2px solid #ef4444'; telEl.focus(); telEl.addEventListener('input', () => telEl.style.border = '', { once: true }); }
+      return;
+    }
+  }
+
   const btn = document.getElementById('f-btn-dl');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Génération...'; }
 
@@ -7207,10 +7225,30 @@ async function generer(type) {
   if (!clientNom) { showToast('⚠️ Remplis le nom du client !', '❌'); return; }
   if (!adresse)   { showToast("⚠️ Remplis l'adresse !", '❌'); return; }
 
+  // ── VALIDATION EMAIL + TÉLÉPHONE (obligatoires pour signature et envoi) ──
   const emailVal = document.getElementById(`${prefix}-email`)?.value.trim();
+  const telVal   = document.getElementById(`${prefix}-tel`)?.value.trim();
+
   if (!emailVal) {
-    const go = confirm('⚠️ Email client manquant !\n\nSans email, le client ne recevra pas son PDF.\n\nContinuer quand même ?');
-    if (!go) return;
+    showToast('📧 Email obligatoire — sans email le client ne peut pas recevoir son devis', '❌');
+    const emailEl = document.getElementById(`${prefix}-email`);
+    if (emailEl) {
+      emailEl.style.border = '2px solid #ef4444';
+      emailEl.focus();
+      emailEl.addEventListener('input', () => emailEl.style.border = '', { once: true });
+    }
+    return;
+  }
+
+  if (type === 'devis' && !telVal) {
+    showToast('📞 Téléphone obligatoire — nécessaire pour valider la signature du client', '❌');
+    const telEl = document.getElementById(`${prefix}-tel`);
+    if (telEl) {
+      telEl.style.border = '2px solid #ef4444';
+      telEl.focus();
+      telEl.addEventListener('input', () => telEl.style.border = '', { once: true });
+    }
+    return;
   }
 
   // ── BUG 2 CORRIGÉ : lire les textareas DOM juste avant d'envoyer
