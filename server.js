@@ -1260,6 +1260,8 @@ app.post('/api/signature', async (req, res) => {
         const clientRue = String(adresseParts[0] || '').trim().replace(/'/g, ' ');
         const clientVille = adresseParts.slice(1).join(',').trim().replace(/'/g, ' ');
         const totalHT = parseFloat(devisData.total_ht || 0);
+        const descObjet = String(devisData.description || 'Travaux electricite')
+          .replace(/'/g,' ').replace(/"/g,' ').replace(/\n/g,' ').replace(/\r/g,'').substring(0,120);
         const detailsData = (devisData.prestations || []).map(p => ({
           designation: p.nom || p.designation, qte: p.quantite || 1,
           prixUnit: p.prix || 0, total: (p.prix || 0) * (p.quantite || 1),
@@ -1329,7 +1331,7 @@ class SC(pdfcanvas.Canvas):
         self.setFont('Helvetica-Bold',7); self.setFillColor(OR); self.drawRightString(W-1.2*cm,0.28*cm,'${num}'); self.restoreState()
 doc=SimpleDocTemplate('${pdfPath2}',pagesize=A4,leftMargin=1.2*cm,rightMargin=1.0*cm,topMargin=5.6*cm,bottomMargin=1.6*cm)
 story=[]
-objet_b=Table([[p('OBJET DES TRAVAUX',7.5,'Helvetica-Bold',OR,sa=4)],[p('${String(devisData.description || 'Travaux electricite').replace(/'/g,' ')}',10,'Helvetica-Bold',MARINE)],[p('Conformes NF C 15-100 \\u2022 Garantie decennale ORUS',7.5,color=GRIS_SOFT)]],colWidths=[8.2*cm])
+objet_b=Table([[p('OBJET DES TRAVAUX',7.5,'Helvetica-Bold',OR,sa=4)],[p('${descObjet}',10,'Helvetica-Bold',MARINE)],[p('Conformes NF C 15-100 \\u2022 Garantie decennale ORUS',7.5,color=GRIS_SOFT)]],colWidths=[8.2*cm])
 objet_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3),('LEFTPADDING',(0,0),(-1,-1),0),('LINEABOVE',(0,0),(0,0),2.5,MARINE),('TOPPADDING',(0,0),(0,0),10)]))
 client_b=Table([[p('CLIENT',7,'Helvetica-Bold',OR,sa=4)],[p('${clientEsc}',10,'Helvetica-Bold',MARINE)],[p('${clientRue}',8.5,color=GRIS_TEXTE)],[p('${clientVille}',8.5,color=GRIS_TEXTE)]],colWidths=[9.0*cm])
 client_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('BACKGROUND',(0,0),(-1,-1),OR_PALE),('BOX',(0,0),(-1,-1),1,OR),('LINEBEFORE',(0,0),(0,-1),4,MARINE),('TOPPADDING',(0,0),(0,0),10),('BOTTOMPADDING',(0,-1),(-1,-1),10)]))
@@ -1487,8 +1489,21 @@ doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw))
 print('PDF_SIG_OK')
 `;
         fs.writeFileSync(pyPath2, pySig, 'utf8');
+        fs.writeFileSync(detPath2, JSON.stringify(detailsData));
         const { execSync: execS } = require('child_process');
-        execS(`python3 ${pyPath2} ${detPath2} ${pdfPath2}`, { cwd: __dirname });
+        try {
+          const pyResult = execS(`python3 "${pyPath2}" "${detPath2}" "${pdfPath2}"`, {
+            cwd: __dirname,
+            timeout: 45000,
+            stdio: ['pipe','pipe','pipe']
+          });
+          console.log('Python sig output:', pyResult?.toString()?.trim() || 'OK');
+        } catch(pyErr) {
+          const pyStderr = pyErr.stderr?.toString() || pyErr.stdout?.toString() || pyErr.message;
+          console.error('❌ Python script signé échoué:', pyStderr);
+          throw new Error('Génération PDF signé échouée: ' + pyStderr.substring(0, 200));
+        }
+        if (!fs.existsSync(pdfPath2)) throw new Error('PDF signé non généré');
         const pdfB64 = fs.readFileSync(pdfPath2).toString('base64');
 
         // Envoyer au client avec PDF signé en pièce jointe
