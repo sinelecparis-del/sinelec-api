@@ -1281,6 +1281,10 @@ app.post('/api/signature', async (req, res) => {
         const totalHT = parseFloat(devisData.total_ht || 0);
         const descObjet = String(devisData.description || 'Travaux electricite')
           .replace(/'/g,' ').replace(/"/g,' ').replace(/\n/g,' ').replace(/\r/g,'').substring(0,120);
+        const dateCreation = new Date(devisData.date_envoi || devisData.created_at);
+        const dateValide = new Date(dateCreation.getTime() + 30*24*60*60*1000).toLocaleDateString('fr-FR');
+        const appUrl2 = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+        const lienSignature = appUrl2 + '/signer/' + num;
         const detailsData = (devisData.prestations || []).map(p => ({
           designation: p.nom || p.designation, qte: p.quantite || 1,
           prixUnit: p.prix || 0, total: (p.prix || 0) * (p.quantite || 1),
@@ -1313,8 +1317,8 @@ logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
 sig_bytes=base64.b64decode('${sigB64}')
 class SC(pdfcanvas.Canvas):
     def __init__(self,fn,**kw): pdfcanvas.Canvas.__init__(self,fn,**kw); self._pg=0; self.saveState(); self._draw_page()
-    def showPage(self): self._draw_footer(); pdfcanvas.Canvas.showPage(self); self._pg+=1
-    def save(self): self._draw_footer(); pdfcanvas.Canvas.save(self)
+    def showPage(self): self._draw_watermark(); self._draw_footer(); pdfcanvas.Canvas.showPage(self); self._pg+=1
+    def save(self): self._draw_watermark(); self._draw_footer(); pdfcanvas.Canvas.save(self)
     def _draw_page(self):
         self.saveState(); self.setFillColor(CREME); self.rect(0,0,W,H,fill=1,stroke=0)
         self.setFillColor(MARINE); self.rect(0,0,0.7*cm,H,fill=1,stroke=0)
@@ -1347,7 +1351,22 @@ class SC(pdfcanvas.Canvas):
         self.setFillColor(OR); self.rect(0,1.0*cm,W,0.08*cm,fill=1,stroke=0)
         self.setFont('Helvetica',6.5); self.setFillColor(colors.HexColor('#8899BB'))
         self.drawCentredString(W/2,0.5*cm,'SINELEC EI \\u2022 128 Rue La Boetie 75008 Paris \\u2022 SIRET : 91015824500019 \\u2022 TVA non applicable art. 293B CGI')
-        self.setFont('Helvetica-Bold',7); self.setFillColor(OR); self.drawRightString(W-1.2*cm,0.28*cm,'${num}'); self.restoreState()
+        self.setFont('Helvetica-Bold',7); self.setFillColor(OR); self.drawRightString(W-1.2*cm,0.28*cm,'${num}')
+        # ③ Numéro de page
+        self.setFont('Helvetica-Bold',8); self.setFillColor(OR)
+        self.drawString(1.5*cm,0.38*cm,'Page %d / 2'%(self._pg+1))
+        self.restoreState()
+    def _draw_watermark(self):
+        # Filigrane SIGNE niveau moyen — page 1 uniquement
+        if self._pg > 0: return
+        self.saveState()
+        self.setFillColor(colors.HexColor('#16a34a')); self.setFillAlpha(0.12)
+        self.setFont('Helvetica-Bold', 88)
+        self.translate(W/2, H/2); self.rotate(45)
+        self.drawCentredString(0, 0, 'SIGNE')
+        self.setFillAlpha(0.08); self.setFont('Helvetica', 16)
+        self.drawCentredString(0, -52, 'SINELEC PARIS')
+        self.restoreState()
 doc=SimpleDocTemplate('${pdfPath2}',pagesize=A4,leftMargin=1.2*cm,rightMargin=1.0*cm,topMargin=5.6*cm,bottomMargin=1.6*cm)
 story=[]
 objet_b=Table([[p('OBJET DES TRAVAUX',7.5,'Helvetica-Bold',OR,sa=4)],[p('${descObjet}',10,'Helvetica-Bold',MARINE)],[p('Conformes NF C 15-100 \\u2022 Garantie decennale ORUS',7.5,color=GRIS_SOFT)]],colWidths=[8.2*cm])
@@ -1376,7 +1395,12 @@ tt.setStyle(TableStyle([('LINEABOVE',(1,0),(-1,0),0.5,GRIS_LIGNE),('TOPPADDING',
 story.append(tt); story.append(Spacer(1,0.12*cm))
 net=Table([[p('NET \\u00c0 PAYER',13,'Helvetica-Bold',BLANC),p('%.2f \\u20ac'%totalHT,16,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
 net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('LINEBELOW',(0,0),(-1,-1),3,OR),('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
-story.append(net); story.append(Spacer(1,0.35*cm))
+story.append(net)
+# ① VALIDITE sous NET À PAYER
+OR_LIGHT=colors.HexColor('#fff8e6'); OR_DARK=colors.HexColor('#C9962A')
+val_row=Table([[p('Offre valable jusqu\'au',7,color=OR_DARK,sa=0),p('${dateValide}',8,'Helvetica-Bold',OR_DARK,TA_CENTER,sa=0),p('30 jours',7,'Helvetica-Bold',BLANC,sa=0)]],colWidths=[6.5*cm,5.5*cm,6.2*cm])
+val_row.setStyle(TableStyle([('BACKGROUND',(0,0),(1,-1),OR_LIGHT),('BACKGROUND',(2,0),(2,-1),OR_DARK),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('VALIGN',(0,0),(-1,-1),'MIDDLE'),('LINEBELOW',(0,0),(-1,-1),1,OR_DARK)]))
+story.append(val_row); story.append(Spacer(1,0.35*cm))
 story.append(HRFlowable(width='100%',thickness=0.3,color=GRIS_LIGNE,spaceAfter=8))
 # ── CARD ACOMPTE / SOLDE ──────────────────────────
 OR_CARD=colors.HexColor('#fffbf0')
@@ -1395,7 +1419,24 @@ story.append(t_cards); story.append(Spacer(1,0.12*cm))
 modes_data=[['\u2022 Especes','\u2022 Virement bancaire','\u2022 CB / PayPal','\u2022 Validite 30 jours']]
 t_modes=Table(modes_data,colWidths=[3.5*cm,4.5*cm,3.2*cm,7.0*cm])
 t_modes.setStyle(TableStyle([('FONTNAME',(0,0),(-1,-1),'Helvetica'),('FONTSIZE',(0,0),(-1,-1),7.5),('TEXTCOLOR',(0,0),(-1,-1),GRIS_SOFT),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),4)]))
-story.append(t_modes); story.append(Spacer(1,0.2*cm))
+story.append(t_modes); story.append(Spacer(1,0.1*cm))
+# ② QR CODE — lien signature directe
+import urllib.request, tempfile, os
+try:
+    qr_url = 'https://api.qrserver.com/v1/create-qr-code/?size=80x80&format=png&data=' + urllib.request.quote('${lienSignature}', safe='')
+    qr_tmp = '/tmp/qr_${num}.png'
+    urllib.request.urlretrieve(qr_url, qr_tmp)
+    qr_img = Image(qr_tmp, width=2.0*cm, height=2.0*cm)
+    qr_img.hAlign = 'CENTER'
+    VERT_L2=colors.HexColor('#f0fff4'); VERT_B2=colors.HexColor('#bbf7d0')
+    qr_txt=[p('\u270d\ufe0f Signer en ligne',8,'Helvetica-Bold',colors.HexColor('#16a34a'),sa=3),p('Scannez pour signer ce devis en 30 secondes depuis votre telephone',7,color=colors.HexColor('#4b7c59'),sa=3),p('${lienSignature}',6,'Helvetica-Oblique',colors.HexColor('#8896A8'))]
+    t_qr=Table([[qr_img,qr_txt]],colWidths=[2.4*cm,15.8*cm])
+    t_qr.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),VERT_L2),('BOX',(0,0),(-1,-1),1,VERT_B2),('LINEBEFORE',(0,0),(0,-1),3,colors.HexColor('#16a34a')),('VALIGN',(0,0),(-1,-1),'MIDDLE'),('LEFTPADDING',(0,0),(0,-1),8),('LEFTPADDING',(1,0),(1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
+    story.append(t_qr)
+    try: os.unlink(qr_tmp)
+    except: pass
+except Exception as eq: print('QR warning:', eq)
+story.append(Spacer(1,0.15*cm))
 story.append(HRFlowable(width='100%',thickness=0.5,color=VERT,spaceAfter=8))
 t_sig_lbl=Table([[p('SIGNATURE CLIENT',8,'Helvetica-Bold',VERT,sa=0)]],colWidths=[18.2*cm])
 t_sig_lbl.setStyle(TableStyle([('LEFTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),6)]))
@@ -1663,7 +1704,7 @@ app.get('/api/ca-complet', async (req, res) => {
 });
 
 // Vérifier si un devis a été signé (polling depuis l'app)
-app.get('/api/historique/:num/check-signature', authMiddleware, async (req, res) => {
+app.get('/api/historique/:num/check-signature', async (req, res) => { // public — polling app
   try {
     const { data } = await supabase.from('historique').select('statut, signature, date_signature').eq('num', req.params.num).single();
     if (!data) return res.status(404).json({ error: 'Non trouvé' });
@@ -1948,6 +1989,8 @@ app.get('/api/pdf/:num', async (req, res) => {
     const datePaiement = data.date_paiement ? new Date(data.date_paiement).toLocaleDateString('fr-FR') : dateStr;
     const modePaiement = String(data.mode_paiement || 'Reglement recu').replace(/'/g,' ').substring(0,30);
     const nomCourt = clientEsc.toUpperCase().split(' ').slice(0,2).join(' ').substring(0,14);
+    const dateCreation2 = new Date(data.date_envoi || data.created_at);
+    const dateValide2 = new Date(dateCreation2.getTime() + 30*24*60*60*1000).toLocaleDateString('fr-FR');
 
     const py = `# -*- coding: utf-8 -*-
 import json, base64, io, sys
@@ -1966,8 +2009,8 @@ data=json.loads(open(sys.argv[1],encoding='utf-8').read()); totalHT=sum(l['total
 logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
 class SC(pdfcanvas.Canvas):
     def __init__(self,fn,**kw): pdfcanvas.Canvas.__init__(self,fn,**kw); self._pg=0; self.saveState(); self._draw_page()
-    def showPage(self): self._draw_footer(); pdfcanvas.Canvas.showPage(self); self._pg+=1
-    def save(self): self._draw_footer(); pdfcanvas.Canvas.save(self)
+    def showPage(self): self._draw_watermark(); self._draw_footer(); pdfcanvas.Canvas.showPage(self); self._pg+=1
+    def save(self): self._draw_watermark(); self._draw_footer(); pdfcanvas.Canvas.save(self)
     def _draw_page(self):
         self.saveState(); self.setFillColor(CREME); self.rect(0,0,W,H,fill=1,stroke=0)
         self.setFillColor(MARINE); self.rect(0,0,0.7*cm,H,fill=1,stroke=0)
@@ -2002,7 +2045,28 @@ class SC(pdfcanvas.Canvas):
         self.setFillColor(OR); self.rect(0,1.0*cm,W,0.08*cm,fill=1,stroke=0)
         self.setFont('Helvetica',6.5); self.setFillColor(colors.HexColor('#8899BB'))
         self.drawCentredString(W/2,0.5*cm,'SINELEC EI \\u2022 128 Rue La Boetie 75008 Paris \\u2022 SIRET : 91015824500019 \\u2022 TVA non applicable art. 293B CGI')
-        self.setFont('Helvetica-Bold',7); self.setFillColor(OR); self.drawRightString(W-1.2*cm,0.28*cm,'${num}'); self.restoreState(); self._draw_tampons()
+        self.setFont('Helvetica-Bold',7); self.setFillColor(OR); self.drawRightString(W-1.2*cm,0.28*cm,'${num}')
+        # ③ Numéro de page
+        self.setFont('Helvetica-Bold',8); self.setFillColor(OR)
+        self.drawString(1.5*cm,0.38*cm,'Page %d / 2'%(self._pg+1))
+        self.restoreState()
+    def _draw_watermark(self):
+        # Filigrane PAYE ou SIGNE — niveau moyen — page 1 uniquement
+        if self._pg > 0: return
+        _st = '${docStatut}'.lower()
+        _st_norm = _st.replace('\u00e9','e').replace('\u00e8','e')
+        _is_paye = any(x in _st for x in ('paye','acquit'))
+        _is_signe = '${docType}' == 'devis' and any(x in _st for x in ('signe','sign'))
+        if not (_is_paye or _is_signe): self._draw_tampons(); return
+        _label = 'PAYE' if _is_paye else 'SIGNE'
+        self.saveState()
+        self.setFillColor(colors.HexColor('#16a34a')); self.setFillAlpha(0.12)
+        self.setFont('Helvetica-Bold', 88)
+        self.translate(W/2, H/2); self.rotate(45)
+        self.drawCentredString(0, 0, _label)
+        self.setFillAlpha(0.08); self.setFont('Helvetica', 16)
+        self.drawCentredString(0, -52, 'SINELEC PARIS')
+        self.restoreState(); self._draw_tampons()
     def _draw_tampons(self):
         rouge = colors.HexColor('#cc0000')
         vert  = colors.HexColor('#16a34a')
@@ -2042,9 +2106,35 @@ for i in range(len(data)):
 t.setStyle(TableStyle(ts)); story.append(t); story.append(Spacer(1,0.15*cm))
 tt=Table([['',p('Total HT',9,color=GRIS_SOFT,align=TA_RIGHT),p('%.2f \\u20ac'%totalHT,9,'Helvetica-Bold',GRIS_TEXTE,TA_RIGHT)],['',p('TVA',9,color=GRIS_SOFT,align=TA_RIGHT),p('Non applicable (art. 293B)',8,color=GRIS_SOFT,align=TA_RIGHT)]],colWidths=[9.0*cm,4.5*cm,4.7*cm])
 tt.setStyle(TableStyle([('LINEABOVE',(1,0),(-1,0),0.5,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('LEFTPADDING',(0,0),(-1,-1),6),('RIGHTPADDING',(0,0),(-1,-1),6)])); story.append(tt); story.append(Spacer(1,0.12*cm))
-net=Table([[p('NET A PAYER',12,'Helvetica-Bold',BLANC),p('%.2f \\u20ac'%totalHT,16,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
+net=Table([[p('NET \u00c0 PAYER',13,'Helvetica-Bold',BLANC),p('%.2f \u20ac'%totalHT,16,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
 net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('LINEBELOW',(0,0),(-1,-1),3,OR),('VALIGN',(0,0),(-1,-1),'MIDDLE')])); story.append(net)
+story.append(Spacer(1,0.35*cm))
+story.append(HRFlowable(width='100%',thickness=0.3,color=GRIS_LIGNE,spaceAfter=8))
+IS_DEVIS_DL = '${docType}' == 'devis'
 IS_FACTURE = '${docType}' == 'facture'
+if IS_DEVIS_DL:
+    # ── VALIDITE ──
+    OR_LIGHT2=colors.HexColor('#fff8e6'); OR_DARK2=colors.HexColor('#C9962A')
+    val_row2=Table([[p('Offre valable jusqu\'au',7,color=OR_DARK2,sa=0),p('${dateValide2}',8,'Helvetica-Bold',OR_DARK2,TA_CENTER,sa=0),p('30 jours',7,'Helvetica-Bold',BLANC,sa=0)]],colWidths=[6.5*cm,5.5*cm,6.2*cm])
+    val_row2.setStyle(TableStyle([('BACKGROUND',(0,0),(1,-1),OR_LIGHT2),('BACKGROUND',(2,0),(2,-1),OR_DARK2),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('VALIGN',(0,0),(-1,-1),'MIDDLE'),('LINEBELOW',(0,0),(-1,-1),1,OR_DARK2)]))
+    story.append(val_row2); story.append(Spacer(1,0.25*cm))
+    story.append(HRFlowable(width='100%',thickness=0.3,color=GRIS_LIGNE,spaceAfter=8))
+    # ── CARDS ACOMPTE / SOLDE ──
+    OR_CARD2=colors.HexColor('#fffbf0'); OR_BORDER2=colors.HexColor('#E8B84B')
+    GRIS_CARD2=colors.HexColor('#f8f9fb'); GRIS_BORDER2=colors.HexColor('#E4E7EF')
+    ac2=[[p('ACOMPTE',7,'Helvetica-Bold',colors.HexColor('#A07830'),sa=2)],[p('A la signature',7,color=GRIS_SOFT,sa=1)],[p('40%',9,'Helvetica-Bold',colors.HexColor('#A07830'),sa=1)],[p('%.2f \u20ac'%(totalHT*0.4),14,'Helvetica-Bold',MARINE,TA_CENTER)]]
+    t_ac2=Table(ac2,colWidths=[8.2*cm])
+    t_ac2.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),OR_CARD2),('BOX',(0,0),(-1,-1),1.2,OR_BORDER2),('LINEBEFORE',(0,0),(0,-1),3.5,OR_BORDER2),('TOPPADDING',(0,0),(-1,-1),2),('BOTTOMPADDING',(0,0),(-1,-1),2),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(0,0),10),('BOTTOMPADDING',(0,-1),(-1,-1),10)]))
+    sl2=[[p('SOLDE',7,'Helvetica-Bold',GRIS_SOFT,sa=2)],[p('Fin des travaux',7,color=GRIS_SOFT,sa=1)],[p('60%',9,'Helvetica-Bold',GRIS_SOFT,sa=1)],[p('%.2f \u20ac'%(totalHT*0.6),14,'Helvetica-Bold',MARINE,TA_CENTER)]]
+    t_sl2=Table(sl2,colWidths=[8.2*cm])
+    t_sl2.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GRIS_CARD2),('BOX',(0,0),(-1,-1),1.0,GRIS_BORDER2),('LINEBEFORE',(0,0),(0,-1),3.5,GRIS_BORDER2),('TOPPADDING',(0,0),(-1,-1),2),('BOTTOMPADDING',(0,0),(-1,-1),2),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(0,0),10),('BOTTOMPADDING',(0,-1),(-1,-1),10)]))
+    t_cards2=Table([[t_ac2,t_sl2]],colWidths=[8.65*cm,8.65*cm])
+    t_cards2.setStyle(TableStyle([('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(0,-1),7)]))
+    story.append(t_cards2); story.append(Spacer(1,0.12*cm))
+    modes2=[['• Especes','• Virement bancaire','• CB / PayPal','• Validite 30 jours']]
+    t_modes2=Table(modes2,colWidths=[3.5*cm,4.5*cm,3.2*cm,7.0*cm])
+    t_modes2.setStyle(TableStyle([('FONTNAME',(0,0),(-1,-1),'Helvetica'),('FONTSIZE',(0,0),(-1,-1),7.5),('TEXTCOLOR',(0,0),(-1,-1),GRIS_SOFT),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),4)]))
+    story.append(t_modes2); story.append(Spacer(1,0.2*cm))
 if IS_FACTURE:
     story.append(Spacer(1,0.35*cm))
     from reportlab.platypus.flowables import HRFlowable
