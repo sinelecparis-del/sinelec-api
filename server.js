@@ -1218,8 +1218,29 @@ app.post('/api/signature', async (req, res) => {
     if (!devisData) return res.status(404).json({ error: 'Devis introuvable' });
     if (devisData.statut === 'signe' || devisData.statut === 'signé') return res.status(400).json({ error: 'Devis déjà signé' });
 
+    // ── SIGNATURES TABLE ──────────────────────────────
     await supabase.from('signatures').insert({ num, signature, cgv_acceptees: true, otp_verifie: true, date_signature: now.toISOString(), ip_client: ipClient });
-    await supabase.from('historique').update({ signature, statut: 'signe', date_signature: now.toISOString(), cgv_acceptees: true, otp_verifie: true }).eq('num', num);
+
+    // ── UPDATE HISTORIQUE — 2 tentatives ──────────────
+    // Tentative 1 : update complet
+    const { error: updErr1 } = await supabase.from('historique')
+      .update({ statut: 'signe', date_signature: now.toISOString(), cgv_acceptees: true, otp_verifie: true, signature })
+      .eq('num', num);
+
+    if (updErr1) {
+      console.warn('Update complet échoué:', updErr1.message, '— tentative statut seul');
+      // Tentative 2 : update statut seul (le plus important)
+      const { error: updErr2 } = await supabase.from('historique')
+        .update({ statut: 'signe', date_signature: now.toISOString() })
+        .eq('num', num);
+      if (updErr2) {
+        console.error('❌ Update statut échoué:', updErr2.message, '| num:', num);
+      } else {
+        console.log('✅ Statut signe mis à jour (minimal) pour', num);
+      }
+    } else {
+      console.log('✅ Historique signé mis à jour (complet) pour', num);
+    }
 
     const montant = parseFloat(devisData.total_ht || 0);
     const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
