@@ -1714,7 +1714,13 @@ app.get('/api/ca-complet', async (req, res) => {
       client: f.client,
       total_ht: f.montant,
       montant_diahe: f.montant,
-      statut: f.statut?.toLowerCase().includes('pay') ? 'paye' : (f.statut || 'envoye'),
+      statut: (() => {
+        const st = (f.statut || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+        if (['payee','paye','acquitte','acquittee','regle','reglee'].some(x => st.includes(x))) return 'paye';
+        if (['annule','annulee','annulée','annulé'].some(x => st.includes(x))) return 'annule';
+        if (['finalise','finalisee','finalisée','finalisé','termine','terminee'].some(x => st.includes(x))) return 'paye';
+        return 'envoye'; // Brouillon, En cours, etc.
+      })(),
       created_at: f.date_facture ? f.date_facture + 'T00:00:00.000Z' : f.created_at,
       num: f.reference,
       adresse: f.chantier,
