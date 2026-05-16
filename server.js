@@ -733,6 +733,23 @@ app.get('/api/track/open/:num', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════
+// API: EMAIL OPENS RÉCENTS (pour notifs temps réel)
+// ═══════════════════════════════════════════════════
+app.get('/api/email-opens-recent', async (req, res) => {
+  try {
+    const since = new Date(Date.now() - 3 * 60 * 1000).toISOString(); // 3 dernières minutes
+    const { data } = await supabase
+      .from('historique')
+      .select('num, client, type, nb_ouvertures, derniere_ouverture')
+      .eq('email_ouvert', true)
+      .gte('derniere_ouverture', since)
+      .order('derniere_ouverture', { ascending: false })
+      .limit(10);
+    res.json(data || []);
+  } catch(e) { res.json([]); }
+});
+
+// ═══════════════════════════════════════════════════
 // API: CHATBOT
 // ═══════════════════════════════════════════════════
 
@@ -2821,6 +2838,104 @@ cron.schedule('0 * * * *', verifierSante);
 
 // Health check démarrage (2min)
 setTimeout(() => { verifierSante().catch(() => {}); }, 120000);
+
+
+// ═══════════════════════════════════════════════════════════
+// CRON RELANCE DEVIS NON SIGNÉS J+3 / J+7 — 9h chaque matin
+// ═══════════════════════════════════════════════════════════
+async function relancerDevisNonSignes() {
+  try {
+    const maintenant = new Date();
+    const { data: devis } = await supabase.from('historique')
+      .select('num, client, email, telephone, total_ht, date_envoi, description')
+      .eq('type', 'devis')
+      .eq('statut', 'envoye')
+      .not('email', 'is', null);
+
+    if (!devis?.length) return;
+
+    let relances = 0;
+    for (const d of devis) {
+      if (!d.email || !d.date_envoi) continue;
+      const envoi = new Date(d.date_envoi);
+      const joursDiff = Math.round((maintenant - envoi) / (1000 * 60 * 60 * 24));
+
+      // J+7 / J+14 / J+21 uniquement — ignorer le reste
+      const estJ7  = joursDiff === 7;
+      const estJ14 = joursDiff === 14;
+      const estJ21 = joursDiff === 21;
+      if (!estJ7 && !estJ14 && !estJ21) continue;
+
+      const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+      const lienSignature = `${appUrl}/signer/${d.num}`;
+      const montant = parseFloat(d.total_ht || 0).toFixed(0);
+      const prenom = (d.client || '').split(' ')[0];
+
+      const configs = {
+        7:  { relanceNum: 1, urgence: false,
+               sujet: `📋 1er rappel — Votre devis SINELEC ${d.num} attend votre signature`,
+               intro: `Votre devis <strong>${d.num}</strong> d'un montant de <strong>${montant} €</strong> est en attente de signature depuis 7 jours.`,
+               sms: `Bonjour ${prenom}, votre devis SINELEC ${d.num} (${montant}€) attend votre signature : ${lienSignature}` },
+        14: { relanceNum: 2, urgence: false,
+               sujet: `⚠️ 2e rappel — Devis ${d.num} toujours en attente`,
+               intro: `Cela fait 2 semaines que votre devis <strong>${d.num}</strong> (${montant} €) est en attente. Il reste encore valable mais nous souhaitions vous relancer.`,
+               sms: `2e rappel SINELEC — Devis ${d.num} (${montant}€) non signé. Lien signature : ${lienSignature}` },
+        21: { relanceNum: 3, urgence: true,
+               sujet: `🔔 Dernier rappel — Devis ${d.num} expire dans 9 jours`,
+               intro: `C'est notre <strong>dernier rappel</strong> pour votre devis <strong>${d.num}</strong> (${montant} €). Il expirera définitivement dans 9 jours.`,
+               sms: `DERNIER RAPPEL SINELEC — Devis ${d.num} (${montant}€) expire bientôt. Signez maintenant : ${lienSignature}` }
+      };
+
+      const cfg = configs[joursDiff];
+
+      const htmlEmail = `
+        <div style="font-family:Arial,sans-serif;max-width:580px;margin:0 auto;">
+          <div style="background:#1B2A4A;padding:20px 24px;border-bottom:3px solid #E8B84B;">
+            <span style="color:#fff;font-size:20px;font-weight:800;">⚡ SINELEC PARIS</span>
+            <span style="float:right;background:#E8B84B;color:#1B2A4A;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:800;">
+              Rappel ${cfg.relanceNum}/3
+            </span>
+          </div>
+          <div style="padding:28px 24px;background:#fff;">
+            <p style="font-size:16px;font-weight:700;color:#1B2A4A;margin-bottom:12px;">
+              Bonjour ${prenom || d.client},
+            </p>
+            <p style="color:#555;line-height:1.6;margin-bottom:16px;">${cfg.intro}</p>
+            ${cfg.urgence ? `<div style="background:#fff8e6;border-left:4px solid #E8B84B;padding:12px 16px;margin-bottom:20px;font-size:13px;color:#8B5E10;font-weight:600;">
+              ⏰ Ce devis expire le ${new Date(envoi.getTime()+30*86400000).toLocaleDateString('fr-FR')}. Passé ce délai, un nouveau devis sera nécessaire.
+            </div>` : ''}
+            <div style="text-align:center;margin:28px 0;">
+              <a href="${lienSignature}" style="background:#1B2A4A;color:#E8B84B;padding:14px 32px;border-radius:8px;font-weight:800;font-size:15px;text-decoration:none;display:inline-block;">
+                ✍️ Signer mon devis
+              </a>
+            </div>
+            <p style="color:#999;font-size:13px;text-align:center;">
+              Questions ? Appelez-nous : <a href="tel:0787388622" style="color:#1B2A4A;font-weight:700;">07 87 38 86 22</a>
+            </p>
+          </div>
+          <div style="background:#f8f8f8;padding:12px 24px;text-align:center;font-size:11px;color:#aaa;">
+            SINELEC EI — 128 Rue La Boétie, 75008 Paris — TVA non applicable art. 293B CGI
+          </div>
+        </div>`;
+
+      await envoyerEmail(d.email, cfg.sujet, htmlEmail);
+
+      if (d.telephone) {
+        await envoyerSMS(d.telephone, cfg.sms);
+      }
+
+      relances++;
+      console.log(`📨 Relance J+${joursDiff} (${cfg.relanceNum}/3) → ${d.client} (${d.num})`);
+    }
+
+    if (relances > 0) console.log(`✅ Relances devis : ${relances} envoyée(s)`);
+  } catch(e) {
+    console.error('❌ Erreur relance devis:', e.message);
+  }
+}
+
+// Lancer à 9h chaque matin
+cron.schedule('0 9 * * *', relancerDevisNonSignes);
 
 // ═══════════════════════════════════════════════════
 // CRON RELANCE FACTURES J+7 / J+14 — 8h chaque matin
