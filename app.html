@@ -2819,6 +2819,8 @@ function initialiserApp() {
   }, 100);
   // Démarrer le polling signature
   setTimeout(demarrerPollingSignature, 3000);
+  setTimeout(demarrerPollingEmailOpens, 5000);
+  setTimeout(demanderPermissionNotifs, 8000);
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
@@ -6914,6 +6916,81 @@ function toggleBrouillons() {
 // Initialiser les brouillons quand la page devis s'ouvre
 function initBrouillons() {
   afficherBrouillons();
+}
+
+
+// ═══════════════════════════════════════════════════
+// POLLING EMAIL OPENS — Notifs temps réel
+// ═══════════════════════════════════════════════════
+const _emailsDejaNotifies = new Set();
+let _pollingEmailInterval = null;
+
+function demarrerPollingEmailOpens() {
+  if (_pollingEmailInterval) return;
+  // Attendre 10s avant le 1er check (app pas encore chargée)
+  setTimeout(() => {
+    _verifierEmailsOuverts();
+    _pollingEmailInterval = setInterval(_verifierEmailsOuverts, 45000); // toutes les 45s
+  }, 10000);
+}
+
+async function _verifierEmailsOuverts() {
+  try {
+    const res = await fetch('/api/email-opens-recent');
+    if (!res.ok) return;
+    const opens = await res.json();
+
+    for (const doc of opens) {
+      const key = `${doc.num}-${doc.nb_ouvertures}`;
+      if (_emailsDejaNotifies.has(key)) continue;
+      _emailsDejaNotifies.add(key);
+
+      // Notif toast avec vibration
+      const typeLabel = doc.type === 'devis' ? 'devis' : 'facture';
+      const nbLabel = doc.nb_ouvertures > 1 ? ` (${doc.nb_ouvertures}e ouverture)` : '';
+      const msg = `${doc.client || doc.num} a ouvert votre email${nbLabel}`;
+
+      showToast(msg, '👁️');
+
+      // Vibration mobile si disponible
+      if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+
+      // Notif navigateur si autorisée
+      if (Notification.permission === 'granted') {
+        new Notification('👁️ Email ouvert — SINELEC', {
+          body: msg,
+          icon: '/favicon.ico',
+          tag: key,
+          silent: false
+        });
+      }
+
+      // Mettre à jour le badge dans l'historique si visible
+      _majBadgeEmailHistorique(doc.num, doc.nb_ouvertures);
+    }
+  } catch(e) {}
+}
+
+function _majBadgeEmailHistorique(num, nbOuvertures) {
+  // Mettre à jour dans historiqueData en mémoire
+  if (window.historiqueData) {
+    const item = window.historiqueData.find(d => d.num === num);
+    if (item) {
+      item.email_ouvert = true;
+      item.nb_ouvertures = nbOuvertures;
+      item.derniere_ouverture = new Date().toISOString();
+    }
+  }
+  // Re-render la ligne concernée si historique visible
+  const page = document.getElementById('page-historique');
+  if (page?.classList.contains('active')) renderTableauHistorique();
+}
+
+async function demanderPermissionNotifs() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    const perm = await Notification.requestPermission();
+    if (perm === 'granted') showToast('Notifications activées ✅', '🔔');
+  }
 }
 
 // ═══════════════════════════════════════════════════
