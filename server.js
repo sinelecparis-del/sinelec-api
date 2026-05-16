@@ -2342,7 +2342,7 @@ class SC(pdfcanvas.Canvas):
         self.drawRightString(W-1.2*cm,H-4.2*cm,'Import\u00e9 depuis OBAT')
         self.restoreState()
     def _draw_watermark(self):
-        if not ${str(isPaye).lower()}: return
+        if not ${isPaye ? "True" : "False"}: return
         self.saveState()
         self.setFillColor(VERT); self.setFillAlpha(0.12)
         self.setFont('Helvetica-Bold',88)
@@ -2389,7 +2389,7 @@ story.append(net)
 
 # Statut paiement
 story.append(Spacer(1,0.4*cm))
-if ${str(isPaye).lower()}:
+if ${isPaye ? "True" : "False"}:
     VERT_L=colors.HexColor('#f0fff4'); VERT_B=colors.HexColor('#bbf7d0'); VERT_T=colors.HexColor('#16a34a')
     paye_t=Table([[p('\u2705 PAIEMENT RECU \u2014 ${statutEsc}',9,'Helvetica-Bold',VERT_T)]],colWidths=[18.2*cm])
     paye_t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),VERT_L),('BOX',(0,0),(-1,-1),1,VERT_B),('LINEBEFORE',(0,0),(0,-1),4,VERT_T),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),('LEFTPADDING',(0,0),(-1,-1),14)]))
