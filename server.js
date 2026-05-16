@@ -2247,7 +2247,16 @@ story.append(t_tampon2)
 doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
 `;
     fs.writeFileSync(pyPath, py, 'utf8');
-    try { execSync(`python3 ${pyPath} ${detailsPath} ${pdfPath}`, { cwd: __dirname, stdio: 'inherit' }); } catch(e) { throw new Error('PDF failed'); }
+    try {
+      execSync(`python3 "${pyPath}" "${detailsPath}" "${pdfPath}"`, {
+        cwd: __dirname, timeout: 40000, stdio: ['pipe','pipe','pipe']
+      });
+    } catch(pyErr) {
+      const pyMsg = pyErr.stderr?.toString() || pyErr.stdout?.toString() || pyErr.message;
+      console.error('❌ PDF/:num Python error:', pyMsg.substring(0,400));
+      throw new Error('PDF generation failed: ' + pyMsg.substring(0,150));
+    }
+    if (!fs.existsSync(pdfPath)) throw new Error('PDF non généré');
     const pdfBuffer = fs.readFileSync(pdfPath);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${num}.pdf"`);
@@ -2417,10 +2426,10 @@ print('OBAT_PDF_OK')
     try {
       execSync(`python3 "${pyPath}" "${pdfPath}"`, { cwd: __dirname, timeout: 30000, stdio: ['pipe','pipe','pipe'] });
     } catch(pyErr) {
-      const errMsg = pyErr.stderr?.toString() || pyErr.message;
-      console.error('PDF OBAT error:', errMsg.substring(0,300));
+      const errMsg = pyErr.stderr?.toString() || pyErr.stdout?.toString() || pyErr.message;
+      console.error('❌ PDF OBAT Python error:', errMsg.substring(0,400));
       try { fs.unlinkSync(pyPath); } catch(e) {}
-      return res.status(500).json({ error: 'Génération PDF échouée: ' + errMsg.substring(0,100) });
+      return res.status(500).json({ error: 'PDF OBAT échoué: ' + errMsg.substring(0,150) });
     }
 
     if (!fs.existsSync(pdfPath)) return res.status(500).json({ error: 'PDF non généré' });
