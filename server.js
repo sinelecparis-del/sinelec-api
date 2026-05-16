@@ -732,6 +732,55 @@ app.get('/api/track/open/:num', async (req, res) => {
   });
 });
 
+
+// ═══════════════════════════════════════════════════
+// API: SCAN TICKET (Claude Vision → charge auto)
+// ═══════════════════════════════════════════════════
+app.post('/api/scan-ticket', async (req, res) => {
+  try {
+    const { image_b64, media_type } = req.body;
+    if (!image_b64) return res.status(400).json({ error: 'Image manquante' });
+
+    const Anthropic = require('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+    const msg = await client.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 400,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: media_type || 'image/jpeg', data: image_b64 } },
+          { type: 'text', text: `Analyse ce ticket de caisse/note de frais et extrait les informations.
+Réponds UNIQUEMENT en JSON valide, sans markdown, sans texte autour :
+{
+  "montant": <nombre décimal ex: 47.50>,
+  "date": "<date au format YYYY-MM-DD, si absente mets aujourd'hui: ${new Date().toISOString().slice(0,10)}>",
+  "categorie": "<une seule valeur parmi: fournitures, materiel, outillage, carburant, stationnement, telephone, lsa, autre>",
+  "note": "<nom du magasin ou description courte, max 40 caractères>"
+}
+Si tu ne peux pas lire le montant, mets montant: 0.` }
+        ]
+      }]
+    });
+
+    const raw = msg.content[0]?.text?.trim() || '{}';
+    let data = {};
+    try { data = JSON.parse(raw.replace(/```json|```/g, '').trim()); } catch(e) {}
+
+    res.json({
+      success: true,
+      montant: parseFloat(data.montant) || 0,
+      date: data.date || new Date().toISOString().slice(0,10),
+      categorie: data.categorie || 'autre',
+      note: data.note || ''
+    });
+  } catch(e) {
+    console.error('Scan ticket error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ═══════════════════════════════════════════════════
 // API: EMAIL OPENS RÉCENTS (pour notifs temps réel)
 // ═══════════════════════════════════════════════════
