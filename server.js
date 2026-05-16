@@ -2033,9 +2033,10 @@ from reportlab.platypus import *; from reportlab.lib.styles import ParagraphStyl
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT; from reportlab.pdfgen import canvas as pdfcanvas
 from reportlab.lib.utils import ImageReader
 W,H=A4; MARINE=colors.HexColor('#1B2A4A'); OR=colors.HexColor('#C9A84C')
-OR_PALE=colors.HexColor('#FBF7EC'); BLANC=colors.white; CREME=colors.HexColor('#FDFCF9')
+OR_PALE=colors.HexColor('#FBF7EC'); OR_FONCE=colors.HexColor('#A07830'); BLANC=colors.white; CREME=colors.HexColor('#FDFCF9')
 GRIS_TEXTE=colors.HexColor('#3A3A3A'); GRIS_SOFT=colors.HexColor('#777777')
 GRIS_LIGNE=colors.HexColor('#E0DDD6'); GRIS_BG=colors.HexColor('#F5F4F0')
+VERT=colors.HexColor('#16a34a')
 def p(txt,sz=9,font='Helvetica',color=GRIS_TEXTE,align=TA_LEFT,sb=0,sa=2,leading=None):
     if leading is None: leading=sz*1.35
     return Paragraph(str(txt),ParagraphStyle('s',fontName=font,fontSize=sz,textColor=color,alignment=align,spaceBefore=sb,spaceAfter=sa,leading=leading,wordWrap='CJK'))
