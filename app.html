@@ -1828,6 +1828,17 @@ table.histo-table tr:hover td { background:#fafbff; }
     <div id="renta-categories"></div>
   </div>
 
+  <!-- Scanner ticket -->
+  <input type="file" id="ticket-input" accept="image/*" capture="environment" style="display:none" onchange="scannerTicket(event)">
+  <div id="scan-overlay" style="display:none;background:rgba(232,184,75,0.08);border:1.5px dashed rgba(232,184,75,0.4);border-radius:14px;padding:20px;text-align:center;margin-bottom:12px;">
+    <div style="font-size:28px;margin-bottom:8px;">🔍</div>
+    <div style="font-size:13px;font-weight:700;color:var(--accent);">Analyse du ticket en cours...</div>
+    <div style="font-size:11px;color:var(--text-3);margin-top:4px;">Claude lit votre ticket</div>
+  </div>
+  <button onclick="document.getElementById('ticket-input').click()" class="btn-gen" style="background:linear-gradient(135deg,#1B2A4A,#243660);color:#E8B84B;font-weight:800;margin-bottom:12px;display:flex;align-items:center;justify-content:center;gap:8px;width:100%;">
+    📷 Scanner un ticket de caisse
+  </button>
+
   <!-- Ajouter une charge -->
   <div class="section" style="margin-bottom:16px;">
     <div class="section-title">➕ Ajouter une charge</div>
@@ -7067,6 +7078,74 @@ function fermerActionSheet() {
   document.body.style.overflow = '';
 }
 
+
+
+// ═══════════════════════════════════════════════════
+// SCAN TICKET — Claude Vision → charge auto
+// ═══════════════════════════════════════════════════
+const CATEGORIES_LABELS = {
+  fournitures: '🔌 Fournitures', materiel: '🔧 Matériel', outillage: '🛠️ Outillage',
+  carburant: '⛽ Carburant', stationnement: '🅿️ Stationnement', telephone: '📱 Téléphone',
+  lsa: '📍 LSA Google', urssaf: '🏛️ URSSAF', autre: '📦 Autre'
+};
+
+async function scannerTicket(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  const overlay = document.getElementById('scan-overlay');
+  if (overlay) overlay.style.display = 'block';
+
+  try {
+    // Lire l'image en base64
+    const b64 = await new Promise((res, rej) => {
+      const reader = new FileReader();
+      reader.onload = e => res(e.target.result.split(',')[1]);
+      reader.onerror = rej;
+      reader.readAsDataURL(file);
+    });
+
+    const mediaType = file.type || 'image/jpeg';
+
+    const resp = await fetch('/api/scan-ticket', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image_b64: b64, media_type: mediaType })
+    });
+
+    const data = await resp.json();
+    if (!data.success) throw new Error(data.error || 'Erreur analyse');
+
+    // Pré-remplir le formulaire
+    const catEl = document.getElementById('charge-categorie');
+    const montantEl = document.getElementById('charge-montant');
+    const dateEl = document.getElementById('charge-date');
+    const noteEl = document.getElementById('charge-note');
+
+    if (catEl) catEl.value = data.categorie || 'autre';
+    if (montantEl) { montantEl.value = data.montant; montantEl.style.border = '2px solid #16a34a'; }
+    if (dateEl) dateEl.value = data.date;
+    if (noteEl) noteEl.value = data.note || '';
+
+    // Scroll vers le formulaire
+    document.getElementById('charge-montant')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    const catLabel = CATEGORIES_LABELS[data.categorie] || data.categorie;
+    showToast(`✅ ${data.montant}€ détecté — ${catLabel}`, '📷');
+
+  } catch(e) {
+    showToast('❌ Impossible de lire le ticket : ' + e.message, '⚠️');
+  } finally {
+    if (overlay) overlay.style.display = 'none';
+    // Reset input pour permettre re-scan du même fichier
+    event.target.value = '';
+    // Reset border après 3s
+    setTimeout(() => {
+      const el = document.getElementById('charge-montant');
+      if (el) el.style.border = '';
+    }, 3000);
+  }
+}
 
 // ═══════════════════════════════════════════════════
 // MODE NUIT — Tarifs urgence automatiques
