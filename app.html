@@ -382,41 +382,6 @@ body {
 .panier-item-name { flex:1; font-size:14px; font-weight:600; color:rgba(0,0,0,0.8); }
 .panier-item-price { font-size:15px; font-weight:800; color:var(--accent); min-width:90px; text-align:right; }
 
-/* Prochaine intervention — dashboard accueil */
-.acc-next-card {
-  background: linear-gradient(135deg, rgba(22,163,74,0.08), rgba(22,163,74,0.03));
-  border: 1.5px solid rgba(22,163,74,0.25);
-  border-radius: 14px;
-  padding: 16px 18px;
-  margin-bottom: 14px;
-  position: relative;
-  overflow: hidden;
-}
-.acc-next-card::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; bottom: 0;
-  width: 4px;
-  background: #16a34a;
-  border-radius: 4px 0 0 4px;
-}
-.acc-next-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
-.acc-next-badge { background:#16a34a; color:#fff; border-radius:20px; padding:3px 12px; font-size:11px; font-weight:800; }
-.acc-next-time { font-size:22px; font-weight:900; color:var(--text); font-family:inherit; }
-.acc-next-client { font-size:16px; font-weight:800; color:var(--text); margin-bottom:2px; }
-.acc-next-addr { font-size:13px; color:var(--text-3); margin-bottom:10px; }
-.acc-next-type { display:inline-flex; align-items:center; gap:5px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.08); border-radius:20px; padding:4px 12px; font-size:12px; color:var(--text-2); margin-bottom:12px; }
-.acc-next-btns { display:flex; gap:8px; }
-.acc-next-btn { flex:1; padding:10px; border-radius:10px; font-size:12px; font-weight:700; border:none; cursor:pointer; font-family:inherit; transition:opacity 0.15s; }
-.acc-next-btn:active { opacity:0.8; }
-.acc-next-btn.green { background:#16a34a; color:#fff; }
-.acc-next-btn.dark { background:rgba(255,255,255,0.07); color:var(--text); border:1px solid rgba(255,255,255,0.08); }
-.acc-next-empty { text-align:center; padding:16px; color:var(--text-3); font-size:13px; }
-
-/* KPI strip améliorée */
-.acc-kpi-bar { height:4px; background:rgba(255,255,255,0.08); border-radius:20px; margin-top:8px; overflow:hidden; }
-.acc-kpi-bar-fill { height:100%; border-radius:20px; transition:width 1s ease; }
-
 /* Mode nuit */
 .mode-nuit-banner {
   display:flex; align-items:center; justify-content:space-between;
@@ -1539,22 +1504,6 @@ table.histo-table tr:hover td { background:#fafbff; }
         <div class="obat-kpi-trend" id="acc-devis-relance" style="color:#f59e0b;">—</div>
         <div class="obat-kpi-sub" id="acc-total-devis">—</div>
         <div class="obat-kpi-tooltip">→ Devis en attente de signature</div>
-      </div>
-    </div>
-
-    <!-- Prochaine intervention -->
-    <div id="acc-next-card" class="acc-next-card" style="display:none;">
-      <div class="acc-next-header">
-        <span class="acc-next-badge">📅 Prochaine intervention</span>
-        <span class="acc-next-time" id="acc-next-time">—</span>
-      </div>
-      <div class="acc-next-client" id="acc-next-client">—</div>
-      <div class="acc-next-addr" id="acc-next-addr">—</div>
-      <span class="acc-next-type" id="acc-next-type">—</span>
-      <div class="acc-next-btns">
-        <button class="acc-next-btn green" id="acc-next-waze" onclick="">🗺️ Waze</button>
-        <button class="acc-next-btn dark" id="acc-next-devis" onclick="">📋 Devis</button>
-        <button class="acc-next-btn dark" id="acc-next-tel" onclick="">📞 Appeler</button>
       </div>
     </div>
 
@@ -2943,7 +2892,7 @@ function switchPage(page, el) {
   setTimeout(() => { window.scrollTo(0, 0); if (pageEl) pageEl.scrollIntoView({ behavior:'instant', block:'start' }); }, 50);
   if (page === 'depannage') setTimeout(initDepannage, 100);
   if (page === 'devis') { setTimeout(initBrouillons, 100); setTimeout(initModeNuit, 200); }
-  if (page === 'accueil') { setTimeout(chargerAccueil, 100); setTimeout(chargerProchaineIntervention, 150); }
+  if (page === 'accueil') setTimeout(chargerAccueil, 100);
   if (page === 'historique') setTimeout(chargerHistorique, 100);
   if (page === 'dashboard') setTimeout(chargerDashboard, 100);
   if (page === 'clients') setTimeout(chargerClients, 100);
@@ -7195,86 +7144,6 @@ async function scannerTicket(event) {
       const el = document.getElementById('charge-montant');
       if (el) el.style.border = '';
     }, 3000);
-  }
-}
-
-
-// ═══════════════════════════════════════════════════
-// PROCHAINE INTERVENTION — Dashboard accueil
-// ═══════════════════════════════════════════════════
-async function chargerProchaineIntervention() {
-  try {
-    const res = await fetch('/api/agenda');
-    if (!res.ok) return;
-    const data = await res.json();
-    const now = new Date();
-    const todayStr = now.toISOString().slice(0,10);
-
-    // Trouver la prochaine intervention planifiée (pas passée)
-    const futures = (data || [])
-      .filter(a => {
-        const d = a.date_intervention || a.date || '';
-        return d >= todayStr && a.statut !== 'annule' && a.statut !== 'termine';
-      })
-      .sort((a,b) => {
-        const da = (a.date_intervention||a.date||'') + (a.heure||'00:00');
-        const db = (b.date_intervention||b.date||'') + (b.heure||'00:00');
-        return da.localeCompare(db);
-      });
-
-    const card = document.getElementById('acc-next-card');
-    if (!card) return;
-
-    if (!futures.length) {
-      card.style.display = 'none';
-      return;
-    }
-
-    const next = futures[0];
-    const dateInter = new Date(next.date_intervention || next.date);
-    const isToday = (next.date_intervention||next.date||'').slice(0,10) === todayStr;
-    const isTomorrow = (next.date_intervention||next.date||'').slice(0,10) === new Date(now.getTime()+86400000).toISOString().slice(0,10);
-
-    const dateLbl = isToday ? "Aujourd'hui" : isTomorrow ? "Demain" : dateInter.toLocaleDateString('fr-FR', {weekday:'long',day:'numeric',month:'short'});
-    const heure = next.heure || '';
-
-    // Remplir les éléments
-    const el = (id) => document.getElementById(id);
-    if (el('acc-next-badge-txt')) el('acc-next-badge-txt').textContent = '📅 ' + dateLbl;
-    const badge = card.querySelector('.acc-next-badge');
-    if (badge) badge.textContent = '📅 ' + dateLbl;
-    if (el('acc-next-time')) el('acc-next-time').textContent = heure || '—';
-    if (el('acc-next-client')) el('acc-next-client').textContent = next.client || next.nom || '—';
-
-    const adresse = next.adresse || next.adresse_chantier || '';
-    if (el('acc-next-addr')) el('acc-next-addr').textContent = adresse ? '📍 ' + adresse : '';
-
-    const type = next.type_intervention || next.prestation || next.titre || 'Intervention';
-    if (el('acc-next-type')) el('acc-next-type').textContent = '⚡ ' + type;
-
-    // Boutons actions
-    const btnWaze = el('acc-next-waze');
-    const btnTel = el('acc-next-tel');
-    const btnDevis = el('acc-next-devis');
-
-    if (btnWaze && adresse) {
-      const wazeUrl = 'https://waze.com/ul?q=' + encodeURIComponent(adresse);
-      btnWaze.onclick = () => window.open(wazeUrl, '_blank');
-      btnWaze.style.display = '';
-    } else if (btnWaze) btnWaze.style.display = 'none';
-
-    if (btnTel && next.telephone) {
-      btnTel.onclick = () => window.location.href = 'tel:' + next.telephone;
-      btnTel.style.display = '';
-    } else if (btnTel) btnTel.style.display = 'none';
-
-    if (btnDevis && next.num_devis) {
-      btnDevis.onclick = () => previsualiserPDF(next.num_devis);
-    }
-
-    card.style.display = 'block';
-  } catch(e) {
-    console.warn('chargerProchaineIntervention:', e.message);
   }
 }
 
