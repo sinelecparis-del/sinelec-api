@@ -1419,7 +1419,7 @@ net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('TOPPADDING',(0,0)
 story.append(net)
 # ① VALIDITE sous NET À PAYER
 OR_LIGHT=colors.HexColor('#fff8e6'); OR_DARK=colors.HexColor('#C9962A')
-val_row=Table([[p('Offre valable jusqu\'au',7,color=OR_DARK,sa=0),p('${dateValide}',8,'Helvetica-Bold',OR_DARK,TA_CENTER,sa=0),p('30 jours',7,'Helvetica-Bold',BLANC,sa=0)]],colWidths=[6.5*cm,5.5*cm,6.2*cm])
+val_row=Table([[p('Offre valable jusqu au',7,color=OR_DARK,sa=0),p('${dateValide}',8,'Helvetica-Bold',OR_DARK,TA_CENTER,sa=0),p('30 jours',7,'Helvetica-Bold',BLANC,sa=0)]],colWidths=[6.5*cm,5.5*cm,6.2*cm])
 val_row.setStyle(TableStyle([('BACKGROUND',(0,0),(1,-1),OR_LIGHT),('BACKGROUND',(2,0),(2,-1),OR_DARK),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('VALIGN',(0,0),(-1,-1),'MIDDLE'),('LINEBELOW',(0,0),(-1,-1),1,OR_DARK)]))
 story.append(val_row); story.append(Spacer(1,0.35*cm))
 story.append(HRFlowable(width='100%',thickness=0.3,color=GRIS_LIGNE,spaceAfter=8))
@@ -2150,7 +2150,7 @@ IS_FACTURE = '${docType}' == 'facture'
 if IS_DEVIS_DL:
     # ── VALIDITE ──
     OR_LIGHT2=colors.HexColor('#fff8e6'); OR_DARK2=colors.HexColor('#C9962A')
-    val_row2=Table([[p('Offre valable jusqu\'au',7,color=OR_DARK2,sa=0),p('${dateValide2}',8,'Helvetica-Bold',OR_DARK2,TA_CENTER,sa=0),p('30 jours',7,'Helvetica-Bold',BLANC,sa=0)]],colWidths=[6.5*cm,5.5*cm,6.2*cm])
+    val_row2=Table([[p('Offre valable jusqu au',7,color=OR_DARK2,sa=0),p('${dateValide2}',8,'Helvetica-Bold',OR_DARK2,TA_CENTER,sa=0),p('30 jours',7,'Helvetica-Bold',BLANC,sa=0)]],colWidths=[6.5*cm,5.5*cm,6.2*cm])
     val_row2.setStyle(TableStyle([('BACKGROUND',(0,0),(1,-1),OR_LIGHT2),('BACKGROUND',(2,0),(2,-1),OR_DARK2),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('VALIGN',(0,0),(-1,-1),'MIDDLE'),('LINEBELOW',(0,0),(-1,-1),1,OR_DARK2)]))
     story.append(val_row2); story.append(Spacer(1,0.25*cm))
     story.append(HRFlowable(width='100%',thickness=0.3,color=GRIS_LIGNE,spaceAfter=8))
