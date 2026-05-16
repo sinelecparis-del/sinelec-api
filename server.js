@@ -2560,7 +2560,7 @@ app.get('/paiement-confirme/:num', async (req, res) => {
           await envoyerEmail('sinelec.paris@gmail.com', `💰 PAIEMENT RECU — ${num} — ${factureData.client||''} — ${montant.toFixed(0)}€`, html);
           // SMS confirmation + avis Google en 1 seul message
           if (factureData.telephone) {
-            await envoyerSMS(factureData.telephone, `Merci ${prenomClient} ! Paiement ${montant.toFixed(0)}€ reçu ✅ Un avis Google nous aiderait beaucoup : https://g.page/r/CSw-MABnFUAYEAE/review — SINELEC Paris ⚡`);
+            await envoyerSMS(factureData.telephone, `Bonjour ${prenomClient} 😊 Paiement ${montant.toFixed(0)}€ reçu ✅ C'était un plaisir d'intervenir chez vous, merci pour votre confiance ! Un avis Google avec le détail des travaux réalisés nous aiderait énormément 🙏 → https://g.page/r/CSw-MABnFUAYEAE/review Belle journée ! — SINELEC Paris ⚡`);
           }
         } catch(e) {}
       });
@@ -2743,7 +2743,7 @@ app.post('/api/marquer-paye', async (req, res) => {
         await envoyerEmail('sinelec.paris@gmail.com', `💰 PAIEMENT ${modeLabel.toUpperCase()} — ${num} — ${factureData.client||''} — ${montant.toFixed(0)}€`, html);
         // SMS confirmation paiement + avis Google en 1 seul message
         if (factureData.telephone) {
-          await envoyerSMS(factureData.telephone, `Merci ${prenomClient} ! Paiement ${montant.toFixed(0)}€ reçu ✅ Un avis Google nous aiderait beaucoup : https://g.page/r/CSw-MABnFUAYEAE/review — SINELEC Paris ⚡`);
+          await envoyerSMS(factureData.telephone, `Bonjour ${prenomClient} 😊 Paiement ${montant.toFixed(0)}€ reçu ✅ C'était un plaisir d'intervenir chez vous, merci pour votre confiance ! Un avis Google avec le détail des travaux réalisés nous aiderait énormément 🙏 → https://g.page/r/CSw-MABnFUAYEAE/review Belle journée ! — SINELEC Paris ⚡`);
         }
       } catch(e) {}
     });
