@@ -382,6 +382,28 @@ body {
 .panier-item-name { flex:1; font-size:14px; font-weight:600; color:rgba(0,0,0,0.8); }
 .panier-item-price { font-size:15px; font-weight:800; color:var(--accent); min-width:90px; text-align:right; }
 
+/* Mode nuit */
+.mode-nuit-banner {
+  display:flex; align-items:center; justify-content:space-between;
+  background:linear-gradient(135deg,#1e1b4b,#312e81);
+  border-bottom:2px solid #818cf8;
+  padding:10px 14px; border-radius:8px 8px 0 0;
+  font-size:13px; font-weight:700; color:#e0e7ff;
+  animation: pulseNuit 2s ease-in-out infinite;
+}
+.mode-nuit-banner.we { background:linear-gradient(135deg,#1a1a2e,#16213e); border-color:#a78bfa; }
+@keyframes pulseNuit {
+  0%,100%{ box-shadow:0 0 0 0 rgba(129,140,248,0); }
+  50%{ box-shadow:0 0 12px 2px rgba(129,140,248,0.3); }
+}
+.mode-nuit-toggle {
+  background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.3);
+  color:#e0e7ff; border-radius:20px; padding:3px 10px;
+  font-size:11px; font-weight:700; cursor:pointer;
+  font-family:inherit; transition:background 0.2s;
+}
+.mode-nuit-toggle:hover { background:rgba(255,255,255,0.25); }
+
 /* ══ QUANTITÉ ══ */
 .qte-ctrl { display:flex; align-items:center; gap:10px; }
 .qte-btn {
@@ -1938,6 +1960,11 @@ table.histo-table tr:hover td { background:#fafbff; }
   </div>
 
   <!-- Panier -->
+  <div id="mode-nuit-banner" class="mode-nuit-banner" style="display:none;">
+    <span id="mode-nuit-label">🌙 MODE NUIT — Tarif urgence</span>
+    <button class="mode-nuit-toggle" onclick="toggleModeNuitManuel()">Désactiver</button>
+  </div>
+
   <div class="panier">
     <div class="panier-header">
       <span>🛒 Panier</span>
@@ -2851,7 +2878,7 @@ function switchPage(page, el) {
   window.scrollTo(0, 0);
   setTimeout(() => { window.scrollTo(0, 0); if (pageEl) pageEl.scrollIntoView({ behavior:'instant', block:'start' }); }, 50);
   if (page === 'depannage') setTimeout(initDepannage, 100);
-  if (page === 'devis') setTimeout(initBrouillons, 100);
+  if (page === 'devis') { setTimeout(initBrouillons, 100); setTimeout(initModeNuit, 200); }
   if (page === 'accueil') setTimeout(chargerAccueil, 100);
   if (page === 'historique') setTimeout(chargerHistorique, 100);
   if (page === 'dashboard') setTimeout(chargerDashboard, 100);
@@ -6961,6 +6988,91 @@ function fermerActionSheet() {
   const overlay = document.getElementById('action-sheet-overlay');
   if (overlay) overlay.classList.remove('show');
   document.body.style.overflow = '';
+}
+
+
+// ═══════════════════════════════════════════════════
+// MODE NUIT — Tarifs urgence automatiques
+// ═══════════════════════════════════════════════════
+const JOURS_FERIES_2026 = ['2026-01-01','2026-04-06','2026-05-01','2026-05-08',
+  '2026-05-14','2026-05-25','2026-07-14','2026-08-15','2026-11-01',
+  '2026-11-11','2026-12-25'];
+
+let modeNuitActif = false;
+let modeNuitDesactive = false; // override manuel
+
+function detecterModeUrgence() {
+  const now = new Date();
+  const h = now.getHours();
+  const jour = now.getDay(); // 0=dim, 6=sam
+  const dateStr = now.toISOString().slice(0,10);
+  const ferie = JOURS_FERIES_2026.includes(dateStr);
+
+  if (jour === 0 || ferie) return { mode: 'we', label: '🌙 DIMANCHE / FÉRIÉ — Tarif nuit/WE', prix: 250, couleur: 'we' };
+  if (h >= 22 || h < 7) return { mode: 'nuit', label: '🌙 MODE NUIT — Tarif urgence soir', prix: 180, couleur: '' };
+  return null;
+}
+
+function initModeNuit() {
+  if (modeNuitDesactive) return;
+  const urgence = detecterModeUrgence();
+  const banner = document.getElementById('mode-nuit-banner');
+  const label = document.getElementById('mode-nuit-label');
+  if (!banner) return;
+
+  if (urgence) {
+    modeNuitActif = true;
+    banner.style.display = 'flex';
+    banner.className = `mode-nuit-banner ${urgence.couleur}`;
+    label.textContent = urgence.label + ` (+${urgence.prix}€)`;
+    appliquerUrgencePanier(urgence);
+  } else {
+    modeNuitActif = false;
+    banner.style.display = 'none';
+    supprimerUrgencePanier();
+  }
+}
+
+function appliquerUrgencePanier(urgence) {
+  // Supprimer si déjà présente
+  supprimerUrgencePanier();
+  // Ajouter supplément urgence en premier
+  const itemUrgence = {
+    nom: urgence.mode === 'we' ? 'Supplément urgence nuit/WE' : 'Supplément urgence soir',
+    prixUnit: urgence.prix,
+    qte: 1,
+    desc: urgence.mode === 'we'
+      ? 'Intervention dimanche, jour férié ou nuit (00h-07h). Tarif NF C 15-100.'
+      : 'Intervention en soirée ou nuit (22h-07h). Tarif urgence appliqué.',
+    _urgence: true
+  };
+  panier.unshift(itemUrgence);
+  afficherPanier();
+  showToast(urgence.label + ' activé', '🌙');
+}
+
+function supprimerUrgencePanier() {
+  const idx = panier.findIndex(p => p._urgence);
+  if (idx >= 0) { panier.splice(idx, 1); afficherPanier(); }
+}
+
+function toggleModeNuitManuel() {
+  const banner = document.getElementById('mode-nuit-banner');
+  const btn = banner?.querySelector('.mode-nuit-toggle');
+  if (modeNuitDesactive) {
+    // Réactiver
+    modeNuitDesactive = false;
+    if (btn) btn.textContent = 'Désactiver';
+    initModeNuit();
+  } else {
+    // Désactiver manuellement
+    modeNuitDesactive = true;
+    modeNuitActif = false;
+    if (banner) banner.style.display = 'none';
+    supprimerUrgencePanier();
+    showToast('Mode nuit désactivé manuellement', '⚙️');
+    if (btn) btn.textContent = 'Réactiver';
+  }
 }
 
 // ═══════════════════════════════════════════════════
