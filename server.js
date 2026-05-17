@@ -266,7 +266,19 @@ app.post('/api/generer', async (req, res) => {
       const pyPath = path.join(__dirname, `_devis_${num}.py`);
       const pdfPath = path.join(__dirname, `${num}.pdf`);
 
-      const detailsData = prestations.map(p => ({ designation: p.nom, qte: p.quantite, prixUnit: p.prix, total: p.prix * p.quantite, details: p.desc ? [p.desc] : [] }));
+      // Construire detailsData avec support sections
+      let detailsData = [];
+      let sectNum = 0; let itemNum = 0;
+      for (const p of prestations) {
+        if (p._section) {
+          sectNum++; itemNum = 0;
+          detailsData.push({ _section: true, titre: `${sectNum}. ${p.titre || 'Section ' + sectNum}` });
+        } else {
+          if (sectNum > 0) itemNum++;
+          const subNum = sectNum > 0 ? `${sectNum}.${itemNum}` : null;
+          detailsData.push({ designation: p.nom, qte: p.quantite, prixUnit: p.prix, total: p.prix * p.quantite, details: p.desc ? [p.desc] : [], subNum, isOffert: (p.prix === 0 || p.prix * p.quantite === 0) });
+        }
+      }
       fs.writeFileSync(detailsPath, JSON.stringify(detailsData));
 
       const clientEsc = String(client || '').replace(/'/g, ' ');
@@ -312,7 +324,7 @@ def p(txt,sz=9,font='Helvetica',color=GRIS_TEXTE,align=TA_LEFT,sb=0,sa=2,leading
     if leading is None: leading=sz*1.35
     return Paragraph(str(txt),ParagraphStyle('s',fontName=font,fontSize=sz,textColor=color,alignment=align,spaceBefore=sb,spaceAfter=sa,leading=leading,wordWrap='CJK'))
 data=json.loads(open(sys.argv[1],encoding='utf-8').read())
-totalHT=sum(l['total'] for l in data)
+totalHT=sum(l.get('total',0) for l in data if not l.get('_section'))
 logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
 class SC(pdfcanvas.Canvas):
     def __init__(self,fn,**kw):
@@ -398,18 +410,37 @@ story.append(Table([[objet_b,client_b]],colWidths=[8.7*cm,9.5*cm],style=TableSty
 story.append(Spacer(1,0.6*cm))
 cw=[0.7*cm,9.5*cm,1.5*cm,0.9*cm,2.4*cm,3.2*cm]
 rows=[[p('#',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('DESIGNATION',7.5,'Helvetica-Bold',BLANC),p('QTE',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('U.',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('PRIX U. HT',7.5,'Helvetica-Bold',BLANC,TA_RIGHT),p('TOTAL HT',7.5,'Helvetica-Bold',BLANC,TA_RIGHT)]]
+VERT=colors.HexColor('#16a34a')
+item_num=0; sect_num=0
 for i,l in enumerate(data):
-    q=int(l['qte']) if l['qte']==int(l['qte']) else l['qte']
-    rows.append([p(str(i+1),9,color=OR,align=TA_CENTER),p('<b>'+l['designation']+'</b>',9,color=MARINE),p(str(q),9,align=TA_CENTER),p('u.',9,align=TA_CENTER,color=GRIS_SOFT),p('%.2f \\u20ac'%l['prixUnit'],9,align=TA_RIGHT),p('<b>%.2f \\u20ac</b>'%l['total'],9,'Helvetica-Bold',MARINE,TA_RIGHT)])
-    for det in l.get('details',[]):
-        rows.append(['',p('   - '+det,7.5,'Helvetica-Oblique',color=GRIS_SOFT),'','','',''])
+    if l.get('_section'):
+        sect_num+=1; item_num=0
+        rows.append([p('<b>'+l.get('titre','Section')+'</b>',9.5,'Helvetica-Bold',OR),'','','','',''])
+    else:
+        item_num+=1
+        sub=l.get('subNum') or (str(sect_num)+'.'+str(item_num) if sect_num>0 else str(item_num))
+        q=l['qte']; q=int(q) if q==int(q) else q
+        is_offert=l.get('isOffert') or l.get('total',0)==0
+        prix_txt='OFFERT' if is_offert else ('%.2f \\u20ac'%l['prixUnit'])
+        tot_txt='OFFERT' if is_offert else ('%.2f \\u20ac'%l['total'])
+        prix_col=VERT if is_offert else GRIS_TEXTE
+        tot_col=VERT if is_offert else MARINE
+        rows.append([p(sub,8.5,color=OR,align=TA_CENTER),p('<b>'+l['designation']+'</b>',9,color=MARINE),p(str(q),9,align=TA_CENTER),p('u.',9,align=TA_CENTER,color=GRIS_SOFT),p(prix_txt,9,align=TA_RIGHT,color=prix_col),p('<b>'+tot_txt+'</b>',9,'Helvetica-Bold',tot_col,TA_RIGHT)])
+        for det in l.get('details',[]):
+            rows.append(['',p('   - '+det,7.5,'Helvetica-Oblique',color=GRIS_SOFT),'','','',''])
 t=Table(rows,colWidths=cw)
 ts=[('BACKGROUND',(0,0),(-1,0),MARINE),('LINEBELOW',(0,0),(-1,0),2.5,OR),('VALIGN',(0,0),(-1,-1),'TOP'),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),('LEFTPADDING',(0,0),(-1,-1),7),('RIGHTPADDING',(0,0),(-1,-1),7),('BOX',(0,0),(-1,-1),0.3,GRIS_LIGNE)]
 row_idx=1; bg=True
 for l in data:
-    nb=1+len(l.get('details',[])); c=BLANC if bg else GRIS_BG
-    ts.append(('BACKGROUND',(0,row_idx),(-1,row_idx+nb-1),c)); ts.append(('LINEBELOW',(0,row_idx+nb-1),(-1,row_idx+nb-1),0.3,GRIS_LIGNE))
-    row_idx+=nb; bg=not bg
+    if l.get('_section'):
+        ts.append(('BACKGROUND',(0,row_idx),(-1,row_idx),MARINE))
+        ts.append(('SPAN',(0,row_idx),(-1,row_idx)))
+        ts.append(('LINEBELOW',(0,row_idx),(-1,row_idx),1.5,OR))
+        row_idx+=1
+    else:
+        nb=1+len(l.get('details',[])); c=BLANC if bg else GRIS_BG
+        ts.append(('BACKGROUND',(0,row_idx),(-1,row_idx+nb-1),c)); ts.append(('LINEBELOW',(0,row_idx+nb-1),(-1,row_idx+nb-1),0.3,GRIS_LIGNE))
+        row_idx+=nb; bg=not bg
 t.setStyle(TableStyle(ts)); story.append(t); story.append(Spacer(1,0.15*cm))
 tt=Table([['',p('Total HT',9,color=GRIS_SOFT,align=TA_RIGHT),p('%.2f \\u20ac'%totalHT,9,'Helvetica-Bold',GRIS_TEXTE,TA_RIGHT)],['',p('TVA',9,color=GRIS_SOFT,align=TA_RIGHT),p('Non applicable (art. 293B)',8,color=GRIS_SOFT,align=TA_RIGHT)]],colWidths=[9.0*cm,4.5*cm,4.7*cm])
 tt.setStyle(TableStyle([('LINEABOVE',(1,0),(-1,0),0.5,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('LEFTPADDING',(0,0),(-1,-1),6),('RIGHTPADDING',(0,0),(-1,-1),6)]))
@@ -1399,7 +1430,7 @@ def p(txt,sz=9,font='Helvetica',color=GRIS_TEXTE,align=TA_LEFT,sb=0,sa=2,leading
     if leading is None: leading=sz*1.35
     return Paragraph(str(txt),ParagraphStyle('s',fontName=font,fontSize=sz,textColor=color,alignment=align,spaceBefore=sb,spaceAfter=sa,leading=leading,wordWrap='CJK'))
 data=json.loads(open('${detPath2}',encoding='utf-8').read())
-totalHT=sum(l['total'] for l in data)
+totalHT=sum(l.get('total',0) for l in data if not l.get('_section'))
 logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
 sig_bytes=base64.b64decode('${sigB64}')
 class SC(pdfcanvas.Canvas):
@@ -2106,7 +2137,7 @@ VERT=colors.HexColor('#16a34a')
 def p(txt,sz=9,font='Helvetica',color=GRIS_TEXTE,align=TA_LEFT,sb=0,sa=2,leading=None):
     if leading is None: leading=sz*1.35
     return Paragraph(str(txt),ParagraphStyle('s',fontName=font,fontSize=sz,textColor=color,alignment=align,spaceBefore=sb,spaceAfter=sa,leading=leading,wordWrap='CJK'))
-data=json.loads(open(sys.argv[1],encoding='utf-8').read()); totalHT=sum(l['total'] for l in data)
+data=json.loads(open(sys.argv[1],encoding='utf-8').read()); totalHT=sum(l.get('total',0) for l in data if not l.get('_section'))
 logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
 class SC(pdfcanvas.Canvas):
     def __init__(self,fn,**kw): pdfcanvas.Canvas.__init__(self,fn,**kw); self._pg=0; self.saveState(); self._draw_page()
@@ -2139,6 +2170,22 @@ class SC(pdfcanvas.Canvas):
         self.setFont('Helvetica-Bold',19); self.drawCentredString(0,0.15*cm,'SIGNE')
         self.setFont('Helvetica-Bold',7.5); self.drawCentredString(0,-0.55*cm,'${data.date_signature ? new Date(data.date_signature).toLocaleDateString("fr-FR") : dateStr}')
         self.setFont('Helvetica',6.5); self.drawCentredString(0,-1.0*cm,'PARIS')
+        self.restoreState()
+        ` : ''}
+        ${isPaye ? `
+        self.saveState()
+        cx = W - 5.0*cm; cy = 9.0*cm; r = 1.9*cm
+        rouge = colors.HexColor('#cc0000')
+        self.setStrokeColor(rouge); self.setFillColor(rouge); self.setFillAlpha(0.85)
+        self.setLineWidth(3.5); self.circle(cx,cy,r,fill=0,stroke=1)
+        self.setLineWidth(0.8); self.setFillAlpha(0.4); self.circle(cx,cy,r-0.22*cm,fill=0,stroke=1)
+        self.translate(cx,cy); self.rotate(-15)
+        nom_court = '${clientEsc}'.upper()[:16]
+        self.setFillAlpha(0.92); self.setFillColor(rouge)
+        self.setFont('Helvetica-Bold',7); self.drawCentredString(0,1.05*cm,nom_court)
+        self.setFont('Helvetica-Bold',22); self.drawCentredString(0,0.18*cm,'PAYE')
+        self.setFont('Helvetica-Bold',7.5); self.setFillAlpha(0.75); self.drawCentredString(0,-0.52*cm,'${datePaiement}')
+        self.setFont('Helvetica',6); self.setFillAlpha(0.45); self.drawCentredString(0,-1.02*cm,'PARIS')
         self.restoreState()
         ` : ''}
     def _draw_footer(self):
@@ -2560,7 +2607,7 @@ app.get('/paiement-confirme/:num', async (req, res) => {
           await envoyerEmail('sinelec.paris@gmail.com', `💰 PAIEMENT RECU — ${num} — ${factureData.client||''} — ${montant.toFixed(0)}€`, html);
           // SMS confirmation + avis Google en 1 seul message
           if (factureData.telephone) {
-            await envoyerSMS(factureData.telephone, `Merci ${prenomClient} ! Paiement ${montant.toFixed(0)}€ reçu ✅ Un avis Google nous aiderait beaucoup : https://g.page/r/CSw-MABnFUAYEAE/review — SINELEC Paris ⚡`);
+            await envoyerSMS(factureData.telephone, `Bonjour ${prenomClient} 😊 Paiement ${montant.toFixed(0)}€ reçu ✅ C'était un plaisir d'intervenir chez vous, merci pour votre confiance ! Un avis Google avec le détail des travaux réalisés nous aiderait énormément 🙏 → https://g.page/r/CSw-MABnFUAYEAE/review Belle journée ! — SINELEC Paris ⚡`);
           }
         } catch(e) {}
       });
@@ -2742,12 +2789,65 @@ app.post('/api/marquer-paye', async (req, res) => {
         if (factureData.email) await envoyerEmail(factureData.email, `✅ Facture SINELEC ${num} — Paiement reçu`, html);
         await envoyerEmail('sinelec.paris@gmail.com', `💰 PAIEMENT ${modeLabel.toUpperCase()} — ${num} — ${factureData.client||''} — ${montant.toFixed(0)}€`, html);
         // SMS confirmation paiement + avis Google en 1 seul message
-        if (factureData.telephone) {
-          await envoyerSMS(factureData.telephone, `Merci ${prenomClient} ! Paiement ${montant.toFixed(0)}€ reçu ✅ Un avis Google nous aiderait beaucoup : https://g.page/r/CSw-MABnFUAYEAE/review — SINELEC Paris ⚡`);
+        // Récupérer téléphone depuis clients si absent dans historique
+        let tel = factureData.telephone;
+        if (!tel && factureData.email) {
+          const { data: clientData } = await supabase.from('clients').select('telephone').eq('email', factureData.email).single();
+          tel = clientData?.telephone;
         }
-      } catch(e) {}
+        if (!tel && factureData.client) {
+          const { data: clientData } = await supabase.from('clients').select('telephone').ilike('nom', `%${factureData.client.split(' ')[0]}%`).single();
+          tel = clientData?.telephone;
+        }
+        if (tel) {
+          await envoyerSMS(tel, `Bonjour ${prenomClient} 😊 Paiement ${montant.toFixed(0)}€ reçu ✅ C'était un plaisir d'intervenir chez vous, merci pour votre confiance ! Un avis Google avec le détail des travaux réalisés nous aiderait énormément 🙏 → https://g.page/r/CSw-MABnFUAYEAE/review Belle journée ! — SINELEC Paris ⚡`);
+          await supabase.from('historique').update({ sms_avis_envoye: true, sms_avis_date: new Date().toISOString() }).eq('num', num);
+          console.log('📱 SMS avis envoyé →', tel, num);
+        } else {
+          console.warn('⚠️ SMS avis non envoyé — téléphone manquant pour', factureData.client, num);
+        }
+      } catch(e) { console.error('SMS paiement error:', e.message); }
     });
   } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+
+// ═══════════════════════════════════════════════════
+// API: ENVOYER SMS AVIS MANUELLEMENT
+// ═══════════════════════════════════════════════════
+app.post('/api/envoyer-sms-avis/:num', async (req, res) => {
+  const { num } = req.params;
+  try {
+    const { data: f } = await supabase.from('historique').select('*').eq('num', num).single();
+    if (!f) return res.status(404).json({ error: 'Document non trouvé' });
+
+    // Chercher téléphone dans historique puis dans clients
+    let tel = f.telephone;
+    if (!tel && f.email) {
+      const { data: c } = await supabase.from('clients').select('telephone').eq('email', f.email).single();
+      tel = c?.telephone;
+    }
+    if (!tel && f.client) {
+      const { data: c } = await supabase.from('clients').select('telephone').ilike('nom', `%${(f.client||'').split(' ')[0]}%`).single();
+      tel = c?.telephone;
+    }
+    if (!tel) return res.status(400).json({ error: 'Numéro de téléphone introuvable pour ce client' });
+
+    const montant = parseFloat(f.total_ht || 0).toFixed(0);
+    const prenom = (f.client || 'client').split(' ')[0];
+
+    await envoyerSMS(tel, `Bonjour ${prenom} 😊 Paiement ${montant}€ reçu ✅ C'était un plaisir d'intervenir chez vous, merci pour votre confiance ! Un avis Google avec le détail des travaux réalisés nous aiderait énormément 🙏 → https://g.page/r/CSw-MABnFUAYEAE/review Belle journée ! — SINELEC Paris ⚡`);
+
+    // Enregistrer l'envoi dans Supabase
+    const now = new Date().toISOString();
+    await supabase.from('historique').update({ sms_avis_envoye: true, sms_avis_date: now }).eq('num', num);
+
+    console.log(`📱 SMS avis envoyé manuellement → ${tel} (${num})`);
+    res.json({ success: true, telephone: tel, date: now });
+  } catch(e) {
+    console.error('SMS avis error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ═══════════════════════════════════════════════════
