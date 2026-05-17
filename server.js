@@ -117,6 +117,15 @@ async function logSystem(type, message, data = null, success = true, error = nul
   } catch(e) {}
 }
 
+
+// Helper prénom — skip civilité M./Mme/Mr
+function extractPrenom(clientStr) {
+  const civilites = ['M.', 'Mme', 'Mr', 'Dr', 'Me', 'Pr'];
+  const parts = (clientStr || '').trim().split(/\s+/);
+  const first = parts.find(p => !civilites.includes(p) && p.length > 0);
+  return first || parts[0] || 'client';
+}
+
 async function envoyerEmail(to, subject, htmlContent, attachment = null) {
   if (CONFIG.dev.skip_email) { console.log('Email skippé:', to); return { skipped: true }; }
   const payload = {
@@ -1348,7 +1357,7 @@ app.post('/api/signature', async (req, res) => {
     const montant = parseFloat(devisData.total_ht || 0);
     const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
     const lienRdv = `${appUrl}/rdv/${num}`;
-    const prenom = (devisData.client || '').split(' ')[0];
+    const prenom = extractPrenom(devisData.client);
 
     // Email lien RDV — seulement si intervention planifiée
     if (devisData.email && devisData.intervention_type === 'planifie') {
@@ -2596,7 +2605,7 @@ app.post('/api/sumup/lien/:num', async (req, res) => {
     const lienPaiement = checkout.hosted_checkout_url || checkout.checkout_url || `https://pay.sumup.com/b2c/checkout/${checkout.id}`;
     await supabase.from('historique').update({ lien_paiement: lienPaiement, checkout_id: checkout.id }).eq('num', num);
 
-    const prenomClient = (data.client || 'client').split(' ')[0];
+    const prenomClient = extractPrenom(data.client);
     const modeEnvoi = req.query.envoi || 'les2';
     if ((modeEnvoi === 'email' || modeEnvoi === 'les2') && data.email) {
       try { await envoyerEmail(data.email, `💳 Paiement SINELEC ${num} — ${montant.toFixed(2)} €`, `<html><body style="font-family:Arial;padding:20px;"><h2>⚡ SINELEC Paris</h2><p>Bonjour ${prenomClient},</p><p>Facture <strong>${num}</strong> — <strong>${montant.toFixed(2)} €</strong></p><p><a href="${lienPaiement}" style="background:#C9A84C;color:white;padding:14px 28px;border-radius:10px;text-decoration:none;font-weight:800;display:inline-block;margin-top:12px;">💳 Payer maintenant</a></p></body></html>`); } catch(e) {}
@@ -2617,7 +2626,7 @@ app.get('/paiement-confirme/:num', async (req, res) => {
       setImmediate(async () => {
         try {
           const montant = parseFloat(factureData.total_ht || 0);
-          const prenomClient = (factureData.client || 'client').split(' ')[0];
+          const prenomClient = extractPrenom(factureData.client);
           const html = `<html><body style="font-family:Arial;padding:20px;"><h2 style="color:#16a34a;">✅ Paiement reçu — Merci !</h2><p>Bonjour <b>${prenomClient}</b>, votre paiement de ${montant.toFixed(2)} € a bien été reçu.</p></body></html>`;
           await envoyerEmail(factureData.email, `✅ Facture SINELEC ${num} — Paiement reçu`, html);
           await envoyerEmail('sinelec.paris@gmail.com', `💰 PAIEMENT RECU — ${num} — ${factureData.client||''} — ${montant.toFixed(0)}€`, html);
@@ -2800,10 +2809,39 @@ app.post('/api/marquer-paye', async (req, res) => {
     setImmediate(async () => {
       try {
         const montant = parseFloat(factureData.total_ht || 0);
-        const prenomClient = (factureData.client || 'client').split(' ')[0];
-        const html = `<html><body style="font-family:Arial;padding:20px;"><h2 style="color:#16a34a;">✅ Paiement reçu — ${modeLabel}</h2><p>Bonjour <b>${prenomClient}</b>, facture ${num} réglée — ${montant.toFixed(2)} €.</p></body></html>`;
-        if (factureData.email) await envoyerEmail(factureData.email, `✅ Facture SINELEC ${num} — Paiement reçu`, html);
-        await envoyerEmail('sinelec.paris@gmail.com', `💰 PAIEMENT ${modeLabel.toUpperCase()} — ${num} — ${factureData.client||''} — ${montant.toFixed(0)}€`, html);
+        const prenomClient = extractPrenom(factureData.client);
+        const prenomAff = extractPrenom(factureData.client);
+        const htmlPaye = `<html><body style="font-family:Arial;padding:0;background:#f5f5f7;"><div style="max-width:480px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;">
+          <div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:24px;text-align:center;">
+            <div style="font-size:40px;">✅</div><h2 style="color:#fff;margin:8px 0 0;">Paiement reçu</h2>
+          </div>
+          <div style="padding:24px;">
+            <p style="color:#333;">Bonjour <strong>${prenomAff}</strong>,</p>
+            <p style="color:#555;line-height:1.6;">Votre règlement de <strong>${montant.toFixed(2)} €</strong> pour la facture <strong>${num}</strong> a bien été enregistré.<br>Mode : ${modeLabel}.</p>
+            <p style="color:#555;">Vous trouverez ci-joint votre facture acquittée avec le tampon PAYÉ.</p>
+            <p style="color:#999;font-size:12px;margin-top:20px;">SINELEC Paris • 07 87 38 86 22</p>
+          </div></div>
+          <img src="${process.env.APP_URL || 'https://sinelec-api-production.up.railway.app'}/api/track/open/${num}" width="1" height="1" style="display:none;width:1px;height:1px;opacity:0;" alt="">
+          </body></html>`;
+
+        // Générer PDF acquitté avec tampon PAYÉ
+        let pdfAcquitte = null;
+        try {
+          const appUrlInternal = process.env.APP_URL || ('http://localhost:' + (process.env.PORT || 3000));
+          const jwtToken = require('jsonwebtoken').sign({}, process.env.JWT_SECRET || 'sinelec2024');
+          const pdfRes = await fetch(appUrlInternal + '/api/pdf/' + num, {
+            headers: { 'Authorization': 'Bearer ' + jwtToken }
+          });
+          if (pdfRes.ok) {
+            const pdfBuf = await pdfRes.arrayBuffer();
+            pdfAcquitte = Buffer.from(pdfBuf).toString('base64');
+            console.log('✅ PDF acquitté généré pour', num);
+          }
+        } catch(pdfErr) { console.warn('⚠️ PDF acquitté non généré:', pdfErr.message); }
+
+        const attachment = pdfAcquitte ? { content: pdfAcquitte, name: 'Facture_SINELEC_' + num + '_Acquittee.pdf' } : null;
+        if (factureData.email) await envoyerEmail(factureData.email, '✅ Facture SINELEC ' + num + ' — Acquittée', htmlPaye, attachment);
+        await envoyerEmail('sinelec.paris@gmail.com', '💰 PAIEMENT ' + modeLabel.toUpperCase() + ' — ' + num + ' — ' + (factureData.client||'') + ' — ' + montant.toFixed(0) + '€', htmlPaye);
         // SMS confirmation paiement + avis Google en 1 seul message
         // Récupérer téléphone depuis clients si absent dans historique
         let tel = factureData.telephone;
@@ -2850,7 +2888,7 @@ app.post('/api/envoyer-sms-avis/:num', async (req, res) => {
     if (!tel) return res.status(400).json({ error: 'Numéro de téléphone introuvable pour ce client' });
 
     const montant = parseFloat(f.total_ht || 0).toFixed(0);
-    const prenom = (f.client || 'client').split(' ')[0];
+    const prenom = extractPrenom(f.client);
 
     const msgId = await envoyerSMS(tel, `Bonjour ${prenom} 😊 Paiement ${montant}€ reçu ✅ C'était un plaisir d'intervenir chez vous, merci pour votre confiance ! Un avis Google avec le détail des travaux réalisés nous aiderait énormément 🙏 → https://g.page/r/CSw-MABnFUAYEAE/review Belle journée ! — SINELEC Paris ⚡`);
 
