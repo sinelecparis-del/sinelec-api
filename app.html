@@ -6061,6 +6061,10 @@ function renderTableauHistorique() {
             <div class="ht-dropdown-item" onclick="genererLienPaiement('${item.num}')">🔗 Lien CB</div>
             <div class="ht-dropdown-item" onclick="annulerFacture('${item.num}')">❌ Annuler</div>
           ` : ''}
+          ${type === 'facture' && estPaye ? `
+            <div class="ht-dropdown-item" onclick="envoyerSmsAvis('${item.num}',this)" style="${item.sms_avis_envoye ? 'color:#16a34a;pointer-events:none;opacity:0.6;' : 'color:#C9962A;font-weight:800;'}">
+              ${item.sms_avis_envoye ? '📱 SMS avis ✅ envoyé' : '📱 Envoyer SMS avis Google'}
+            </div>` : ''}
           <div class="ht-dropdown-item" onclick="dupliquerDoc('${item.num}')">📋 Dupliquer</div>
           <div class="ht-dropdown-item" onclick="creerFicheClient('${item.num}')">👤 Fiche client</div>
           <div class="ht-dropdown-item red" onclick="supprimerDoc('${item.num}')">🗑️ Supprimer</div>
