@@ -1184,6 +1184,9 @@ async function soumettre() {
         } else if (d.pdf_sig === 'error') {
           pdfMsg.innerHTML = '⚠️ Signature enregistrée mais email non envoyé. Contactez SINELEC : 07 87 38 86 22';
           pdfMsg.style.color = '#f59e0b';
+        } else if (d.pdf_sig === 'sent_fallback') {
+          pdfMsg.innerHTML = '📧 Confirmation envoyée par email. Votre exemplaire signé sera transmis prochainement.';
+          pdfMsg.style.color = '#16a34a';
         } else if (d.pdf_sig === 'skipped') {
           pdfMsg.innerHTML = '⚠️ Signature enregistrée. Aucun email renseigné sur ce devis.';
           pdfMsg.style.color = '#f59e0b';
@@ -1499,10 +1502,12 @@ story.append(Spacer(1,0.6*cm))
 cw=[0.7*cm,9.5*cm,1.5*cm,0.9*cm,2.4*cm,3.2*cm]
 rows=[[p('#',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('DESIGNATION',7.5,'Helvetica-Bold',BLANC),p('QTE',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('U.',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('PRIX U. HT',7.5,'Helvetica-Bold',BLANC,TA_RIGHT),p('TOTAL HT',7.5,'Helvetica-Bold',BLANC,TA_RIGHT)]]
 for i,l in enumerate(data):
-    q=int(l['qte']) if l['qte']==int(l['qte']) else l['qte']
-    rows.append([p(str(i+1),9,color=OR,align=TA_CENTER),p('<b>'+l['designation']+'</b>',9,color=MARINE),p(str(q),9,align=TA_CENTER),p('u.',9,align=TA_CENTER,color=GRIS_SOFT),p('%.2f \\u20ac'%l['prixUnit'],9,align=TA_RIGHT),p('<b>%.2f \\u20ac</b>'%l['total'],9,'Helvetica-Bold',MARINE,TA_RIGHT)])
-    for det in l.get('details',[]):
-        rows.append(['',p('   - '+det,7.5,'Helvetica-Oblique',color=GRIS_SOFT),'','','',''])
+    if l.get('_section'): continue
+    desig = str(l.get('designation') or l.get('nom') or 'Prestation')
+    qv=float(l.get('qte',1) or 1); q=int(qv) if qv==int(qv) else qv
+    rows.append([p(str(i+1),9,color=OR,align=TA_CENTER),p('<b>'+desig+'</b>',9,color=MARINE),p(str(q),9,align=TA_CENTER),p('u.',9,align=TA_CENTER,color=GRIS_SOFT),p('%.2f \\u20ac'%float(l.get('prixUnit',0) or 0),9,align=TA_RIGHT),p('<b>%.2f \\u20ac</b>'%float(l.get('total',0) or 0),9,'Helvetica-Bold',MARINE,TA_RIGHT)])
+    for det in (l.get('details') or []):
+        if det: rows.append(['',p('   - '+str(det),7.5,'Helvetica-Oblique',color=GRIS_SOFT),'','','',''])
 t=Table(rows,colWidths=cw)
 ts=[('BACKGROUND',(0,0),(-1,0),MARINE),('LINEBELOW',(0,0),(-1,0),2.5,OR),('VALIGN',(0,0),(-1,-1),'TOP'),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),('LEFTPADDING',(0,0),(-1,-1),7),('RIGHTPADDING',(0,0),(-1,-1),7),('BOX',(0,0),(-1,-1),0.3,GRIS_LIGNE)]
 row_idx=1; bg=True
@@ -1727,8 +1732,26 @@ print('PDF_SIG_OK')
         pdfSigStatus = 'error';
         pdfSigError = e.message;
         console.error('❌ PDF signé error:', e.message);
-        // Log stack pour Railway
         if (e.stack) console.error(e.stack.substring(0, 500));
+        // Fallback : email de confirmation simple sans PDF
+        if (devisData.email) {
+          try {
+            await envoyerEmail(devisData.email,
+              `✅ SINELEC Paris — Votre devis ${num} est signé`,
+              `<html><body style="font-family:Arial;padding:20px;background:#f5f5f7;"><div style="max-width:480px;margin:0 auto;background:#fff;border-radius:16px;padding:28px;">
+              <div style="text-align:center;margin-bottom:20px;"><div style="font-size:48px;">✅</div><h2 style="color:#1B2A4A;">Devis signé !</h2></div>
+              <p style="color:#333;">Bonjour <strong>${prenom}</strong>,</p>
+              <p style="color:#555;line-height:1.6;">Votre devis <strong>${num}</strong> de <strong>${montant.toFixed(0)} €</strong> a bien été signé électroniquement.</p>
+              <p style="color:#555;">Votre exemplaire signé vous sera transmis prochainement.</p>
+              <p style="color:#999;font-size:12px;margin-top:20px;">SINELEC Paris • 07 87 38 86 22</p>
+              </div></body></html>`
+            );
+            pdfSigStatus = 'sent_fallback';
+            console.log('✅ Email fallback envoyé (sans PDF) à', devisData.email);
+          } catch(emailErr) {
+            console.error('❌ Email fallback échoué:', emailErr.message);
+          }
+        }
       }
     } else {
       console.warn(`⚠️ PDF signé non envoyé — email manquant pour ${num}`);
