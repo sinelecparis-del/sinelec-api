@@ -2121,53 +2121,26 @@ app.get('/api/grille/grouped', async (req, res) => {
 
 // ─── Helper : génère le PDF d'un document et retourne le buffer ─────────────
 async function genererPDFb64(num) {
-  const { data, error } = await supabase.from('historique').select('*').eq('num', num).single();
-  if (error || !data) throw new Error('Document non trouvé : ' + num);
+  // Génère le PDF via un token interne HMAC et appel HTTP local
+  const exp = Date.now() + 60000; // 60s
+  const payload = Buffer.from(JSON.stringify({ exp })).toString('base64');
+  const sig = require('crypto').createHmac('sha256', JWT_SECRET).update(payload).digest('hex');
+  const token = payload + '.' + sig;
 
-  const docType   = data.type || (num.startsWith('OS-') ? 'devis' : 'facture');
-  const docStatut = data.statut || '';
-  const typeLabelUpper = docType === 'devis' ? 'DEVIS' : (docStatut === 'paye' || docStatut === 'payé' ? 'FACTURE ACQUITTEE' : 'FACTURE');
-  const dateStr    = new Date(data.date_envoi || data.created_at).toLocaleDateString('fr-FR');
-  const detailsPath2 = path.join(__dirname, `_dl2_details_${num}.json`);
-  const pyPath2    = path.join(__dirname, `_dl2_${num}.py`);
-  const pdfPath2   = path.join(__dirname, `_dl2_${num}.pdf`);
-  const detailsData2 = (data.prestations || []).map(p => ({
-    designation: String(p.nom || p.designation || 'Prestation'),
-    qte: p.quantite || 1, prixUnit: p.prix || 0,
-    total: (p.prix || 0) * (p.quantite || 1),
-    details: p.desc ? [p.desc] : []
-  }));
-  fs.writeFileSync(detailsPath2, JSON.stringify(detailsData2));
-
-  const clientEsc2   = String(data.client || '').replace(/'/g, ' ');
-  const clientParts2 = (data.adresse || '').split(',');
-  const clientRue2   = String(clientParts2[0] || '').trim().replace(/'/g, ' ');
-  const clientVille2 = clientParts2.slice(1).join(',').trim().replace(/'/g, ' ');
-  const isPaye2      = ['paye','payé','payee','acquitte','acquitté'].includes(docStatut.toLowerCase());
-  const datePaiement2 = data.date_paiement ? new Date(data.date_paiement).toLocaleDateString('fr-FR') : dateStr;
-
-  // Réutiliser le script existant /api/pdf/:num en appellant la même logique
-  // On réexécute le même py que /api/pdf/:num mais avec des noms de fichiers différents
-  const { data: dd, error: ee } = await supabase.from('historique').select('*').eq('num', num).single();
-  // Appel interne simplifié : utiliser execSync directement
-  const tmpPy  = path.join(__dirname, `_pay_${num}.py`);
-  const tmpDet = path.join(__dirname, `_pay_${num}_det.json`);
-  const tmpPdf = path.join(__dirname, `_pay_${num}.pdf`);
-
-  // Copier le script de /api/pdf/:num (on repasse par la même génération)
-  // Pour simplifier : appel HTTP interne sur localhost
   const port = process.env.PORT || 3000;
-  const baseUrl = 'http://127.0.0.1:' + port;
-  const jwt = require('jsonwebtoken');
-  const token = jwt.sign({ internal: true }, process.env.JWT_SECRET || 'sinelec2024', { expiresIn: '30s' });
-  const resp = await fetch(baseUrl + '/api/pdf/' + num, {
-    headers: { Authorization: 'Bearer ' + token },
-    signal: AbortSignal.timeout(45000)
+  const resp = await fetch('http://127.0.0.1:' + port + '/api/pdf/' + num, {
+    headers: { 'Authorization': 'Bearer ' + token },
+    signal: AbortSignal.timeout(50000)
   });
-  if (!resp.ok) throw new Error('PDF HTTP ' + resp.status);
+  if (!resp.ok) {
+    const errText = await resp.text().catch(() => '');
+    throw new Error('PDF HTTP ' + resp.status + ' : ' + errText.substring(0,100));
+  }
   const buf = await resp.arrayBuffer();
+  console.log('✅ genererPDFb64 OK pour', num, '—', buf.byteLength, 'bytes');
   return Buffer.from(buf).toString('base64');
 }
+
 
 app.get('/api/pdf/:num', async (req, res) => {
   try {
