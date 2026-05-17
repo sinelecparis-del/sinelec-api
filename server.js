@@ -2238,45 +2238,17 @@ class SC(pdfcanvas.Canvas):
         self.drawString(1.5*cm,0.38*cm,'Page %d / 2'%(self._pg+1))
         self.restoreState()
     def _draw_watermark(self):
-        # Filigrane PAYE ou SIGNE — niveau moyen — page 1 uniquement
+        # Filigrane léger uniquement pour devis signé
         if self._pg > 0: return
-        _st = '${docStatut}'.lower()
-        _st_norm = _st.replace('\u00e9','e').replace('\u00e8','e')
-        _is_paye = any(x in _st for x in ('paye','acquit'))
-        _is_signe = '${docType}' == 'devis' and any(x in _st for x in ('signe','sign'))
-        if not (_is_paye or _is_signe): self._draw_tampons(); return
-        _label = 'PAYE' if _is_paye else 'SIGNE'
+        _is_signe = '${docType}' == 'devis' and any(x in '${docStatut}'.lower() for x in ('signe','sign'))
+        if not _is_signe: return
         self.saveState()
-        self.setFillColor(colors.HexColor('#16a34a')); self.setFillAlpha(0.12)
+        self.setFillColor(colors.HexColor('#16a34a')); self.setFillAlpha(0.08)
         self.setFont('Helvetica-Bold', 88)
         self.translate(W/2, H/2); self.rotate(45)
-        self.drawCentredString(0, 0, _label)
-        self.setFillAlpha(0.08); self.setFont('Helvetica', 16)
+        self.drawCentredString(0, 0, 'SIGNE')
+        self.setFillAlpha(0.05); self.setFont('Helvetica', 16)
         self.drawCentredString(0, -52, 'SINELEC PARIS')
-        self.restoreState(); self._draw_tampons()
-    def _draw_tampons(self):
-        rouge = colors.HexColor('#cc0000')
-        vert  = colors.HexColor('#16a34a')
-        IS_PAYE = '${docStatut}' in ('paye','payé','payee','acquitte','acquitté')
-        IS_SIGNE = '${docType}' == 'devis' and '${docStatut}' in ('signe','signé')
-        couleur = rouge if IS_PAYE else (vert if IS_SIGNE else None)
-        label   = 'PAYE' if IS_PAYE else ('SIGNE' if IS_SIGNE else None)
-        if not couleur: return
-        cx = W - 5.0*cm; cy = 9.0*cm; r = 1.9*cm
-        self.saveState()
-        self.setStrokeColor(couleur); self.setFillColor(couleur)
-        self.setFillAlpha(0.85); self.setLineWidth(3.5); self.circle(cx,cy,r,fill=0,stroke=1)
-        self.setLineWidth(0.8); self.setFillAlpha(0.4); self.circle(cx,cy,r-0.22*cm,fill=0,stroke=1)
-        self.setLineWidth(0.3); self.setFillAlpha(0.2)
-        self.setDash([0.08*cm,0.28*cm]); self.circle(cx,cy,r-0.52*cm,fill=0,stroke=1); self.setDash()
-        self.translate(cx,cy); self.rotate(-15)
-        nom_court = '${clientEsc}'.upper()[:16]
-        self.setFillAlpha(0.92); self.setFillColor(couleur)
-        self.setFont('Helvetica-Bold',7); self.drawCentredString(0,1.05*cm,nom_court)
-        sz = 22 if IS_PAYE else 20
-        self.setFillAlpha(0.9); self.setFont('Helvetica-Bold',sz); self.drawCentredString(0,0.18*cm,label)
-        self.setFont('Helvetica-Bold',7.5); self.setFillAlpha(0.75); self.drawCentredString(0,-0.52*cm,'${dateStr}')
-        self.setFont('Helvetica',6); self.setFillAlpha(0.45); self.drawCentredString(0,-1.02*cm,'PARIS')
         self.restoreState()
 doc=SimpleDocTemplate(sys.argv[2],pagesize=A4,leftMargin=1.2*cm,rightMargin=1.0*cm,topMargin=5.6*cm,bottomMargin=1.6*cm); story=[]
 client_b=Table([[p('CLIENT',7,'Helvetica-Bold',OR,sa=4)],[p('${clientEsc}',10,'Helvetica-Bold',MARINE)],[p('${clientRue}',8.5,color=GRIS_TEXTE)],[p('${clientVille}',8.5,color=GRIS_TEXTE)]],colWidths=[18.2*cm])
