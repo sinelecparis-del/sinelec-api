@@ -1546,22 +1546,12 @@ modes_data=[['\u2022 Especes','\u2022 Virement bancaire','\u2022 CB / PayPal','\
 t_modes=Table(modes_data,colWidths=[3.5*cm,4.5*cm,3.2*cm,7.0*cm])
 t_modes.setStyle(TableStyle([('FONTNAME',(0,0),(-1,-1),'Helvetica'),('FONTSIZE',(0,0),(-1,-1),7.5),('TEXTCOLOR',(0,0),(-1,-1),GRIS_SOFT),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),4)]))
 story.append(t_modes); story.append(Spacer(1,0.1*cm))
-# ② QR CODE — lien signature directe
-import urllib.request, tempfile, os
-try:
-    qr_url = 'https://api.qrserver.com/v1/create-qr-code/?size=80x80&format=png&data=' + urllib.request.quote('${lienSignature}', safe='')
-    qr_tmp = '/tmp/qr_${num}.png'
-    urllib.request.urlretrieve(qr_url, qr_tmp)
-    qr_img = Image(qr_tmp, width=2.0*cm, height=2.0*cm)
-    qr_img.hAlign = 'CENTER'
-    VERT_L2=colors.HexColor('#f0fff4'); VERT_B2=colors.HexColor('#bbf7d0')
-    qr_txt=[p('\u270d\ufe0f Signer en ligne',8,'Helvetica-Bold',colors.HexColor('#16a34a'),sa=3),p('Scannez pour signer ce devis en 30 secondes depuis votre telephone',7,color=colors.HexColor('#4b7c59'),sa=3),p('${lienSignature}',6,'Helvetica-Oblique',colors.HexColor('#8896A8'))]
-    t_qr=Table([[qr_img,qr_txt]],colWidths=[2.4*cm,15.8*cm])
-    t_qr.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),VERT_L2),('BOX',(0,0),(-1,-1),1,VERT_B2),('LINEBEFORE',(0,0),(0,-1),3,colors.HexColor('#16a34a')),('VALIGN',(0,0),(-1,-1),'MIDDLE'),('LEFTPADDING',(0,0),(0,-1),8),('LEFTPADDING',(1,0),(1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
-    story.append(t_qr)
-    try: os.unlink(qr_tmp)
-    except: pass
-except Exception as eq: print('QR warning:', eq)
+# ② BADGE SIGNÉ (remplace QR code — devis déjà signé)
+VERT_L2=colors.HexColor('#f0fff4'); VERT_B2=colors.HexColor('#bbf7d0')
+sig_badge_data=[[p('\u2705 DOCUMENT SIGNÉ ÉLECTRONIQUEMENT',8,'Helvetica-Bold',colors.HexColor('#16a34a'),sa=2),p('Signé le ${dateSig} — Loi n\u00b02000-230 du 13 mars 2000 — Valeur juridique garantie',7,'Helvetica-Oblique',colors.HexColor('#4b7c59'),sa=0)]]
+t_sig_badge=Table(sig_badge_data,colWidths=[18.2*cm])
+t_sig_badge.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),VERT_L2),('BOX',(0,0),(-1,-1),1,VERT_B2),('LINEBEFORE',(0,0),(0,-1),4,colors.HexColor('#16a34a')),('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
+story.append(t_sig_badge)
 story.append(Spacer(1,0.15*cm))
 story.append(HRFlowable(width='100%',thickness=0.5,color=VERT,spaceAfter=8))
 t_sig_lbl=Table([[p('SIGNATURE CLIENT',8,'Helvetica-Bold',VERT,sa=0)]],colWidths=[18.2*cm])
