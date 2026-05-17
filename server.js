@@ -2238,16 +2238,20 @@ class SC(pdfcanvas.Canvas):
         self.drawString(1.5*cm,0.38*cm,'Page %d / 2'%(self._pg+1))
         self.restoreState()
     def _draw_watermark(self):
-        # Filigrane léger uniquement pour devis signé
+        # Filigrane diagonal léger — page 1 uniquement
         if self._pg > 0: return
-        _is_signe = '${docType}' == 'devis' and any(x in '${docStatut}'.lower() for x in ('signe','sign'))
-        if not _is_signe: return
+        _st = '${docStatut}'.lower()
+        _is_paye = any(x in _st for x in ('paye','acquit'))
+        _is_signe = '${docType}' == 'devis' and any(x in _st for x in ('signe','sign'))
+        if not (_is_paye or _is_signe): return
+        _label = 'PAYE' if _is_paye else 'SIGNE'
+        _col = colors.HexColor('#cc0000') if _is_paye else colors.HexColor('#16a34a')
         self.saveState()
-        self.setFillColor(colors.HexColor('#16a34a')); self.setFillAlpha(0.08)
+        self.setFillColor(_col); self.setFillAlpha(0.07)
         self.setFont('Helvetica-Bold', 88)
         self.translate(W/2, H/2); self.rotate(45)
-        self.drawCentredString(0, 0, 'SIGNE')
-        self.setFillAlpha(0.05); self.setFont('Helvetica', 16)
+        self.drawCentredString(0, 0, _label)
+        self.setFillAlpha(0.04); self.setFont('Helvetica', 16)
         self.drawCentredString(0, -52, 'SINELEC PARIS')
         self.restoreState()
 doc=SimpleDocTemplate(sys.argv[2],pagesize=A4,leftMargin=1.2*cm,rightMargin=1.0*cm,topMargin=5.6*cm,bottomMargin=1.6*cm); story=[]
