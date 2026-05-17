@@ -117,15 +117,6 @@ async function logSystem(type, message, data = null, success = true, error = nul
   } catch(e) {}
 }
 
-
-// Helper prénom — skip civilité M./Mme/Mr
-function extractPrenom(clientStr) {
-  const civilites = ['M.', 'Mme', 'Mr', 'Dr', 'Me', 'Pr'];
-  const parts = (clientStr || '').trim().split(/\s+/);
-  const first = parts.find(p => !civilites.includes(p) && p.length > 0);
-  return first || parts[0] || 'client';
-}
-
 async function envoyerEmail(to, subject, htmlContent, attachment = null) {
   if (CONFIG.dev.skip_email) { console.log('Email skippé:', to); return { skipped: true }; }
   const payload = {
@@ -143,7 +134,7 @@ async function envoyerEmail(to, subject, htmlContent, attachment = null) {
 }
 
 async function envoyerSMS(to, message) {
-  if (!to || String(to).length < 8) return null;
+  if (!to || String(to).length < 8) return;
   let num = String(to).replace(/[\s\-\.]/g, '');
   if (num.startsWith('0')) num = '+33' + num.substring(1);
   if (!num.startsWith('+')) num = '+33' + num;
@@ -151,14 +142,11 @@ async function envoyerSMS(to, message) {
     const res = await fetch('https://api.brevo.com/v3/transactionalSMS/sms', {
       method: 'POST',
       headers: { 'accept': 'application/json', 'api-key': BREVO_API_KEY, 'content-type': 'application/json' },
-      body: JSON.stringify({ sender: 'SINELEC', recipient: num, content: message, type: 'transactional', tag: 'sinelec' }),
+      body: JSON.stringify({ sender: 'SINELEC', recipient: num, content: message, type: 'transactional' }),
     });
-    if (!res.ok) { console.error('SMS error:', await res.text()); return null; }
-    const data = await res.json();
-    const msgId = data.messageId || data.messageHexId || null;
-    console.log('📱 SMS envoyé à', num, '— messageId:', msgId);
-    return msgId;
-  } catch(e) { console.error('SMS error:', e.message); return null; }
+    if (!res.ok) console.error('SMS error:', await res.text());
+    else console.log('SMS envoyé à', num);
+  } catch(e) { console.error('SMS error:', e.message); }
 }
 
 async function incrementerCompteur(type) {
@@ -1193,9 +1181,6 @@ async function soumettre() {
         } else if (d.pdf_sig === 'error') {
           pdfMsg.innerHTML = '⚠️ Signature enregistrée mais email non envoyé. Contactez SINELEC : 07 87 38 86 22';
           pdfMsg.style.color = '#f59e0b';
-        } else if (d.pdf_sig === 'sent_fallback') {
-          pdfMsg.innerHTML = '📧 Confirmation envoyée par email. Votre exemplaire signé sera transmis prochainement.';
-          pdfMsg.style.color = '#16a34a';
         } else if (d.pdf_sig === 'skipped') {
           pdfMsg.innerHTML = '⚠️ Signature enregistrée. Aucun email renseigné sur ce devis.';
           pdfMsg.style.color = '#f59e0b';
@@ -1357,7 +1342,7 @@ app.post('/api/signature', async (req, res) => {
     const montant = parseFloat(devisData.total_ht || 0);
     const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
     const lienRdv = `${appUrl}/rdv/${num}`;
-    const prenom = extractPrenom(devisData.client);
+    const prenom = (devisData.client || '').split(' ')[0];
 
     // Email lien RDV — seulement si intervention planifiée
     if (devisData.email && devisData.intervention_type === 'planifie') {
@@ -1511,12 +1496,10 @@ story.append(Spacer(1,0.6*cm))
 cw=[0.7*cm,9.5*cm,1.5*cm,0.9*cm,2.4*cm,3.2*cm]
 rows=[[p('#',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('DESIGNATION',7.5,'Helvetica-Bold',BLANC),p('QTE',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('U.',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('PRIX U. HT',7.5,'Helvetica-Bold',BLANC,TA_RIGHT),p('TOTAL HT',7.5,'Helvetica-Bold',BLANC,TA_RIGHT)]]
 for i,l in enumerate(data):
-    if l.get('_section'): continue
-    desig = str(l.get('designation') or l.get('nom') or 'Prestation')
-    qv=float(l.get('qte',1) or 1); q=int(qv) if qv==int(qv) else qv
-    rows.append([p(str(i+1),9,color=OR,align=TA_CENTER),p('<b>'+desig+'</b>',9,color=MARINE),p(str(q),9,align=TA_CENTER),p('u.',9,align=TA_CENTER,color=GRIS_SOFT),p('%.2f \\u20ac'%float(l.get('prixUnit',0) or 0),9,align=TA_RIGHT),p('<b>%.2f \\u20ac</b>'%float(l.get('total',0) or 0),9,'Helvetica-Bold',MARINE,TA_RIGHT)])
-    for det in (l.get('details') or []):
-        if det: rows.append(['',p('   - '+str(det),7.5,'Helvetica-Oblique',color=GRIS_SOFT),'','','',''])
+    q=int(l['qte']) if l['qte']==int(l['qte']) else l['qte']
+    rows.append([p(str(i+1),9,color=OR,align=TA_CENTER),p('<b>'+l['designation']+'</b>',9,color=MARINE),p(str(q),9,align=TA_CENTER),p('u.',9,align=TA_CENTER,color=GRIS_SOFT),p('%.2f \\u20ac'%l['prixUnit'],9,align=TA_RIGHT),p('<b>%.2f \\u20ac</b>'%l['total'],9,'Helvetica-Bold',MARINE,TA_RIGHT)])
+    for det in l.get('details',[]):
+        rows.append(['',p('   - '+det,7.5,'Helvetica-Oblique',color=GRIS_SOFT),'','','',''])
 t=Table(rows,colWidths=cw)
 ts=[('BACKGROUND',(0,0),(-1,0),MARINE),('LINEBELOW',(0,0),(-1,0),2.5,OR),('VALIGN',(0,0),(-1,-1),'TOP'),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),('LEFTPADDING',(0,0),(-1,-1),7),('RIGHTPADDING',(0,0),(-1,-1),7),('BOX',(0,0),(-1,-1),0.3,GRIS_LIGNE)]
 row_idx=1; bg=True
@@ -1555,12 +1538,22 @@ modes_data=[['\u2022 Especes','\u2022 Virement bancaire','\u2022 CB / PayPal','\
 t_modes=Table(modes_data,colWidths=[3.5*cm,4.5*cm,3.2*cm,7.0*cm])
 t_modes.setStyle(TableStyle([('FONTNAME',(0,0),(-1,-1),'Helvetica'),('FONTSIZE',(0,0),(-1,-1),7.5),('TEXTCOLOR',(0,0),(-1,-1),GRIS_SOFT),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),4)]))
 story.append(t_modes); story.append(Spacer(1,0.1*cm))
-# ② BADGE SIGNÉ (remplace QR code — devis déjà signé)
-VERT_L2=colors.HexColor('#f0fff4'); VERT_B2=colors.HexColor('#bbf7d0')
-sig_badge_data=[[p('\u2705 DOCUMENT SIGNÉ ÉLECTRONIQUEMENT',8,'Helvetica-Bold',colors.HexColor('#16a34a'),sa=2),p('Signé le ${dateSig} — Loi n\u00b02000-230 du 13 mars 2000 — Valeur juridique garantie',7,'Helvetica-Oblique',colors.HexColor('#4b7c59'),sa=0)]]
-t_sig_badge=Table(sig_badge_data,colWidths=[18.2*cm])
-t_sig_badge.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),VERT_L2),('BOX',(0,0),(-1,-1),1,VERT_B2),('LINEBEFORE',(0,0),(0,-1),4,colors.HexColor('#16a34a')),('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
-story.append(t_sig_badge)
+# ② QR CODE — lien signature directe
+import urllib.request, tempfile, os
+try:
+    qr_url = 'https://api.qrserver.com/v1/create-qr-code/?size=80x80&format=png&data=' + urllib.request.quote('${lienSignature}', safe='')
+    qr_tmp = '/tmp/qr_${num}.png'
+    urllib.request.urlretrieve(qr_url, qr_tmp)
+    qr_img = Image(qr_tmp, width=2.0*cm, height=2.0*cm)
+    qr_img.hAlign = 'CENTER'
+    VERT_L2=colors.HexColor('#f0fff4'); VERT_B2=colors.HexColor('#bbf7d0')
+    qr_txt=[p('\u270d\ufe0f Signer en ligne',8,'Helvetica-Bold',colors.HexColor('#16a34a'),sa=3),p('Scannez pour signer ce devis en 30 secondes depuis votre telephone',7,color=colors.HexColor('#4b7c59'),sa=3),p('${lienSignature}',6,'Helvetica-Oblique',colors.HexColor('#8896A8'))]
+    t_qr=Table([[qr_img,qr_txt]],colWidths=[2.4*cm,15.8*cm])
+    t_qr.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),VERT_L2),('BOX',(0,0),(-1,-1),1,VERT_B2),('LINEBEFORE',(0,0),(0,-1),3,colors.HexColor('#16a34a')),('VALIGN',(0,0),(-1,-1),'MIDDLE'),('LEFTPADDING',(0,0),(0,-1),8),('LEFTPADDING',(1,0),(1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
+    story.append(t_qr)
+    try: os.unlink(qr_tmp)
+    except: pass
+except Exception as eq: print('QR warning:', eq)
 story.append(Spacer(1,0.15*cm))
 story.append(HRFlowable(width='100%',thickness=0.5,color=VERT,spaceAfter=8))
 t_sig_lbl=Table([[p('SIGNATURE CLIENT',8,'Helvetica-Bold',VERT,sa=0)]],colWidths=[18.2*cm])
@@ -1731,26 +1724,8 @@ print('PDF_SIG_OK')
         pdfSigStatus = 'error';
         pdfSigError = e.message;
         console.error('❌ PDF signé error:', e.message);
+        // Log stack pour Railway
         if (e.stack) console.error(e.stack.substring(0, 500));
-        // Fallback : email de confirmation simple sans PDF
-        if (devisData.email) {
-          try {
-            await envoyerEmail(devisData.email,
-              `✅ SINELEC Paris — Votre devis ${num} est signé`,
-              `<html><body style="font-family:Arial;padding:20px;background:#f5f5f7;"><div style="max-width:480px;margin:0 auto;background:#fff;border-radius:16px;padding:28px;">
-              <div style="text-align:center;margin-bottom:20px;"><div style="font-size:48px;">✅</div><h2 style="color:#1B2A4A;">Devis signé !</h2></div>
-              <p style="color:#333;">Bonjour <strong>${prenom}</strong>,</p>
-              <p style="color:#555;line-height:1.6;">Votre devis <strong>${num}</strong> de <strong>${montant.toFixed(0)} €</strong> a bien été signé électroniquement.</p>
-              <p style="color:#555;">Votre exemplaire signé vous sera transmis prochainement.</p>
-              <p style="color:#999;font-size:12px;margin-top:20px;">SINELEC Paris • 07 87 38 86 22</p>
-              </div></body></html>`
-            );
-            pdfSigStatus = 'sent_fallback';
-            console.log('✅ Email fallback envoyé (sans PDF) à', devisData.email);
-          } catch(emailErr) {
-            console.error('❌ Email fallback échoué:', emailErr.message);
-          }
-        }
       }
     } else {
       console.warn(`⚠️ PDF signé non envoyé — email manquant pour ${num}`);
@@ -2118,29 +2093,6 @@ app.get('/api/grille/grouped', async (req, res) => {
 // ═══════════════════════════════════════════════════
 // API: PDF DOWNLOAD
 // ═══════════════════════════════════════════════════
-
-// ─── Helper : génère le PDF d'un document et retourne le buffer ─────────────
-async function genererPDFb64(num) {
-  // Génère le PDF via un token interne HMAC et appel HTTP local
-  const exp = Date.now() + 60000; // 60s
-  const payload = Buffer.from(JSON.stringify({ exp })).toString('base64');
-  const sig = require('crypto').createHmac('sha256', JWT_SECRET).update(payload).digest('hex');
-  const token = payload + '.' + sig;
-
-  const port = process.env.PORT || 3000;
-  const resp = await fetch('http://127.0.0.1:' + port + '/api/pdf/' + num, {
-    headers: { 'Authorization': 'Bearer ' + token },
-    signal: AbortSignal.timeout(50000)
-  });
-  if (!resp.ok) {
-    const errText = await resp.text().catch(() => '');
-    throw new Error('PDF HTTP ' + resp.status + ' : ' + errText.substring(0,100));
-  }
-  const buf = await resp.arrayBuffer();
-  console.log('✅ genererPDFb64 OK pour', num, '—', buf.byteLength, 'bytes');
-  return Buffer.from(buf).toString('base64');
-}
-
 
 app.get('/api/pdf/:num', async (req, res) => {
   try {
@@ -2628,7 +2580,7 @@ app.post('/api/sumup/lien/:num', async (req, res) => {
     const lienPaiement = checkout.hosted_checkout_url || checkout.checkout_url || `https://pay.sumup.com/b2c/checkout/${checkout.id}`;
     await supabase.from('historique').update({ lien_paiement: lienPaiement, checkout_id: checkout.id }).eq('num', num);
 
-    const prenomClient = extractPrenom(data.client);
+    const prenomClient = (data.client || 'client').split(' ')[0];
     const modeEnvoi = req.query.envoi || 'les2';
     if ((modeEnvoi === 'email' || modeEnvoi === 'les2') && data.email) {
       try { await envoyerEmail(data.email, `💳 Paiement SINELEC ${num} — ${montant.toFixed(2)} €`, `<html><body style="font-family:Arial;padding:20px;"><h2>⚡ SINELEC Paris</h2><p>Bonjour ${prenomClient},</p><p>Facture <strong>${num}</strong> — <strong>${montant.toFixed(2)} €</strong></p><p><a href="${lienPaiement}" style="background:#C9A84C;color:white;padding:14px 28px;border-radius:10px;text-decoration:none;font-weight:800;display:inline-block;margin-top:12px;">💳 Payer maintenant</a></p></body></html>`); } catch(e) {}
@@ -2649,7 +2601,7 @@ app.get('/paiement-confirme/:num', async (req, res) => {
       setImmediate(async () => {
         try {
           const montant = parseFloat(factureData.total_ht || 0);
-          const prenomClient = extractPrenom(factureData.client);
+          const prenomClient = (factureData.client || 'client').split(' ')[0];
           const html = `<html><body style="font-family:Arial;padding:20px;"><h2 style="color:#16a34a;">✅ Paiement reçu — Merci !</h2><p>Bonjour <b>${prenomClient}</b>, votre paiement de ${montant.toFixed(2)} € a bien été reçu.</p></body></html>`;
           await envoyerEmail(factureData.email, `✅ Facture SINELEC ${num} — Paiement reçu`, html);
           await envoyerEmail('sinelec.paris@gmail.com', `💰 PAIEMENT RECU — ${num} — ${factureData.client||''} — ${montant.toFixed(0)}€`, html);
@@ -2832,31 +2784,10 @@ app.post('/api/marquer-paye', async (req, res) => {
     setImmediate(async () => {
       try {
         const montant = parseFloat(factureData.total_ht || 0);
-        const prenomClient = extractPrenom(factureData.client);
-        const prenomAff = extractPrenom(factureData.client);
-        const htmlPaye = `<html><body style="font-family:Arial;padding:0;background:#f5f5f7;"><div style="max-width:480px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;">
-          <div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:24px;text-align:center;">
-            <div style="font-size:40px;">✅</div><h2 style="color:#fff;margin:8px 0 0;">Paiement reçu</h2>
-          </div>
-          <div style="padding:24px;">
-            <p style="color:#333;">Bonjour <strong>${prenomAff}</strong>,</p>
-            <p style="color:#555;line-height:1.6;">Votre règlement de <strong>${montant.toFixed(2)} €</strong> pour la facture <strong>${num}</strong> a bien été enregistré.<br>Mode : ${modeLabel}.</p>
-            <p style="color:#555;">Vous trouverez ci-joint votre facture acquittée avec le tampon PAYÉ.</p>
-            <p style="color:#999;font-size:12px;margin-top:20px;">SINELEC Paris • 07 87 38 86 22</p>
-          </div></div>
-          <img src="${process.env.APP_URL || 'https://sinelec-api-production.up.railway.app'}/api/track/open/${num}" width="1" height="1" style="display:none;width:1px;height:1px;opacity:0;" alt="">
-          </body></html>`;
-
-        // Générer PDF acquitté avec tampon PAYÉ
-        let pdfAcquitte = null;
-        try {
-          pdfAcquitte = await genererPDFb64(num);
-          console.log('✅ PDF acquitté généré pour', num);
-        } catch(pdfErr) { console.warn('⚠️ PDF acquitté non généré:', pdfErr.message); }
-
-        const attachment = pdfAcquitte ? { content: pdfAcquitte, name: 'Facture_SINELEC_' + num + '_Acquittee.pdf' } : null;
-        if (factureData.email) await envoyerEmail(factureData.email, '✅ Facture SINELEC ' + num + ' — Acquittée', htmlPaye, attachment);
-        await envoyerEmail('sinelec.paris@gmail.com', '💰 PAIEMENT ' + modeLabel.toUpperCase() + ' — ' + num + ' — ' + (factureData.client||'') + ' — ' + montant.toFixed(0) + '€', htmlPaye);
+        const prenomClient = (factureData.client || 'client').split(' ')[0];
+        const html = `<html><body style="font-family:Arial;padding:20px;"><h2 style="color:#16a34a;">✅ Paiement reçu — ${modeLabel}</h2><p>Bonjour <b>${prenomClient}</b>, facture ${num} réglée — ${montant.toFixed(2)} €.</p></body></html>`;
+        if (factureData.email) await envoyerEmail(factureData.email, `✅ Facture SINELEC ${num} — Paiement reçu`, html);
+        await envoyerEmail('sinelec.paris@gmail.com', `💰 PAIEMENT ${modeLabel.toUpperCase()} — ${num} — ${factureData.client||''} — ${montant.toFixed(0)}€`, html);
         // SMS confirmation paiement + avis Google en 1 seul message
         // Récupérer téléphone depuis clients si absent dans historique
         let tel = factureData.telephone;
@@ -2903,18 +2834,13 @@ app.post('/api/envoyer-sms-avis/:num', async (req, res) => {
     if (!tel) return res.status(400).json({ error: 'Numéro de téléphone introuvable pour ce client' });
 
     const montant = parseFloat(f.total_ht || 0).toFixed(0);
-    const prenom = extractPrenom(f.client);
+    const prenom = (f.client || 'client').split(' ')[0];
 
-    const msgId = await envoyerSMS(tel, `Bonjour ${prenom} 😊 Paiement ${montant}€ reçu ✅ C'était un plaisir d'intervenir chez vous, merci pour votre confiance ! Un avis Google avec le détail des travaux réalisés nous aiderait énormément 🙏 → https://g.page/r/CSw-MABnFUAYEAE/review Belle journée ! — SINELEC Paris ⚡`);
+    await envoyerSMS(tel, `Bonjour ${prenom} 😊 Paiement ${montant}€ reçu ✅ C'était un plaisir d'intervenir chez vous, merci pour votre confiance ! Un avis Google avec le détail des travaux réalisés nous aiderait énormément 🙏 → https://g.page/r/CSw-MABnFUAYEAE/review Belle journée ! — SINELEC Paris ⚡`);
 
     // Enregistrer l'envoi dans Supabase
     const now = new Date().toISOString();
-    await supabase.from('historique').update({
-      sms_avis_envoye: true,
-      sms_avis_date: now,
-      sms_avis_statut: 'envoye',
-      sms_message_id: msgId || null
-    }).eq('num', num);
+    await supabase.from('historique').update({ sms_avis_envoye: true, sms_avis_date: now }).eq('num', num);
 
     console.log(`📱 SMS avis envoyé manuellement → ${tel} (${num})`);
     res.json({ success: true, telephone: tel, date: now });
@@ -2923,94 +2849,6 @@ app.post('/api/envoyer-sms-avis/:num', async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
-
-
-// ═══════════════════════════════════════════════════
-// WEBHOOK BREVO — Statut livraison SMS
-// ═══════════════════════════════════════════════════
-app.post('/api/sms-webhook', async (req, res) => {
-  res.sendStatus(200); // Répondre vite à Brevo
-  try {
-    const events = Array.isArray(req.body) ? req.body : [req.body];
-    for (const ev of events) {
-      const msgId = ev.messageId || ev.messageHexId;
-      const evtType = (ev.event || ev.type || '').toLowerCase();
-      if (!msgId) continue;
-
-      // Mapper event Brevo → statut SINELEC
-      let statut = null;
-      if (['delivered','delivery'].some(x => evtType.includes(x))) statut = 'livre';
-      else if (['failed','undelivered','error','bounced'].some(x => evtType.includes(x))) statut = 'echec';
-
-      if (!statut) continue;
-
-      // Trouver le document correspondant par messageId
-      const { data: docs } = await supabase.from('historique')
-        .select('num').eq('sms_message_id', msgId).limit(1);
-
-      if (docs?.length) {
-        await supabase.from('historique')
-          .update({ sms_avis_statut: statut })
-          .eq('num', docs[0].num);
-        console.log(`📱 SMS ${statut} confirmé — ${docs[0].num} (msgId: ${msgId})`);
-      }
-    }
-  } catch(e) { console.error('Webhook SMS error:', e.message); }
-});
-
-
-// ═══════════════════════════════════════════════════
-// POLLING STATUT SMS — Vérifie livraison toutes les heures
-// ═══════════════════════════════════════════════════
-async function verifierStatutSMS() {
-  try {
-    // Chercher les SMS envoyés mais pas encore confirmés livrés
-    const { data: docs } = await supabase.from('historique')
-      .select('num, sms_message_id, client')
-      .eq('sms_avis_envoye', true)
-      .eq('sms_avis_statut', 'envoye')
-      .not('sms_message_id', 'is', null)
-      .limit(20);
-
-    if (!docs?.length) return;
-
-    for (const doc of docs) {
-      try {
-        const res = await fetch(`https://api.brevo.com/v3/transactionalSMS/statistics/reports?startDate=${new Date(Date.now()-86400000).toISOString().slice(0,10)}&endDate=${new Date().toISOString().slice(0,10)}&sort=desc`, {
-          headers: { 'api-key': BREVO_API_KEY, 'accept': 'application/json' }
-        });
-        if (!res.ok) continue;
-
-        // Chercher via logs SMS
-        const logsRes = await fetch(`https://api.brevo.com/v3/transactionalSMS/statistics/events?startDate=${new Date(Date.now()-86400000).toISOString().slice(0,10)}&endDate=${new Date().toISOString().slice(0,10)}&sort=desc&limit=100`, {
-          headers: { 'api-key': BREVO_API_KEY, 'accept': 'application/json' }
-        });
-        if (!logsRes.ok) continue;
-        const logs = await logsRes.json();
-        const events = logs.events || logs || [];
-
-        // Trouver l'event correspondant au messageId
-        const match = events.find(e => e.messageId === doc.sms_message_id || e.messageHexId === doc.sms_message_id);
-        if (!match) continue;
-
-        const evType = (match.event || '').toLowerCase();
-        let statut = null;
-        if (['delivered'].includes(evType)) statut = 'livre';
-        else if (['failed','undelivered','rejected','bounced'].includes(evType)) statut = 'echec';
-
-        if (statut) {
-          await supabase.from('historique').update({ sms_avis_statut: statut }).eq('num', doc.num);
-          console.log(`📱 SMS ${statut} confirmé (polling) → ${doc.client} (${doc.num})`);
-        }
-      } catch(e) {}
-    }
-  } catch(e) { console.error('Polling SMS error:', e.message); }
-}
-
-// Vérifier toutes les heures
-cron.schedule('0 * * * *', verifierStatutSMS);
-// Et au démarrage après 2 min
-setTimeout(verifierStatutSMS, 120000);
 
 // ═══════════════════════════════════════════════════
 // MONITORING
