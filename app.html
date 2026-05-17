@@ -3302,11 +3302,16 @@ function demarrerPollingSignature() {
         const data = await res.json();
         if (data.statut === 'signe') {
           devis.statut = 'signe';
-          // Notifier si l'historique est ouvert
-          const pageActive = document.querySelector('.page.active')?.id;
-          if (pageActive === 'page-historique') afficherHistorique();
           showToast(`✅ ${devis.client} a signé le devis ${devis.num} !`, '✍️');
           shootConfetti();
+          // Recharger depuis Supabase pour avoir les données fraîches
+          const pageActive = document.querySelector('.page.active')?.id;
+          if (pageActive === 'page-historique') {
+            await chargerHistorique();
+          } else {
+            // Silencieux — recharger en arrière-plan pour badge accueil
+            fetch('/api/ca-complet').then(r=>r.json()).then(d=>{ historiqueData=d; }).catch(()=>{});
+          }
         }
       }
     } catch(e) {}
