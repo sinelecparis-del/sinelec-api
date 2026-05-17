@@ -5342,6 +5342,14 @@ function renderAccueilDocs(docs, containerId, type) {
       btns.push(`<div class="obat-doc-act" onclick="event.stopPropagation();marquerTermine('${item.num}')" title="Marquer terminé" style="font-size:11px;color:#16a34a;">✅</div>`);
     }
 
+    // SMS avis pour factures payées
+    if (type === 'factures' && estPaye) {
+      const smsOk = item.sms_avis_envoye;
+      btns.push(`<div class="obat-doc-act" onclick="event.stopPropagation();${smsOk ? '' : `envoyerSmsAvis('${item.num}',this)`}"
+        title="${smsOk ? '✅ SMS avis envoyé' : '📱 Envoyer SMS avis Google'}"
+        style="font-size:11px;${smsOk ? 'color:#16a34a;' : 'color:#C9962A;'}">${smsOk ? '📱✅' : '📱'}</div>`);
+    }
+
     return btns.join('');
   };
 
