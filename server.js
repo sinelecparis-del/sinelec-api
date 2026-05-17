@@ -1487,7 +1487,7 @@ class SC(pdfcanvas.Canvas):
         self.setFont('Helvetica-Bold',7); self.setFillColor(OR); self.drawRightString(W-1.2*cm,0.28*cm,'${num}')
         # ③ Numéro de page
         self.setFont('Helvetica-Bold',8); self.setFillColor(OR)
-        self.drawString(1.5*cm,0.38*cm,'Page %d / 2'%(self._pg+1))
+        self.drawString(1.5*cm,0.38*cm,'Page %d'%(self._pg+1))
         self.restoreState()
     def _draw_watermark(self):
         # Filigrane SIGNE niveau moyen — page 1 uniquement
@@ -2235,7 +2235,7 @@ class SC(pdfcanvas.Canvas):
         self.setFont('Helvetica-Bold',7); self.setFillColor(OR); self.drawRightString(W-1.2*cm,0.28*cm,'${num}')
         # ③ Numéro de page
         self.setFont('Helvetica-Bold',8); self.setFillColor(OR)
-        self.drawString(1.5*cm,0.38*cm,'Page %d / 2'%(self._pg+1))
+        self.drawString(1.5*cm,0.38*cm,'Page %d'%(self._pg+1))
         self.restoreState()
     def _draw_watermark(self):
         # Filigrane diagonal léger — page 1 uniquement
@@ -2254,7 +2254,7 @@ class SC(pdfcanvas.Canvas):
         self.setFillAlpha(0.04); self.setFont('Helvetica', 16)
         self.drawCentredString(0, -52, 'SINELEC PARIS')
         self.restoreState()
-doc=SimpleDocTemplate(sys.argv[2],pagesize=A4,leftMargin=1.2*cm,rightMargin=1.0*cm,topMargin=5.6*cm,bottomMargin=1.6*cm); story=[]
+doc=SimpleDocTemplate(sys.argv[2],pagesize=A4,leftMargin=1.2*cm,rightMargin=1.0*cm,topMargin=5.6*cm,bottomMargin=1.2*cm); story=[]
 client_b=Table([[p('CLIENT',7,'Helvetica-Bold',OR,sa=4)],[p('${clientEsc}',10,'Helvetica-Bold',MARINE)],[p('${clientRue}',8.5,color=GRIS_TEXTE)],[p('${clientVille}',8.5,color=GRIS_TEXTE)]],colWidths=[18.2*cm])
 client_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('BACKGROUND',(0,0),(-1,-1),OR_PALE),('BOX',(0,0),(-1,-1),1,OR),('LINEBEFORE',(0,0),(0,-1),4,MARINE),('TOPPADDING',(0,0),(0,0),10),('BOTTOMPADDING',(0,-1),(-1,-1),10)]))
 story.append(client_b); story.append(Spacer(1,0.5*cm))
@@ -2302,12 +2302,11 @@ if IS_DEVIS_DL:
     t_modes2.setStyle(TableStyle([('FONTNAME',(0,0),(-1,-1),'Helvetica'),('FONTSIZE',(0,0),(-1,-1),7.5),('TEXTCOLOR',(0,0),(-1,-1),GRIS_SOFT),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),4)]))
     story.append(t_modes2); story.append(Spacer(1,0.2*cm))
 if IS_FACTURE:
-    story.append(Spacer(1,0.35*cm))
+    from reportlab.platypus import KeepTogether
     from reportlab.platypus.flowables import HRFlowable
-    story.append(HRFlowable(width='100%',thickness=0.3,color=GRIS_LIGNE,spaceAfter=8))
     IS_PAYE_NOW = '${isPaye}' == 'true'
     if IS_PAYE_NOW:
-        # ── SECTION PAYE ──────────────────────────────
+        # ── SECTION PAYE — KeepTogether pour éviter débordement ──
         VERT_L=colors.HexColor('#f0fff4'); VERT_B=colors.HexColor('#bbf7d0'); VERT_T=colors.HexColor('#16a34a')
         class TamponPaye(Flowable):
             def __init__(self):
@@ -2328,7 +2327,8 @@ if IS_FACTURE:
         paye_info=[p('PAIEMENT RECU',8,'Helvetica-Bold',VERT_T,sa=4),p('Date : ${datePaiement}',8.5,color=GRIS_TEXTE,sa=3),p('Mode : ${modePaiement}',8.5,color=GRIS_TEXTE,sa=3),p('Montant encaisse : %.2f \u20ac'%totalHT,9,'Helvetica-Bold',VERT_T)]
         t_paye=Table([[paye_info,TamponPaye()]],colWidths=[14.0*cm,4.2*cm])
         t_paye.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),VERT_L),('BOX',(0,0),(-1,-1),1,VERT_B),('LINEBEFORE',(0,0),(0,-1),4,VERT_T),('VALIGN',(0,0),(-1,-1),'MIDDLE'),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),('LEFTPADDING',(0,0),(0,-1),12),('RIGHTPADDING',(0,0),(-1,-1),8),('ALIGN',(1,0),(1,-1),'CENTER')]))
-        story.append(t_paye)
+        paye_kt = KeepTogether([HRFlowable(width='100%',thickness=0.3,color=GRIS_LIGNE,spaceAfter=6), Spacer(1,0.2*cm), t_paye])
+        story.append(paye_kt)
     else:
         # ── 3 CHIPS MODES PAIEMENT ─────────────────────
         GRIS_CHIP=colors.HexColor('#f8f9fb'); GRIS_CHIP_B=colors.HexColor('#E4E7EF')
