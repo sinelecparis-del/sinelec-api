@@ -134,7 +134,7 @@ async function envoyerEmail(to, subject, htmlContent, attachment = null) {
 }
 
 async function envoyerSMS(to, message) {
-  if (!to || String(to).length < 8) return;
+  if (!to || String(to).length < 8) return null;
   let num = String(to).replace(/[\s\-\.]/g, '');
   if (num.startsWith('0')) num = '+33' + num.substring(1);
   if (!num.startsWith('+')) num = '+33' + num;
@@ -142,11 +142,14 @@ async function envoyerSMS(to, message) {
     const res = await fetch('https://api.brevo.com/v3/transactionalSMS/sms', {
       method: 'POST',
       headers: { 'accept': 'application/json', 'api-key': BREVO_API_KEY, 'content-type': 'application/json' },
-      body: JSON.stringify({ sender: 'SINELEC', recipient: num, content: message, type: 'transactional' }),
+      body: JSON.stringify({ sender: 'SINELEC', recipient: num, content: message, type: 'transactional', tag: 'sinelec' }),
     });
-    if (!res.ok) console.error('SMS error:', await res.text());
-    else console.log('SMS envoyé à', num);
-  } catch(e) { console.error('SMS error:', e.message); }
+    if (!res.ok) { console.error('SMS error:', await res.text()); return null; }
+    const data = await res.json();
+    const msgId = data.messageId || data.messageHexId || null;
+    console.log('📱 SMS envoyé à', num, '— messageId:', msgId);
+    return msgId;
+  } catch(e) { console.error('SMS error:', e.message); return null; }
 }
 
 async function incrementerCompteur(type) {
@@ -2836,11 +2839,16 @@ app.post('/api/envoyer-sms-avis/:num', async (req, res) => {
     const montant = parseFloat(f.total_ht || 0).toFixed(0);
     const prenom = (f.client || 'client').split(' ')[0];
 
-    await envoyerSMS(tel, `Bonjour ${prenom} 😊 Paiement ${montant}€ reçu ✅ C'était un plaisir d'intervenir chez vous, merci pour votre confiance ! Un avis Google avec le détail des travaux réalisés nous aiderait énormément 🙏 → https://g.page/r/CSw-MABnFUAYEAE/review Belle journée ! — SINELEC Paris ⚡`);
+    const msgId = await envoyerSMS(tel, `Bonjour ${prenom} 😊 Paiement ${montant}€ reçu ✅ C'était un plaisir d'intervenir chez vous, merci pour votre confiance ! Un avis Google avec le détail des travaux réalisés nous aiderait énormément 🙏 → https://g.page/r/CSw-MABnFUAYEAE/review Belle journée ! — SINELEC Paris ⚡`);
 
     // Enregistrer l'envoi dans Supabase
     const now = new Date().toISOString();
-    await supabase.from('historique').update({ sms_avis_envoye: true, sms_avis_date: now }).eq('num', num);
+    await supabase.from('historique').update({
+      sms_avis_envoye: true,
+      sms_avis_date: now,
+      sms_avis_statut: 'envoye',
+      sms_message_id: msgId || null
+    }).eq('num', num);
 
     console.log(`📱 SMS avis envoyé manuellement → ${tel} (${num})`);
     res.json({ success: true, telephone: tel, date: now });
@@ -2849,6 +2857,94 @@ app.post('/api/envoyer-sms-avis/:num', async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
+
+
+// ═══════════════════════════════════════════════════
+// WEBHOOK BREVO — Statut livraison SMS
+// ═══════════════════════════════════════════════════
+app.post('/api/sms-webhook', async (req, res) => {
+  res.sendStatus(200); // Répondre vite à Brevo
+  try {
+    const events = Array.isArray(req.body) ? req.body : [req.body];
+    for (const ev of events) {
+      const msgId = ev.messageId || ev.messageHexId;
+      const evtType = (ev.event || ev.type || '').toLowerCase();
+      if (!msgId) continue;
+
+      // Mapper event Brevo → statut SINELEC
+      let statut = null;
+      if (['delivered','delivery'].some(x => evtType.includes(x))) statut = 'livre';
+      else if (['failed','undelivered','error','bounced'].some(x => evtType.includes(x))) statut = 'echec';
+
+      if (!statut) continue;
+
+      // Trouver le document correspondant par messageId
+      const { data: docs } = await supabase.from('historique')
+        .select('num').eq('sms_message_id', msgId).limit(1);
+
+      if (docs?.length) {
+        await supabase.from('historique')
+          .update({ sms_avis_statut: statut })
+          .eq('num', docs[0].num);
+        console.log(`📱 SMS ${statut} confirmé — ${docs[0].num} (msgId: ${msgId})`);
+      }
+    }
+  } catch(e) { console.error('Webhook SMS error:', e.message); }
+});
+
+
+// ═══════════════════════════════════════════════════
+// POLLING STATUT SMS — Vérifie livraison toutes les heures
+// ═══════════════════════════════════════════════════
+async function verifierStatutSMS() {
+  try {
+    // Chercher les SMS envoyés mais pas encore confirmés livrés
+    const { data: docs } = await supabase.from('historique')
+      .select('num, sms_message_id, client')
+      .eq('sms_avis_envoye', true)
+      .eq('sms_avis_statut', 'envoye')
+      .not('sms_message_id', 'is', null)
+      .limit(20);
+
+    if (!docs?.length) return;
+
+    for (const doc of docs) {
+      try {
+        const res = await fetch(`https://api.brevo.com/v3/transactionalSMS/statistics/reports?startDate=${new Date(Date.now()-86400000).toISOString().slice(0,10)}&endDate=${new Date().toISOString().slice(0,10)}&sort=desc`, {
+          headers: { 'api-key': BREVO_API_KEY, 'accept': 'application/json' }
+        });
+        if (!res.ok) continue;
+
+        // Chercher via logs SMS
+        const logsRes = await fetch(`https://api.brevo.com/v3/transactionalSMS/statistics/events?startDate=${new Date(Date.now()-86400000).toISOString().slice(0,10)}&endDate=${new Date().toISOString().slice(0,10)}&sort=desc&limit=100`, {
+          headers: { 'api-key': BREVO_API_KEY, 'accept': 'application/json' }
+        });
+        if (!logsRes.ok) continue;
+        const logs = await logsRes.json();
+        const events = logs.events || logs || [];
+
+        // Trouver l'event correspondant au messageId
+        const match = events.find(e => e.messageId === doc.sms_message_id || e.messageHexId === doc.sms_message_id);
+        if (!match) continue;
+
+        const evType = (match.event || '').toLowerCase();
+        let statut = null;
+        if (['delivered'].includes(evType)) statut = 'livre';
+        else if (['failed','undelivered','rejected','bounced'].includes(evType)) statut = 'echec';
+
+        if (statut) {
+          await supabase.from('historique').update({ sms_avis_statut: statut }).eq('num', doc.num);
+          console.log(`📱 SMS ${statut} confirmé (polling) → ${doc.client} (${doc.num})`);
+        }
+      } catch(e) {}
+    }
+  } catch(e) { console.error('Polling SMS error:', e.message); }
+}
+
+// Vérifier toutes les heures
+cron.schedule('0 * * * *', verifierStatutSMS);
+// Et au démarrage après 2 min
+setTimeout(verifierStatutSMS, 120000);
 
 // ═══════════════════════════════════════════════════
 // MONITORING
