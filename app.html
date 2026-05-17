@@ -3163,6 +3163,17 @@ function afficherHistorique() {
         }
       }
 
+      // Bouton SMS avis + badge espion pour factures payées
+      if (type === 'facture' && estPaye) {
+        const smsEnvoye = item.sms_avis_envoye;
+        const smsDate = item.sms_avis_date ? new Date(item.sms_avis_date).toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'}) : '';
+        if (smsEnvoye) {
+          btns.push(`<button disabled style="background:rgba(22,163,74,0.08);color:#16a34a;border:1px solid rgba(22,163,74,0.3);border-radius:10px;padding:11px 8px;font-size:11px;font-weight:700;cursor:default;text-align:center;">✅ SMS envoyé ${smsDate}</button>`);
+        } else {
+          btns.push(`<button onclick="envoyerSmsAvis('${item.num}',this)" ${btnStyle('rgba(232,184,75,0.1)','#C9962A','rgba(232,184,75,0.3)')}>📱 Envoyer SMS avis</button>`);
+        }
+      }
+
       if (type === 'facture' && !estPaye && !estAnnule) {
         // ✅ Terminé = paye sans SMS | ❌ Annuler = annule sans SMS
         // Toujours visibles si facture non payée
@@ -3207,6 +3218,10 @@ function afficherHistorique() {
         ${type === 'facture' && !estPaye && !estAnnule && (item.nb_relances > 0) ? `
         <span style="background:rgba(245,158,11,0.12);color:#d97706;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;">
           📱 Relancé ${item.nb_relances}x
+        </span>` : ''}
+        ${type === 'facture' && estPaye ? `
+        <span style="background:${item.sms_avis_envoye ? 'rgba(22,163,74,0.1)' : 'rgba(156,163,175,0.1)'};color:${item.sms_avis_envoye ? '#16a34a' : '#9ca3af'};border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;" title="${item.sms_avis_envoye ? 'SMS avis envoyé le ' + (item.sms_avis_date ? new Date(item.sms_avis_date).toLocaleDateString('fr-FR') : '') : 'SMS avis non encore envoyé'}">
+          ${item.sms_avis_envoye ? '📱 SMS ✅' : '📱 SMS —'}
         </span>` : ''}
       </div>
 
@@ -7383,6 +7398,36 @@ function modifierPrixSect(idx, val) {
   if (!panierD[idx]) return;
   panierD[idx].prixUnit = parseFloat(val) || 0;
   renderPanier('d');
+}
+
+
+// ═══════════════════════════════════════════════════
+// SMS AVIS MANUEL + ESPION
+// ═══════════════════════════════════════════════════
+async function envoyerSmsAvis(num, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Envoi...'; }
+  try {
+    const res = await fetch(`/api/envoyer-sms-avis/${num}`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      showToast('📱 SMS avis envoyé avec succès !', '✅');
+      if (btn) {
+        btn.textContent = '✅ SMS envoyé';
+        btn.style.background = 'rgba(22,163,74,0.08)';
+        btn.style.color = '#16a34a';
+        btn.style.borderColor = 'rgba(22,163,74,0.3)';
+      }
+      // Mettre à jour en mémoire
+      const item = historiqueData?.find(h => h.num === num);
+      if (item) { item.sms_avis_envoye = true; item.sms_avis_date = data.date; }
+    } else {
+      showToast('❌ ' + (data.error || 'Erreur envoi SMS'), '⚠️');
+      if (btn) { btn.disabled = false; btn.textContent = '📱 Envoyer SMS avis'; }
+    }
+  } catch(e) {
+    showToast('❌ Erreur réseau', '⚠️');
+    if (btn) { btn.disabled = false; btn.textContent = '📱 Envoyer SMS avis'; }
+  }
 }
 
 // ═══════════════════════════════════════════════════
