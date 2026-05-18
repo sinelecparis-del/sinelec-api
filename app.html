@@ -4602,33 +4602,49 @@ setInterval(verifierAlertesDevis, 300000);
 const DEP_FORFAITS = [
   {
     id: 'panne', icon: '🔌', urgence: false,
-    nom: 'Dépannage panne simple',
-    prix: 290,
-    desc: 'Intervention complète sur panne électrique : déplacement technicien SINELEC, diagnostic, localisation de la panne, réparation et remise en service. Fournitures courantes incluses. Garantie intervention.'
+    nom: 'Dépannage panne simple', prix: 290,
+    prestations: [
+      { nom: 'Déplacement Paris intra-muros', prix: 50, desc: `Déplacement du technicien SINELEC au domicile du client dans Paris intra-muros (75). Comprend : mise à disposition du véhicule utilitaire équipé, transport de l'outillage professionnel complet, stationnement et temps de trajet. Prestation forfaitaire tout compris. TVA non applicable art. 293B CGI.` },
+      { nom: 'Recherche et localisation de panne', prix: 150, desc: `Diagnostic et localisation d'une panne électrique sur l'installation existante. Comprend : inspection visuelle complète du tableau électrique et des circuits, mesures électriques par appareils homologués (multimètre, pince ampèremétrique, testeur de continuité), identification précise de l'origine de la panne. Rapport d'intervention remis au client.` },
+      { nom: 'Remise en service électrique', prix: 90, desc: `Réparation et remise en service de l'installation électrique. Comprend : remplacement des éléments défectueux, reconnexion sécurisée, test de bon fonctionnement de l'ensemble des circuits après intervention. Fournitures courantes incluses. Garantie intervention.` },
+    ]
   },
   {
     id: 'court', icon: '⚡', urgence: false,
-    nom: 'Court-circuit',
-    prix: 205,
-    desc: 'Localisation et réparation court-circuit : identification du défaut, isolation du circuit, remplacement des éléments endommagés, remise en service sécurisée. Déplacement et fournitures inclus.'
+    nom: 'Court-circuit', prix: 205,
+    prestations: [
+      { nom: 'Déplacement Paris intra-muros', prix: 50, desc: `Déplacement du technicien SINELEC au domicile du client dans Paris intra-muros (75). Transport de l'outillage professionnel complet, stationnement et temps de trajet inclus.` },
+      { nom: 'Diagnostic et localisation court-circuit', prix: 80, desc: `Identification précise du défaut sur l'installation. Comprend : mesures d'isolement par circuit, test de continuité, identification du court-circuit, vérification du tableau de protection et des disjoncteurs.` },
+      { nom: 'Réparation et remise en service', prix: 75, desc: `Réparation du circuit défectueux : isolation de la zone endommagée, remplacement des conducteurs ou connexions défectueux, remise en service sécurisée, test de bon fonctionnement. Fournitures incluses.` },
+    ]
   },
   {
     id: 'disjoncteur', icon: '🔧', urgence: false,
-    nom: 'Disjoncteur standard',
-    prix: 410,
-    desc: 'Remplacement disjoncteur standard : dépose ancien appareil, fourniture et pose disjoncteur neuf conforme NF C 15-100, raccordement, test et vérification. Déplacement inclus.'
+    nom: 'Disjoncteur standard', prix: 410,
+    prestations: [
+      { nom: 'Déplacement Paris intra-muros', prix: 50, desc: `Déplacement du technicien SINELEC au domicile du client dans Paris intra-muros (75). Transport de l'outillage professionnel complet inclus.` },
+      { nom: 'Dépose ancien disjoncteur', prix: 60, desc: `Mise hors tension sécurisée, dépose de l'ancien disjoncteur défectueux, vérification de l'état des connexions et du câblage existant.` },
+      { nom: 'Fourniture et pose disjoncteur NF C 15-100', prix: 150, desc: `Fourniture et installation d'un disjoncteur neuf conforme à la norme NF C 15-100. Calibre adapté à la section du câble et à l'usage du circuit. Matériel certifié aux normes européennes.` },
+      { nom: 'Raccordement, test et vérification', prix: 150, desc: `Raccordement électrique conforme, test de déclenchement, vérification du bon fonctionnement de l'ensemble du tableau. Remise en service de l'installation et contrôle final.` },
+    ]
   },
   {
     id: 'urgence_soir', icon: '🌙', urgence: true,
-    nom: 'Urgence soir (20h–00h)',
-    prix: 350,
-    desc: 'Intervention urgence en soirée (20h à minuit) : déplacement prioritaire, diagnostic et dépannage électrique. Tarif urgence horaire soir appliqué. Sécurisation installation garantie.'
+    nom: 'Urgence soir (20h–00h)', prix: 350,
+    prestations: [
+      { nom: 'Déplacement urgence soir (20h–00h)', prix: 180, desc: `Déplacement prioritaire du technicien SINELEC en soirée de 20h à minuit. Tarif urgence soir appliqué conformément à la grille tarifaire. Intervention garantie dans les meilleurs délais.` },
+      { nom: 'Diagnostic et dépannage électrique', prix: 120, desc: `Intervention technique urgente sur l'installation électrique : diagnostic complet, localisation du problème, réparation et remise en service sécurisée. Fournitures courantes incluses.` },
+      { nom: 'Remise en service et sécurisation', prix: 50, desc: `Vérification finale de l'installation après intervention, sécurisation complète des circuits, test de bon fonctionnement. Rapport d'intervention remis au client.` },
+    ]
   },
   {
     id: 'urgence_nuit', icon: '🌑', urgence: true,
-    nom: 'Urgence nuit / weekend',
-    prix: 430,
-    desc: 'Intervention urgence nuit ou weekend : déplacement exceptionnel, diagnostic et dépannage électrique toute heure. Tarif urgence nuit/weekend appliqué. Sécurisation et remise en service garanties.'
+    nom: 'Urgence nuit / weekend', prix: 430,
+    prestations: [
+      { nom: 'Déplacement urgence nuit / weekend', prix: 250, desc: `Déplacement exceptionnel du technicien SINELEC la nuit ou le weekend. Tarif urgence nuit/weekend appliqué conformément à la grille tarifaire. Disponibilité 24h/24 garantie.` },
+      { nom: 'Diagnostic et dépannage électrique', prix: 120, desc: `Intervention technique urgente sur l'installation électrique : diagnostic complet, localisation du problème, réparation et remise en service sécurisée. Fournitures courantes incluses.` },
+      { nom: 'Remise en service et sécurisation', prix: 60, desc: `Vérification finale de l'installation après intervention, sécurisation complète des circuits, test de bon fonctionnement. Rapport d'intervention remis au client.` },
+    ]
   },
 ];
 
@@ -4784,12 +4800,17 @@ async function genererDepannageRapide() {
   if (!depForfaitSelectionne) { showToast('⚠️ Sélectionnez un forfait', '❌'); return; }
 
   const forfait = DEP_FORFAITS.find(f => f.id === depForfaitSelectionne);
-  const prixFinal = depRemiseActive ? Math.round(forfait.prix * 0.93) : forfait.prix;
 
-  // Description modifiée par l'utilisateur
-  const descModifiee = document.getElementById(`dep-desc-${forfait.id}`)?.value || forfait.desc;
+  // Construire les prestations détaillées depuis forfait.prestations
+  let prestations = (forfait.prestations || [{ nom: forfait.nom, prix: forfait.prix, desc: forfait.desc }])
+    .map(p => ({ nom: p.nom, prix: p.prix, quantite: 1, desc: p.desc }));
 
-  const prestations = [{ nom: forfait.nom, prix: prixFinal, quantite: 1, desc: descModifiee }];
+  // Appliquer la remise comme ligne séparée si active
+  if (depRemiseActive) {
+    const totalBase = prestations.reduce((s, p) => s + p.prix, 0);
+    const montantRemise = -Math.round(totalBase * 0.07);
+    prestations.push({ nom: 'Remise commerciale — 7%', prix: montantRemise, quantite: 1, desc: `Remise accordée sur l'ensemble des prestations.` });
+  }
 
   const btn = document.getElementById('dep-btn-gen');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Génération...'; }
