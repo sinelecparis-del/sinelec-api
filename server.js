@@ -2196,7 +2196,7 @@ logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
 class SC(pdfcanvas.Canvas):
     def __init__(self,fn,**kw): pdfcanvas.Canvas.__init__(self,fn,**kw); self._pg=0; self.saveState(); self._draw_page()
     def showPage(self): self._draw_watermark(); self._draw_footer(); pdfcanvas.Canvas.showPage(self); self._pg+=1
-    def save(self): self._draw_watermark(); self._draw_footer(); pdfcanvas.Canvas.save(self)
+    def save(self): self._draw_watermark(); self._draw_footer(); pdfcanvas.Canvas.showPage(self); pdfcanvas.Canvas.save(self)
     def _draw_page(self):
         self.saveState(); self.setFillColor(CREME); self.rect(0,0,W,H,fill=1,stroke=0)
         self.setFillColor(MARINE); self.rect(0,0,0.7*cm,H,fill=1,stroke=0)
