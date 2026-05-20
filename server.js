@@ -1395,8 +1395,16 @@ app.post('/api/signature', async (req, res) => {
       } catch(e) { console.error('Email RDV:', e.message); }
     }
 
-    const htmlConfirm = `<html><body style="font-family:Arial;padding:20px;"><h2>✅ Devis ${num} signé</h2><p>Client: ${devisData.client||''} — Montant: ${montant.toFixed(2)} € — Acompte: ${(montant*0.4).toFixed(2)} €</p><p>IP: ${ipClient} — Date: ${now.toLocaleDateString('fr-FR')}</p></body></html>`;
-    try { await envoyerEmail('sinelec.paris@gmail.com', `🔔 SIGNÉ — ${num} — ${devisData.client||''} — ${montant.toFixed(0)}€`, htmlConfirm); } catch(e) {}
+    const htmlConfirm = `<html><body style="font-family:Arial;padding:20px;background:#f5f5f7;"><div style="max-width:480px;margin:0 auto;background:#fff;border-radius:16px;padding:28px;"><div style="text-align:center;margin-bottom:20px;"><div style="font-size:40px;">✍️</div><h2 style="color:#1B2A4A;margin:8px 0;">Devis signé !</h2></div><p style="color:#333;"><strong>${devisData.client||''}</strong> vient de signer le devis <strong>${num}</strong></p><table style="width:100%;margin:16px 0;border-collapse:collapse;"><tr><td style="padding:6px;color:#666;font-size:13px;">Montant</td><td style="padding:6px;font-weight:700;text-align:right;">${montant.toFixed(2)} €</td></tr><tr style="background:#fffbf0;"><td style="padding:6px;color:#666;font-size:13px;">Acompte 40%</td><td style="padding:6px;font-weight:700;color:#C9A84C;text-align:right;">${(montant*0.4).toFixed(2)} €</td></tr><tr><td style="padding:6px;color:#666;font-size:13px;">Date</td><td style="padding:6px;text-align:right;font-size:13px;">${now.toLocaleDateString('fr-FR')}</td></tr><tr><td style="padding:6px;color:#666;font-size:13px;">IP client</td><td style="padding:6px;text-align:right;font-size:12px;color:#999;">${ipClient}</td></tr></table><p style="color:#555;font-size:13px;">Le devis signé avec la signature du client est joint à cet email. 📎</p></div></body></html>`;
+
+    // Générer PDF signé pour la copie Diahe
+    let pdfCopie = null;
+    try {
+      pdfCopie = await genererPDFb64(num);
+    } catch(e) { console.warn('PDF copie Diahe:', e.message); }
+
+    const attachCopie = pdfCopie ? { content: pdfCopie, name: `Devis_SIGNE_${num}_${(devisData.client||'').replace(/\s+/g,'_').substring(0,20)}.pdf` } : null;
+    try { await envoyerEmail('sinelec.paris@gmail.com', `✍️ SIGNÉ — ${num} — ${devisData.client||''} — ${montant.toFixed(0)}€`, htmlConfirm, attachCopie); } catch(e) {}
 
     // ── RÉGÉNÉRER PDF AVEC SIGNATURE + ENVOYER AU CLIENT ──
     let pdfSigStatus = 'skipped';
@@ -2398,6 +2406,150 @@ doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
   } catch(error) { res.status(500).json({ error: error.message }); }
 });
 
+
+// ═══════════════════════════════════════════════════
+// API: FACTURE D'ACOMPTE — 40% du devis signé
+// ═══════════════════════════════════════════════════
+app.post('/api/acompte/:num', async (req, res) => {
+  try {
+    const { num } = req.params;
+    const { data, error } = await supabase.from('historique').select('*').eq('num', num).single();
+    if (error || !data) return res.status(404).json({ error: 'Devis non trouvé' });
+    if (!['signe','signé'].includes((data.statut||'').toLowerCase())) return res.status(400).json({ error: 'Devis non signé' });
+
+    const numAcompte = 'FA-' + num;
+    const montantTotal = parseFloat(data.total_ht || 0);
+    const montantAcompte = Math.round(montantTotal * 0.4 * 100) / 100;
+    const montantSolde = Math.round((montantTotal - montantAcompte) * 100) / 100;
+    const dateStr = new Date().toLocaleDateString('fr-FR');
+    const clientEsc = String(data.client || '').replace(/'/g, ' ');
+    const clientParts = (data.adresse || '').split(',');
+    const clientRue = String(clientParts[0] || '').trim().replace(/'/g, ' ');
+    const clientVille = clientParts.slice(1).join(',').trim().replace(/'/g, ' ');
+
+    const detailsData = (data.prestations || []).map(p => ({
+      designation: String(p.nom || p.designation || 'Prestation'),
+      qte: p.quantite || 1, prixUnit: Math.round((p.prix || 0) * 0.4 * 100) / 100,
+      total: Math.round((p.prix || 0) * (p.quantite || 1) * 0.4 * 100) / 100,
+      details: []
+    }));
+
+    const detailsPath = path.join(__dirname, `_acpte_${num}_det.json`);
+    const pyPath     = path.join(__dirname, `_acpte_${num}.py`);
+    const pdfPath    = path.join(__dirname, `_acpte_${num}.pdf`);
+    fs.writeFileSync(detailsPath, JSON.stringify(detailsData));
+
+    const py = `# -*- coding: utf-8 -*-
+import json, base64, sys
+from reportlab.lib.pagesizes import A4
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Spacer, Paragraph
+from reportlab.platypus.flowables import HRFlowable
+from reportlab.lib import colors
+from reportlab.lib.units import cm
+from reportlab.lib.enums import TA_LEFT, TA_RIGHT, TA_CENTER
+from reportlab.lib.styles import ParagraphStyle
+from reportlab import pdfbase as pdfcanvas
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfgen import canvas as pdfcanvas
+W,H = A4
+MARINE=colors.HexColor('#1B2A4A'); OR=colors.HexColor('#C9A84C')
+CREME=colors.HexColor('#fdfcf7'); BLANC=colors.white
+GRIS_BG=colors.HexColor('#f8f8f8'); GRIS_LIGNE=colors.HexColor('#e0e0e0')
+GRIS_SOFT=colors.HexColor('#888888')
+BLEU_L=colors.HexColor('#e8f0fe'); BLEU_B=colors.HexColor('#4a90d9')
+data=json.loads(open('${detailsPath}',encoding='utf-8').read())
+logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
+def p(txt,sz=9,fn='Helvetica',color=colors.HexColor('#1B2A4A'),align=TA_LEFT,sa=0,sb=0):
+    return Paragraph(str(txt),ParagraphStyle('s',fontName=fn,fontSize=sz,textColor=color,alignment=align,spaceAfter=sa,spaceBefore=sb,leading=sz*1.35))
+class SC(pdfcanvas.Canvas):
+    def __init__(self,fn,**kw): pdfcanvas.Canvas.__init__(self,fn,**kw); self._pg=0; self.saveState(); self._draw_page()
+    def showPage(self): self._draw_footer(); pdfcanvas.Canvas.showPage(self); self._pg+=1
+    def save(self): self._draw_footer(); pdfcanvas.Canvas.showPage(self); pdfcanvas.Canvas.save(self)
+    def _draw_page(self):
+        self.saveState()
+        self.setFillColor(CREME); self.rect(0,0,W,H,fill=1,stroke=0)
+        self.setFillColor(MARINE); self.rect(0,0,0.7*cm,H,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0.7*cm,0,0.08*cm,H,fill=1,stroke=0)
+        self._draw_header(); self.restoreState()
+    def _draw_header(self):
+        self.setFillColor(MARINE); self.rect(0.78*cm,H-5.2*cm,W-0.78*cm,5.2*cm,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0.78*cm,H-5.2*cm,W-0.78*cm,0.06*cm,fill=1,stroke=0)
+        from reportlab.lib.utils import ImageReader
+        import io
+        logo_img=ImageReader(io.BytesIO(logo_bytes))
+        self.drawImage(logo_img,1.1*cm,H-4.5*cm,width=3.0*cm,height=3.0*cm,mask='auto')
+        self.setFillColor(colors.white); self.setFont('Helvetica-Bold',28)
+        self.drawString(5.0*cm,H-2.2*cm,"FACTURE D'ACOMPTE")
+        self.setFillColor(OR); self.roundRect(5.0*cm,H-3.1*cm,6.5*cm,0.65*cm,3,fill=1,stroke=0)
+        self.setFillColor(MARINE); self.setFont('Helvetica-Bold',10)
+        self.drawCentredString(8.25*cm,H-2.72*cm,'N ${numAcompte}')
+        self.setFillColor(colors.white); self.setFont('Helvetica',8)
+        self.drawString(5.0*cm,H-3.6*cm,'Date : ${dateStr}')
+        self.setFont('Helvetica',7.5)
+        self.drawString(1.2*cm,H-4.3*cm,'128 Rue La Boetie, 75008 Paris')
+        self.drawString(1.2*cm,H-4.65*cm,'07 87 38 86 22  |  sinelec.paris@gmail.com  |  SIRET : 91015824500019')
+    def _draw_footer(self):
+        self.saveState()
+        self.setFillColor(MARINE); self.rect(0,0,W,1.1*cm,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0,1.1*cm,W,0.06*cm,fill=1,stroke=0)
+        self.setFillColor(colors.white); self.setFont('Helvetica',7)
+        self.drawCentredString(W/2,0.38*cm,'SINELEC EI • 128 Rue La Boetie 75008 Paris • SIRET : 91015824500019 • TVA non applicable art. 293B CGI')
+        self.setFillColor(OR); self.setFont('Helvetica-Bold',8)
+        self.drawString(1.5*cm,0.38*cm,'Page %d'%(self._pg+1))
+        self.drawRightString(W-1.0*cm,0.38*cm,'${numAcompte}')
+        self.restoreState()
+doc=SimpleDocTemplate(sys.argv[2],pagesize=A4,leftMargin=1.2*cm,rightMargin=1.0*cm,topMargin=5.6*cm,bottomMargin=1.2*cm)
+story=[]
+# CLIENT
+cli_data=[[p('CLIENT',7,'Helvetica-Bold',OR),''],[p('<b>${clientEsc}</b>',10,color=MARINE),''],[ p('${clientRue}',9,color=GRIS_SOFT),''],[ p('${clientVille}',9,color=GRIS_SOFT),'']]
+t_cli=Table(cli_data,colWidths=[18.2*cm,0]); t_cli.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#fffef5')),('BOX',(0,0),(-1,-1),1,OR),('LINEBEFORE',(0,0),(0,-1),4,OR),('LEFTPADDING',(0,0),(-1,-1),12),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6)]))
+story.append(t_cli); story.append(Spacer(1,0.5*cm))
+# BANDEAU ACOMPTE
+ba_data=[[p("Facture d'acompte — 40% du devis ${num}",10,'Helvetica-Bold',colors.white,TA_CENTER),p('Solde de %.2f € — 60%% exigible a la fin de l\'intervention'%${montantSolde},8,'Helvetica',colors.HexColor('#bbdefb'),TA_CENTER)]]
+t_ba=Table(ba_data,colWidths=[18.2*cm]); t_ba.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),BLEU_B),('BOX',(0,0),(-1,-1),0,BLANC),('LEFTPADDING',(0,0),(-1,-1),14),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10)]))
+story.append(t_ba); story.append(Spacer(1,0.4*cm))
+# TABLEAU PRESTATIONS
+hdr=[p('#',9,'Helvetica-Bold',colors.white,TA_CENTER),p('DESIGNATION',9,'Helvetica-Bold',colors.white),p('QTE',9,'Helvetica-Bold',colors.white,TA_CENTER),p('U.',9,'Helvetica-Bold',colors.white,TA_CENTER),p('PRIX U. HT',9,'Helvetica-Bold',colors.white,TA_RIGHT),p('TOTAL HT',9,'Helvetica-Bold',colors.white,TA_RIGHT)]
+cw=[1.0*cm,9.5*cm,1.2*cm,1.0*cm,2.8*cm,2.7*cm]; rows=[hdr]
+for i,l in enumerate(data):
+    q=int(l['qte']) if float(l['qte'])==int(float(l['qte'])) else l['qte']
+    rows.append([p(str(i+1),9,color=OR,align=TA_CENTER),p('<b>'+str(l['designation'])+'</b>',9,color=MARINE),p(str(q),9,align=TA_CENTER),p('u.',9,align=TA_CENTER,color=GRIS_SOFT),p('%.2f \u20ac'%float(l['prixUnit']),9,align=TA_RIGHT),p('<b>%.2f \u20ac</b>'%float(l['total']),9,'Helvetica-Bold',MARINE,TA_RIGHT)])
+t=Table(rows,colWidths=cw); ts=[('BACKGROUND',(0,0),(-1,0),MARINE),('LINEBELOW',(0,0),(-1,0),2.5,OR),('VALIGN',(0,0),(-1,-1),'TOP'),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),('LEFTPADDING',(0,0),(-1,-1),7),('RIGHTPADDING',(0,0),(-1,-1),7),('BOX',(0,0),(-1,-1),0.3,GRIS_LIGNE)]
+for i in range(len(data)):
+    bg=BLANC if i%2==0 else GRIS_BG; ts.extend([('BACKGROUND',(0,i+1),(-1,i+1),bg),('LINEBELOW',(0,i+1),(-1,i+1),0.3,GRIS_LIGNE)])
+t.setStyle(TableStyle(ts)); story.append(t); story.append(Spacer(1,0.3*cm))
+# TOTAUX
+tot_rows=[[p('Total HT',9,color=GRIS_SOFT,align=TA_RIGHT),p('%.2f \u20ac'%${montantAcompte},9,align=TA_RIGHT)],[p('TVA',9,color=GRIS_SOFT,align=TA_RIGHT),p('Non applicable (art. 293B)',8,'Helvetica-Oblique',GRIS_SOFT,TA_RIGHT)]]
+t_tot=Table(tot_rows,colWidths=[14.7*cm,3.5*cm]); t_tot.setStyle(TableStyle([('ALIGN',(0,0),(-1,-1),'RIGHT'),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4)])); story.append(t_tot); story.append(Spacer(1,0.2*cm))
+# NET À PAYER ACOMPTE
+net_data=[[p('NET À PAYER (ACOMPTE 40%)',11,'Helvetica-Bold',colors.white),p('%.2f \u20ac'%${montantAcompte},13,'Helvetica-Bold',OR,TA_RIGHT)]]
+t_net=Table(net_data,colWidths=[13.0*cm,5.2*cm]); t_net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('TOPPADDING',(0,0),(-1,-1),12),('BOTTOMPADDING',(0,0),(-1,-1),12)])); story.append(t_net)
+story.append(Spacer(1,0.5*cm))
+# SOLDE
+sol_data=[[p('Solde de %.2f \u20ac — 60%% exigible à la fin de l\'intervention'%${montantSolde},9,'Helvetica-Oblique',GRIS_SOFT,TA_CENTER)]]
+t_sol=Table(sol_data,colWidths=[18.2*cm]); t_sol.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GRIS_BG),('BOX',(0,0),(-1,-1),0.5,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8)])); story.append(t_sol)
+doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('ACOMPTE_OK')
+`;
+
+    fs.writeFileSync(pyPath, py, 'utf8');
+    const { execSync: execA } = require('child_process');
+    try {
+      execA(`python3 "${pyPath}" "${detailsPath}" "${pdfPath}"`, { cwd: __dirname, timeout: 40000, stdio: ['pipe','pipe','pipe'] });
+    } catch(pyErr) {
+      const msg = pyErr.stderr?.toString() || pyErr.message;
+      console.error('❌ Acompte Python error:', msg.substring(0,300));
+      throw new Error('Génération acompte échouée: ' + msg.substring(0,150));
+    }
+    if (!fs.existsSync(pdfPath)) throw new Error('PDF acompte non généré');
+    const pdfB64 = fs.readFileSync(pdfPath).toString('base64');
+    try { fs.unlinkSync(pyPath); fs.unlinkSync(detailsPath); fs.unlinkSync(pdfPath); } catch(e) {}
+
+    res.json({ success: true, num: numAcompte, pdf_b64: pdfB64, montant_acompte: montantAcompte, montant_solde: montantSolde });
+  } catch(e) {
+    console.error('Erreur acompte:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
 
 // ═══════════════════════════════════════════════════
 // API: PDF OBAT (généré depuis données importées)
