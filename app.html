@@ -6096,6 +6096,8 @@ function renderTableauHistorique() {
             if (envoye) return `<div class="ht-dropdown-item" style="color:#f59e0b;pointer-events:none;">📱 SMS ⏳ Envoyé — En attente livraison</div>`;
             return `<div class="ht-dropdown-item" onclick="envoyerSmsAvis('${item.num}',this)" style="color:#C9962A;font-weight:800;">📱 Envoyer SMS avis Google</div>`;
           })() : ''}
+          ${type === 'devis' && (item.statut === 'signe' || item.statut === 'signé') ? `
+          <div class="ht-dropdown-item" onclick="genererAcompte('${item.num}')" style="color:#4a90d9;font-weight:800;">🧾 Facture d'acompte 40%</div>` : ''}
           <div class="ht-dropdown-item" onclick="dupliquerDoc('${item.num}')">📋 Dupliquer</div>
           <div class="ht-dropdown-item" onclick="creerFicheClient('${item.num}')">👤 Fiche client</div>
           <div class="ht-dropdown-item red" onclick="supprimerDoc('${item.num}')">🗑️ Supprimer</div>
@@ -7447,6 +7449,22 @@ function modifierPrixSect(idx, val) {
 // ═══════════════════════════════════════════════════
 // SMS AVIS MANUEL + ESPION
 // ═══════════════════════════════════════════════════
+async function genererAcompte(num) {
+  showToast('⏳ Génération facture acompte...', '🧾');
+  try {
+    const res = await fetch(`/api/acompte/${num}`, { method: 'POST', headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('sinelec_token') || '') } });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Erreur');
+
+    // Ouvrir popup envoi email avec le PDF acompte
+    ouvrirPreviewAvecActions(data.num, data.pdf_b64, '', 'facture', '');
+    showToast(`✅ Facture acompte ${data.num} générée — ${data.montant_acompte.toFixed(0)}€`, '🧾');
+    shootConfetti();
+  } catch(e) {
+    showToast('❌ ' + e.message, '⚠️');
+  }
+}
+
 async function envoyerSmsAvis(num, btn) {
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Envoi...'; }
   try {
