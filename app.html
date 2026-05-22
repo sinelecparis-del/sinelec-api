@@ -7976,14 +7976,14 @@ function appliquerUrgencePanier(urgence) {
       : 'Intervention en soirée ou nuit (22h-07h). Tarif urgence appliqué.',
     _urgence: true
   };
-  panier.unshift(itemUrgence);
-  afficherPanier();
+  panierD.unshift(itemUrgence);
+  renderPanier('d');
   showToast(urgence.label + ' activé', '🌙');
 }
 
 function supprimerUrgencePanier() {
-  const idx = panier.findIndex(p => p._urgence);
-  if (idx >= 0) { panier.splice(idx, 1); afficherPanier(); }
+  const idx = panierD.findIndex(p => p._urgence);
+  if (idx >= 0) { panierD.splice(idx, 1); renderPanier('d'); }
 }
 
 function toggleModeNuitManuel() {
