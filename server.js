@@ -234,11 +234,19 @@ async function chargerGrilleTarifaire() {
 app.post('/api/generer', async (req, res) => {
   if (!CONFIG.features.devis_factures) return res.status(403).json({ error: 'Feature désactivée' });
   try {
-    const { type, client, email, telephone, adresse, complement, codePostal, ville, prenom, description, prestations, partenaire, part_diahe, part_partenaire, nom_partenaire, intervention_type, siret_client } = req.body;
-    const compteur = await incrementerCompteur(type);
-    const annee = new Date().getFullYear();
-    const mois = String(new Date().getMonth() + 1).padStart(2, '0');
-    const num = type === 'devis' ? `OS-${annee}${mois}-${String(compteur).padStart(3, '0')}` : `${annee}${mois}-${String(compteur).padStart(3, '0')}`;
+    const { type, client, email, telephone, adresse, complement, codePostal, ville, prenom, description, prestations, partenaire, part_diahe, part_partenaire, nom_partenaire, intervention_type, siret_client, num_existant } = req.body;
+
+    // Si modification d'un devis existant → garder le même numéro sans incrémenter le compteur
+    let num;
+    if (num_existant && type === 'devis') {
+      num = num_existant;
+      console.log('🔄 Mise à jour devis existant:', num);
+    } else {
+      const compteur = await incrementerCompteur(type);
+      const annee = new Date().getFullYear();
+      const mois = String(new Date().getMonth() + 1).padStart(2, '0');
+      num = type === 'devis' ? `OS-${annee}${mois}-${String(compteur).padStart(3, '0')}` : `${annee}${mois}-${String(compteur).padStart(3, '0')}`;
+    }
     const total_ht = prestations.reduce((sum, p) => sum + (p.prix * p.quantite), 0);
 
     // Calcul parts partenaire
