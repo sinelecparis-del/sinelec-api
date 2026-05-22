@@ -557,8 +557,10 @@ doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
 
     res.json({ success: true, num, pdf_b64: CONFIG.features.email_auto ? pdf_b64 : null, email_client: email });
   } catch(error) {
-    console.error('❌ /api/generer error:', error.message);
-    res.status(500).json({ error: error.message });
+    const msg = error.message || String(error);
+    console.error('❌ /api/generer FULL ERROR:', msg);
+    console.error('❌ Stack:', error.stack?.substring(0,500));
+    res.status(500).json({ error: msg, stack: error.stack?.substring(0,300) });
   }
 });
 
