@@ -68,7 +68,7 @@ function verifierToken(token) {
 }
 
 function authMiddleware(req, res, next) {
-  const publicRoutes = ['/', '/health', '/api/login', '/signer/', '/paiement-confirme/', '/api/signature', '/api/otp-signature', '/api/auth/check'];
+  const publicRoutes = ['/', '/health', '/api/login', '/signer/', '/paiement-confirme/', '/api/signature', '/api/otp-signature', '/api/auth/check', '/api/test-pdf', '/api/test', '/api/test-generer'];
   if (publicRoutes.some(r => req.path.startsWith(r))) return next();
   const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
   if (!verifierToken(token)) return res.status(401).json({ error: 'Non autorisé', code: 'UNAUTHORIZED' });
@@ -99,6 +99,190 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY
 const anthropic = new Anthropic({ apiKey: (process.env.ANTHROPIC_API_KEY || '').trim() });
 const BREVO_API_KEY = process.env.BREVO_API_KEY;
 const SUMUP_API_KEY = process.env.SUMUP_API_KEY;
+
+
+// ═══════════════════════════════════════════════════
+// API: TEST PDF GENERATION
+// ═══════════════════════════════════════════════════
+app.get('/api/test-pdf', async (req, res) => {
+  const steps = [];
+  try {
+    // Step 1: Check python3
+    try {
+      const pyVersion = execSync('python3 --version 2>&1', { timeout: 5000 }).toString().trim();
+      steps.push({ step: 'python3', ok: true, msg: pyVersion });
+    } catch(e) {
+      steps.push({ step: 'python3', ok: false, msg: e.message });
+      return res.json({ success: false, steps, error: 'python3 introuvable' });
+    }
+
+    // Step 2: Check reportlab
+    try {
+      execSync(`python3 -c "from reportlab.platypus import SimpleDocTemplate, Table; print('ok')"`, { timeout: 10000 });
+      steps.push({ step: 'reportlab', ok: true });
+    } catch(e) {
+      steps.push({ step: 'reportlab', ok: false, msg: e.stderr?.toString() || e.message });
+      return res.json({ success: false, steps, error: 'reportlab non installé' });
+    }
+
+    // Step 3: Check logo
+    const logoExists = fs.existsSync('/app/logo_b64.txt');
+    steps.push({ step: 'logo', ok: logoExists, msg: logoExists ? 'présent' : 'absent (non bloquant)' });
+
+    // Step 4: Generate minimal PDF
+    const testPy = `/tmp/test_sinelec_${Date.now()}.py`;
+    const testPdf = `/tmp/test_sinelec_${Date.now()}.pdf`;
+    const testData = '/tmp/test_sinelec_data.json';
+    fs.writeFileSync(testData, JSON.stringify([{designation:'Test prestation',qte:1,prixUnit:100,total:100,details:[]}]));
+
+    const pyScript = `# -*- coding: utf-8 -*-
+import json, sys
+from reportlab.lib.pagesizes import A4
+from reportlab.platypus import SimpleDocTemplate, Paragraph
+from reportlab.lib.styles import getSampleStyleSheet
+doc = SimpleDocTemplate(sys.argv[2], pagesize=A4)
+styles = getSampleStyleSheet()
+data = json.loads(open(sys.argv[1]).read())
+story = [Paragraph(f"Test SINELEC - {len(data)} prestations", styles['Title'])]
+doc.build(story)
+print('PDF_OK')
+`;
+    fs.writeFileSync(testPy, pyScript);
+    try {
+      const out = execSync(`python3 "${testPy}" "${testData}" "${testPdf}"`, { timeout: 30000, stdio: ['pipe','pipe','pipe'] });
+      const pdfExists = fs.existsSync(testPdf);
+      const pdfSize = pdfExists ? fs.statSync(testPdf).size : 0;
+      steps.push({ step: 'pdf_generation', ok: pdfExists, msg: pdfExists ? `${pdfSize} bytes` : 'non généré' });
+      try { fs.unlinkSync(testPy); fs.unlinkSync(testPdf); } catch(e) {}
+    } catch(pyErr) {
+      const pyMsg = pyErr.stderr?.toString() || pyErr.stdout?.toString() || pyErr.message;
+      steps.push({ step: 'pdf_generation', ok: false, msg: pyMsg.substring(0, 400) });
+      return res.json({ success: false, steps, error: 'PDF generation failed: ' + pyMsg.substring(0, 200) });
+    }
+
+    res.json({ success: true, steps, message: 'Tout fonctionne ✅' });
+  } catch(e) {
+    res.json({ success: false, steps, error: e.message });
+  }
+});
+
+
+// ═══════════════════════════════════════════════════
+// API: TEST GENERER COMPLET
+// ═══════════════════════════════════════════════════
+app.post('/api/test-generer', async (req, res) => {
+  const steps = [];
+  const num = 'TEST-001';
+  const detailsPath = path.join('/tmp', `_details_${num}.json`);
+  const pyPath = path.join('/tmp', `_devis_${num}.py`);
+  const pdfPath = path.join('/tmp', `${num}.pdf`);
+
+  try {
+    // Step 1: Write JSON data
+    const testData = [
+      { designation: 'Prise standard', qte: 1, prixUnit: 90, total: 90, details: ['Fourniture et pose'] }
+    ];
+    fs.writeFileSync(detailsPath, JSON.stringify(testData));
+    steps.push({ step: 'write_json', ok: true });
+
+    // Step 2: Build Python script (exact copy of generer)
+    const type = 'devis';
+    const typeLabelUpper = 'DEVIS';
+    const dateStr = new Date().toLocaleDateString('fr-FR');
+    const dateValide = new Date(Date.now() + 30*24*60*60*1000).toLocaleDateString('fr-FR');
+    const clientEsc = 'TEST CLIENT';
+    const clientRue = '12 rue de la Paix';
+    const clientCPVille = '75001 Paris';
+    const clientTel = '0612345678';
+    const clientSiret = '';
+    const descObjet = 'Travaux electricite generale';
+
+    const py = `# -*- coding: utf-8 -*-
+import json, base64, io, sys
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.units import cm
+from reportlab.platypus import *
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
+from reportlab.pdfgen import canvas as pdfcanvas
+from reportlab.lib.utils import ImageReader
+from reportlab.platypus.flowables import HRFlowable
+W,H=A4
+MARINE=colors.HexColor('#1B2A4A'); OR=colors.HexColor('#C9A84C')
+OR_PALE=colors.HexColor('#FBF7EC'); OR_FONCE=colors.HexColor('#A07830')
+BLANC=colors.white; CREME=colors.HexColor('#FDFCF9')
+GRIS_TEXTE=colors.HexColor('#3A3A3A'); GRIS_SOFT=colors.HexColor('#777777')
+GRIS_LIGNE=colors.HexColor('#E0DDD6'); GRIS_BG=colors.HexColor('#F5F4F0')
+def p(txt,sz=9,font='Helvetica',color=GRIS_TEXTE,align=TA_LEFT,sb=0,sa=2,leading=None):
+    if leading is None: leading=sz*1.35
+    return Paragraph(str(txt),ParagraphStyle('s',fontName=font,fontSize=sz,textColor=color,alignment=align,spaceBefore=sb,spaceAfter=sa,leading=leading,wordWrap='CJK'))
+data=json.loads(open(sys.argv[1],encoding='utf-8').read())
+totalHT=sum(l.get('total',0) for l in data if not l.get('_section'))
+try:
+    logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
+except:
+    logo_bytes=None
+class SC(pdfcanvas.Canvas):
+    def __init__(self,fn,**kw):
+        pdfcanvas.Canvas.__init__(self,fn,**kw); self._pg=0; self.saveState(); self._draw_page()
+    def showPage(self):
+        self._draw_footer(); pdfcanvas.Canvas.showPage(self); self._pg+=1
+    def save(self):
+        self._draw_footer(); pdfcanvas.Canvas.save(self)
+    def _draw_page(self):
+        self.saveState()
+        self.setFillColor(CREME); self.rect(0,0,W,H,fill=1,stroke=0)
+        self.setFillColor(MARINE); self.rect(0,0,0.7*cm,H,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0.7*cm,0,0.08*cm,H,fill=1,stroke=0)
+        self._draw_header(); self.restoreState()
+    def _draw_header(self):
+        self.setFillColor(MARINE); self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,5.4*cm,fill=1,stroke=0)
+        if logo_bytes:
+            self.drawImage(ImageReader(io.BytesIO(logo_bytes)),0.9*cm,H-5.05*cm,width=4.2*cm,height=4.2*cm,preserveAspectRatio=True,mask='auto')
+        self.setFont('Helvetica-Bold',15); self.setFillColor(BLANC); self.drawString(5.9*cm,H-1.7*cm,'SINELEC PARIS')
+        self.setFont('Helvetica-Bold',40); self.setFillColor(BLANC); self.drawRightString(W-1.2*cm,H-2.2*cm,'DEVIS')
+        self.setFillColor(OR); self.roundRect(W-6.5*cm,H-3.55*cm,5.3*cm,0.65*cm,0.15*cm,fill=1,stroke=0)
+        self.setFont('Helvetica-Bold',9); self.setFillColor(MARINE); self.drawCentredString(W-3.85*cm,H-3.22*cm,'N${String.fromCharCode(176)} TEST-001')
+    def _draw_footer(self):
+        self.saveState()
+        self.setFillColor(MARINE); self.rect(0,0,W,1.0*cm,fill=1,stroke=0)
+        self.setFont('Helvetica',6.5); self.setFillColor(colors.HexColor('#8899BB'))
+        self.drawCentredString(W/2,0.5*cm,'SINELEC EI - SIRET : 91015824500019 - TVA non applicable art. 293B CGI')
+        self.restoreState()
+    def _draw_tampons(self): pass
+doc=SimpleDocTemplate(sys.argv[2],pagesize=A4,leftMargin=1.2*cm,rightMargin=1.0*cm,topMargin=5.6*cm,bottomMargin=1.6*cm)
+story=[]
+story.append(Paragraph('TEST CLIENT - 12 rue de la Paix - 75001 Paris',ParagraphStyle('c',fontName='Helvetica',fontSize=10)))
+story.append(Spacer(1,0.5*cm))
+rows=[[ Paragraph('Designation',ParagraphStyle('h',fontName='Helvetica-Bold',fontSize=8,textColor=BLANC)),Paragraph('Total',ParagraphStyle('h',fontName='Helvetica-Bold',fontSize=8,textColor=BLANC,alignment=TA_RIGHT))]]
+for l in data:
+    rows.append([Paragraph(str(l.get('designation','')),ParagraphStyle('d',fontName='Helvetica',fontSize=9)),Paragraph(str(l.get('total',0))+' EUR',ParagraphStyle('p',fontName='Helvetica-Bold',fontSize=9,alignment=TA_RIGHT))])
+t=Table(rows,colWidths=[14*cm,4.2*cm])
+t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),MARINE),('ROWBACKGROUNDS',(0,1),(-1,-1),[CREME,OR_PALE]),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5)]))
+story.append(t)
+doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
+`;
+    fs.writeFileSync(pyPath, py, 'utf8');
+    steps.push({ step: 'write_py', ok: true, size: py.length });
+
+    // Step 3: Execute Python
+    try {
+      const out = execSync(`python3 "${pyPath}" "${detailsPath}" "${pdfPath}"`, { timeout: 30000, stdio: ['pipe','pipe','pipe'] });
+      const pdfExists = fs.existsSync(pdfPath);
+      steps.push({ step: 'python_exec', ok: pdfExists, size: pdfExists ? fs.statSync(pdfPath).size : 0 });
+    } catch(pyErr) {
+      const msg = pyErr.stderr?.toString() || pyErr.stdout?.toString() || pyErr.message;
+      steps.push({ step: 'python_exec', ok: false, error: msg.substring(0, 500) });
+      return res.json({ success: false, steps, error: 'Python failed: ' + msg.substring(0,300) });
+    }
+
+    try { fs.unlinkSync(pyPath); fs.unlinkSync(detailsPath); fs.unlinkSync(pdfPath); } catch(e) {}
+    res.json({ success: true, steps });
+  } catch(e) {
+    res.json({ success: false, steps, error: e.message });
+  }
+});
 
 // ═══════════════════════════════════════════════════
 // HEALTHCHECK
@@ -234,11 +418,19 @@ async function chargerGrilleTarifaire() {
 app.post('/api/generer', async (req, res) => {
   if (!CONFIG.features.devis_factures) return res.status(403).json({ error: 'Feature désactivée' });
   try {
-    const { type, client, email, telephone, adresse, complement, codePostal, ville, prenom, description, prestations, partenaire, part_diahe, part_partenaire, nom_partenaire, intervention_type, siret_client } = req.body;
-    const compteur = await incrementerCompteur(type);
-    const annee = new Date().getFullYear();
-    const mois = String(new Date().getMonth() + 1).padStart(2, '0');
-    const num = type === 'devis' ? `OS-${annee}${mois}-${String(compteur).padStart(3, '0')}` : `${annee}${mois}-${String(compteur).padStart(3, '0')}`;
+    const { type, client, email, telephone, adresse, complement, codePostal, ville, prenom, description, prestations, partenaire, part_diahe, part_partenaire, nom_partenaire, intervention_type, siret_client, num_existant } = req.body;
+
+    // Si modification d'un devis existant → garder le même numéro sans incrémenter le compteur
+    let num;
+    if (num_existant && type === 'devis') {
+      num = num_existant;
+      console.log('🔄 Mise à jour devis existant:', num);
+    } else {
+      const compteur = await incrementerCompteur(type);
+      const annee = new Date().getFullYear();
+      const mois = String(new Date().getMonth() + 1).padStart(2, '0');
+      num = type === 'devis' ? `OS-${annee}${mois}-${String(compteur).padStart(3, '0')}` : `${annee}${mois}-${String(compteur).padStart(3, '0')}`;
+    }
     const total_ht = prestations.reduce((sum, p) => sum + (p.prix * p.quantite), 0);
 
     // Calcul parts partenaire
@@ -272,6 +464,17 @@ app.post('/api/generer', async (req, res) => {
         console.error('❌ INSERT historique échoué (2 tentatives):', insertErr2.message, '— num:', num, '— VERIFIER TABLE SUPABASE');
       }
     }
+
+    let _step = 'init';
+    // Test /tmp writable
+    try {
+      fs.writeFileSync('/tmp/_test_sinelec.txt', 'ok', 'utf8');
+      fs.unlinkSync('/tmp/_test_sinelec.txt');
+      console.log('✅ /tmp writable');
+    } catch(tmpErr) {
+      throw new Error('/tmp not writable: ' + tmpErr.message);
+    }
+    console.log('📄 generer START — type:', type, '| client:', client, '| nb prestations:', prestations?.length);
 
     // ── UPSERT FICHE CLIENT AUTO ──────────────────
     if (client && (email || telephone)) {
@@ -317,28 +520,44 @@ app.post('/api/generer', async (req, res) => {
     }
 
     // ── GÉNÉRATION PDF — toujours, email ou pas ──────
+    _step = 'pdf_setup';
     if (CONFIG.features.email_auto) {
       const typeLabelUpper = type === 'devis' ? 'DEVIS' : 'FACTURE';
       const dateStr = new Date().toLocaleDateString('fr-FR');
       const dateValide = new Date(Date.now() + 30*24*60*60*1000).toLocaleDateString('fr-FR');
-      const detailsPath = path.join(__dirname, `_details_${num}.json`);
-      const pyPath = path.join(__dirname, `_devis_${num}.py`);
-      const pdfPath = path.join(__dirname, `${num}.pdf`);
+      const detailsPath = path.join('/tmp', `_details_${num}.json`);
+      const pyPath = path.join('/tmp', `_devis_${num}.py`);
+      const pdfPath = path.join('/tmp', `${num}.pdf`);
 
       // Construire detailsData avec support sections
-      let detailsData = [];
+      // Build data file with meta (all dynamic values) + items (no string injection in Python!)
+      const prestationsInput = Array.isArray(prestations) ? prestations :
+        (typeof prestations === 'string' ? JSON.parse(prestations) : []);
+      let itemsData = [];
       let sectNum = 0; let itemNum = 0;
-      for (const p of prestations) {
+      for (const p of prestationsInput) {
         if (p._section) {
           sectNum++; itemNum = 0;
-          detailsData.push({ _section: true, titre: `${sectNum}. ${p.titre || 'Section ' + sectNum}` });
+          itemsData.push({ _section: true, titre: `${sectNum}. ${p.titre || 'Section ' + sectNum}` });
         } else {
           if (sectNum > 0) itemNum++;
-          const subNum = sectNum > 0 ? `${sectNum}.${itemNum}` : null;
-          detailsData.push({ designation: p.nom, qte: p.quantite, prixUnit: p.prix, total: p.prix * p.quantite, details: p.desc ? [p.desc] : [], subNum, isOffert: (p.prix === 0 || p.prix * p.quantite === 0) });
+          itemsData.push({ designation: p.nom || '', qte: p.quantite || 1, prixUnit: p.prix || 0, total: (p.prix || 0) * (p.quantite || 1), details: p.desc ? [p.desc] : [] });
         }
       }
-      fs.writeFileSync(detailsPath, JSON.stringify(detailsData));
+      const jsonPayload = {
+        _meta: {
+          type, num,
+          typeLabelUpper,
+          dateStr, dateValide,
+          clientNom: clientEsc,
+          clientRue, clientVille: clientCPVille,
+          clientTel, clientSiret,
+          descObjet,
+          isPaye: false, isSigne: false
+        },
+        _items: itemsData
+      };
+      fs.writeFileSync(detailsPath, JSON.stringify(jsonPayload));
 
       const clientEsc = String(client || '').replace(/'/g, ' ');
       const clientComplement = String(complement || '').replace(/'/g, ' ').trim();
@@ -372,18 +591,32 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
 from reportlab.pdfgen import canvas as pdfcanvas
 from reportlab.lib.utils import ImageReader
-from reportlab.platypus.flowables import HRFlowable
 W,H=A4
 MARINE=colors.HexColor('#1B2A4A'); OR=colors.HexColor('#C9A84C')
 OR_PALE=colors.HexColor('#FBF7EC'); OR_FONCE=colors.HexColor('#A07830')
 BLANC=colors.white; CREME=colors.HexColor('#FDFCF9')
 GRIS_TEXTE=colors.HexColor('#3A3A3A'); GRIS_SOFT=colors.HexColor('#777777')
-GRIS_LIGNE=colors.HexColor('#E0DDD6'); GRIS_BG=colors.HexColor('#F5F4F0')
+GRIS_LIGNE=colors.HexColor('#E0DDD6')
 def p(txt,sz=9,font='Helvetica',color=GRIS_TEXTE,align=TA_LEFT,sb=0,sa=2,leading=None):
     if leading is None: leading=sz*1.35
     return Paragraph(str(txt),ParagraphStyle('s',fontName=font,fontSize=sz,textColor=color,alignment=align,spaceBefore=sb,spaceAfter=sa,leading=leading,wordWrap='CJK'))
-data=json.loads(open(sys.argv[1],encoding='utf-8').read())
-totalHT=sum(l.get('total',0) for l in data if not l.get('_section'))
+raw=json.loads(open(sys.argv[1],encoding='utf-8').read())
+meta=raw.get('_meta',{})
+data=[l for l in raw.get('_items',[]) if True]
+totalHT=sum(float(l.get('total',0)) for l in data if not l.get('_section'))
+doc_type=meta.get('type','devis')
+doc_num=meta.get('num','---')
+doc_date=meta.get('dateStr','')
+doc_valide=meta.get('dateValide','')
+doc_label=meta.get('typeLabelUpper','DEVIS')
+client_nom=meta.get('clientNom','')
+client_rue=meta.get('clientRue','')
+client_ville=meta.get('clientVille','')
+client_tel=meta.get('clientTel','')
+client_siret=meta.get('clientSiret','')
+desc_objet=meta.get('descObjet','Travaux electricite')
+is_paye=meta.get('isPaye',False)
+is_signe=meta.get('isSigne',False)
 try:
     logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
 except:
@@ -394,7 +627,7 @@ class SC(pdfcanvas.Canvas):
     def showPage(self):
         self._draw_footer(); pdfcanvas.Canvas.showPage(self); self._pg+=1
     def save(self):
-        pdfcanvas.Canvas.save(self)
+        self._draw_footer(); pdfcanvas.Canvas.save(self)
     def _draw_page(self):
         self.saveState()
         self.setFillColor(CREME); self.rect(0,0,W,H,fill=1,stroke=0)
@@ -406,84 +639,80 @@ class SC(pdfcanvas.Canvas):
     def _draw_header(self):
         self.setFillColor(MARINE); self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,5.4*cm,fill=1,stroke=0)
         self.setFillColor(OR); self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,0.12*cm,fill=1,stroke=0)
-                if logo_bytes:
+        if logo_bytes:
             self.drawImage(ImageReader(io.BytesIO(logo_bytes)),0.9*cm,H-5.05*cm,width=4.2*cm,height=4.2*cm,preserveAspectRatio=True,mask='auto')
-        self.setFont('Helvetica-Bold',15); self.setFillColor(colors.white); self.drawString(5.9*cm,H-1.7*cm,'SINELEC PARIS')
-        self.setFont('Helvetica-Bold',9); self.setFillColor(colors.white); self.drawString(5.9*cm,H-2.5*cm,'128 Rue La Boetie, 75008 Paris')
+        self.setFont('Helvetica-Bold',15); self.setFillColor(BLANC); self.drawString(5.9*cm,H-1.7*cm,'SINELEC PARIS')
+        self.setFont('Helvetica-Bold',9); self.setFillColor(BLANC); self.drawString(5.9*cm,H-2.5*cm,'128 Rue La Boetie, 75008 Paris')
         self.setFont('Helvetica',8.5); self.setFillColor(colors.HexColor('#BFC8D6'))
-        self.drawString(5.9*cm,H-3.0*cm,'Tel : 07 87 38 86 22'); self.drawString(5.9*cm,H-3.4*cm,'sinelec.paris@gmail.com')
+        self.drawString(5.9*cm,H-3.0*cm,'Tel : 07 87 38 86 22')
+        self.drawString(5.9*cm,H-3.4*cm,'sinelec.paris@gmail.com')
         self.setFillColor(colors.HexColor('#243660')); self.roundRect(5.9*cm,H-4.15*cm,5.5*cm,0.55*cm,0.1*cm,fill=1,stroke=0)
         self.setFont('Helvetica-Bold',8); self.setFillColor(OR); self.drawString(6.1*cm,H-3.88*cm,'SIRET : 91015824500019')
-        self.setFont('Helvetica-Bold',40); self.setFillColor(BLANC); self.drawRightString(W-1.2*cm,H-2.2*cm,'${typeLabelUpper}')
+        self.setFont('Helvetica-Bold',40); self.setFillColor(BLANC); self.drawRightString(W-1.2*cm,H-2.2*cm,doc_label)
         self.setStrokeColor(OR); self.setLineWidth(1.5); self.line(13*cm,H-2.65*cm,W-1.2*cm,H-2.65*cm)
         self.setFillColor(OR); self.roundRect(W-6.5*cm,H-3.55*cm,5.3*cm,0.65*cm,0.15*cm,fill=1,stroke=0)
-        self.setFont('Helvetica-Bold',9); self.setFillColor(MARINE); self.drawCentredString(W-3.85*cm,H-3.22*cm,'N\\u00b0 ${num}')
-        self.setFont('Helvetica',8); self.setFillColor(colors.HexColor('#BFC8D6')); self.drawRightString(W-1.2*cm,H-3.9*cm,'Date : ${dateStr}   |   Valable : ${dateValide}')
+        self.setFont('Helvetica-Bold',9); self.setFillColor(MARINE); self.drawCentredString(W-3.85*cm,H-3.22*cm,'N\u00b0 '+doc_num)
+        self.setFont('Helvetica',8); self.setFillColor(colors.HexColor('#BFC8D6'))
+        self.drawRightString(W-1.2*cm,H-3.9*cm,'Date : '+doc_date+'   |   Valable : '+doc_valide)
     def _draw_header_small(self):
         self.setFillColor(MARINE); self.rect(0.78*cm,H-1.5*cm,W-0.78*cm,1.5*cm,fill=1,stroke=0)
         self.setFillColor(OR); self.rect(0.78*cm,H-1.5*cm,W-0.78*cm,0.08*cm,fill=1,stroke=0)
         self.setFont('Helvetica-Bold',10); self.setFillColor(BLANC); self.drawString(1.4*cm,H-1.0*cm,'SINELEC')
-        self.setFont('Helvetica',8); self.setFillColor(OR); self.drawRightString(W-1.2*cm,H-1.0*cm,'${typeLabelUpper} N\\u00b0 ${num}')
+        self.setFont('Helvetica',8); self.setFillColor(OR); self.drawRightString(W-1.2*cm,H-1.0*cm,doc_label+' N\u00b0 '+doc_num)
     def _draw_footer(self):
         self.saveState()
         self.setFillColor(MARINE); self.rect(0,0,W,1.0*cm,fill=1,stroke=0)
         self.setFillColor(OR); self.rect(0,1.0*cm,W,0.08*cm,fill=1,stroke=0)
         self.setFont('Helvetica',6.5); self.setFillColor(colors.HexColor('#8899BB'))
-        self.drawCentredString(W/2,0.5*cm,'SINELEC EI  \\u2022  128 Rue La Boetie, 75008 Paris  \\u2022  SIRET : 91015824500019  \\u2022  TVA non applicable art. 293B CGI')
-        self.setFont('Helvetica-Bold',7); self.setFillColor(OR); self.drawRightString(W-1.2*cm,0.28*cm,'${num}')
+        self.drawCentredString(W/2,0.5*cm,'SINELEC EI  \u2022  128 Rue La Boetie, 75008 Paris  \u2022  SIRET : 91015824500019  \u2022  TVA non applicable art. 293B CGI')
+        self.setFont('Helvetica-Bold',7); self.setFillColor(OR); self.drawRightString(W-1.2*cm,0.28*cm,doc_num)
         self.restoreState()
         self._draw_tampons()
     def _draw_tampons(self):
-        IS_PAYE = '${type}' == 'facture' and 'envoye' in ('paye','payee','acquitte')
-        IS_SIGNE = '${type}' == 'devis' and 'envoye' in ('signe',)
-        rouge = colors.HexColor('#cc0000')
-        vert  = colors.HexColor('#16a34a')
-        couleur = rouge if IS_PAYE else (vert if IS_SIGNE else None)
+        rouge=colors.HexColor('#cc0000'); vert=colors.HexColor('#16a34a')
+        couleur=rouge if is_paye else (vert if is_signe else None)
         if not couleur: return
-        cx = W - 5.0*cm; cy = 9.0*cm; r = 1.9*cm
-        self.saveState()
-        self.setStrokeColor(couleur); self.setFillColor(couleur)
+        cx=W-5.0*cm; cy=9.0*cm; r=1.9*cm
+        self.saveState(); self.setStrokeColor(couleur); self.setFillColor(couleur)
         self.setFillAlpha(0.85); self.setLineWidth(3.5); self.circle(cx,cy,r,fill=0,stroke=1)
         self.setLineWidth(0.8); self.setFillAlpha(0.4); self.circle(cx,cy,r-0.22*cm,fill=0,stroke=1)
-        self.setLineWidth(0.3); self.setFillAlpha(0.2)
-        self.setDash([0.08*cm,0.28*cm]); self.circle(cx,cy,r-0.52*cm,fill=0,stroke=1); self.setDash()
         self.translate(cx,cy); self.rotate(-15)
-        nom_court = '${clientEsc}'.upper()[:16]
+        nom_court=client_nom.upper()[:16]
         self.setFillAlpha(0.92); self.setFillColor(couleur)
         self.setFont('Helvetica-Bold',7); self.drawCentredString(0,1.05*cm,nom_court)
-        label = 'PAYE' if IS_PAYE else 'SIGNE'
-        sz = 22 if IS_PAYE else 20
+        label='PAYE' if is_paye else 'SIGNE'
+        sz=22 if is_paye else 20
         self.setFillAlpha(0.9); self.setFont('Helvetica-Bold',sz); self.drawCentredString(0,0.18*cm,label)
-        self.setFont('Helvetica-Bold',7.5); self.setFillAlpha(0.75); self.drawCentredString(0,-0.52*cm,'${dateStr}')
+        self.setFont('Helvetica-Bold',7.5); self.setFillAlpha(0.75); self.drawCentredString(0,-0.52*cm,doc_date)
         self.setFont('Helvetica',6); self.setFillAlpha(0.45); self.drawCentredString(0,-1.02*cm,'PARIS')
         self.restoreState()
 doc=SimpleDocTemplate(sys.argv[2],pagesize=A4,leftMargin=1.2*cm,rightMargin=1.0*cm,topMargin=5.6*cm,bottomMargin=1.6*cm)
 story=[]
-objet_b=Table([[p('OBJET DES TRAVAUX',7.5,'Helvetica-Bold',OR,sa=4)],[p('${descObjet}',10,'Helvetica-Bold',MARINE)],[p('Conformes NF C 15-100  \\\\u2022  Garantie decennale ORUS  \\\\u2022  TVA non applicable art. 293B CGI',7.5,color=GRIS_SOFT)]],colWidths=[8.2*cm])
+objet_b=Table([[p('OBJET DES TRAVAUX',7.5,'Helvetica-Bold',OR,sa=4)],[p(desc_objet,10,'Helvetica-Bold',MARINE)],[p('Conformes NF C 15-100  \u2022  Garantie decennale ORUS  \u2022  TVA non applicable art. 293B CGI',7.5,color=GRIS_SOFT)]],colWidths=[8.2*cm])
 objet_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3),('LEFTPADDING',(0,0),(-1,-1),0),('LINEABOVE',(0,0),(0,0),2.5,MARINE),('TOPPADDING',(0,0),(0,0),10)]))
-client_lines=[p('DESTINATAIRE',7,'Helvetica-Bold',OR,sa=3),p('${clientEsc}',11,'Helvetica-Bold',MARINE),p('${clientRue}',9,color=GRIS_TEXTE),p('${clientCPVille}',9,color=GRIS_TEXTE)]
-if '${clientTel}': client_lines.append(p('Tel : ${clientTel}',8.5,color=GRIS_SOFT))
-if '${clientSiret}': client_lines.append(p('SIRET : ${clientSiret}',8,color=GRIS_SOFT))
+client_lines=[p('DESTINATAIRE',7,'Helvetica-Bold',OR,sa=3),p(client_nom,11,'Helvetica-Bold',MARINE),p(client_rue,9,color=GRIS_TEXTE),p(client_ville,9,color=GRIS_TEXTE)]
+if client_tel: client_lines.append(p('Tel : '+client_tel,8.5,color=GRIS_SOFT))
+if client_siret: client_lines.append(p('SIRET : '+client_siret,8,color=GRIS_SOFT))
 client_b=Table([[c] for c in client_lines],colWidths=[8.2*cm])
 client_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),2),('BOTTOMPADDING',(0,0),(-1,-1),2),('LEFTPADDING',(0,0),(-1,-1),0)]))
 hdr_row=Table([[objet_b,client_b]],colWidths=[9.5*cm,8.7*cm])
 hdr_row.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)]))
 story.append(hdr_row); story.append(Spacer(1,0.5*cm))
-th=[p('N\\\\u00b0',8,'Helvetica-Bold',BLANC,TA_CENTER),p('D\\\\u00e9signation',8,'Helvetica-Bold',BLANC),p('Qte',8,'Helvetica-Bold',BLANC,TA_CENTER),p('Prix HT',8,'Helvetica-Bold',BLANC,TA_RIGHT),p('Total HT',8,'Helvetica-Bold',BLANC,TA_RIGHT)]
+th=[p('N\u00b0',8,'Helvetica-Bold',BLANC,TA_CENTER),p('D\u00e9signation',8,'Helvetica-Bold',BLANC),p('Qte',8,'Helvetica-Bold',BLANC,TA_CENTER),p('Prix HT',8,'Helvetica-Bold',BLANC,TA_RIGHT),p('Total HT',8,'Helvetica-Bold',BLANC,TA_RIGHT)]
 rows=[th]; sect_num=0; item_num=0
 for ligne in data:
     if ligne.get('_section'):
         sect_num+=1; item_num=0
-        rows.append([p(str(ligne.get('titre',f'Section {sect_num}')),9,'Helvetica-Bold',BLANC,sa=4),'','','','']); continue
+        rows.append([p(str(ligne.get('titre','Section')),9,'Helvetica-Bold',BLANC,sa=4),'','','','']); continue
     item_num+=1
-    sub_num=f'{sect_num}.{item_num}' if sect_num>0 else str(item_num)
+    sub_num=str(sect_num)+'.'+str(item_num) if sect_num>0 else str(item_num)
     nom=str(ligne.get('designation',''))
     qte=int(ligne.get('qte',1) or 1); pu=float(ligne.get('prixUnit',0) or 0); tot=float(ligne.get('total',pu*qte) or 0)
     is_offert=(pu==0 or tot==0)
     desig_cell=[p(nom,9,'Helvetica-Bold',MARINE)]
     for d in (ligne.get('details') or []):
         if d: desig_cell.append(p(str(d),7.5,'Helvetica',GRIS_SOFT,sb=1,sa=0))
-    rows.append([p(sub_num,8,color=GRIS_SOFT,align=TA_CENTER),desig_cell,p(str(qte),9,align=TA_CENTER),p(f'{pu:.0f} \\\\u20ac' if not is_offert else 'OFFERT',9,align=TA_RIGHT),p('OFFERT' if is_offert else f'{tot:.0f} \\\\u20ac',9,'Helvetica-Bold',align=TA_RIGHT,color=colors.HexColor('#16a34a') if is_offert else OR_FONCE)])
+    rows.append([p(sub_num,8,color=GRIS_SOFT,align=TA_CENTER),desig_cell,p(str(qte),9,align=TA_CENTER),p((str(round(pu))+' \u20ac') if not is_offert else 'OFFERT',9,align=TA_RIGHT),(p('OFFERT',9,'Helvetica-Bold',align=TA_RIGHT,color=colors.HexColor('#16a34a')) if is_offert else p(str(round(tot))+' \u20ac',9,'Helvetica-Bold',align=TA_RIGHT,color=OR_FONCE))])
 COL=[1.0*cm,8.8*cm,1.3*cm,2.2*cm,2.9*cm]
 t=Table(rows,colWidths=COL,repeatRows=1)
 ts=[('BACKGROUND',(0,0),(-1,0),MARINE),('ROWBACKGROUNDS',(0,1),(-1,-1),[CREME,OR_PALE]),('LINEBELOW',(0,0),(-1,0),1.5,OR),('LINEBELOW',(0,-1),(-1,-1),1.5,MARINE),('LEFTPADDING',(0,0),(-1,-1),4),('RIGHTPADDING',(0,0),(-1,-1),4),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('VALIGN',(0,0),(-1,-1),'TOP'),('ALIGN',(2,0),(4,-1),'RIGHT')]
@@ -493,28 +722,30 @@ for i,row in enumerate(rows):
 t.setStyle(TableStyle(ts))
 story.append(KeepInFrame(0,0,[t],mode='shrink'))
 story.append(Spacer(1,0.4*cm))
-net=Table([[p('NET \\\\u00c0 PAYER',13,'Helvetica-Bold',BLANC),p('%.2f \\\\u20ac'%totalHT,16,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
+net=Table([[p('NET \u00c0 PAYER',13,'Helvetica-Bold',BLANC),p('%.2f \u20ac'%totalHT,16,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
 net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8),('LINEBELOW',(0,0),(-1,-1),2,OR)]))
 story.append(net); story.append(Spacer(1,0.25*cm))
-if '${type}'=='devis' and totalHT>=400:
+if doc_type=='devis' and totalHT>=400:
     acompte=totalHT*0.4; solde=totalHT*0.6
-    at=Table([[p('Acompte \\\\u00e0 la signature (40%)',10,color=GRIS_TEXTE),p(f'{acompte:.2f} \\\\u20ac',10,'Helvetica-Bold',OR_FONCE,TA_RIGHT)],[p('Solde fin de travaux (60%)',10,color=GRIS_TEXTE),p(f'{solde:.2f} \\\\u20ac',10,'Helvetica-Bold',MARINE,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
+    at=Table([[p('Acompte \u00e0 la signature (40%)',10,color=GRIS_TEXTE),p('%.2f \u20ac'%acompte,10,'Helvetica-Bold',OR_FONCE,TA_RIGHT)],[p('Solde fin de travaux (60%)',10,color=GRIS_TEXTE),p('%.2f \u20ac'%solde,10,'Helvetica-Bold',MARINE,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
     at.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,0),0.5,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10)]))
     story.append(at); story.append(Spacer(1,0.3*cm))
-story.append(Table([[p('TVA non applicable, art. 293B du CGI',8,color=GRIS_SOFT),p('Paiement : Esp\\\\u00e8ces  \\\\u2022  Virement  \\\\u2022  CB (SumUp)',8,color=GRIS_SOFT,align=TA_RIGHT)]],colWidths=[9.5*cm,8.7*cm]))
+story.append(Table([[p('TVA non applicable, art. 293B du CGI',8,color=GRIS_SOFT),p('Paiement : Esp\u00e8ces  \u2022  Virement  \u2022  CB (SumUp)',8,color=GRIS_SOFT,align=TA_RIGHT)]],colWidths=[9.5*cm,8.7*cm]))
 story.append(Spacer(1,0.3*cm))
-if '${type}'=='devis':
-    story.append(Table([[p('Devis valable 30 jours \\\\u2022 Signature = acceptation des conditions \\\\u2022 Garantie d\\\\u00e9cennale ORUS',7.5,color=GRIS_SOFT)]],colWidths=[18.2*cm]))
+if doc_type=='devis':
+    story.append(Table([[p('Devis valable 30 jours \u2022 Signature = acceptation \u2022 Garantie decennale ORUS',7.5,color=GRIS_SOFT)]],colWidths=[18.2*cm]))
     story.append(Spacer(1,0.4*cm))
-    sig_t=Table([[p('Bon pour accord',8,'Helvetica-Bold',MARINE),p('Signature SINELEC',8,'Helvetica-Bold',MARINE,TA_RIGHT)],[p('Nom : ___________________________',8,color=GRIS_SOFT),p('Diahe',9,'Helvetica-Bold',MARINE,TA_RIGHT)],[p('Date : ___________________________',8,color=GRIS_SOFT),p('')],[p('Signature :', 8,color=GRIS_SOFT),p('')]],colWidths=[9.5*cm,8.7*cm])
+    sig_t=Table([[p('Bon pour accord',8,'Helvetica-Bold',MARINE),p('Signature SINELEC',8,'Helvetica-Bold',MARINE,TA_RIGHT)],[p('Nom : ___________________________',8,color=GRIS_SOFT),p('Diahe',9,'Helvetica-Bold',MARINE,TA_RIGHT)],[p('Date : ___________________________',8,color=GRIS_SOFT),p('')],[p('Signature :',8,color=GRIS_SOFT),p('')]],colWidths=[9.5*cm,8.7*cm])
     sig_t.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,0),1,MARINE),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5)]))
     story.append(sig_t)
 doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
 `;
       fs.writeFileSync(pyPath, py, 'utf8');
+      _step = 'python_exec';
+      console.log('🐍 Python:', pyPath, '→', pdfPath);
       try {
         execSync(`python3 "${pyPath}" "${detailsPath}" "${pdfPath}"`, {
-          cwd: __dirname, timeout: 60000, stdio: ['pipe','pipe','pipe']
+          timeout: 60000, stdio: ['pipe','pipe','pipe']
         });
       } catch(pyErr) {
         const pyMsg = (pyErr.stderr?.toString() || '') + (pyErr.stdout?.toString() || '') || pyErr.message;
@@ -528,6 +759,7 @@ doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
       try { fs.unlinkSync(detailsPath); } catch(e) {}
       try { fs.unlinkSync(pdfPath); } catch(e) {}
 
+      _step = 'email';
       // Email si fourni
       if (email) {
         const prenomClient = extractPrenom(client);
@@ -549,8 +781,9 @@ doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
 
     res.json({ success: true, num, pdf_b64: CONFIG.features.email_auto ? pdf_b64 : null, email_client: email });
   } catch(error) {
-    console.error('❌ /api/generer error:', error.message);
-    res.status(500).json({ error: error.message });
+    const msg = error.message || String(error);
+    console.error('❌ /api/generer error at step [' + (_step||'?') + ']:', msg);
+    res.status(500).json({ error: msg, step: _step || 'unknown', hint: 'Check Railway logs for details' });
   }
 });
 
@@ -665,7 +898,7 @@ app.post('/api/signature', async (req, res) => {
   try {
     const { num, signature, ip } = req.body;
     if (!num) return res.status(400).json({ error: 'num requis' });
-    const sigPath = path.join(__dirname, `sig_${num}.png`);
+    const sigPath = path.join('/tmp', `sig_${num}.png`);
     if (signature) {
       const b64 = signature.replace(/^data:image\/[a-z]+;base64,/, '');
       fs.writeFileSync(sigPath, Buffer.from(b64, 'base64'));
@@ -821,8 +1054,8 @@ app.delete('/api/historique/:num', async (req, res) => {
     if (error) throw error;
     // Cleanup PDF files
     ['', '_dl_', '_dl_details_'].forEach(p => {
-      try { fs.unlinkSync(path.join(__dirname, `${p}${num}.pdf`)); } catch(e) {}
-      try { fs.unlinkSync(path.join(__dirname, `${p}${num}.json`)); } catch(e) {}
+      try { fs.unlinkSync(path.join('/tmp', `${p}${num}.pdf`)); } catch(e) {}
+      try { fs.unlinkSync(path.join('/tmp', `${p}${num}.json`)); } catch(e) {}
     });
     res.json({ success: true });
   } catch(error) { res.status(500).json({ error: error.message }); }
@@ -940,16 +1173,36 @@ app.get('/api/pdf/:num', async (req, res) => {
     const dateStr = new Date(data.date_envoi || data.created_at).toLocaleDateString('fr-FR');
     const dateValide = new Date(new Date(data.date_envoi || data.created_at).getTime() + 30*24*60*60*1000).toLocaleDateString('fr-FR');
 
-    const detailsPath = path.join(__dirname, `_dl_details_${num}.json`);
-    const pyPath = path.join(__dirname, `_dl_${num}.py`);
-    const pdfPath = path.join(__dirname, `_dl_${num}.pdf`);
+    const detailsPath = path.join('/tmp', `_dl_details_${num}.json`);
+    const pyPath = path.join('/tmp', `_dl_${num}.py`);
+    const pdfPath = path.join('/tmp', `_dl_${num}.pdf`);
 
-    const detailsData = (data.prestations || []).map(p => ({
-      designation: p.nom || p.designation, qte: p.quantite || 1,
+    let prestationsArr = data.prestations || [];
+    if (typeof prestationsArr === 'string') { try { prestationsArr = JSON.parse(prestationsArr); } catch(e) { prestationsArr = []; } }
+    const clientEscDl = String(data.client || '').replace(/['"\\]/g, ' ');
+    const addrPartsDl = (data.adresse || '').split(',');
+    const itemsArr = prestationsArr.map(p => ({
+      designation: p.nom || p.designation || '', qte: p.quantite || 1,
       prixUnit: p.prix || 0, total: (p.prix || 0) * (p.quantite || 1),
       details: p.desc ? [p.desc] : []
     }));
-    fs.writeFileSync(detailsPath, JSON.stringify(detailsData));
+    const jsonPayloadDl = {
+      _meta: {
+        type: docType, num,
+        typeLabelUpper,
+        dateStr, dateValide,
+        clientNom: clientEscDl,
+        clientRue: String(addrPartsDl[0] || '').trim(),
+        clientVille: addrPartsDl.slice(1).join(',').trim(),
+        clientTel: data.telephone || '',
+        clientSiret: '',
+        descObjet: String(data.description || 'Travaux electricite').substring(0,120),
+        isPaye, isSigne: ['signe','signé'].includes(docStatut.toLowerCase()),
+        datePaiement, modePaiement, nomCourt: clientEscDl.toUpperCase().split(' ').slice(0,2).join(' ').substring(0,14)
+      },
+      _items: itemsArr
+    };
+    fs.writeFileSync(detailsPath, JSON.stringify(jsonPayloadDl));
 
     const clientEsc = String(data.client || '').replace(/'/g, ' ');
     const addrParts = (data.adresse || '').split(',');
@@ -995,7 +1248,7 @@ class SC(pdfcanvas.Canvas):
     def _draw_header(self):
         self.setFillColor(MARINE); self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,5.4*cm,fill=1,stroke=0)
         self.setFillColor(OR); self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,0.12*cm,fill=1,stroke=0)
-                if logo_bytes:
+        if logo_bytes:
             self.drawImage(ImageReader(io.BytesIO(logo_bytes)),0.9*cm,H-5.05*cm,width=4.2*cm,height=4.2*cm,preserveAspectRatio=True,mask='auto')
         self.setFont('Helvetica-Bold',15); self.setFillColor(colors.white); self.drawString(5.9*cm,H-1.7*cm,'SINELEC PARIS')
         self.setFont('Helvetica-Bold',9); self.setFillColor(colors.white); self.drawString(5.9*cm,H-2.5*cm,'128 Rue La Boetie, 75008 Paris')
@@ -1083,7 +1336,7 @@ doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
     fs.writeFileSync(pyPath, py, 'utf8');
     try {
       execSync(`python3 "${pyPath}" "${detailsPath}" "${pdfPath}"`, {
-        cwd: __dirname, timeout: 40000, stdio: ['pipe','pipe','pipe']
+        timeout: 40000, stdio: ['pipe','pipe','pipe']
       });
     } catch(pyErr) {
       const pyMsg = pyErr.stderr?.toString() || pyErr.stdout?.toString() || pyErr.message;
@@ -1109,9 +1362,9 @@ app.get('/api/pdf-obat/:reference', async (req, res) => {
     const { data: f, error } = await supabase.from('factures_obat').select('*').eq('reference', reference).single();
     if (error || !f) return res.status(404).json({ error: 'Document OBAT non trouvé' });
     // Générer un PDF simple pour les factures OBAT
-    const detailsPath = path.join(__dirname, `_obat_${reference}.json`);
-    const pyPath = path.join(__dirname, `_obat_${reference}.py`);
-    const pdfPath = path.join(__dirname, `_obat_${reference}.pdf`);
+    const detailsPath = path.join('/tmp', `_obat_${reference}.json`);
+    const pyPath = path.join('/tmp', `_obat_${reference}.py`);
+    const pdfPath = path.join('/tmp', `_obat_${reference}.pdf`);
     const prestations = (f.prestations || []).map(p => ({ designation: p.nom||p.designation||'Prestation', qte: p.quantite||1, prixUnit: p.montant||p.prix||0, total: (p.montant||p.prix||0)*(p.quantite||1), details: [] }));
     fs.writeFileSync(detailsPath, JSON.stringify(prestations));
     const clientEsc = String(f.client||f.client_nom||'').replace(/'/g,' ');
@@ -1187,9 +1440,9 @@ app.post('/api/acompte/:num', async (req, res) => {
     });
 
     // Générer PDF
-    const detailsPath = path.join(__dirname, `_acompte_${numAcompte}.json`);
-    const pyPath = path.join(__dirname, `_acompte_${numAcompte}.py`);
-    const pdfPath = path.join(__dirname, `_acompte_${numAcompte}.pdf`);
+    const detailsPath = path.join('/tmp', `_acompte_${numAcompte}.json`);
+    const pyPath = path.join('/tmp', `_acompte_${numAcompte}.py`);
+    const pdfPath = path.join('/tmp', `_acompte_${numAcompte}.pdf`);
     fs.writeFileSync(detailsPath, JSON.stringify(prestationsAcompte.map(p => ({ designation: p.nom, qte: p.quantite, prixUnit: p.prix, total: p.prix * p.quantite, details: p.desc ? [p.desc] : [] }))));
 
     const clientEsc = String(devis.client || '').replace(/'/g, ' ');
@@ -1228,7 +1481,7 @@ class SC(pdfcanvas.Canvas):
     def _draw_header(self):
         self.setFillColor(MARINE); self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,5.4*cm,fill=1,stroke=0)
         self.setFillColor(OR); self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,0.12*cm,fill=1,stroke=0)
-                if logo_bytes:
+        if logo_bytes:
             self.drawImage(ImageReader(io.BytesIO(logo_bytes)),0.9*cm,H-5.05*cm,width=4.2*cm,height=4.2*cm,preserveAspectRatio=True,mask='auto')
         self.setFont('Helvetica-Bold',15); self.setFillColor(colors.white); self.drawString(5.9*cm,H-1.7*cm,'SINELEC PARIS')
         self.setFont('Helvetica-Bold',9); self.setFillColor(colors.white); self.drawString(5.9*cm,H-2.5*cm,'128 Rue La Boetie, 75008 Paris')
