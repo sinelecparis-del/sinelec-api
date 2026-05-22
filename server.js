@@ -68,7 +68,7 @@ function verifierToken(token) {
 }
 
 function authMiddleware(req, res, next) {
-  const publicRoutes = ['/', '/health', '/api/login', '/signer/', '/paiement-confirme/', '/api/signature', '/api/otp-signature', '/api/auth/check', '/api/test-pdf', '/api/test'];
+  const publicRoutes = ['/', '/health', '/api/login', '/signer/', '/paiement-confirme/', '/api/signature', '/api/otp-signature', '/api/auth/check'];
   if (publicRoutes.some(r => req.path.startsWith(r))) return next();
   const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
   if (!verifierToken(token)) return res.status(401).json({ error: 'Non autorisé', code: 'UNAUTHORIZED' });
@@ -99,72 +99,6 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY
 const anthropic = new Anthropic({ apiKey: (process.env.ANTHROPIC_API_KEY || '').trim() });
 const BREVO_API_KEY = process.env.BREVO_API_KEY;
 const SUMUP_API_KEY = process.env.SUMUP_API_KEY;
-
-
-// ═══════════════════════════════════════════════════
-// API: TEST PDF GENERATION
-// ═══════════════════════════════════════════════════
-app.get('/api/test-pdf', async (req, res) => {
-  const steps = [];
-  try {
-    // Step 1: Check python3
-    try {
-      const pyVersion = execSync('python3 --version 2>&1', { timeout: 5000 }).toString().trim();
-      steps.push({ step: 'python3', ok: true, msg: pyVersion });
-    } catch(e) {
-      steps.push({ step: 'python3', ok: false, msg: e.message });
-      return res.json({ success: false, steps, error: 'python3 introuvable' });
-    }
-
-    // Step 2: Check reportlab
-    try {
-      execSync(`python3 -c "from reportlab.platypus import SimpleDocTemplate, Table; print('ok')"`, { timeout: 10000 });
-      steps.push({ step: 'reportlab', ok: true });
-    } catch(e) {
-      steps.push({ step: 'reportlab', ok: false, msg: e.stderr?.toString() || e.message });
-      return res.json({ success: false, steps, error: 'reportlab non installé' });
-    }
-
-    // Step 3: Check logo
-    const logoExists = fs.existsSync('/app/logo_b64.txt');
-    steps.push({ step: 'logo', ok: logoExists, msg: logoExists ? 'présent' : 'absent (non bloquant)' });
-
-    // Step 4: Generate minimal PDF
-    const testPy = `/tmp/test_sinelec_${Date.now()}.py`;
-    const testPdf = `/tmp/test_sinelec_${Date.now()}.pdf`;
-    const testData = '/tmp/test_sinelec_data.json';
-    fs.writeFileSync(testData, JSON.stringify([{designation:'Test prestation',qte:1,prixUnit:100,total:100,details:[]}]));
-
-    const pyScript = `# -*- coding: utf-8 -*-
-import json, sys
-from reportlab.lib.pagesizes import A4
-from reportlab.platypus import SimpleDocTemplate, Paragraph
-from reportlab.lib.styles import getSampleStyleSheet
-doc = SimpleDocTemplate(sys.argv[2], pagesize=A4)
-styles = getSampleStyleSheet()
-data = json.loads(open(sys.argv[1]).read())
-story = [Paragraph(f"Test SINELEC - {len(data)} prestations", styles['Title'])]
-doc.build(story)
-print('PDF_OK')
-`;
-    fs.writeFileSync(testPy, pyScript);
-    try {
-      const out = execSync(`python3 "${testPy}" "${testData}" "${testPdf}"`, { timeout: 30000, stdio: ['pipe','pipe','pipe'] });
-      const pdfExists = fs.existsSync(testPdf);
-      const pdfSize = pdfExists ? fs.statSync(testPdf).size : 0;
-      steps.push({ step: 'pdf_generation', ok: pdfExists, msg: pdfExists ? `${pdfSize} bytes` : 'non généré' });
-      try { fs.unlinkSync(testPy); fs.unlinkSync(testPdf); } catch(e) {}
-    } catch(pyErr) {
-      const pyMsg = pyErr.stderr?.toString() || pyErr.stdout?.toString() || pyErr.message;
-      steps.push({ step: 'pdf_generation', ok: false, msg: pyMsg.substring(0, 400) });
-      return res.json({ success: false, steps, error: 'PDF generation failed: ' + pyMsg.substring(0, 200) });
-    }
-
-    res.json({ success: true, steps, message: 'Tout fonctionne ✅' });
-  } catch(e) {
-    res.json({ success: false, steps, error: e.message });
-  }
-});
 
 // ═══════════════════════════════════════════════════
 // HEALTHCHECK
@@ -300,19 +234,11 @@ async function chargerGrilleTarifaire() {
 app.post('/api/generer', async (req, res) => {
   if (!CONFIG.features.devis_factures) return res.status(403).json({ error: 'Feature désactivée' });
   try {
-    const { type, client, email, telephone, adresse, complement, codePostal, ville, prenom, description, prestations, partenaire, part_diahe, part_partenaire, nom_partenaire, intervention_type, siret_client, num_existant } = req.body;
-
-    // Si modification d'un devis existant → garder le même numéro sans incrémenter le compteur
-    let num;
-    if (num_existant && type === 'devis') {
-      num = num_existant;
-      console.log('🔄 Mise à jour devis existant:', num);
-    } else {
-      const compteur = await incrementerCompteur(type);
-      const annee = new Date().getFullYear();
-      const mois = String(new Date().getMonth() + 1).padStart(2, '0');
-      num = type === 'devis' ? `OS-${annee}${mois}-${String(compteur).padStart(3, '0')}` : `${annee}${mois}-${String(compteur).padStart(3, '0')}`;
-    }
+    const { type, client, email, telephone, adresse, complement, codePostal, ville, prenom, description, prestations, partenaire, part_diahe, part_partenaire, nom_partenaire, intervention_type, siret_client } = req.body;
+    const compteur = await incrementerCompteur(type);
+    const annee = new Date().getFullYear();
+    const mois = String(new Date().getMonth() + 1).padStart(2, '0');
+    const num = type === 'devis' ? `OS-${annee}${mois}-${String(compteur).padStart(3, '0')}` : `${annee}${mois}-${String(compteur).padStart(3, '0')}`;
     const total_ht = prestations.reduce((sum, p) => sum + (p.prix * p.quantite), 0);
 
     // Calcul parts partenaire
@@ -346,9 +272,6 @@ app.post('/api/generer', async (req, res) => {
         console.error('❌ INSERT historique échoué (2 tentatives):', insertErr2.message, '— num:', num, '— VERIFIER TABLE SUPABASE');
       }
     }
-
-    // ── LOG DÉBUT GENERER ──────────────────
-    console.log('📄 generer START — type:', type, '| num:', num, '| client:', client, '| prestations:', prestations?.length);
 
     // ── UPSERT FICHE CLIENT AUTO ──────────────────
     if (client && (email || telephone)) {
@@ -398,9 +321,9 @@ app.post('/api/generer', async (req, res) => {
       const typeLabelUpper = type === 'devis' ? 'DEVIS' : 'FACTURE';
       const dateStr = new Date().toLocaleDateString('fr-FR');
       const dateValide = new Date(Date.now() + 30*24*60*60*1000).toLocaleDateString('fr-FR');
-      const detailsPath = path.join('/tmp', `_details_${num}.json`);
-      const pyPath = path.join('/tmp', `_devis_${num}.py`);
-      const pdfPath = path.join('/tmp', `${num}.pdf`);
+      const detailsPath = path.join(__dirname, `_details_${num}.json`);
+      const pyPath = path.join(__dirname, `_devis_${num}.py`);
+      const pdfPath = path.join(__dirname, `${num}.pdf`);
 
       // Construire detailsData avec support sections
       let detailsData = [];
@@ -483,7 +406,7 @@ class SC(pdfcanvas.Canvas):
     def _draw_header(self):
         self.setFillColor(MARINE); self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,5.4*cm,fill=1,stroke=0)
         self.setFillColor(OR); self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,0.12*cm,fill=1,stroke=0)
-        if logo_bytes:
+                if logo_bytes:
             self.drawImage(ImageReader(io.BytesIO(logo_bytes)),0.9*cm,H-5.05*cm,width=4.2*cm,height=4.2*cm,preserveAspectRatio=True,mask='auto')
         self.setFont('Helvetica-Bold',15); self.setFillColor(colors.white); self.drawString(5.9*cm,H-1.7*cm,'SINELEC PARIS')
         self.setFont('Helvetica-Bold',9); self.setFillColor(colors.white); self.drawString(5.9*cm,H-2.5*cm,'128 Rue La Boetie, 75008 Paris')
@@ -589,10 +512,6 @@ if '${type}'=='devis':
 doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
 `;
       fs.writeFileSync(pyPath, py, 'utf8');
-      console.log('🐍 Lancement Python PDF:', pyPath);
-      // Vérifier que python3 existe
-      try { execSync('which python3', { timeout: 5000 }); console.log('✅ python3 trouvé'); }
-      catch(e) { console.error('❌ python3 introuvable:', e.message); }
       try {
         execSync(`python3 "${pyPath}" "${detailsPath}" "${pdfPath}"`, {
           cwd: __dirname, timeout: 60000, stdio: ['pipe','pipe','pipe']
@@ -630,10 +549,8 @@ doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
 
     res.json({ success: true, num, pdf_b64: CONFIG.features.email_auto ? pdf_b64 : null, email_client: email });
   } catch(error) {
-    const msg = error.message || String(error);
-    console.error('❌ /api/generer FULL ERROR:', msg);
-    console.error('❌ Stack:', error.stack?.substring(0,500));
-    res.status(500).json({ error: msg, stack: error.stack?.substring(0,300) });
+    console.error('❌ /api/generer error:', error.message);
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -748,7 +665,7 @@ app.post('/api/signature', async (req, res) => {
   try {
     const { num, signature, ip } = req.body;
     if (!num) return res.status(400).json({ error: 'num requis' });
-    const sigPath = path.join('/tmp', `sig_${num}.png`);
+    const sigPath = path.join(__dirname, `sig_${num}.png`);
     if (signature) {
       const b64 = signature.replace(/^data:image\/[a-z]+;base64,/, '');
       fs.writeFileSync(sigPath, Buffer.from(b64, 'base64'));
@@ -904,8 +821,8 @@ app.delete('/api/historique/:num', async (req, res) => {
     if (error) throw error;
     // Cleanup PDF files
     ['', '_dl_', '_dl_details_'].forEach(p => {
-      try { fs.unlinkSync(path.join('/tmp', `${p}${num}.pdf`)); } catch(e) {}
-      try { fs.unlinkSync(path.join('/tmp', `${p}${num}.json`)); } catch(e) {}
+      try { fs.unlinkSync(path.join(__dirname, `${p}${num}.pdf`)); } catch(e) {}
+      try { fs.unlinkSync(path.join(__dirname, `${p}${num}.json`)); } catch(e) {}
     });
     res.json({ success: true });
   } catch(error) { res.status(500).json({ error: error.message }); }
@@ -1023,9 +940,9 @@ app.get('/api/pdf/:num', async (req, res) => {
     const dateStr = new Date(data.date_envoi || data.created_at).toLocaleDateString('fr-FR');
     const dateValide = new Date(new Date(data.date_envoi || data.created_at).getTime() + 30*24*60*60*1000).toLocaleDateString('fr-FR');
 
-    const detailsPath = path.join('/tmp', `_dl_details_${num}.json`);
-    const pyPath = path.join('/tmp', `_dl_${num}.py`);
-    const pdfPath = path.join('/tmp', `_dl_${num}.pdf`);
+    const detailsPath = path.join(__dirname, `_dl_details_${num}.json`);
+    const pyPath = path.join(__dirname, `_dl_${num}.py`);
+    const pdfPath = path.join(__dirname, `_dl_${num}.pdf`);
 
     const detailsData = (data.prestations || []).map(p => ({
       designation: p.nom || p.designation, qte: p.quantite || 1,
@@ -1078,7 +995,7 @@ class SC(pdfcanvas.Canvas):
     def _draw_header(self):
         self.setFillColor(MARINE); self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,5.4*cm,fill=1,stroke=0)
         self.setFillColor(OR); self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,0.12*cm,fill=1,stroke=0)
-        if logo_bytes:
+                if logo_bytes:
             self.drawImage(ImageReader(io.BytesIO(logo_bytes)),0.9*cm,H-5.05*cm,width=4.2*cm,height=4.2*cm,preserveAspectRatio=True,mask='auto')
         self.setFont('Helvetica-Bold',15); self.setFillColor(colors.white); self.drawString(5.9*cm,H-1.7*cm,'SINELEC PARIS')
         self.setFont('Helvetica-Bold',9); self.setFillColor(colors.white); self.drawString(5.9*cm,H-2.5*cm,'128 Rue La Boetie, 75008 Paris')
@@ -1192,9 +1109,9 @@ app.get('/api/pdf-obat/:reference', async (req, res) => {
     const { data: f, error } = await supabase.from('factures_obat').select('*').eq('reference', reference).single();
     if (error || !f) return res.status(404).json({ error: 'Document OBAT non trouvé' });
     // Générer un PDF simple pour les factures OBAT
-    const detailsPath = path.join('/tmp', `_obat_${reference}.json`);
-    const pyPath = path.join('/tmp', `_obat_${reference}.py`);
-    const pdfPath = path.join('/tmp', `_obat_${reference}.pdf`);
+    const detailsPath = path.join(__dirname, `_obat_${reference}.json`);
+    const pyPath = path.join(__dirname, `_obat_${reference}.py`);
+    const pdfPath = path.join(__dirname, `_obat_${reference}.pdf`);
     const prestations = (f.prestations || []).map(p => ({ designation: p.nom||p.designation||'Prestation', qte: p.quantite||1, prixUnit: p.montant||p.prix||0, total: (p.montant||p.prix||0)*(p.quantite||1), details: [] }));
     fs.writeFileSync(detailsPath, JSON.stringify(prestations));
     const clientEsc = String(f.client||f.client_nom||'').replace(/'/g,' ');
@@ -1270,9 +1187,9 @@ app.post('/api/acompte/:num', async (req, res) => {
     });
 
     // Générer PDF
-    const detailsPath = path.join('/tmp', `_acompte_${numAcompte}.json`);
-    const pyPath = path.join('/tmp', `_acompte_${numAcompte}.py`);
-    const pdfPath = path.join('/tmp', `_acompte_${numAcompte}.pdf`);
+    const detailsPath = path.join(__dirname, `_acompte_${numAcompte}.json`);
+    const pyPath = path.join(__dirname, `_acompte_${numAcompte}.py`);
+    const pdfPath = path.join(__dirname, `_acompte_${numAcompte}.pdf`);
     fs.writeFileSync(detailsPath, JSON.stringify(prestationsAcompte.map(p => ({ designation: p.nom, qte: p.quantite, prixUnit: p.prix, total: p.prix * p.quantite, details: p.desc ? [p.desc] : [] }))));
 
     const clientEsc = String(devis.client || '').replace(/'/g, ' ');
@@ -1311,7 +1228,7 @@ class SC(pdfcanvas.Canvas):
     def _draw_header(self):
         self.setFillColor(MARINE); self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,5.4*cm,fill=1,stroke=0)
         self.setFillColor(OR); self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,0.12*cm,fill=1,stroke=0)
-        if logo_bytes:
+                if logo_bytes:
             self.drawImage(ImageReader(io.BytesIO(logo_bytes)),0.9*cm,H-5.05*cm,width=4.2*cm,height=4.2*cm,preserveAspectRatio=True,mask='auto')
         self.setFont('Helvetica-Bold',15); self.setFillColor(colors.white); self.drawString(5.9*cm,H-1.7*cm,'SINELEC PARIS')
         self.setFont('Helvetica-Bold',9); self.setFillColor(colors.white); self.drawString(5.9*cm,H-2.5*cm,'128 Rue La Boetie, 75008 Paris')
