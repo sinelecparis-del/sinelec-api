@@ -105,6 +105,39 @@ const SUMUP_API_KEY = process.env.SUMUP_API_KEY;
 // ═══════════════════════════════════════════════════
 
 app.get('/', (req, res) => res.send('OK SINELEC OS v2.0'));
+// ═══════════════════════════════════════════════════
+// API: DIAGNOSTIC (test Python + Supabase)
+// ═══════════════════════════════════════════════════
+app.get('/api/test', async (req, res) => {
+  const diag = { python: false, supabase: false, logo: false, error: null };
+  try {
+    // Test Python
+    try {
+      const { execSync } = require('child_process');
+      execSync(`python3 -c "from reportlab.platypus import SimpleDocTemplate; print('ok')"`, { timeout: 10000 });
+      diag.python = true;
+    } catch(e) { diag.python_error = e.message.substring(0,200); }
+    // Test Supabase
+    try {
+      const { data } = await supabase.from('compteurs').select('count').limit(1);
+      diag.supabase = true;
+    } catch(e) { diag.supabase_error = e.message.substring(0,200); }
+    // Test logo
+    try {
+      if (fs.existsSync('/app/logo_b64.txt')) diag.logo = true;
+      else diag.logo_path = 'NOT FOUND: /app/logo_b64.txt';
+    } catch(e) {}
+    // Test env vars
+    diag.anthropic = !!process.env.ANTHROPIC_API_KEY;
+    diag.brevo = !!process.env.BREVO_API_KEY;
+    diag.supabase_url = !!process.env.SUPABASE_URL;
+    res.json(diag);
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+
 app.get('/health', (req, res) => res.json({ status: 'ok', service: 'SINELEC OS v2.0' }));
 
 // ═══════════════════════════════════════════════════
