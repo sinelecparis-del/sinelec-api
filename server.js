@@ -351,7 +351,10 @@ def p(txt,sz=9,font='Helvetica',color=GRIS_TEXTE,align=TA_LEFT,sb=0,sa=2,leading
     return Paragraph(str(txt),ParagraphStyle('s',fontName=font,fontSize=sz,textColor=color,alignment=align,spaceBefore=sb,spaceAfter=sa,leading=leading,wordWrap='CJK'))
 data=json.loads(open(sys.argv[1],encoding='utf-8').read())
 totalHT=sum(l.get('total',0) for l in data if not l.get('_section'))
-logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
+try:
+    logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
+except:
+    logo_bytes=None
 class SC(pdfcanvas.Canvas):
     def __init__(self,fn,**kw):
         pdfcanvas.Canvas.__init__(self,fn,**kw); self._pg=0; self.saveState(); self._draw_page()
@@ -370,7 +373,8 @@ class SC(pdfcanvas.Canvas):
     def _draw_header(self):
         self.setFillColor(MARINE); self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,5.4*cm,fill=1,stroke=0)
         self.setFillColor(OR); self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,0.12*cm,fill=1,stroke=0)
-        self.drawImage(ImageReader(io.BytesIO(logo_bytes)),0.9*cm,H-5.05*cm,width=4.2*cm,height=4.2*cm,preserveAspectRatio=True,mask='auto')
+                if logo_bytes:
+            self.drawImage(ImageReader(io.BytesIO(logo_bytes)),0.9*cm,H-5.05*cm,width=4.2*cm,height=4.2*cm,preserveAspectRatio=True,mask='auto')
         self.setFont('Helvetica-Bold',15); self.setFillColor(colors.white); self.drawString(5.9*cm,H-1.7*cm,'SINELEC PARIS')
         self.setFont('Helvetica-Bold',9); self.setFillColor(colors.white); self.drawString(5.9*cm,H-2.5*cm,'128 Rue La Boetie, 75008 Paris')
         self.setFont('Helvetica',8.5); self.setFillColor(colors.HexColor('#BFC8D6'))
@@ -480,9 +484,9 @@ doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
           cwd: __dirname, timeout: 60000, stdio: ['pipe','pipe','pipe']
         });
       } catch(pyErr) {
-        const pyMsg = pyErr.stderr?.toString() || pyErr.stdout?.toString() || pyErr.message;
-        console.error('❌ generer Python error:', pyMsg.substring(0,400));
-        throw new Error('PDF generation failed: ' + pyMsg.substring(0,200));
+        const pyMsg = (pyErr.stderr?.toString() || '') + (pyErr.stdout?.toString() || '') || pyErr.message;
+        console.error('❌ generer Python FULL error:', pyMsg.substring(0,800));
+        throw new Error('PDF generation failed: ' + pyMsg.substring(0,300));
       }
       if (!fs.existsSync(pdfPath)) throw new Error('PDF non généré');
       const pdfBuffer = fs.readFileSync(pdfPath);
@@ -940,7 +944,10 @@ def p(txt,sz=9,font='Helvetica',color=GRIS_TEXTE,align=TA_LEFT,sb=0,sa=2,leading
     return Paragraph(str(txt),ParagraphStyle('s',fontName=font,fontSize=sz,textColor=color,alignment=align,spaceBefore=sb,spaceAfter=sa,leading=leading,wordWrap='CJK'))
 data=json.loads(open(sys.argv[1],encoding='utf-8').read())
 totalHT=sum(l.get('total',0) for l in data if not l.get('_section'))
-logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
+try:
+    logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
+except:
+    logo_bytes=None
 class SC(pdfcanvas.Canvas):
     def __init__(self,fn,**kw): pdfcanvas.Canvas.__init__(self,fn,**kw); self._pg=0; self.saveState(); self._draw_page()
     def showPage(self): self._draw_footer(); pdfcanvas.Canvas.showPage(self); self._pg+=1
@@ -955,7 +962,8 @@ class SC(pdfcanvas.Canvas):
     def _draw_header(self):
         self.setFillColor(MARINE); self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,5.4*cm,fill=1,stroke=0)
         self.setFillColor(OR); self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,0.12*cm,fill=1,stroke=0)
-        self.drawImage(ImageReader(io.BytesIO(logo_bytes)),0.9*cm,H-5.05*cm,width=4.2*cm,height=4.2*cm,preserveAspectRatio=True,mask='auto')
+                if logo_bytes:
+            self.drawImage(ImageReader(io.BytesIO(logo_bytes)),0.9*cm,H-5.05*cm,width=4.2*cm,height=4.2*cm,preserveAspectRatio=True,mask='auto')
         self.setFont('Helvetica-Bold',15); self.setFillColor(colors.white); self.drawString(5.9*cm,H-1.7*cm,'SINELEC PARIS')
         self.setFont('Helvetica-Bold',9); self.setFillColor(colors.white); self.drawString(5.9*cm,H-2.5*cm,'128 Rue La Boetie, 75008 Paris')
         self.setFont('Helvetica',8.5); self.setFillColor(colors.HexColor('#BFC8D6'))
@@ -1171,7 +1179,10 @@ def p(txt,sz=9,font='Helvetica',color=GRIS_TEXTE,align=TA_LEFT,sb=0,sa=2,leading
     return Paragraph(str(txt),ParagraphStyle('s',fontName=font,fontSize=sz,textColor=color,alignment=align,spaceBefore=sb,spaceAfter=sa,leading=leading,wordWrap='CJK'))
 data=json.loads(open(sys.argv[1],encoding='utf-8').read())
 totalHT=sum(l.get('total',0) for l in data)
-logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
+try:
+    logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
+except:
+    logo_bytes=None
 class SC(pdfcanvas.Canvas):
     def __init__(self,fn,**kw): pdfcanvas.Canvas.__init__(self,fn,**kw); self._pg=0; self.saveState(); self._draw_page()
     def showPage(self): self._draw_footer(); pdfcanvas.Canvas.showPage(self); self._pg+=1
@@ -1184,7 +1195,8 @@ class SC(pdfcanvas.Canvas):
     def _draw_header(self):
         self.setFillColor(MARINE); self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,5.4*cm,fill=1,stroke=0)
         self.setFillColor(OR); self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,0.12*cm,fill=1,stroke=0)
-        self.drawImage(ImageReader(io.BytesIO(logo_bytes)),0.9*cm,H-5.05*cm,width=4.2*cm,height=4.2*cm,preserveAspectRatio=True,mask='auto')
+                if logo_bytes:
+            self.drawImage(ImageReader(io.BytesIO(logo_bytes)),0.9*cm,H-5.05*cm,width=4.2*cm,height=4.2*cm,preserveAspectRatio=True,mask='auto')
         self.setFont('Helvetica-Bold',15); self.setFillColor(colors.white); self.drawString(5.9*cm,H-1.7*cm,'SINELEC PARIS')
         self.setFont('Helvetica-Bold',9); self.setFillColor(colors.white); self.drawString(5.9*cm,H-2.5*cm,'128 Rue La Boetie, 75008 Paris')
         self.setFont('Helvetica',8.5); self.setFillColor(colors.HexColor('#BFC8D6'))
