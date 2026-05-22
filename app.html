@@ -7976,14 +7976,14 @@ function appliquerUrgencePanier(urgence) {
       : 'Intervention en soirée ou nuit (22h-07h). Tarif urgence appliqué.',
     _urgence: true
   };
-  panierD.unshift(itemUrgence);
-  renderPanier('d');
+  panier.unshift(itemUrgence);
+  afficherPanier();
   showToast(urgence.label + ' activé', '🌙');
 }
 
 function supprimerUrgencePanier() {
-  const idx = panierD.findIndex(p => p._urgence);
-  if (idx >= 0) { panierD.splice(idx, 1); renderPanier('d'); }
+  const idx = panier.findIndex(p => p._urgence);
+  if (idx >= 0) { panier.splice(idx, 1); afficherPanier(); }
 }
 
 function toggleModeNuitManuel() {
@@ -8369,20 +8369,6 @@ async function genererEtTelecharger(type) {
   }
 }
 
-function annulerModification() {
-  window._devisARemplacer = null;
-  // Reset bouton
-  const btnGen = document.getElementById('d-btn');
-  if (btnGen) {
-    btnGen.textContent = '⚡ Générer le devis';
-    btnGen.style.background = '';
-    btnGen.style.color = '';
-  }
-  // Supprimer le bandeau
-  const banner = document.getElementById('modif-banner');
-  if (banner) banner.remove();
-}
-
 async function modifierDevis(num) {
   // Charger les données du devis depuis Supabase
   showToast('⏳ Chargement du devis...', '✏️');
@@ -8451,27 +8437,10 @@ async function modifierDevis(num) {
 
     renderPanier('d');
 
-    // ── Mode modification — garder le même numéro ──
+    // ── Stocker le numéro original pour le supprimer après regénération ──
     window._devisARemplacer = num;
 
-    // Changer le bouton pour indiquer le mode modification
-    const btnGen = document.getElementById('d-btn');
-    if (btnGen) {
-      btnGen.textContent = '🔄 Mettre à jour le devis ' + num;
-      btnGen.style.background = 'linear-gradient(135deg,#1B2A4A,#243660)';
-      btnGen.style.color = '#E8B84B';
-    }
-    // Afficher un bandeau d'info
-    const existingBanner = document.getElementById('modif-banner');
-    if (existingBanner) existingBanner.remove();
-    const banner = document.createElement('div');
-    banner.id = 'modif-banner';
-    banner.style.cssText = 'background:rgba(232,184,75,0.12);border:2px solid rgba(232,184,75,0.4);border-radius:12px;padding:10px 14px;margin-bottom:10px;display:flex;align-items:center;gap:10px;';
-    banner.innerHTML = `<span style="font-size:18px;">✏️</span><div><div style="font-size:13px;font-weight:800;color:#C9962A;">Mode modification — ${num}</div><div style="font-size:11px;color:rgba(0,0,0,0.5);">Le devis sera mis à jour avec le même numéro</div></div><button onclick="annulerModification()" style="margin-left:auto;background:none;border:none;color:#999;cursor:pointer;font-size:18px;">×</button>`;
-    const btnGenEl = document.getElementById('d-btn');
-    if (btnGenEl) btnGenEl.parentNode.insertBefore(banner, btnGenEl);
-
-    showToast('✏️ ' + num + ' chargé — modifie et valide !', '✅');
+    showToast('✏️ Devis chargé — modifie et renvoie !', '✅');
 
   } catch(e) {
     showToast('❌ ' + e.message, '⚠️');
@@ -8571,8 +8540,6 @@ async function generer(type) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         type,
-        // Si modification d'un devis existant → réutiliser le même numéro
-        num_existant: (type === 'devis' && window._devisARemplacer) ? window._devisARemplacer : null,
         client,
         prenom: (document.getElementById(`${prefix}-prenom`)?.value || '').trim(),
         email: document.getElementById(`${prefix}-email`)?.value.trim() || '',
@@ -8590,10 +8557,17 @@ async function generer(type) {
     });
     const data = await res.json();
     if (data.success) {
-      const isUpdate = type === 'devis' && window._devisARemplacer;
-      showToast(`${isUpdate ? '🔄 Devis mis à jour' : '✅ ' + (type === 'devis' ? 'Devis' : 'Facture')} ${data.num} !`, '⚡');
-      // Reset mode modification
-      if (isUpdate) annulerModification();
+      showToast(`✅ ${type === 'devis' ? 'Devis' : 'Facture'} ${data.num} généré !`, '⚡');
+      // ⚠️ On ne vide PAS le panier ici — l'utilisateur peut revenir en arrière
+      // Le panier sera vidé seulement après envoi réussi (dans envoyerDepuisPreview)
+      // Si modification d'un devis existant → supprimer l'ancien
+      if (type === 'devis' && window._devisARemplacer && window._devisARemplacer !== data.num) {
+        try {
+          await fetch(`/api/supprimer/${window._devisARemplacer}`, { method: 'DELETE' });
+          showToast(`🗑️ Ancien devis ${window._devisARemplacer} supprimé`, '✅');
+        } catch(e) { /* non bloquant */ }
+        window._devisARemplacer = null;
+      }
       // Ouvrir la prévisualisation avec actions
       // Récupérer le téléphone depuis le formulaire
       const telForPreview = (document.getElementById(`${prefix}-tel`)?.value || '').trim();
