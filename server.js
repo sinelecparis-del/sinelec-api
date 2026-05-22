@@ -68,7 +68,7 @@ function verifierToken(token) {
 }
 
 function authMiddleware(req, res, next) {
-  const publicRoutes = ['/', '/health', '/api/login', '/signer/', '/paiement-confirme/', '/api/signature', '/api/otp-signature', '/api/auth/check'];
+  const publicRoutes = ['/', '/health', '/api/login', '/signer/', '/paiement-confirme/', '/api/signature', '/api/otp-signature', '/api/auth/check', '/api/test-pdf', '/api/test'];
   if (publicRoutes.some(r => req.path.startsWith(r))) return next();
   const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
   if (!verifierToken(token)) return res.status(401).json({ error: 'Non autorisé', code: 'UNAUTHORIZED' });
@@ -99,6 +99,72 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY
 const anthropic = new Anthropic({ apiKey: (process.env.ANTHROPIC_API_KEY || '').trim() });
 const BREVO_API_KEY = process.env.BREVO_API_KEY;
 const SUMUP_API_KEY = process.env.SUMUP_API_KEY;
+
+
+// ═══════════════════════════════════════════════════
+// API: TEST PDF GENERATION
+// ═══════════════════════════════════════════════════
+app.get('/api/test-pdf', async (req, res) => {
+  const steps = [];
+  try {
+    // Step 1: Check python3
+    try {
+      const pyVersion = execSync('python3 --version 2>&1', { timeout: 5000 }).toString().trim();
+      steps.push({ step: 'python3', ok: true, msg: pyVersion });
+    } catch(e) {
+      steps.push({ step: 'python3', ok: false, msg: e.message });
+      return res.json({ success: false, steps, error: 'python3 introuvable' });
+    }
+
+    // Step 2: Check reportlab
+    try {
+      execSync(`python3 -c "from reportlab.platypus import SimpleDocTemplate, Table; print('ok')"`, { timeout: 10000 });
+      steps.push({ step: 'reportlab', ok: true });
+    } catch(e) {
+      steps.push({ step: 'reportlab', ok: false, msg: e.stderr?.toString() || e.message });
+      return res.json({ success: false, steps, error: 'reportlab non installé' });
+    }
+
+    // Step 3: Check logo
+    const logoExists = fs.existsSync('/app/logo_b64.txt');
+    steps.push({ step: 'logo', ok: logoExists, msg: logoExists ? 'présent' : 'absent (non bloquant)' });
+
+    // Step 4: Generate minimal PDF
+    const testPy = `/tmp/test_sinelec_${Date.now()}.py`;
+    const testPdf = `/tmp/test_sinelec_${Date.now()}.pdf`;
+    const testData = '/tmp/test_sinelec_data.json';
+    fs.writeFileSync(testData, JSON.stringify([{designation:'Test prestation',qte:1,prixUnit:100,total:100,details:[]}]));
+
+    const pyScript = `# -*- coding: utf-8 -*-
+import json, sys
+from reportlab.lib.pagesizes import A4
+from reportlab.platypus import SimpleDocTemplate, Paragraph
+from reportlab.lib.styles import getSampleStyleSheet
+doc = SimpleDocTemplate(sys.argv[2], pagesize=A4)
+styles = getSampleStyleSheet()
+data = json.loads(open(sys.argv[1]).read())
+story = [Paragraph(f"Test SINELEC - {len(data)} prestations", styles['Title'])]
+doc.build(story)
+print('PDF_OK')
+`;
+    fs.writeFileSync(testPy, pyScript);
+    try {
+      const out = execSync(`python3 "${testPy}" "${testData}" "${testPdf}"`, { timeout: 30000, stdio: ['pipe','pipe','pipe'] });
+      const pdfExists = fs.existsSync(testPdf);
+      const pdfSize = pdfExists ? fs.statSync(testPdf).size : 0;
+      steps.push({ step: 'pdf_generation', ok: pdfExists, msg: pdfExists ? `${pdfSize} bytes` : 'non généré' });
+      try { fs.unlinkSync(testPy); fs.unlinkSync(testPdf); } catch(e) {}
+    } catch(pyErr) {
+      const pyMsg = pyErr.stderr?.toString() || pyErr.stdout?.toString() || pyErr.message;
+      steps.push({ step: 'pdf_generation', ok: false, msg: pyMsg.substring(0, 400) });
+      return res.json({ success: false, steps, error: 'PDF generation failed: ' + pyMsg.substring(0, 200) });
+    }
+
+    res.json({ success: true, steps, message: 'Tout fonctionne ✅' });
+  } catch(e) {
+    res.json({ success: false, steps, error: e.message });
+  }
+});
 
 // ═══════════════════════════════════════════════════
 // HEALTHCHECK
@@ -280,6 +346,9 @@ app.post('/api/generer', async (req, res) => {
         console.error('❌ INSERT historique échoué (2 tentatives):', insertErr2.message, '— num:', num, '— VERIFIER TABLE SUPABASE');
       }
     }
+
+    // ── LOG DÉBUT GENERER ──────────────────
+    console.log('📄 generer START — type:', type, '| num:', num, '| client:', client, '| prestations:', prestations?.length);
 
     // ── UPSERT FICHE CLIENT AUTO ──────────────────
     if (client && (email || telephone)) {
@@ -520,6 +589,10 @@ if '${type}'=='devis':
 doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
 `;
       fs.writeFileSync(pyPath, py, 'utf8');
+      console.log('🐍 Lancement Python PDF:', pyPath);
+      // Vérifier que python3 existe
+      try { execSync('which python3', { timeout: 5000 }); console.log('✅ python3 trouvé'); }
+      catch(e) { console.error('❌ python3 introuvable:', e.message); }
       try {
         execSync(`python3 "${pyPath}" "${detailsPath}" "${pdfPath}"`, {
           cwd: __dirname, timeout: 60000, stdio: ['pipe','pipe','pipe']
