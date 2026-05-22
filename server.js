@@ -398,9 +398,9 @@ app.post('/api/generer', async (req, res) => {
       const typeLabelUpper = type === 'devis' ? 'DEVIS' : 'FACTURE';
       const dateStr = new Date().toLocaleDateString('fr-FR');
       const dateValide = new Date(Date.now() + 30*24*60*60*1000).toLocaleDateString('fr-FR');
-      const detailsPath = path.join(__dirname, `_details_${num}.json`);
-      const pyPath = path.join(__dirname, `_devis_${num}.py`);
-      const pdfPath = path.join(__dirname, `${num}.pdf`);
+      const detailsPath = path.join('/tmp', `_details_${num}.json`);
+      const pyPath = path.join('/tmp', `_devis_${num}.py`);
+      const pdfPath = path.join('/tmp', `${num}.pdf`);
 
       // Construire detailsData avec support sections
       let detailsData = [];
@@ -748,7 +748,7 @@ app.post('/api/signature', async (req, res) => {
   try {
     const { num, signature, ip } = req.body;
     if (!num) return res.status(400).json({ error: 'num requis' });
-    const sigPath = path.join(__dirname, `sig_${num}.png`);
+    const sigPath = path.join('/tmp', `sig_${num}.png`);
     if (signature) {
       const b64 = signature.replace(/^data:image\/[a-z]+;base64,/, '');
       fs.writeFileSync(sigPath, Buffer.from(b64, 'base64'));
@@ -904,8 +904,8 @@ app.delete('/api/historique/:num', async (req, res) => {
     if (error) throw error;
     // Cleanup PDF files
     ['', '_dl_', '_dl_details_'].forEach(p => {
-      try { fs.unlinkSync(path.join(__dirname, `${p}${num}.pdf`)); } catch(e) {}
-      try { fs.unlinkSync(path.join(__dirname, `${p}${num}.json`)); } catch(e) {}
+      try { fs.unlinkSync(path.join('/tmp', `${p}${num}.pdf`)); } catch(e) {}
+      try { fs.unlinkSync(path.join('/tmp', `${p}${num}.json`)); } catch(e) {}
     });
     res.json({ success: true });
   } catch(error) { res.status(500).json({ error: error.message }); }
@@ -1023,9 +1023,9 @@ app.get('/api/pdf/:num', async (req, res) => {
     const dateStr = new Date(data.date_envoi || data.created_at).toLocaleDateString('fr-FR');
     const dateValide = new Date(new Date(data.date_envoi || data.created_at).getTime() + 30*24*60*60*1000).toLocaleDateString('fr-FR');
 
-    const detailsPath = path.join(__dirname, `_dl_details_${num}.json`);
-    const pyPath = path.join(__dirname, `_dl_${num}.py`);
-    const pdfPath = path.join(__dirname, `_dl_${num}.pdf`);
+    const detailsPath = path.join('/tmp', `_dl_details_${num}.json`);
+    const pyPath = path.join('/tmp', `_dl_${num}.py`);
+    const pdfPath = path.join('/tmp', `_dl_${num}.pdf`);
 
     const detailsData = (data.prestations || []).map(p => ({
       designation: p.nom || p.designation, qte: p.quantite || 1,
@@ -1192,9 +1192,9 @@ app.get('/api/pdf-obat/:reference', async (req, res) => {
     const { data: f, error } = await supabase.from('factures_obat').select('*').eq('reference', reference).single();
     if (error || !f) return res.status(404).json({ error: 'Document OBAT non trouvé' });
     // Générer un PDF simple pour les factures OBAT
-    const detailsPath = path.join(__dirname, `_obat_${reference}.json`);
-    const pyPath = path.join(__dirname, `_obat_${reference}.py`);
-    const pdfPath = path.join(__dirname, `_obat_${reference}.pdf`);
+    const detailsPath = path.join('/tmp', `_obat_${reference}.json`);
+    const pyPath = path.join('/tmp', `_obat_${reference}.py`);
+    const pdfPath = path.join('/tmp', `_obat_${reference}.pdf`);
     const prestations = (f.prestations || []).map(p => ({ designation: p.nom||p.designation||'Prestation', qte: p.quantite||1, prixUnit: p.montant||p.prix||0, total: (p.montant||p.prix||0)*(p.quantite||1), details: [] }));
     fs.writeFileSync(detailsPath, JSON.stringify(prestations));
     const clientEsc = String(f.client||f.client_nom||'').replace(/'/g,' ');
@@ -1270,9 +1270,9 @@ app.post('/api/acompte/:num', async (req, res) => {
     });
 
     // Générer PDF
-    const detailsPath = path.join(__dirname, `_acompte_${numAcompte}.json`);
-    const pyPath = path.join(__dirname, `_acompte_${numAcompte}.py`);
-    const pdfPath = path.join(__dirname, `_acompte_${numAcompte}.pdf`);
+    const detailsPath = path.join('/tmp', `_acompte_${numAcompte}.json`);
+    const pyPath = path.join('/tmp', `_acompte_${numAcompte}.py`);
+    const pdfPath = path.join('/tmp', `_acompte_${numAcompte}.pdf`);
     fs.writeFileSync(detailsPath, JSON.stringify(prestationsAcompte.map(p => ({ designation: p.nom, qte: p.quantite, prixUnit: p.prix, total: p.prix * p.quantite, details: p.desc ? [p.desc] : [] }))));
 
     const clientEsc = String(devis.client || '').replace(/'/g, ' ');
