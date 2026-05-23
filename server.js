@@ -1268,7 +1268,7 @@ net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('LEFTPADDING',(0,0
 story.append(net)
 story.append(Spacer(1,0.3*cm))
 
-if is_paye:
+if IS_PAYE:
     date_p=str(meta.get('datePaiement',''))or str(meta.get('dateStr',''))
     mode_p=str(meta.get('modePaiement','Règlement reçu'))
     VERT_P=colors.HexColor('#16a34a')
