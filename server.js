@@ -685,12 +685,13 @@ app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
     const { email, sujet, message, cc, pdfB64, sms, telephone } = req.body;
     if (!email) return res.status(400).json({ error: 'Email requis' });
 
-    // Récupérer le PDF
+    // Récupérer le PDF et le type du document
     let pdf_b64 = pdfB64;
+    let docType = 'facture';
     if (!pdf_b64) {
       const { data: doc } = await supabase.from('historique').select('*').eq('num', num).single();
       if (doc) {
-        // Générer le PDF à la volée
+        docType = doc.type || 'facture';
         try {
           const pdfRes = await fetch(`${process.env.APP_URL || 'https://sinelec-api-production.up.railway.app'}/api/pdf/${num}`, {
             headers: { 'Authorization': req.headers['authorization'] || '' }
@@ -703,6 +704,16 @@ app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
       }
     }
 
+    const lienSig = `${appUrl}/signer/${num}`;
+
+    // Bouton signature uniquement pour les devis
+    const signatureBlock = docType === 'devis' ? `
+      <div style="background:#fffbf0;border:1.5px solid #C9A84C;border-radius:12px;padding:20px;text-align:center;margin:20px 0;">
+        <p style="font-size:13px;color:#555;margin-bottom:16px;">Pour accepter ce devis, signez-le directement en ligne :</p>
+        <a href="${lienSig}" style="background:linear-gradient(135deg,#C9A84C,#daa520);color:#fff;text-decoration:none;border-radius:10px;padding:14px 28px;font-size:15px;font-weight:800;display:inline-block;">✍️ Signer le devis en ligne</a>
+        <p style="font-size:11px;color:#aaa;margin-top:12px;">Signature électronique valide — Loi n°2000-230</p>
+      </div>` : '';
+
     const htmlEmail = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;">
       <div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:24px;text-align:center;border-radius:12px 12px 0 0;">
         <div style="font-size:28px;">⚡</div>
@@ -710,12 +721,12 @@ app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
       </div>
       <div style="padding:24px;border:1px solid #e8e8e8;border-top:none;border-radius:0 0 12px 12px;">
         <p style="white-space:pre-wrap;font-size:14px;color:#333;line-height:1.6;">${(message || '').replace(/</g,'&lt;')}</p>
+        ${signatureBlock}
         <p style="font-size:12px;color:#888;margin-top:16px;">📞 07 87 38 86 22 | sinelec.paris@gmail.com</p>
       </div>
     </div>`;
 
     // Pixel espion
-    const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
     const htmlWithPixel = htmlEmail + `<img src="${appUrl}/api/track/open/${num}" width="1" height="1" style="display:none">`;
 
     const attachment = pdf_b64 ? { content: pdf_b64, name: `${num}.pdf` } : null;
