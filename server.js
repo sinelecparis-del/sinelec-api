@@ -536,7 +536,8 @@ class SC(pdfcanvas.Canvas):
         self.drawString(5.9*cm,H-3.4*cm,'sinelec.paris@gmail.com')
         self.setFillColor(colors.HexColor('#243660')); self.roundRect(5.9*cm,H-4.15*cm,5.5*cm,0.55*cm,0.1*cm,fill=1,stroke=0)
         self.setFont('Helvetica-Bold',8); self.setFillColor(OR); self.drawString(6.1*cm,H-3.88*cm,'SIRET : 91015824500019')
-        self.setFont('Helvetica-Bold',40); self.setFillColor(BLANC); self.drawRightString(W-1.2*cm,H-2.2*cm,doc_label)
+        lbl_sz=40 if len(doc_label)<=7 else (30 if len(doc_label)<=10 else 22)
+        self.setFont('Helvetica-Bold',lbl_sz); self.setFillColor(BLANC); self.drawRightString(W-1.2*cm,H-2.2*cm,doc_label)
         self.setStrokeColor(OR); self.setLineWidth(1.5); self.line(13*cm,H-2.65*cm,W-1.2*cm,H-2.65*cm)
         self.setFillColor(OR); self.roundRect(W-6.5*cm,H-3.55*cm,5.3*cm,0.65*cm,0.15*cm,fill=1,stroke=0)
         self.setFont('Helvetica-Bold',9); self.setFillColor(MARINE); self.drawCentredString(W-3.85*cm,H-3.22*cm,'N\u00b0 '+doc_num)
@@ -549,16 +550,15 @@ class SC(pdfcanvas.Canvas):
         self.setFont('Helvetica',8); self.setFillColor(OR); self.drawRightString(W-1.2*cm,H-1.0*cm,doc_label+' N\u00b0 '+doc_num)
     def _draw_footer(self):
         self.saveState()
-        if (is_paye or is_signe) and self._pg==0: self._draw_tampons()
         if is_paye and self._pg==0:
             self.saveState()
-            from reportlab.lib.utils import simpleSplit
-            from reportlab.pdfgen.canvas import Canvas
-            # Clipper à la zone contenu uniquement (hors header et footer)
-            p_clip=self.beginPath(); p_clip.rect(0.78*cm,1.2*cm,W-0.78*cm,H-5.4*cm-1.2*cm); self.clipPath(p_clip,stroke=0,fill=0)
-            self.translate(W/2,(H-5.4*cm+1.2*cm)/2); self.rotate(45)
-            self.setFont('Helvetica-Bold',72); self.setFillColor(colors.HexColor('#16a34a')); self.setFillAlpha(0.38)
-            self.drawCentredString(0,0,'P A Y E'); self.restoreState()
+            p_clip=self.beginPath()
+            p_clip.rect(0.78*cm,1.6*cm,W-1.78*cm,H-5.6*cm-1.6*cm)
+            self.clipPath(p_clip,stroke=0,fill=0)
+            self.translate(W/2,H*0.58); self.rotate(45)
+            self.setFont('Helvetica-Bold',80); self.setFillColor(colors.HexColor('#16a34a')); self.setFillAlpha(0.18)
+            self.drawCentredString(0,0,'PAY\u00c9'); self.restoreState()
+        if (is_paye or is_signe) and self._pg==0: self._draw_tampons()
         self.setFillColor(MARINE); self.rect(0,0,W,1.0*cm,fill=1,stroke=0)
         self.setFillColor(OR); self.rect(0,1.0*cm,W,0.08*cm,fill=1,stroke=0)
         self.setFont('Helvetica',6.5); self.setFillColor(colors.HexColor('#8899BB'))
@@ -591,7 +591,7 @@ client_lines=[p('CLIENT',7,'Helvetica-Bold',OR,sa=3),p(client_nom,11,'Helvetica-
 if client_tel: client_lines.append(p('Tel : '+client_tel,8.5,color=GRIS_SOFT))
 if client_siret: client_lines.append(p('SIRET : '+client_siret,8,color=GRIS_SOFT))
 client_b=Table([[c] for c in client_lines],colWidths=[8.2*cm])
-client_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),2),('BOTTOMPADDING',(0,0),(-1,-1),2),('LEFTPADDING',(0,0),(-1,-1),0)]))
+client_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4),('LEFTPADDING',(0,0),(-1,-1),6),('RIGHTPADDING',(0,0),(-1,-1),6),('BACKGROUND',(0,0),(-1,-1),OR_PALE),('BOX',(0,0),(-1,-1),1,OR)]))
 hdr_row=Table([[objet_b,client_b]],colWidths=[9.5*cm,8.7*cm])
 hdr_row.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)]))
 story.append(hdr_row); story.append(Spacer(1,0.5*cm))
@@ -666,7 +666,6 @@ doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
           const msgId = await envoyerEmail(email, `Votre ${type} n° ${num} - SINELEC Paris`, htmlEmail, { content: pdf_b64, name: `${num}.pdf` });
           await supabase.from('historique').update({ email_msgid: msgId?.messageId || null }).eq('num', num);
           // Copie à Diahe
-          try { await envoyerEmail('sinelec.paris@gmail.com', `[Copie] ${type} ${num} → ${client}`, htmlEmail, { content: pdf_b64, name: `${num}.pdf` }); } catch(e) {}
           console.log(`✅ Email envoyé: ${num} → ${email}`);
         } catch(emailErr) {
           console.error('⚠️ Email error (non bloquant):', emailErr.message);
@@ -727,8 +726,6 @@ app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
     const attachment = pdf_b64 ? { content: pdf_b64, name: `${num}.pdf` } : null;
     const emailRes = await envoyerEmail(email, sujet || `Document ${num} - SINELEC`, htmlWithPixel, attachment);
 
-    // Copie Diahe — sans pixel espion (pour ne pas fausser le tracking)
-    try { await envoyerEmail('sinelec.paris@gmail.com', `[Copie] ${sujet || num} → ${email}`, htmlEmail, attachment); } catch(e) {}
 
     // CC si fourni
     if (cc) { try { await envoyerEmail(cc, sujet || `Document ${num}`, htmlEmail, attachment); } catch(e) {} }
@@ -822,9 +819,18 @@ app.post('/api/signature', async (req, res) => {
         </div>
       </div>`;
       try { await envoyerEmail(doc.email, `Devis ${num} signé — Confirmation SINELEC`, html); } catch(e) {}
-      // Copie Diahe avec tableau récap
-      const htmlDiahe = `<p>✅ ${doc.client} a signé le devis ${num} (${(doc.total_ht||0).toFixed(0)}€) — ${new Date().toLocaleString('fr-FR')}</p><p>IP: ${ip || 'N/A'}</p>`;
-      try { await envoyerEmail('sinelec.paris@gmail.com', `[SIGNÉ] ${doc.client} — Devis ${num}`, htmlDiahe); } catch(e) {}
+      // Email Diahe — devis signé avec PDF en pièce jointe
+      const htmlDiahe = `<div style="font-family:Arial,sans-serif;padding:20px;"><h2 style="color:#16a34a;">✅ Devis signé !</h2><p><strong>${doc.client}</strong> a signé le devis <strong>${num}</strong></p><p>Montant : <strong>${(doc.total_ht||0).toFixed(2)} €</strong></p><p>Date : ${new Date().toLocaleString('fr-FR')}</p><p style="color:#888;font-size:12px;">IP : ${ip || 'N/A'}</p></div>`;
+      try {
+        const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+        const token = process.env.AUTH_TOKEN || '';
+        const pdfRes = await fetch(`${appUrl}/api/pdf/${num}`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const pdfBuf = await pdfRes.arrayBuffer();
+        const pdfB64 = Buffer.from(pdfBuf).toString('base64');
+        await envoyerEmail('sinelec.paris@gmail.com', `[SIGNÉ] ${doc.client} — Devis ${num}`, htmlDiahe, { content: pdfB64, name: `${num}_signe.pdf` });
+      } catch(e) {
+        await envoyerEmail('sinelec.paris@gmail.com', `[SIGNÉ] ${doc.client} — Devis ${num}`, htmlDiahe).catch(()=>{});
+      }
     }
     res.json({ success: true });
   } catch(error) {
@@ -1010,7 +1016,17 @@ app.post('/api/marquer-paye', async (req, res) => {
           await envoyerEmail(doc.email, `Facture acquittée ${num} — SINELEC Paris`, html, pdf_b64 ? { content: pdf_b64, name: `${num}_acquittee.pdf` } : null);
           console.log(`✅ Facture acquittée envoyée: ${num} → ${doc.email}`);
         }
-      } catch(e) { console.error('Facture acquittée email error:', e.message); }
+        // SMS avis Google automatique si téléphone disponible
+        if (doc && doc.telephone) {
+          const prenom = extractPrenom(doc.client);
+          const msgAvis = `Bonjour ${prenom}, merci pour votre confiance ! Un avis Google nous aiderait beaucoup : https://g.page/r/CSw-MABnFUAYEAE/review — Diahe, SINELEC ⚡`;
+          const msgId = await envoyerSMS(doc.telephone, msgAvis);
+          if (msgId) {
+            await supabase.from('historique').update({ sms_avis_envoye: true, sms_avis_date: new Date().toISOString(), sms_avis_statut: 'envoye' }).eq('num', num);
+            console.log(`📱 SMS avis envoyé: ${num} → ${doc.telephone}`);
+          }
+        }
+      } catch(e) { console.error('Facture acquittée error:', e.message); }
     });
 
     res.json({ success: true });
@@ -1157,7 +1173,8 @@ class SC(pdfcanvas.Canvas):
         self.drawString(5.9*cm,H-3.0*cm,'Tel : 07 87 38 86 22'); self.drawString(5.9*cm,H-3.4*cm,'sinelec.paris@gmail.com')
         self.setFillColor(colors.HexColor('#243660')); self.roundRect(5.9*cm,H-4.15*cm,5.5*cm,0.55*cm,0.1*cm,fill=1,stroke=0)
         self.setFont('Helvetica-Bold',8); self.setFillColor(OR); self.drawString(6.1*cm,H-3.88*cm,'SIRET : 91015824500019')
-        self.setFont('Helvetica-Bold',40); self.setFillColor(BLANC); self.drawRightString(W-1.2*cm,H-2.2*cm,'${typeLabelUpper}')
+        lbl_sz=40 if len('${typeLabelUpper}')<=7 else (30 if len('${typeLabelUpper}')<=10 else 22)
+        self.setFont('Helvetica-Bold',lbl_sz); self.setFillColor(BLANC); self.drawRightString(W-1.2*cm,H-2.2*cm,'${typeLabelUpper}')
         self.setStrokeColor(OR); self.setLineWidth(1.5); self.line(13*cm,H-2.65*cm,W-1.2*cm,H-2.65*cm)
         self.setFillColor(OR); self.roundRect(W-6.5*cm,H-3.55*cm,5.3*cm,0.65*cm,0.15*cm,fill=1,stroke=0)
         self.setFont('Helvetica-Bold',9); self.setFillColor(MARINE); self.drawCentredString(W-3.85*cm,H-3.22*cm,'N\\u00b0 ${num}')
@@ -1169,13 +1186,15 @@ class SC(pdfcanvas.Canvas):
         self.setFont('Helvetica',8); self.setFillColor(OR); self.drawRightString(W-1.2*cm,H-1.0*cm,'${typeLabelUpper} N\\u00b0 ${num}')
     def _draw_footer(self):
         self.saveState()
-        if (IS_PAYE or IS_SIGNE) and self._pg==0: self._draw_tampons()
         if IS_PAYE and self._pg==0:
             self.saveState()
-            p_clip=self.beginPath(); p_clip.rect(0.78*cm,1.2*cm,W-0.78*cm,H-5.4*cm-1.2*cm); self.clipPath(p_clip,stroke=0,fill=0)
-            self.translate(W/2,(H-5.4*cm+1.2*cm)/2); self.rotate(45)
-            self.setFont('Helvetica-Bold',72); self.setFillColor(colors.HexColor('#16a34a')); self.setFillAlpha(0.38)
-            self.drawCentredString(0,0,'P A Y E'); self.restoreState()
+            p_clip=self.beginPath()
+            p_clip.rect(0.78*cm,1.6*cm,W-1.78*cm,H-5.6*cm-1.6*cm)
+            self.clipPath(p_clip,stroke=0,fill=0)
+            self.translate(W/2,H*0.58); self.rotate(45)
+            self.setFont('Helvetica-Bold',80); self.setFillColor(colors.HexColor('#16a34a')); self.setFillAlpha(0.18)
+            self.drawCentredString(0,0,'PAY\u00c9'); self.restoreState()
+        if (IS_PAYE or IS_SIGNE) and self._pg==0: self._draw_tampons()
         self.setFillColor(MARINE); self.rect(0,0,W,1.0*cm,fill=1,stroke=0)
         self.setFillColor(OR); self.rect(0,1.0*cm,W,0.08*cm,fill=1,stroke=0)
         self.setFont('Helvetica',6.5); self.setFillColor(colors.HexColor('#8899BB'))
@@ -1203,7 +1222,7 @@ doc=SimpleDocTemplate(sys.argv[2],pagesize=A4,leftMargin=1.2*cm,rightMargin=1.0*
 story=[]
 objet_b=Table([[p('OBJET DES TRAVAUX',7.5,'Helvetica-Bold',OR,sa=4)],[p('${descObjet}',10,'Helvetica-Bold',MARINE)],[p('Conformes NF C 15-100  \\u2022  Garantie decennale ORUS',7.5,color=GRIS_SOFT)]],colWidths=[8.2*cm])
 objet_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3),('LEFTPADDING',(0,0),(-1,-1),0),('LINEABOVE',(0,0),(0,0),2.5,MARINE),('TOPPADDING',(0,0),(0,0),10)]))
-client_b=Table([[p('DESTINATAIRE',7,'Helvetica-Bold',OR,sa=3)],[p('${clientEsc}',11,'Helvetica-Bold',MARINE)],[p('${clientRue}',9,color=GRIS_TEXTE)],[p('${clientVille}',9,color=GRIS_TEXTE)]],colWidths=[8.2*cm])
+client_b=Table([[p('CLIENT',7,'Helvetica-Bold',OR,sa=3)],[p('${clientEsc}',11,'Helvetica-Bold',MARINE)],[p('${clientRue}',9,color=GRIS_TEXTE)],[p('${clientVille}',9,color=GRIS_TEXTE)]],colWidths=[8.2*cm])
 client_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),2),('BOTTOMPADDING',(0,0),(-1,-1),2),('LEFTPADDING',(0,0),(-1,-1),0)]))
 hdr_row=Table([[objet_b,client_b]],colWidths=[9.5*cm,8.7*cm])
 hdr_row.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)]))
@@ -1416,7 +1435,7 @@ class SC(pdfcanvas.Canvas):
         self.restoreState()
 doc=SimpleDocTemplate(sys.argv[2],pagesize=A4,leftMargin=1.2*cm,rightMargin=1.0*cm,topMargin=5.6*cm,bottomMargin=1.6*cm)
 story=[]
-client_b=Table([[p('DESTINATAIRE',7,'Helvetica-Bold',OR,sa=3)],[p('${clientEsc}',11,'Helvetica-Bold',MARINE)],[p('${clientRue}',9)],[p('${clientVille}',9)]],colWidths=[8.2*cm])
+client_b=Table([[p('CLIENT',7,'Helvetica-Bold',OR,sa=3)],[p('${clientEsc}',11,'Helvetica-Bold',MARINE)],[p('${clientRue}',9)],[p('${clientVille}',9)]],colWidths=[8.2*cm])
 client_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),2),('BOTTOMPADDING',(0,0),(-1,-1),2),('LEFTPADDING',(0,0),(-1,-1),0)]))
 acompte_info=Table([[p('Facture d\\u2019acompte 40%',9,'Helvetica-Bold',BLEU)],[p('Devis ${num} — Solde : ' + '${montantSolde.toFixed(2)}' + ' \\u20ac (60%) exigible \\u00e0 la fin des travaux',8,color=GRIS_SOFT)]],colWidths=[9.0*cm])
 hdr_row=Table([[client_b,acompte_info]],colWidths=[9.5*cm,8.7*cm])
@@ -1499,6 +1518,21 @@ app.delete('/api/agenda/:id', async (req, res) => {
     const { error } = await supabase.from('agenda').delete().eq('id', id);
     if (error) throw error;
     res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Envoyer SMS rappel manuel pour une intervention
+app.post('/api/agenda/:id/sms', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { data: iv } = await supabase.from('agenda').select('*').eq('id', id).single();
+    if (!iv || !iv.telephone) return res.status(400).json({ error: 'Téléphone manquant' });
+    const heure = iv.heure ? ` à ${iv.heure}` : '';
+    const msg = `Bonjour ${iv.client || ''}, rappel de votre intervention SINELEC demain${heure}. 📞 07 87 38 86 22`;
+    const msgId = await envoyerSMS(iv.telephone, msg);
+    if (!msgId) return res.status(500).json({ error: 'Échec envoi SMS' });
+    await supabase.from('agenda').update({ sms_rappel_envoye: true }).eq('id', id);
+    res.json({ success: true, messageId: msgId });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -1730,331 +1764,4 @@ app.post('/api/rapport/description', authMiddleware, async (req, res) => {
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 600,
       messages: [{ role: 'user', content: `Tu es un électricien expert SINELEC Paris. Rédige une description professionnelle détaillée pour un rapport d'intervention.
-Travaux réalisés (résumé court) : "${chantier}"${client ? `\nClient : ${client}` : ''}${adresse ? `\nAdresse : ${adresse}` : ''}
-Écris un texte professionnel de 150-200 mots décrivant précisément les travaux, les matériaux utilisés, les normes respectées (NF C 15-100), et les tests effectués. Commence directement par la description.` }]
-    });
-    res.json({ success: true, description: response.content[0].text.trim() });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-app.post('/api/rapport', authMiddleware, async (req, res) => {
-  try {
-    const { client, adresse, chantier, description, email, telephone, photo_avant, photo_apres } = req.body;
-    const compteur = await incrementerCompteur('rapport');
-    const annee = new Date().getFullYear();
-    const mois = String(new Date().getMonth() + 1).padStart(2, '0');
-    const num = `RAP-${annee}${mois}-${String(compteur).padStart(3, '0')}`;
-    const dateStr = new Date().toLocaleDateString('fr-FR');
-
-    // Enregistrer en BDD
-    await supabase.from('rapports').insert({
-      num, client, adresse, description: description || chantier,
-      email, telephone, date_intervention: new Date().toISOString()
-    }).catch(e => console.log('Rapport insert (non bloquant):', e.message));
-
-    // Envoyer email si fourni
-    if (email) {
-      const html = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;">
-        <div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:24px;text-align:center;border-radius:12px 12px 0 0;">
-          <h2 style="color:#E8B84B;">Rapport d'intervention SINELEC</h2>
-        </div>
-        <div style="padding:24px;border:1px solid #e8e8e8;border-top:none;border-radius:0 0 12px 12px;">
-          <p>Bonjour,</p>
-          <p>Veuillez trouver ci-joint le rapport d'intervention n° <strong>${num}</strong> du ${dateStr}.</p>
-          <p><strong>Travaux réalisés :</strong></p>
-          <p style="white-space:pre-wrap;color:#555;">${description || chantier}</p>
-          <p style="font-size:12px;color:#888;margin-top:16px;">📞 07 87 38 86 22 | sinelec.paris@gmail.com</p>
-        </div>
-      </div>`;
-      await envoyerEmail(email, `Rapport d'intervention ${num} - SINELEC Paris`, html);
-    }
-
-    res.json({ success: true, num });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// ═══════════════════════════════════════════════════
-// API: AVIS GOOGLE
-// ═══════════════════════════════════════════════════
-app.get('/api/avis/compteur', async (req, res) => {
-  try {
-    const { data } = await supabase.from('compteurs').select('valeur').eq('type', 'avis_google').single();
-    res.json({ success: true, nb: data?.valeur || 96 });
-  } catch(e) { res.json({ success: true, nb: 96 }); }
-});
-
-app.post('/api/avis/compteur', authMiddleware, async (req, res) => {
-  try {
-    const { nb } = req.body;
-    const { data: existing } = await supabase.from('compteurs').select('*').eq('type', 'avis_google').single();
-    if (existing) {
-      await supabase.from('compteurs').update({ valeur: nb }).eq('type', 'avis_google');
-    } else {
-      await supabase.from('compteurs').insert({ type: 'avis_google', valeur: nb });
-    }
-    res.json({ success: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-app.post('/api/avis/generer', authMiddleware, async (req, res) => {
-  try {
-    const { texte, etoiles, intervention } = req.body;
-    const prompt = `Tu es l'assistant de SINELEC, électricien Paris (Diahe).
-Génère une réponse professionnelle et chaleureuse à cet avis Google ${etoiles} étoile(s).
-AVIS : "${texte}"${intervention ? `\nINTERVENTION : ${intervention}` : ''}
-RÈGLES :
-- 40 à 70 mots maximum
-- Intègre 2-3 mots-clés SEO : électricien Paris, dépannage électrique Paris, NF C 15-100
-- ${etoiles >= 4 ? 'Remercie sincèrement, valorise le point positif' : 'Réponds calmement, propose de résoudre'}
-- Termine par : Diahe — SINELEC ⚡
-- Donne UNIQUEMENT la réponse, sans introduction ni guillemets`;
-
-    const response = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 200,
-      messages: [{ role: 'user', content: prompt }]
-    });
-    res.json({ success: true, reponse: response.content[0].text.trim() });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// ═══════════════════════════════════════════════════
-// API: ANALYSE DPE
-// ═══════════════════════════════════════════════════
-app.post('/api/dpe', async (req, res) => {
-  try {
-    const { pdf_base64, pdf_type, pdf_text, nom_client, adresse_client } = req.body;
-    if (!pdf_base64 && !pdf_text) return res.status(400).json({ error: 'PDF ou texte DPE manquant' });
-
-    const promptBase = `Tu es un expert électricien parisien (SINELEC) qui analyse les DPE (Diagnostics de Performance Énergétique).
-Tu te concentres EXCLUSIVEMENT sur les travaux électriques. Ignore : isolation, fenêtres, toiture, chaudière gaz, etc.
-
-Analyse ce DPE et réponds UNIQUEMENT en JSON valide (sans backticks, sans markdown) :
-{
-  "logement": {
-    "surface": 65,
-    "classe_dpe": "E",
-    "annee_construction": "1975",
-    "chauffage": "Convecteurs électriques",
-    "eau_chaude": "Chauffe-eau électrique",
-    "vmc": "Absente",
-    "tableau": "Non conforme"
-  },
-  "recommandations": [
-    {
-      "id": "tableau",
-      "titre": "Remplacement tableau électrique",
-      "description": "Tableau vétuste non conforme NF C 15-100, protections insuffisantes.",
-      "priorite": "haute",
-      "prestations": [
-        {"nom": "Tableau complet 2 rangées", "prix": 1500, "quantite": 1}
-      ]
-    }
-  ],
-  "total_general": 2500
-}
-Priorités possibles : haute, moyenne, basse.
-Garde uniquement les travaux électriques pertinents (max 5-6 recommandations).`;
-
-    let messageContent;
-    if (pdf_base64) {
-      const mediaType = pdf_type || 'application/pdf';
-      if (mediaType.startsWith('image/')) {
-        messageContent = [
-          { type: 'image', source: { type: 'base64', media_type: mediaType, data: pdf_base64 } },
-          { type: 'text', text: promptBase }
-        ];
-      } else {
-        messageContent = [
-          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdf_base64 } },
-          { type: 'text', text: promptBase }
-        ];
-      }
-    } else {
-      messageContent = `${promptBase}\n\nContenu du DPE :\n---\n${(pdf_text || '').substring(0, 20000)}\n---`;
-    }
-
-    const response = await anthropic.messages.create({
-      model: 'claude-opus-4-5',
-      max_tokens: 2000,
-      messages: [{ role: 'user', content: messageContent }]
-    });
-
-    const rawText = response.content[0].text.trim().replace(/```json|```/g, '').trim();
-    const result = JSON.parse(rawText);
-    result.recommandations = (result.recommandations || []).map(r => ({
-      ...r,
-      total: (r.prestations || []).reduce((s, p) => s + p.prix * (p.quantite || 1), 0)
-    }));
-    result.total_general = result.recommandations.reduce((s, r) => s + (r.total || 0), 0);
-    res.json({ success: true, ...result });
-  } catch(e) {
-    console.error('❌ DPE error:', e.message);
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// ═══════════════════════════════════════════════════
-// API: SANTÉ SYSTÈME
-// ═══════════════════════════════════════════════════
-async function verifierSante() {
-  const services = {};
-  // Brevo email
-  try {
-    const r = await fetch('https://api.brevo.com/v3/account', { headers: { 'api-key': BREVO_API_KEY || '' } });
-    services.brevo_email = { status: r.ok ? 'ok' : 'error' };
-  } catch(e) { services.brevo_email = { status: 'error' }; }
-  // Supabase
-  try {
-    const { error } = await supabase.from('compteurs').select('count').limit(1);
-    services.supabase = { status: error ? 'error' : 'ok' };
-  } catch(e) { services.supabase = { status: 'error' }; }
-  // Claude API
-  try {
-    services.claude_api = { status: (process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY.trim().length > 10) ? 'ok' : 'error' };
-  } catch(e) { services.claude_api = { status: 'unknown' }; }
-  // Python PDF
-  try {
-    execSync('python3 -c "from reportlab.lib.pagesizes import A4; print(\'ok\')"', { timeout: 5000 });
-    services.pdf_python = { status: 'ok' };
-  } catch(e) { services.pdf_python = { status: 'error' }; }
-  const allOk = Object.values(services).every(s => s.status === 'ok');
-  await supabase.from('logs_system').insert({ type: 'sante', message: 'Health check', data: services, success: allOk }).catch(() => {});
-  return { global: allOk ? 'ok' : 'degraded', services };
-}
-
-app.get('/api/sante', authMiddleware, async (req, res) => {
-  try {
-    const result = await verifierSante();
-    res.json(result);
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-app.post('/api/sante/verifier', authMiddleware, async (req, res) => {
-  try {
-    const result = await verifierSante();
-    res.json(result);
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// ═══════════════════════════════════════════════════
-// API: SUMUP LIEN PAIEMENT
-// ═══════════════════════════════════════════════════
-app.post('/api/sumup/lien/:num', async (req, res) => {
-  try {
-    const { num } = req.params;
-    const { envoi } = req.query;
-    const { data: doc } = await supabase.from('historique').select('*').eq('num', num).single();
-    if (!doc) return res.status(404).json({ error: 'Document non trouvé' });
-    const total = parseFloat(doc.total_ht || 0);
-    const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
-    const lien = `${appUrl}/paiement-confirme/${num}?montant=${total.toFixed(2)}`;
-    if (envoi === 'sms' || envoi === 'les2') {
-      if (doc.telephone) {
-        const msg = `Bonjour ${extractPrenom(doc.client)}, votre facture SINELEC ${num} de ${total.toFixed(0)}€ est disponible. Réglez en ligne : ${lien} — SINELEC ⚡`;
-        await envoyerSMS(doc.telephone, msg);
-      }
-    }
-    if (envoi === 'email' || envoi === 'les2') {
-      if (doc.email) {
-        const html = `<p>Bonjour, votre facture SINELEC n°${num} d'un montant de ${total.toFixed(2)}€ est disponible.<br><a href="${lien}">Régler en ligne</a></p>`;
-        await envoyerEmail(doc.email, `Facture ${num} — Lien de paiement SINELEC`, html);
-      }
-    }
-    res.json({ success: true, lien });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// ═══════════════════════════════════════════════════
-// API: RELANCES AUTO
-// ═══════════════════════════════════════════════════
-app.post('/api/relances/lancer', authMiddleware, async (req, res) => {
-  try {
-    const since = new Date(Date.now() - 48*3600*1000).toISOString();
-    const { data: devis } = await supabase.from('historique')
-      .select('*').eq('type', 'devis').eq('statut', 'envoye').lte('created_at', since);
-    let nb = 0;
-    for (const d of (devis || [])) {
-      if (d.telephone) {
-        await envoyerSMS(d.telephone, `Bonjour ${extractPrenom(d.client)}, votre devis SINELEC n°${d.num} de ${parseFloat(d.total_ht||0).toFixed(0)}€ attend votre validation. 📞 07 87 38 86 22`);
-        nb++;
-      }
-    }
-    res.json({ success: true, nb_relances: nb });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// ═══════════════════════════════════════════════════
-// API: OTP SIGNATURE
-// ═══════════════════════════════════════════════════
-app.post('/api/otp-signature', async (req, res) => {
-  try {
-    const { num, telephone } = req.body;
-    const code = String(Math.floor(1000 + Math.random() * 9000));
-    await supabase.from('historique').update({ otp_code: code, otp_expiry: new Date(Date.now() + 15*60*1000).toISOString() }).eq('num', num);
-    await envoyerSMS(telephone, `Votre code SINELEC : ${code}. Valable 15 minutes.`);
-    res.json({ success: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// ═══════════════════════════════════════════════════
-// CRON JOBS
-// ═══════════════════════════════════════════════════
-// Email récap agenda à 7h chaque jour
-cron.schedule('0 7 * * *', async () => {
-  try {
-    const today = new Date().toISOString().split('T')[0];
-    const { data: interventions } = await supabase.from('agenda')
-      .select('*')
-      .gte('date_intervention', today)
-      .lte('date_intervention', today)
-      .order('heure', { ascending: true });
-
-    const nb = (interventions || []).length;
-    const liste = (interventions || []).map(iv =>
-      `• ${iv.heure || '?'} — ${iv.client || 'Client'} — ${iv.adresse || ''} — ${iv.type_intervention || ''}`
-    ).join('\n');
-
-    const html = `<h2>📅 Agenda du jour — ${new Date().toLocaleDateString('fr-FR')}</h2>
-    <p>${nb} intervention${nb > 1 ? 's' : ''} prévue${nb > 1 ? 's' : ''}</p>
-    <pre style="background:#f5f5f5;padding:12px;border-radius:8px;font-family:monospace;">${liste || 'Aucune intervention'}</pre>`;
-
-    await envoyerEmail('sinelec.paris@gmail.com', `⚡ Agenda du ${new Date().toLocaleDateString('fr-FR')} — ${nb} intervention${nb>1?'s':''}`, html);
-    console.log(`✅ Récap agenda envoyé: ${nb} interventions`);
-  } catch(e) { console.error('Cron agenda:', e.message); }
-});
-
-// Rappel SMS client veille à 18h
-cron.schedule('0 18 * * *', async () => {
-  try {
-    const tomorrow = new Date(Date.now() + 24*3600*1000).toISOString().split('T')[0];
-    const { data: interventions } = await supabase.from('agenda')
-      .select('*')
-      .eq('date_intervention', tomorrow)
-      .eq('sms_rappel', true);
-
-    for (const iv of (interventions || [])) {
-      if (iv.telephone) {
-        const heure = iv.heure ? ` à ${iv.heure}` : '';
-        const msg = `Bonjour ${iv.client || ''}, rappel de votre intervention SINELEC demain${heure}. 📞 07 87 38 86 22`;
-        await envoyerSMS(iv.telephone, msg);
-        await supabase.from('agenda').update({ sms_rappel_envoye: true }).eq('id', iv.id);
-      }
-    }
-  } catch(e) { console.error('Cron rappel:', e.message); }
-});
-
-// Santé toutes les heures
-cron.schedule('0 * * * *', async () => {
-  try { await verifierSante(); } catch(e) {}
-});
-
-// ═══════════════════════════════════════════════════
-// START
-// ═══════════════════════════════════════════════════
-app.listen(PORT, () => {
-  console.log(`⚡ SINELEC OS v2.0 démarré sur le port ${PORT}`);
-  console.log(`📊 Supabase: ${process.env.SUPABASE_URL ? '✅' : '❌'}`);
-  console.log(`🤖 Claude API: ${process.env.ANTHROPIC_API_KEY ? '✅' : '❌'}`);
-  console.log(`📧 Brevo: ${BREVO_API_KEY ? '✅' : '❌'}`);
-});
+Travaux réalisés (résu
