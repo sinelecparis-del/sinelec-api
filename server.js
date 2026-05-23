@@ -704,6 +704,7 @@ app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
       }
     }
 
+    const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
     const lienSig = `${appUrl}/signer/${num}`;
 
     // Bouton signature uniquement pour les devis
