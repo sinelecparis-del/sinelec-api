@@ -520,6 +520,7 @@ class SC(pdfcanvas.Canvas):
         self.setFillColor(CREME); self.rect(0,0,W,H,fill=1,stroke=0)
         self.setFillColor(MARINE); self.rect(0,0,0.7*cm,H,fill=1,stroke=0)
         self.setFillColor(OR); self.rect(0.7*cm,0,0.08*cm,H,fill=1,stroke=0)
+
         if self._pg==0: self._draw_header()
         else: self._draw_header_small()
         self.restoreState()
@@ -548,18 +549,27 @@ class SC(pdfcanvas.Canvas):
         self.setFont('Helvetica',8); self.setFillColor(OR); self.drawRightString(W-1.2*cm,H-1.0*cm,doc_label+' N\u00b0 '+doc_num)
     def _draw_footer(self):
         self.saveState()
+        if (is_paye or is_signe) and self._pg==0: self._draw_tampons()
+        if is_paye and self._pg==0:
+            self.saveState()
+            from reportlab.lib.utils import simpleSplit
+            from reportlab.pdfgen.canvas import Canvas
+            # Clipper à la zone contenu uniquement (hors header et footer)
+            p_clip=self.beginPath(); p_clip.rect(0.78*cm,1.2*cm,W-0.78*cm,H-5.4*cm-1.2*cm); self.clipPath(p_clip,stroke=0,fill=0)
+            self.translate(W/2,(H-5.4*cm+1.2*cm)/2); self.rotate(45)
+            self.setFont('Helvetica-Bold',72); self.setFillColor(colors.HexColor('#16a34a')); self.setFillAlpha(0.38)
+            self.drawCentredString(0,0,'P A Y E'); self.restoreState()
         self.setFillColor(MARINE); self.rect(0,0,W,1.0*cm,fill=1,stroke=0)
         self.setFillColor(OR); self.rect(0,1.0*cm,W,0.08*cm,fill=1,stroke=0)
         self.setFont('Helvetica',6.5); self.setFillColor(colors.HexColor('#8899BB'))
         self.drawCentredString(W/2,0.5*cm,'SINELEC EI  \u2022  128 Rue La Boetie, 75008 Paris  \u2022  SIRET : 91015824500019  \u2022  TVA non applicable art. 293B CGI')
         self.setFont('Helvetica-Bold',7); self.setFillColor(OR); self.drawRightString(W-1.2*cm,0.28*cm,doc_num)
         self.restoreState()
-        self._draw_tampons()
     def _draw_tampons(self):
-        rouge=colors.HexColor('#cc0000'); vert=colors.HexColor('#16a34a')
-        couleur=rouge if is_paye else (vert if is_signe else None)
+        vert=colors.HexColor('#16a34a')
+        couleur=vert if (is_paye or is_signe) else None
         if not couleur: return
-        cx=W-5.0*cm; cy=9.0*cm; r=1.9*cm
+        cx=W-4.2*cm; cy=2.8*cm; r=1.9*cm
         self.saveState(); self.setStrokeColor(couleur); self.setFillColor(couleur)
         self.setFillAlpha(0.85); self.setLineWidth(3.5); self.circle(cx,cy,r,fill=0,stroke=1)
         self.setLineWidth(0.8); self.setFillAlpha(0.4); self.circle(cx,cy,r-0.22*cm,fill=0,stroke=1)
@@ -613,7 +623,8 @@ tot_t.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0)
 story.append(tot_t); story.append(Spacer(1,0.2*cm))
 net=Table([[p('NET \u00c0 PAYER',13,'Helvetica-Bold',BLANC),p('%.2f \u20ac'%totalHT,16,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
 net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8),('LINEBELOW',(0,0),(-1,-1),2,OR)]))
-story.append(net); story.append(Spacer(1,0.3*cm))
+story.append(net)
+story.append(Spacer(1,0.3*cm))
 if doc_type=='devis' and totalHT>=400:
     acompte=totalHT*0.4; solde=totalHT*0.6
     ac_t=Table([[p('ACOMPTE',11,'Helvetica-Bold',MARINE,TA_CENTER),p('SOLDE',11,'Helvetica-Bold',MARINE,TA_CENTER)],[p('A la signature',8,'Helvetica',GRIS_SOFT,TA_CENTER),p('Fin des travaux',8,'Helvetica',GRIS_SOFT,TA_CENTER)],[p('40%',20,'Helvetica-Bold',OR,TA_CENTER),p('60%',20,'Helvetica-Bold',OR,TA_CENTER)],[p('%.2f \u20ac'%acompte,12,'Helvetica-Bold',MARINE,TA_CENTER),p('%.2f \u20ac'%solde,12,'Helvetica-Bold',MARINE,TA_CENTER)]],colWidths=[9.1*cm,9.1*cm])
@@ -716,11 +727,11 @@ app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
     const attachment = pdf_b64 ? { content: pdf_b64, name: `${num}.pdf` } : null;
     const emailRes = await envoyerEmail(email, sujet || `Document ${num} - SINELEC`, htmlWithPixel, attachment);
 
-    // Copie Diahe
-    try { await envoyerEmail('sinelec.paris@gmail.com', `[Copie] ${sujet || num} → ${email}`, htmlWithPixel, attachment); } catch(e) {}
+    // Copie Diahe — sans pixel espion (pour ne pas fausser le tracking)
+    try { await envoyerEmail('sinelec.paris@gmail.com', `[Copie] ${sujet || num} → ${email}`, htmlEmail, attachment); } catch(e) {}
 
     // CC si fourni
-    if (cc) { try { await envoyerEmail(cc, sujet || `Document ${num}`, htmlWithPixel, attachment); } catch(e) {} }
+    if (cc) { try { await envoyerEmail(cc, sujet || `Document ${num}`, htmlEmail, attachment); } catch(e) {} }
 
     // SMS si demandé
     if (sms && telephone) {
@@ -1129,6 +1140,7 @@ class SC(pdfcanvas.Canvas):
         self.saveState(); self.setFillColor(CREME); self.rect(0,0,W,H,fill=1,stroke=0)
         self.setFillColor(MARINE); self.rect(0,0,0.7*cm,H,fill=1,stroke=0)
         self.setFillColor(OR); self.rect(0.7*cm,0,0.08*cm,H,fill=1,stroke=0)
+
         if self._pg==0: self._draw_header()
         else: self._draw_header_small()
         self.restoreState()
@@ -1155,20 +1167,26 @@ class SC(pdfcanvas.Canvas):
         self.setFont('Helvetica',8); self.setFillColor(OR); self.drawRightString(W-1.2*cm,H-1.0*cm,'${typeLabelUpper} N\\u00b0 ${num}')
     def _draw_footer(self):
         self.saveState()
+        if (IS_PAYE or IS_SIGNE) and self._pg==0: self._draw_tampons()
+        if IS_PAYE and self._pg==0:
+            self.saveState()
+            p_clip=self.beginPath(); p_clip.rect(0.78*cm,1.2*cm,W-0.78*cm,H-5.4*cm-1.2*cm); self.clipPath(p_clip,stroke=0,fill=0)
+            self.translate(W/2,(H-5.4*cm+1.2*cm)/2); self.rotate(45)
+            self.setFont('Helvetica-Bold',72); self.setFillColor(colors.HexColor('#16a34a')); self.setFillAlpha(0.38)
+            self.drawCentredString(0,0,'P A Y E'); self.restoreState()
         self.setFillColor(MARINE); self.rect(0,0,W,1.0*cm,fill=1,stroke=0)
         self.setFillColor(OR); self.rect(0,1.0*cm,W,0.08*cm,fill=1,stroke=0)
         self.setFont('Helvetica',6.5); self.setFillColor(colors.HexColor('#8899BB'))
         self.drawCentredString(W/2,0.5*cm,'SINELEC EI  \\u2022  128 Rue La Boetie, 75008 Paris  \\u2022  SIRET : 91015824500019  \\u2022  TVA non applicable art. 293B CGI')
         self.setFont('Helvetica-Bold',7); self.setFillColor(OR); self.drawRightString(W-1.2*cm,0.28*cm,'${num}')
         self.restoreState()
-        self._draw_tampons()
     def _draw_tampons(self):
         IS_PAYE = ${isPaye ? 'True' : 'False'}
         IS_SIGNE = '${docType}'=='devis' and '${docStatut}' in ('signe','signé')
         rouge = colors.HexColor('#cc0000'); vert=colors.HexColor('#16a34a')
-        couleur = rouge if IS_PAYE else (vert if IS_SIGNE else None)
+        couleur = vert if (IS_PAYE or IS_SIGNE) else None
         if not couleur: return
-        cx=W-5.0*cm; cy=9.0*cm; r=1.9*cm
+        cx=W-4.2*cm; cy=2.8*cm; r=1.9*cm
         self.saveState(); self.setStrokeColor(couleur); self.setFillColor(couleur)
         self.setFillAlpha(0.85); self.setLineWidth(3.5); self.circle(cx,cy,r,fill=0,stroke=1)
         self.setLineWidth(0.8); self.setFillAlpha(0.4); self.circle(cx,cy,r-0.22*cm,fill=0,stroke=1)
@@ -1218,7 +1236,8 @@ tot_t.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0)
 story.append(tot_t); story.append(Spacer(1,0.2*cm))
 net=Table([[p('NET \\u00c0 PAYER',13,'Helvetica-Bold',BLANC),p('%.2f \\u20ac'%totalHT,16,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
 net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8),('LINEBELOW',(0,0),(-1,-1),2,OR)]))
-story.append(net); story.append(Spacer(1,0.3*cm))
+story.append(net)
+story.append(Spacer(1,0.3*cm))
 if doc_type=='devis' and totalHT>=400:
     acompte=totalHT*0.4; solde=totalHT*0.6
     ac_t=Table([[p('ACOMPTE',11,'Helvetica-Bold',MARINE,TA_CENTER),p('SOLDE',11,'Helvetica-Bold',MARINE,TA_CENTER)],[p('A la signature',8,'Helvetica',GRIS_SOFT,TA_CENTER),p('Fin des travaux',8,'Helvetica',GRIS_SOFT,TA_CENTER)],[p('40%',20,'Helvetica-Bold',OR,TA_CENTER),p('60%',20,'Helvetica-Bold',OR,TA_CENTER)],[p('%.2f \\u20ac'%acompte,12,'Helvetica-Bold',MARINE,TA_CENTER),p('%.2f \\u20ac'%solde,12,'Helvetica-Bold',MARINE,TA_CENTER)]],colWidths=[9.1*cm,9.1*cm])
