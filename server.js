@@ -1096,7 +1096,7 @@ app.get('/api/pdf/:num', async (req, res) => {
     const clientVille = addrParts.slice(1).join(',').trim().replace(/'/g, ' ');
     const nomCourt = clientEsc.toUpperCase().split(' ').slice(0,2).join(' ').substring(0,14);
     const descObjet = String(data.description || 'Travaux d electricite generale').replace(/'/g,' ').replace(/"/g,' ').substring(0,120);
-    const totalHT = detailsData.reduce((s,l) => s + l.total, 0);
+    const totalHT = itemsArr.reduce((s,l) => s + l.total, 0);
 
     const py = `# -*- coding: utf-8 -*-
 import json, base64, io, sys
