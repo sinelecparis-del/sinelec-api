@@ -436,6 +436,23 @@ app.post('/api/generer', async (req, res) => {
           itemsData.push({ designation: p.nom || '', qte: p.quantite || 1, prixUnit: p.prix || 0, total: (p.prix || 0) * (p.quantite || 1), details: p.desc ? [p.desc] : [] });
         }
       }
+      // Variables client — déclarées AVANT jsonPayload
+      const clientEsc = String(client || '').replace(/'/g, ' ');
+      const clientTel = String(telephone || '').trim();
+      const adresseRaw = String(adresse || '').replace(/'/g, ' ').trim();
+      const adresseParts = adresseRaw.split(',').map(s => s.trim()).filter(Boolean);
+      const clientRue = adresseParts.length >= 2 && adresseParts[0].match(/^\d+$/) ? adresseParts[0] + ' ' + adresseParts[1] : adresseParts[0] || '';
+      const cpMatch = adresseRaw.match(/\b(\d{5})\b/);
+      const clientCP = String(codePostal || '').trim() || (cpMatch ? cpMatch[1] : '');
+      const villeManuelle = String(ville || '').trim();
+      const villeGPS = adresseParts.find(p => p.length > 2 && p.length < 30 && !p.match(/^\d{5}/) && !p.toLowerCase().includes('france')) || '';
+      const clientCPVille = [clientCP, villeManuelle || villeGPS].filter(Boolean).join(' ');
+      const descObjet = String(description || 'Travaux d electricite generale')
+        .trim().replace(/'/g, ' ').replace(/"/g, ' ').replace(/\\/g, ' ')
+        .replace(/\n/g, ' ').replace(/\r/g, ' ').substring(0, 120);
+      const clientSiret = String(siret_client || '').trim().replace(/'/g, '').replace(/"/g, '').replace(/\\/g, '');
+
+      // JSON payload avec meta — toutes les données dynamiques hors du script Python
       const jsonPayload = {
         _meta: {
           type, num,
@@ -450,28 +467,6 @@ app.post('/api/generer', async (req, res) => {
         _items: itemsData
       };
       fs.writeFileSync(detailsPath, JSON.stringify(jsonPayload));
-
-      const clientEsc = String(client || '').replace(/'/g, ' ');
-      const clientComplement = String(complement || '').replace(/'/g, ' ').trim();
-      const clientTel = String(telephone || '').trim();
-      const adresseRaw = String(adresse || '').replace(/'/g, ' ').trim();
-      const adresseParts = adresseRaw.split(',').map(s => s.trim()).filter(Boolean);
-      const clientRue = adresseParts.length >= 2 && adresseParts[0].match(/^\d+$/) ? adresseParts[0] + ' ' + adresseParts[1] : adresseParts[0] || '';
-      const cpMatch = adresseRaw.match(/\b(\d{5})\b/);
-      const clientCP = String(codePostal || '').trim() || (cpMatch ? cpMatch[1] : '');
-      const villeManuelle = String(ville || '').trim();
-      const villeGPS = adresseParts.find(p => p.length > 2 && p.length < 30 && !p.match(/^\d{5}/) && !p.toLowerCase().includes('france')) || '';
-      const clientCPVille = [clientCP, villeManuelle || villeGPS].filter(Boolean).join(' ');
-      const descObjet = String(description || 'Travaux d electricite generale')
-        .trim()
-        .replace(/'/g, ' ')
-        .replace(/"/g, ' ')
-        .replace(/\\/g, ' ')
-        .replace(/\n/g, ' ')
-        .replace(/\r/g, ' ')
-        .substring(0, 120);
-
-      const clientSiret = String(siret_client || '').trim().replace(/'/g, '').replace(/"/g, '').replace(/\\/g, '');
 
       const py = `# -*- coding: utf-8 -*-
 import json, base64, io, sys
