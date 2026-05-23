@@ -68,7 +68,7 @@ function verifierToken(token) {
 }
 
 function authMiddleware(req, res, next) {
-  const publicRoutes = ['/', '/health', '/api/login', '/signer/', '/paiement-confirme/', '/api/signature', '/api/otp-signature', '/api/auth/check', '/api/test-pdf', '/api/test', '/api/test-generer'];
+  const publicRoutes = ['/', '/health', '/api/login', '/signer/', '/paiement-confirme/', '/api/signature', '/api/otp-signature', '/api/auth/check', '/api/test-pdf', '/api/test'];
   if (publicRoutes.some(r => req.path.startsWith(r))) return next();
   const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
   if (!verifierToken(token)) return res.status(401).json({ error: 'Non autorisé', code: 'UNAUTHORIZED' });
@@ -167,122 +167,6 @@ print('PDF_OK')
 });
 
 
-// ═══════════════════════════════════════════════════
-// API: TEST GENERER COMPLET
-// ═══════════════════════════════════════════════════
-app.post('/api/test-generer', async (req, res) => {
-  const steps = [];
-  const num = 'TEST-001';
-  const detailsPath = path.join('/tmp', `_details_${num}.json`);
-  const pyPath = path.join('/tmp', `_devis_${num}.py`);
-  const pdfPath = path.join('/tmp', `${num}.pdf`);
-
-  try {
-    // Step 1: Write JSON data
-    const testData = [
-      { designation: 'Prise standard', qte: 1, prixUnit: 90, total: 90, details: ['Fourniture et pose'] }
-    ];
-    fs.writeFileSync(detailsPath, JSON.stringify(testData));
-    steps.push({ step: 'write_json', ok: true });
-
-    // Step 2: Build Python script (exact copy of generer)
-    const type = 'devis';
-    const typeLabelUpper = 'DEVIS';
-    const dateStr = new Date().toLocaleDateString('fr-FR');
-    const dateValide = new Date(Date.now() + 30*24*60*60*1000).toLocaleDateString('fr-FR');
-    const clientEsc = 'TEST CLIENT';
-    const clientRue = '12 rue de la Paix';
-    const clientCPVille = '75001 Paris';
-    const clientTel = '0612345678';
-    const clientSiret = '';
-    const descObjet = 'Travaux electricite generale';
-
-    const py = `# -*- coding: utf-8 -*-
-import json, base64, io, sys
-from reportlab.lib.pagesizes import A4
-from reportlab.lib import colors
-from reportlab.lib.units import cm
-from reportlab.platypus import *
-from reportlab.lib.styles import ParagraphStyle
-from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
-from reportlab.pdfgen import canvas as pdfcanvas
-from reportlab.lib.utils import ImageReader
-from reportlab.platypus.flowables import HRFlowable
-W,H=A4
-MARINE=colors.HexColor('#1B2A4A'); OR=colors.HexColor('#C9A84C')
-OR_PALE=colors.HexColor('#FBF7EC'); OR_FONCE=colors.HexColor('#A07830')
-BLANC=colors.white; CREME=colors.HexColor('#FDFCF9')
-GRIS_TEXTE=colors.HexColor('#3A3A3A'); GRIS_SOFT=colors.HexColor('#777777')
-GRIS_LIGNE=colors.HexColor('#E0DDD6'); GRIS_BG=colors.HexColor('#F5F4F0')
-def p(txt,sz=9,font='Helvetica',color=GRIS_TEXTE,align=TA_LEFT,sb=0,sa=2,leading=None):
-    if leading is None: leading=sz*1.35
-    return Paragraph(str(txt),ParagraphStyle('s',fontName=font,fontSize=sz,textColor=color,alignment=align,spaceBefore=sb,spaceAfter=sa,leading=leading,wordWrap='CJK'))
-data=json.loads(open(sys.argv[1],encoding='utf-8').read())
-totalHT=sum(l.get('total',0) for l in data if not l.get('_section'))
-try:
-    logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
-except:
-    logo_bytes=None
-class SC(pdfcanvas.Canvas):
-    def __init__(self,fn,**kw):
-        pdfcanvas.Canvas.__init__(self,fn,**kw); self._pg=0; self.saveState(); self._draw_page()
-    def showPage(self):
-        self._draw_footer(); pdfcanvas.Canvas.showPage(self); self._pg+=1
-    def save(self):
-        self._draw_footer(); pdfcanvas.Canvas.save(self)
-    def _draw_page(self):
-        self.saveState()
-        self.setFillColor(CREME); self.rect(0,0,W,H,fill=1,stroke=0)
-        self.setFillColor(MARINE); self.rect(0,0,0.7*cm,H,fill=1,stroke=0)
-        self.setFillColor(OR); self.rect(0.7*cm,0,0.08*cm,H,fill=1,stroke=0)
-        self._draw_header(); self.restoreState()
-    def _draw_header(self):
-        self.setFillColor(MARINE); self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,5.4*cm,fill=1,stroke=0)
-        if logo_bytes:
-            self.drawImage(ImageReader(io.BytesIO(logo_bytes)),0.9*cm,H-5.05*cm,width=4.2*cm,height=4.2*cm,preserveAspectRatio=True,mask='auto')
-        self.setFont('Helvetica-Bold',15); self.setFillColor(BLANC); self.drawString(5.9*cm,H-1.7*cm,'SINELEC PARIS')
-        self.setFont('Helvetica-Bold',40); self.setFillColor(BLANC); self.drawRightString(W-1.2*cm,H-2.2*cm,'DEVIS')
-        self.setFillColor(OR); self.roundRect(W-6.5*cm,H-3.55*cm,5.3*cm,0.65*cm,0.15*cm,fill=1,stroke=0)
-        self.setFont('Helvetica-Bold',9); self.setFillColor(MARINE); self.drawCentredString(W-3.85*cm,H-3.22*cm,'N${String.fromCharCode(176)} TEST-001')
-    def _draw_footer(self):
-        self.saveState()
-        self.setFillColor(MARINE); self.rect(0,0,W,1.0*cm,fill=1,stroke=0)
-        self.setFont('Helvetica',6.5); self.setFillColor(colors.HexColor('#8899BB'))
-        self.drawCentredString(W/2,0.5*cm,'SINELEC EI - SIRET : 91015824500019 - TVA non applicable art. 293B CGI')
-        self.restoreState()
-    def _draw_tampons(self): pass
-doc=SimpleDocTemplate(sys.argv[2],pagesize=A4,leftMargin=1.2*cm,rightMargin=1.0*cm,topMargin=5.6*cm,bottomMargin=1.6*cm)
-story=[]
-story.append(Paragraph('TEST CLIENT - 12 rue de la Paix - 75001 Paris',ParagraphStyle('c',fontName='Helvetica',fontSize=10)))
-story.append(Spacer(1,0.5*cm))
-rows=[[ Paragraph('Designation',ParagraphStyle('h',fontName='Helvetica-Bold',fontSize=8,textColor=BLANC)),Paragraph('Total',ParagraphStyle('h',fontName='Helvetica-Bold',fontSize=8,textColor=BLANC,alignment=TA_RIGHT))]]
-for l in data:
-    rows.append([Paragraph(str(l.get('designation','')),ParagraphStyle('d',fontName='Helvetica',fontSize=9)),Paragraph(str(l.get('total',0))+' EUR',ParagraphStyle('p',fontName='Helvetica-Bold',fontSize=9,alignment=TA_RIGHT))])
-t=Table(rows,colWidths=[14*cm,4.2*cm])
-t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),MARINE),('ROWBACKGROUNDS',(0,1),(-1,-1),[CREME,OR_PALE]),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5)]))
-story.append(t)
-doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
-`;
-    fs.writeFileSync(pyPath, py, 'utf8');
-    steps.push({ step: 'write_py', ok: true, size: py.length });
-
-    // Step 3: Execute Python
-    try {
-      const out = execSync(`python3 "${pyPath}" "${detailsPath}" "${pdfPath}"`, { timeout: 30000, stdio: ['pipe','pipe','pipe'] });
-      const pdfExists = fs.existsSync(pdfPath);
-      steps.push({ step: 'python_exec', ok: pdfExists, size: pdfExists ? fs.statSync(pdfPath).size : 0 });
-    } catch(pyErr) {
-      const msg = pyErr.stderr?.toString() || pyErr.stdout?.toString() || pyErr.message;
-      steps.push({ step: 'python_exec', ok: false, error: msg.substring(0, 500) });
-      return res.json({ success: false, steps, error: 'Python failed: ' + msg.substring(0,300) });
-    }
-
-    try { fs.unlinkSync(pyPath); fs.unlinkSync(detailsPath); fs.unlinkSync(pdfPath); } catch(e) {}
-    res.json({ success: true, steps });
-  } catch(e) {
-    res.json({ success: false, steps, error: e.message });
-  }
-});
 
 // ═══════════════════════════════════════════════════
 // HEALTHCHECK
@@ -466,15 +350,7 @@ app.post('/api/generer', async (req, res) => {
     }
 
     let _step = 'init';
-    // Test /tmp writable
-    try {
-      fs.writeFileSync('/tmp/_test_sinelec.txt', 'ok', 'utf8');
-      fs.unlinkSync('/tmp/_test_sinelec.txt');
-      console.log('✅ /tmp writable');
-    } catch(tmpErr) {
-      throw new Error('/tmp not writable: ' + tmpErr.message);
-    }
-    console.log('📄 generer START — type:', type, '| client:', client, '| nb prestations:', prestations?.length);
+    console.log('📄 generer START — type:', type, '| client:', client, '| prestations:', prestations?.length);
 
     // ── UPSERT FICHE CLIENT AUTO ──────────────────
     if (client && (email || telephone)) {
