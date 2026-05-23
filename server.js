@@ -1763,10 +1763,7 @@ app.post('/api/rapport/description', authMiddleware, async (req, res) => {
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 600,
-      messages: [{ role: 'user', content: `Tu es un électricien expert SINELEC Paris. Rédige une description professionnelle détaillée pour un rapport d'intervention.
-Travaux réalisés (résumé court) : "${chantier}"${client ? `\nClient : ${client}` : ''}${adresse ? `\nAdresse : ${adresse}` : ''}
-Écris un texte professionnel de 150-200 mots décrivant précisément les travaux, les matériaux utilisés, les normes respectées (NF C 15-100), et les tests effectués. Commence directement par la description.` }]
-    });
+      messages: [{ role: 'user', content: 'Tu es un électricien expert SINELEC Paris. Rédige une description professionnelle pour un rapport intervention.\nTravaux : "' + chantier + '"' + (client ? '\nClient : ' + client : '') + (adresse ? '\nAdresse : ' + adresse : '') + '\nÉcris 150-200 mots professionnels, normes NF C 15-100. Commence directement.' }]    });
     res.json({ success: true, description: response.content[0].text.trim() });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
