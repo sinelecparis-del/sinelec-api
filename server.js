@@ -1070,6 +1070,8 @@ app.get('/api/pdf/:num', async (req, res) => {
       prixUnit: p.prix || 0, total: (p.prix || 0) * (p.quantite || 1),
       details: p.desc ? [p.desc] : []
     }));
+    const datePaiement = data.date_paiement ? new Date(data.date_paiement).toLocaleDateString('fr-FR') : dateStr;
+    const modePaiement = String(data.mode_paiement || 'Règlement reçu').replace(/'/g,' ').substring(0,30);
     const jsonPayloadDl = {
       _meta: {
         type: docType, num,
@@ -1092,8 +1094,6 @@ app.get('/api/pdf/:num', async (req, res) => {
     const addrParts = (data.adresse || '').split(',');
     const clientRue = String(addrParts[0] || '').trim().replace(/'/g, ' ');
     const clientVille = addrParts.slice(1).join(',').trim().replace(/'/g, ' ');
-    const datePaiement = data.date_paiement ? new Date(data.date_paiement).toLocaleDateString('fr-FR') : dateStr;
-    const modePaiement = String(data.mode_paiement || 'Règlement reçu').replace(/'/g,' ').substring(0,30);
     const nomCourt = clientEsc.toUpperCase().split(' ').slice(0,2).join(' ').substring(0,14);
     const descObjet = String(data.description || 'Travaux d electricite generale').replace(/'/g,' ').replace(/"/g,' ').substring(0,120);
     const totalHT = detailsData.reduce((s,l) => s + l.total, 0);
