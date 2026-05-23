@@ -625,6 +625,16 @@ net=Table([[p('NET \u00c0 PAYER',13,'Helvetica-Bold',BLANC),p('%.2f \u20ac'%tota
 net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8),('LINEBELOW',(0,0),(-1,-1),2,OR)]))
 story.append(net)
 story.append(Spacer(1,0.3*cm))
+
+if is_paye:
+    date_p=str(meta.get('datePaiement',''))or str(meta.get('dateStr',''))
+    mode_p=str(meta.get('modePaiement','Règlement reçu'))
+    VERT_P=colors.HexColor('#16a34a')
+    VERT_BG=colors.HexColor('#f0fdf4')
+    story.append(Spacer(1,0.4*cm))
+    pr=Table([[p('PAIEMENT RE\u00c7U',9,'Helvetica-Bold',VERT_P,sa=4),''],[p('Date :',8,color=GRIS_SOFT),p(date_p,8,'Helvetica-Bold',MARINE,TA_RIGHT)],[p('Mode :',8,color=GRIS_SOFT),p(mode_p,8,'Helvetica-Bold',MARINE,TA_RIGHT)],[p('Montant encaiss\u00e9 :',9,'Helvetica-Bold',VERT_P),p('%.2f \u20ac'%totalHT,11,'Helvetica-Bold',VERT_P,TA_RIGHT)]],colWidths=[9.1*cm,9.1*cm])
+    pr.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),VERT_BG),('BOX',(0,0),(-1,-1),2,VERT_P),('SPAN',(0,0),(1,0)),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('LINEBELOW',(0,0),(-1,0),1,colors.HexColor('#bbf7d0')),('LINEABOVE',(0,3),(-1,3),1,colors.HexColor('#bbf7d0'))]))
+    story.append(pr)
 if doc_type=='devis' and totalHT>=400:
     acompte=totalHT*0.4; solde=totalHT*0.6
     ac_t=Table([[p('ACOMPTE',11,'Helvetica-Bold',MARINE,TA_CENTER),p('SOLDE',11,'Helvetica-Bold',MARINE,TA_CENTER)],[p('A la signature',8,'Helvetica',GRIS_SOFT,TA_CENTER),p('Fin des travaux',8,'Helvetica',GRIS_SOFT,TA_CENTER)],[p('40%',20,'Helvetica-Bold',OR,TA_CENTER),p('60%',20,'Helvetica-Bold',OR,TA_CENTER)],[p('%.2f \u20ac'%acompte,12,'Helvetica-Bold',MARINE,TA_CENTER),p('%.2f \u20ac'%solde,12,'Helvetica-Bold',MARINE,TA_CENTER)]],colWidths=[9.1*cm,9.1*cm])
@@ -1257,6 +1267,16 @@ net=Table([[p('NET \\u00c0 PAYER',13,'Helvetica-Bold',BLANC),p('%.2f \\u20ac'%to
 net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8),('LINEBELOW',(0,0),(-1,-1),2,OR)]))
 story.append(net)
 story.append(Spacer(1,0.3*cm))
+
+if is_paye:
+    date_p=str(meta.get('datePaiement',''))or str(meta.get('dateStr',''))
+    mode_p=str(meta.get('modePaiement','Règlement reçu'))
+    VERT_P=colors.HexColor('#16a34a')
+    VERT_BG=colors.HexColor('#f0fdf4')
+    story.append(Spacer(1,0.4*cm))
+    pr=Table([[p('PAIEMENT RE\\u00c7U',9,'Helvetica-Bold',VERT_P,sa=4),''],[p('Date :',8,color=GRIS_SOFT),p(date_p,8,'Helvetica-Bold',MARINE,TA_RIGHT)],[p('Mode :',8,color=GRIS_SOFT),p(mode_p,8,'Helvetica-Bold',MARINE,TA_RIGHT)],[p('Montant encaiss\\u00e9 :',9,'Helvetica-Bold',VERT_P),p('%.2f \\u20ac'%totalHT,11,'Helvetica-Bold',VERT_P,TA_RIGHT)]],colWidths=[9.1*cm,9.1*cm])
+    pr.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),VERT_BG),('BOX',(0,0),(-1,-1),2,VERT_P),('SPAN',(0,0),(1,0)),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('LINEBELOW',(0,0),(-1,0),1,colors.HexColor('#bbf7d0')),('LINEABOVE',(0,3),(-1,3),1,colors.HexColor('#bbf7d0'))]))
+    story.append(pr)
 if doc_type=='devis' and totalHT>=400:
     acompte=totalHT*0.4; solde=totalHT*0.6
     ac_t=Table([[p('ACOMPTE',11,'Helvetica-Bold',MARINE,TA_CENTER),p('SOLDE',11,'Helvetica-Bold',MARINE,TA_CENTER)],[p('A la signature',8,'Helvetica',GRIS_SOFT,TA_CENTER),p('Fin des travaux',8,'Helvetica',GRIS_SOFT,TA_CENTER)],[p('40%',20,'Helvetica-Bold',OR,TA_CENTER),p('60%',20,'Helvetica-Bold',OR,TA_CENTER)],[p('%.2f \\u20ac'%acompte,12,'Helvetica-Bold',MARINE,TA_CENTER),p('%.2f \\u20ac'%solde,12,'Helvetica-Bold',MARINE,TA_CENTER)]],colWidths=[9.1*cm,9.1*cm])
