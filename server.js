@@ -688,10 +688,11 @@ app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
     // Récupérer le PDF et le type du document
     let pdf_b64 = pdfB64;
     let docType = 'facture';
+    const { data: docInfo } = await supabase.from('historique').select('type').eq('num', num).single();
+    if (docInfo) docType = docInfo.type || 'facture';
     if (!pdf_b64) {
       const { data: doc } = await supabase.from('historique').select('*').eq('num', num).single();
       if (doc) {
-        docType = doc.type || 'facture';
         try {
           const pdfRes = await fetch(`${process.env.APP_URL || 'https://sinelec-api-production.up.railway.app'}/api/pdf/${num}`, {
             headers: { 'Authorization': req.headers['authorization'] || '' }
@@ -711,7 +712,7 @@ app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
     const signatureBlock = docType === 'devis' ? `
       <div style="background:#fffbf0;border:1.5px solid #C9A84C;border-radius:12px;padding:20px;text-align:center;margin:20px 0;">
         <p style="font-size:13px;color:#555;margin-bottom:16px;">Pour accepter ce devis, signez-le directement en ligne :</p>
-        <a href="${lienSig}" style="background:linear-gradient(135deg,#C9A84C,#daa520);color:#fff;text-decoration:none;border-radius:10px;padding:14px 28px;font-size:15px;font-weight:800;display:inline-block;">✍️ Signer le devis en ligne</a>
+        <a href="${appUrl}/api/track/click/${num}?redirect=/signer/${num}" style="background:linear-gradient(135deg,#C9A84C,#daa520);color:#fff;text-decoration:none;border-radius:10px;padding:14px 28px;font-size:15px;font-weight:800;display:inline-block;">✍️ Signer le devis en ligne</a>
         <p style="font-size:11px;color:#aaa;margin-top:12px;">Signature électronique valide — Loi n°2000-230</p>
       </div>` : '';
 
@@ -727,11 +728,8 @@ app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
       </div>
     </div>`;
 
-    // Pixel espion
-    const htmlWithPixel = htmlEmail + `<img src="${appUrl}/api/track/open/${num}" width="1" height="1" style="display:none">`;
-
     const attachment = pdf_b64 ? { content: pdf_b64, name: `${num}.pdf` } : null;
-    const emailRes = await envoyerEmail(email, sujet || `Document ${num} - SINELEC`, htmlWithPixel, attachment);
+    const emailRes = await envoyerEmail(email, sujet || `Document ${num} - SINELEC`, htmlEmail, attachment);
 
 
     // CC si fourni
@@ -754,6 +752,25 @@ app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
 // ═══════════════════════════════════════════════════
 // API: TRACKING EMAIL OPEN (pixel espion)
 // ═══════════════════════════════════════════════════
+app.get('/api/track/click/:num', async (req, res) => {
+  const { num } = req.params;
+  const redirect = req.query.redirect || `/signer/${num}`;
+  try {
+    const now = new Date().toISOString();
+    await supabase.from('historique').update({
+      email_ouvert: true,
+      nb_ouvertures: 1,
+      premiere_ouverture: now,
+      derniere_ouverture: now
+    }).eq('num', num).is('premiere_ouverture', null);
+    await supabase.from('historique').update({
+      email_ouvert: true,
+      derniere_ouverture: now
+    }).eq('num', num);
+  } catch(e) {}
+  res.redirect(redirect);
+});
+
 app.get('/api/track/open/:num', async (req, res) => {
   const { num } = req.params;
   try {
