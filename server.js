@@ -317,7 +317,6 @@ async function chargerGrilleTarifaire() {
 // ═══════════════════════════════════════════════════
 
 app.post('/api/generer', async (req, res) => {
-  let _step = 'init';
   if (!CONFIG.features.devis_factures) return res.status(403).json({ error: 'Feature désactivée' });
   try {
     const { type, client, email, telephone, adresse, complement, codePostal, ville, prenom, description, prestations, partenaire, part_diahe, part_partenaire, nom_partenaire, intervention_type, siret_client, num_existant } = req.body;
@@ -413,7 +412,7 @@ app.post('/api/generer', async (req, res) => {
     }
 
     // ── GÉNÉRATION PDF — toujours, email ou pas ──────
-    _step = 'pdf_setup';
+    let pdf_b64 = null;
     if (CONFIG.features.email_auto) {
       const typeLabelUpper = type === 'devis' ? 'DEVIS' : 'FACTURE';
       const dateStr = new Date().toLocaleDateString('fr-FR');
@@ -634,7 +633,6 @@ if doc_type=='devis':
 doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
 `;
       fs.writeFileSync(pyPath, py, 'utf8');
-      _step = 'python_exec';
       console.log('🐍 Python:', pyPath, '→', pdfPath);
       try {
         execSync(`python3 "${pyPath}" "${detailsPath}" "${pdfPath}"`, {
@@ -647,12 +645,11 @@ doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
       }
       if (!fs.existsSync(pdfPath)) throw new Error('PDF non généré');
       const pdfBuffer = fs.readFileSync(pdfPath);
-      const pdf_b64 = pdfBuffer.toString('base64');
+      pdf_b64 = pdfBuffer.toString('base64');
       try { fs.unlinkSync(pyPath); } catch(e) {}
       try { fs.unlinkSync(detailsPath); } catch(e) {}
       try { fs.unlinkSync(pdfPath); } catch(e) {}
 
-      _step = 'email';
       // Email si fourni
       if (email) {
         const prenomClient = extractPrenom(client);
@@ -672,11 +669,11 @@ doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
       }
     }
 
-    res.json({ success: true, num, pdf_b64: CONFIG.features.email_auto ? pdf_b64 : null, email_client: email });
+    res.json({ success: true, num, pdf_b64, email_client: email });
   } catch(error) {
     const msg = error.message || String(error);
-    console.error('❌ /api/generer error at step [' + (_step||'?') + ']:', msg);
-    res.status(500).json({ error: msg, step: _step || 'unknown', hint: 'Check Railway logs for details' });
+    console.error('❌ /api/generer error:', msg);
+    if (!res.headersSent) res.status(500).json({ error: msg });
   }
 });
 
