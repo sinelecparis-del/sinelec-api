@@ -665,22 +665,7 @@ doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
       try { fs.unlinkSync(detailsPath); } catch(e) {}
       try { fs.unlinkSync(pdfPath); } catch(e) {}
 
-      // Email si fourni
-      if (email) {
-        const prenomClient = extractPrenom(client);
-        const lienSig = `${process.env.APP_URL || 'https://sinelec-api-production.up.railway.app'}/signer/${num}`;
-        let htmlEmail = CONFIG.email[`template_${type}`]
-          .replace('{num}', num)
-          .replace('{lien_signature}', lienSig);
-        try {
-          const msgId = await envoyerEmail(email, `Votre ${type} n° ${num} - SINELEC Paris`, htmlEmail, { content: pdf_b64, name: `${num}.pdf` });
-          await supabase.from('historique').update({ email_msgid: msgId?.messageId || null }).eq('num', num);
-          // Copie à Diahe
-          console.log(`✅ Email envoyé: ${num} → ${email}`);
-        } catch(emailErr) {
-          console.error('⚠️ Email error (non bloquant):', emailErr.message);
-        }
-      }
+      // Email NON envoyé automatiquement — cliquer sur "Envoyer" manuellement
     }
 
     res.json({ success: true, num, pdf_b64, email_client: email });
