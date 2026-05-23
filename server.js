@@ -1773,4 +1773,268 @@ app.post('/api/avis/compteur', authMiddleware, async (req, res) => {
       await supabase.from('compteurs').insert({ type: 'avis_google', valeur: nb });
     }
     res.json({ success: true });
-  } catch
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/avis/generer', authMiddleware, async (req, res) => {
+  try {
+    const { texte, etoiles, intervention } = req.body;
+    const prompt = `Tu es l'assistant de SINELEC, électricien Paris (Diahe).
+Génère une réponse professionnelle et chaleureuse à cet avis Google ${etoiles} étoile(s).
+AVIS : "${texte}"${intervention ? `\nINTERVENTION : ${intervention}` : ''}
+RÈGLES :
+- 40 à 70 mots maximum
+- Intègre 2-3 mots-clés SEO : électricien Paris, dépannage électrique Paris, NF C 15-100
+- ${etoiles >= 4 ? 'Remercie sincèrement, valorise le point positif' : 'Réponds calmement, propose de résoudre'}
+- Termine par : Diahe — SINELEC ⚡
+- Donne UNIQUEMENT la réponse, sans introduction ni guillemets`;
+
+    const response = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 200,
+      messages: [{ role: 'user', content: prompt }]
+    });
+    res.json({ success: true, reponse: response.content[0].text.trim() });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════
+// API: ANALYSE DPE
+// ═══════════════════════════════════════════════════
+app.post('/api/dpe', async (req, res) => {
+  try {
+    const { pdf_base64, pdf_type, pdf_text, nom_client, adresse_client } = req.body;
+    if (!pdf_base64 && !pdf_text) return res.status(400).json({ error: 'PDF ou texte DPE manquant' });
+
+    const promptBase = `Tu es un expert électricien parisien (SINELEC) qui analyse les DPE (Diagnostics de Performance Énergétique).
+Tu te concentres EXCLUSIVEMENT sur les travaux électriques. Ignore : isolation, fenêtres, toiture, chaudière gaz, etc.
+
+Analyse ce DPE et réponds UNIQUEMENT en JSON valide (sans backticks, sans markdown) :
+{
+  "logement": {
+    "surface": 65,
+    "classe_dpe": "E",
+    "annee_construction": "1975",
+    "chauffage": "Convecteurs électriques",
+    "eau_chaude": "Chauffe-eau électrique",
+    "vmc": "Absente",
+    "tableau": "Non conforme"
+  },
+  "recommandations": [
+    {
+      "id": "tableau",
+      "titre": "Remplacement tableau électrique",
+      "description": "Tableau vétuste non conforme NF C 15-100, protections insuffisantes.",
+      "priorite": "haute",
+      "prestations": [
+        {"nom": "Tableau complet 2 rangées", "prix": 1500, "quantite": 1}
+      ]
+    }
+  ],
+  "total_general": 2500
+}
+Priorités possibles : haute, moyenne, basse.
+Garde uniquement les travaux électriques pertinents (max 5-6 recommandations).`;
+
+    let messageContent;
+    if (pdf_base64) {
+      const mediaType = pdf_type || 'application/pdf';
+      if (mediaType.startsWith('image/')) {
+        messageContent = [
+          { type: 'image', source: { type: 'base64', media_type: mediaType, data: pdf_base64 } },
+          { type: 'text', text: promptBase }
+        ];
+      } else {
+        messageContent = [
+          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdf_base64 } },
+          { type: 'text', text: promptBase }
+        ];
+      }
+    } else {
+      messageContent = `${promptBase}\n\nContenu du DPE :\n---\n${(pdf_text || '').substring(0, 20000)}\n---`;
+    }
+
+    const response = await anthropic.messages.create({
+      model: 'claude-opus-4-5',
+      max_tokens: 2000,
+      messages: [{ role: 'user', content: messageContent }]
+    });
+
+    const rawText = response.content[0].text.trim().replace(/```json|```/g, '').trim();
+    const result = JSON.parse(rawText);
+    result.recommandations = (result.recommandations || []).map(r => ({
+      ...r,
+      total: (r.prestations || []).reduce((s, p) => s + p.prix * (p.quantite || 1), 0)
+    }));
+    result.total_general = result.recommandations.reduce((s, r) => s + (r.total || 0), 0);
+    res.json({ success: true, ...result });
+  } catch(e) {
+    console.error('❌ DPE error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════
+// API: SANTÉ SYSTÈME
+// ═══════════════════════════════════════════════════
+async function verifierSante() {
+  const services = {};
+  // Brevo email
+  try {
+    const r = await fetch('https://api.brevo.com/v3/account', { headers: { 'api-key': BREVO_API_KEY || '' } });
+    services.brevo_email = { status: r.ok ? 'ok' : 'error' };
+  } catch(e) { services.brevo_email = { status: 'error' }; }
+  // Supabase
+  try {
+    const { error } = await supabase.from('compteurs').select('count').limit(1);
+    services.supabase = { status: error ? 'error' : 'ok' };
+  } catch(e) { services.supabase = { status: 'error' }; }
+  // Claude API
+  try {
+    services.claude_api = { status: (process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY.trim().length > 10) ? 'ok' : 'error' };
+  } catch(e) { services.claude_api = { status: 'unknown' }; }
+  // Python PDF
+  try {
+    execSync('python3 -c "from reportlab.lib.pagesizes import A4; print(\'ok\')"', { timeout: 5000 });
+    services.pdf_python = { status: 'ok' };
+  } catch(e) { services.pdf_python = { status: 'error' }; }
+  const allOk = Object.values(services).every(s => s.status === 'ok');
+  await supabase.from('logs_system').insert({ type: 'sante', message: 'Health check', data: services, success: allOk }).catch(() => {});
+  return { global: allOk ? 'ok' : 'degraded', services };
+}
+
+app.get('/api/sante', authMiddleware, async (req, res) => {
+  try {
+    const result = await verifierSante();
+    res.json(result);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/sante/verifier', authMiddleware, async (req, res) => {
+  try {
+    const result = await verifierSante();
+    res.json(result);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════
+// API: SUMUP LIEN PAIEMENT
+// ═══════════════════════════════════════════════════
+app.post('/api/sumup/lien/:num', async (req, res) => {
+  try {
+    const { num } = req.params;
+    const { envoi } = req.query;
+    const { data: doc } = await supabase.from('historique').select('*').eq('num', num).single();
+    if (!doc) return res.status(404).json({ error: 'Document non trouvé' });
+    const total = parseFloat(doc.total_ht || 0);
+    const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+    const lien = `${appUrl}/paiement-confirme/${num}?montant=${total.toFixed(2)}`;
+    if (envoi === 'sms' || envoi === 'les2') {
+      if (doc.telephone) {
+        const msg = `Bonjour ${extractPrenom(doc.client)}, votre facture SINELEC ${num} de ${total.toFixed(0)}€ est disponible. Réglez en ligne : ${lien} — SINELEC ⚡`;
+        await envoyerSMS(doc.telephone, msg);
+      }
+    }
+    if (envoi === 'email' || envoi === 'les2') {
+      if (doc.email) {
+        const html = `<p>Bonjour, votre facture SINELEC n°${num} d'un montant de ${total.toFixed(2)}€ est disponible.<br><a href="${lien}">Régler en ligne</a></p>`;
+        await envoyerEmail(doc.email, `Facture ${num} — Lien de paiement SINELEC`, html);
+      }
+    }
+    res.json({ success: true, lien });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════
+// API: RELANCES AUTO
+// ═══════════════════════════════════════════════════
+app.post('/api/relances/lancer', authMiddleware, async (req, res) => {
+  try {
+    const since = new Date(Date.now() - 48*3600*1000).toISOString();
+    const { data: devis } = await supabase.from('historique')
+      .select('*').eq('type', 'devis').eq('statut', 'envoye').lte('created_at', since);
+    let nb = 0;
+    for (const d of (devis || [])) {
+      if (d.telephone) {
+        await envoyerSMS(d.telephone, `Bonjour ${extractPrenom(d.client)}, votre devis SINELEC n°${d.num} de ${parseFloat(d.total_ht||0).toFixed(0)}€ attend votre validation. 📞 07 87 38 86 22`);
+        nb++;
+      }
+    }
+    res.json({ success: true, nb_relances: nb });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════
+// API: OTP SIGNATURE
+// ═══════════════════════════════════════════════════
+app.post('/api/otp-signature', async (req, res) => {
+  try {
+    const { num, telephone } = req.body;
+    const code = String(Math.floor(1000 + Math.random() * 9000));
+    await supabase.from('historique').update({ otp_code: code, otp_expiry: new Date(Date.now() + 15*60*1000).toISOString() }).eq('num', num);
+    await envoyerSMS(telephone, `Votre code SINELEC : ${code}. Valable 15 minutes.`);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════
+// CRON JOBS
+// ═══════════════════════════════════════════════════
+// Email récap agenda à 7h chaque jour
+cron.schedule('0 7 * * *', async () => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const { data: interventions } = await supabase.from('agenda')
+      .select('*')
+      .gte('date_intervention', today)
+      .lte('date_intervention', today)
+      .order('heure', { ascending: true });
+
+    const nb = (interventions || []).length;
+    const liste = (interventions || []).map(iv =>
+      `• ${iv.heure || '?'} — ${iv.client || 'Client'} — ${iv.adresse || ''} — ${iv.type_intervention || ''}`
+    ).join('\n');
+
+    const html = `<h2>📅 Agenda du jour — ${new Date().toLocaleDateString('fr-FR')}</h2>
+    <p>${nb} intervention${nb > 1 ? 's' : ''} prévue${nb > 1 ? 's' : ''}</p>
+    <pre style="background:#f5f5f5;padding:12px;border-radius:8px;font-family:monospace;">${liste || 'Aucune intervention'}</pre>`;
+
+    await envoyerEmail('sinelec.paris@gmail.com', `⚡ Agenda du ${new Date().toLocaleDateString('fr-FR')} — ${nb} intervention${nb>1?'s':''}`, html);
+    console.log(`✅ Récap agenda envoyé: ${nb} interventions`);
+  } catch(e) { console.error('Cron agenda:', e.message); }
+});
+
+// Rappel SMS client veille à 18h
+cron.schedule('0 18 * * *', async () => {
+  try {
+    const tomorrow = new Date(Date.now() + 24*3600*1000).toISOString().split('T')[0];
+    const { data: interventions } = await supabase.from('agenda')
+      .select('*')
+      .eq('date_intervention', tomorrow)
+      .eq('sms_rappel', true);
+
+    for (const iv of (interventions || [])) {
+      if (iv.telephone) {
+        const heure = iv.heure ? ` à ${iv.heure}` : '';
+        const msg = `Bonjour ${iv.client || ''}, rappel de votre intervention SINELEC demain${heure}. 📞 07 87 38 86 22`;
+        await envoyerSMS(iv.telephone, msg);
+        await supabase.from('agenda').update({ sms_rappel_envoye: true }).eq('id', iv.id);
+      }
+    }
+  } catch(e) { console.error('Cron rappel:', e.message); }
+});
+
+// Santé toutes les heures
+cron.schedule('0 * * * *', async () => {
+  try { await verifierSante(); } catch(e) {}
+});
+
+// ═══════════════════════════════════════════════════
+// START
+// ═══════════════════════════════════════════════════
+app.listen(PORT, () => {
+  console.log(`⚡ SINELEC OS v2.0 démarré sur le port ${PORT}`);
+  console.log(`📊 Supabase: ${process.env.SUPABASE_URL ? '✅' : '❌'}`);
+  console.log(`🤖 Claude API: ${process.env.ANTHROPIC_API_KEY ? '✅' : '❌'}`);
+  console.log(`📧 Brevo: ${BREVO_API_KEY ? '✅' : '❌'}`);
+});
