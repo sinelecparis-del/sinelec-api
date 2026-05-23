@@ -1132,6 +1132,8 @@ try:
     logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
 except:
     logo_bytes=None
+IS_PAYE = ${isPaye ? 'True' : 'False'}
+IS_SIGNE = '${docType}'=='devis' and '${docStatut}' in ('signe','signé')
 class SC(pdfcanvas.Canvas):
     def __init__(self,fn,**kw): pdfcanvas.Canvas.__init__(self,fn,**kw); self._pg=0; self.saveState(); self._draw_page()
     def showPage(self): self._draw_footer(); pdfcanvas.Canvas.showPage(self); self._pg+=1
@@ -1181,9 +1183,7 @@ class SC(pdfcanvas.Canvas):
         self.setFont('Helvetica-Bold',7); self.setFillColor(OR); self.drawRightString(W-1.2*cm,0.28*cm,'${num}')
         self.restoreState()
     def _draw_tampons(self):
-        IS_PAYE = ${isPaye ? 'True' : 'False'}
-        IS_SIGNE = '${docType}'=='devis' and '${docStatut}' in ('signe','signé')
-        rouge = colors.HexColor('#cc0000'); vert=colors.HexColor('#16a34a')
+        vert=colors.HexColor('#16a34a')
         couleur = vert if (IS_PAYE or IS_SIGNE) else None
         if not couleur: return
         cx=W-4.2*cm; cy=2.8*cm; r=1.9*cm
