@@ -2923,22 +2923,8 @@ window.fetch = function(url, options = {}) {
   if (token && typeof url === 'string' && url.startsWith('/api/') && !url.startsWith('/api/login')) {
     options.headers = options.headers || {};
     options.headers['Authorization'] = `Bearer ${token}`;
-    return _originalFetch(url, options).then(async res => {
+    return _originalFetch(url, options).then(res => {
       if (res.status === 401) { clearToken(); afficherLogin(); }
-      if (res.status === 500) {
-        // Clone pour lire le body sans le consommer
-        const clone = res.clone();
-        try {
-          const errData = await clone.json();
-          const msg = errData.error || errData.message || JSON.stringify(errData);
-          const step = errData.step ? ` [${errData.step}]` : '';
-          console.error('🚨 500 sur', url + step + ':', msg);
-          // Toast rouge visible
-          if (typeof showToast === 'function') showToast('🚨 Erreur ' + url.split('/').pop() + step + ': ' + msg.substring(0,80), '❌');
-        } catch(e) {
-          console.error('🚨 500 sur', url, '(réponse non-JSON)');
-        }
-      }
       return res;
     });
   }
@@ -4106,20 +4092,7 @@ function afficherListeAgenda() {
   const todayStr = today.toISOString().split('T')[0];
   const intervs = agendaInterventions.filter(iv => (iv.date_intervention||'') >= todayStr).sort((a,b) => (a.date_intervention+'T'+(a.heure||'00:00')).localeCompare(b.date_intervention+'T'+(b.heure||'00:00')));
   if (intervs.length === 0) { liste.innerHTML = '<div class="panier-empty">Aucune intervention à venir</div>'; return; }
-  // Récap SMS envoyés aujourd'hui
-  const smsSent = intervs.filter(iv => iv.sms_rappel_envoye);
-  const smsPrevu = intervs.filter(iv => iv.sms_rappel && !iv.sms_rappel_envoye);
-  let recapHtml = '';
-  if (smsSent.length > 0) {
-    recapHtml = `<div style="background:rgba(22,163,74,0.08);border:1px solid rgba(22,163,74,0.3);border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#16a34a;">
-      📱 <strong>${smsSent.length} SMS de rappel envoyé${smsSent.length>1?'s':''}</strong> — ${smsSent.map(iv=>iv.client||'Client').join(', ')}
-    </div>`;
-  } else if (smsPrevu.length > 0) {
-    recapHtml = `<div style="background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.3);border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#C9A84C;">
-      ⏳ <strong>${smsPrevu.length} SMS prévu${smsPrevu.length>1?'s':''} ce soir à 18h</strong> — ${smsPrevu.map(iv=>iv.client||'Client').join(', ')}
-    </div>`;
-  }
-  liste.innerHTML = recapHtml + intervs.map(iv => {
+  liste.innerHTML = intervs.map(iv => {
     const nom = iv.client || `${iv.prenom||''} ${iv.nom||''}`.trim() || 'Client';
     const adresseEnc = iv.adresse ? encodeURIComponent(iv.adresse) : '';
     return `
@@ -4166,8 +4139,6 @@ function afficherListeAgenda() {
           onblur_="this.style.borderColor='rgba(0,0,0,0.1)'">
       </div>
 
-      <!-- Badge SMS -->
-      <div style="margin-bottom:8px;">${smsBadgeHtml(iv)}</div>
       <!-- Actions -->
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         ${iv.telephone?`<a href="tel:${iv.telephone}" style="background:rgba(59,130,246,0.1);color:#3b82f6;border:1px solid rgba(59,130,246,0.3);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;text-decoration:none;">📞 ${iv.telephone}</a>`:''}
@@ -4178,35 +4149,6 @@ function afficherListeAgenda() {
       </div>
     </div>`;
   }).join('');
-}
-
-function smsBadgeHtml(iv) {
-  if (iv.sms_rappel_envoye) {
-    return '<span style="background:rgba(22,163,74,0.1);border:1px solid rgba(22,163,74,0.4);color:#16a34a;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;">✅ SMS rappel envoyé</span>';
-  } else if (iv.sms_rappel) {
-    return '<span style="background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.4);color:#C9A84C;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;">⏳ SMS prévu à 18h</span>'
-      + ' <button onclick="envoyerSMSRappelManuel(' + "'" + iv.id + "'" + ')" style="background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.4);color:#C9A84C;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;cursor:pointer;margin-left:6px;">📱 Maintenant</button>';
-  } else {
-    return '<span style="background:rgba(0,0,0,0.04);border:1px solid rgba(0,0,0,0.1);color:#aaa;border-radius:20px;padding:3px 10px;font-size:11px;">📵 SMS désactivé</span>';
-  }
-}
-
-async function envoyerSMSRappelManuel(id) {
-  try {
-    const res = await fetch('/api/agenda/'+id+'/sms', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (window._authToken||'') }
-    });
-    const data = await res.json();
-    if (data.success) {
-      showToast('📱 SMS de rappel envoyé !', '✅');
-      const iv = agendaInterventions.find(i => i.id == id);
-      if (iv) { iv.sms_rappel_envoye = true; }
-      afficherListeAgenda();
-    } else {
-      showToast('❌ SMS: ' + (data.error||'Erreur'), '⚠️');
-    }
-  } catch(e) { showToast('❌ Erreur SMS', '⚠️'); }
 }
 
 async function majAgendaChamp(id, champ, valeur) {
@@ -8649,8 +8591,7 @@ async function generer(type) {
     const rawResponse = await res.text();
     let data;
     try { data = JSON.parse(rawResponse); }
-    catch(e) { throw new Error('Serveur erreur '+res.status+': ' + rawResponse.substring(0,300)); }
-    console.log('📡 /api/generer réponse:', data);
+    catch(e) { throw new Error('Erreur serveur '+res.status+': ' + rawResponse.substring(0,200)); }
     if (data.success) {
       const isUpdate = type === 'devis' && window._devisARemplacer;
       showToast(`${isUpdate ? '🔄 Devis mis à jour' : '✅ ' + (type === 'devis' ? 'Devis' : 'Facture')} ${data.num} !`, '⚡');
