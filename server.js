@@ -1115,6 +1115,7 @@ def p(txt,sz=9,font='Helvetica',color=GRIS_TEXTE,align=TA_LEFT,sb=0,sa=2,leading
 raw=json.loads(open(sys.argv[1],encoding='utf-8').read())
 meta=raw.get('_meta',{}) if isinstance(raw,dict) else {}
 data=raw.get('_items',raw) if isinstance(raw,dict) and '_items' in raw else (raw if isinstance(raw,list) else [])
+doc_type=str(meta.get('type','devis')).lower()
 totalHT=sum(float(l.get('total',0)) for l in data if not l.get('_section'))
 try:
     logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
