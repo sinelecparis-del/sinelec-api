@@ -317,6 +317,7 @@ async function chargerGrilleTarifaire() {
 // ═══════════════════════════════════════════════════
 
 app.post('/api/generer', async (req, res) => {
+  let _step = 'init';
   if (!CONFIG.features.devis_factures) return res.status(403).json({ error: 'Feature désactivée' });
   try {
     const { type, client, email, telephone, adresse, complement, codePostal, ville, prenom, description, prestations, partenaire, part_diahe, part_partenaire, nom_partenaire, intervention_type, siret_client, num_existant } = req.body;
@@ -366,7 +367,6 @@ app.post('/api/generer', async (req, res) => {
       }
     }
 
-    let _step = 'init';
     console.log('📄 generer START — type:', type, '| client:', client, '| prestations:', prestations?.length);
 
     // ── UPSERT FICHE CLIENT AUTO ──────────────────
