@@ -1,3 +1,16 @@
+// ═══════════════════════════════════════════════════
+// CRASH HANDLERS — Logs tout avant de mourir
+// ═══════════════════════════════════════════════════
+process.on('uncaughtException', (err) => {
+  console.error('💥 CRASH uncaughtException:', err.message);
+  console.error('💥 Stack:', err.stack);
+  process.exit(1);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('💥 CRASH unhandledRejection:', reason?.message || reason);
+  console.error('💥 Stack:', reason?.stack || '');
+});
+
 // ═══════════════════════════════════════════════════════════════
 // SINELEC OS v2.0 - BACKEND COMPLET - VERSION PROPRE
 // ═══════════════════════════════════════════════════════════════
@@ -6,7 +19,6 @@ const express = require('express');
 const cors = require('cors');
 const cron = require('node-cron');
 const { createClient } = require('@supabase/supabase-js');
-const ws = require('ws');
 const Anthropic = require('@anthropic-ai/sdk');
 const crypto = require('crypto');
 const { execSync } = require('child_process');
@@ -93,10 +105,13 @@ app.get('/api/auth/check', (req, res) => {
 // CLIENTS
 // ═══════════════════════════════════════════════════
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY, {
-  realtime: { transport: ws }
-});
-const anthropic = new Anthropic({ apiKey: (process.env.ANTHROPIC_API_KEY || '').trim() });
+const supabase = createClient(
+  process.env.SUPABASE_URL || '',
+  process.env.SUPABASE_KEY || ''
+);
+let anthropic;
+try { anthropic = new Anthropic({ apiKey: (process.env.ANTHROPIC_API_KEY || '').trim() }); }
+catch(e) { console.error('⚠️ Anthropic init:', e.message); anthropic = null; }
 const BREVO_API_KEY = process.env.BREVO_API_KEY;
 const SUMUP_API_KEY = process.env.SUMUP_API_KEY;
 
