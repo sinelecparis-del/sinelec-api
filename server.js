@@ -1113,8 +1113,10 @@ VERT=colors.HexColor('#16a34a')
 def p(txt,sz=9,font='Helvetica',color=GRIS_TEXTE,align=TA_LEFT,sb=0,sa=2,leading=None):
     if leading is None: leading=sz*1.35
     return Paragraph(str(txt),ParagraphStyle('s',fontName=font,fontSize=sz,textColor=color,alignment=align,spaceBefore=sb,spaceAfter=sa,leading=leading,wordWrap='CJK'))
-data=json.loads(open(sys.argv[1],encoding='utf-8').read())
-totalHT=sum(l.get('total',0) for l in data if not l.get('_section'))
+raw=json.loads(open(sys.argv[1],encoding='utf-8').read())
+meta=raw.get('_meta',{}) if isinstance(raw,dict) else {}
+data=raw.get('_items',raw) if isinstance(raw,dict) and '_items' in raw else (raw if isinstance(raw,list) else [])
+totalHT=sum(float(l.get('total',0)) for l in data if not l.get('_section'))
 try:
     logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
 except:
