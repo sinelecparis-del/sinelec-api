@@ -3100,7 +3100,7 @@ function afficherHistorique() {
 
   container.innerHTML = filtered.map(item => {
     const statut = (item.statut || '').toLowerCase();
-    const type = item.type || 'facture';
+    const type = item.type || (item.num?.startsWith('OS-') ? 'devis' : 'facture');
     const isObat = item.source === 'obat';
     const montant = parseFloat(item.total_ht || item.totalht || 0).toFixed(0);
     const timeline = getTimeline(item.created_at || item.date);
@@ -6041,7 +6041,7 @@ function renderTableauHistorique() {
 
   tbody.innerHTML = pageData.map(item => {
     const statut = (item.statut||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-    const type = item.type || 'facture';
+    const type = item.type || (item.num?.startsWith('OS-') ? 'devis' : 'facture');
     const isObat = item.source === 'obat';
     const montant = parseFloat(item.total_ht||0).toFixed(0);
     const date = new Date(item.created_at||item.date).toLocaleDateString('fr-FR');
@@ -7160,7 +7160,7 @@ function ouvrirActionSheet(item) {
   const isMobile = window.innerWidth <= 768;
   if (!isMobile) return false; // Sur desktop → comportement normal
 
-  const type = (item.type||'').toLowerCase();
+  const type = (item.type||'').toLowerCase() || (item.num?.startsWith('OS-') ? 'devis' : 'facture');
   const statut = (item.statut||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
   const isObat = item.source === 'obat';
   const estSigne = ['signe','signed'].includes(statut);
@@ -7187,9 +7187,9 @@ function ouvrirActionSheet(item) {
       items.push({ icon:'✏️', label:'Modifier le devis', fn:`modifierDevis('${item.num}')`, gold:true });
     }
     if (type === 'devis') items.push({ icon:'💶', label:'Convertir en facture', fn:`convertirEnFacture('${item.num}')` });
-    if (type === 'devis' && !estSigne) {
+    if (type === 'devis') {
       items.push({ icon:'✍️', label:'Signature client', fn:`ouvrirPopupSig('${item.num}')` });
-      items.push({ icon:'✅', label:'Marquer signé', fn:`marquerSigne('${item.num}')` });
+      if (!estSigne) items.push({ icon:'✅', label:'Marquer signé', fn:`marquerSigne('${item.num}')` });
     }
     if (type === 'facture' && !estPaye && !estAnnule) {
       items.push({ icon:'💳', label:'Payé — Terminal CB', fn:`marquerPaye('${item.num}','terminal')` });
