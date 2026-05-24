@@ -1572,20 +1572,14 @@ table.histo-table tr:hover td { background:#fafbff; }
       <div class="acc-next-client" id="acc-next-client">—</div>
       <div class="acc-next-addr" id="acc-next-addr">—</div>
       <span class="acc-next-type" id="acc-next-type">—</span>
-      <div class="acc-next-btns" style="flex-wrap:wrap;">
+      <div class="acc-next-btns">
         <button class="acc-next-btn green" id="acc-next-waze" onclick="">🗺️ Waze</button>
         <button class="acc-next-btn dark" id="acc-next-tel" onclick="">📞 Appeler</button>
         <button class="acc-next-btn dark" id="acc-next-devis" onclick="">📋 Devis</button>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
-        <button id="acc-next-terminer" onclick="terminerProchaineIntervention()"
-          style="padding:11px;border-radius:10px;border:none;background:#16a34a;color:#fff;font-size:13px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
-          ✅ Terminé
-        </button>
-        <button id="acc-next-suivant" onclick="suivanteProchaineIntervention()"
-          style="padding:11px;border-radius:10px;border:1px solid rgba(0,0,0,0.12);background:rgba(255,255,255,0.7);color:rgba(0,0,0,0.6);font-size:13px;font-weight:700;cursor:pointer;display:none;align-items:center;justify-content:center;gap:6px;">
-          → Suivante
-        </button>
+        <button id="acc-next-terminer" onclick="terminerProchaineIntervention()" style="padding:11px;border-radius:10px;border:none;background:#16a34a;color:#fff;font-size:13px;font-weight:800;cursor:pointer;">✅ Terminé</button>
+        <button id="acc-next-suivant" onclick="suivanteProchaineIntervention()" style="padding:11px;border-radius:10px;border:1px solid rgba(0,0,0,0.12);background:rgba(255,255,255,0.7);color:rgba(0,0,0,0.6);font-size:13px;font-weight:700;cursor:pointer;display:none;">→ Suivante</button>
       </div>
     </div>
 
@@ -2359,61 +2353,7 @@ table.histo-table tr:hover td { background:#fafbff; }
 
 <div id="page-vocal" class="page"><div class="content"><div class="section"><div class="section-title">🎙️ Script Vocal IA</div><div id="vocal-content"></div></div></div></div>
 <div id="page-chat" class="page"><div class="content"><div class="section"><div class="section-title">🤖 Chat AI</div><div id="chat-messages" style="min-height:200px;"></div><div style="display:flex;gap:10px;margin-top:16px;"><input type="text" id="chat-input" placeholder="Décris le chantier..." style="flex:1;background:rgba(255,255,255,0.65);border:1.5px solid rgba(218,165,32,0.15);border-radius:12px;padding:14px 16px;color:var(--text);font-size:15px;outline:none;" onkeypress="if(event.key==='Enter') envoyerMessage()"><button onclick="envoyerMessage()" style="background:linear-gradient(135deg,var(--accent),var(--gold));color:#fff;border:none;border-radius:12px;padding:14px 20px;font-weight:800;cursor:pointer;font-size:20px;">→</button></div></div></div></div>
-<div id="page-dpe" class="page">
-<div class="content" style="max-width:700px;">
-
-  <div class="section">
-    <div class="section-title">📄 Importer le DPE</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
-      <div class="input-group" style="margin-bottom:0;">
-        <label>Nom client</label>
-        <input type="text" id="dpe-nom" placeholder="DUPONT Marie" style="width:100%;background:rgba(255,255,255,0.65);border:1.5px solid rgba(218,165,32,0.15);border-radius:12px;padding:13px 16px;font-size:14px;color:var(--text);outline:none;">
-      </div>
-      <div class="input-group" style="margin-bottom:0;">
-        <label>Adresse</label>
-        <input type="text" id="dpe-adresse" placeholder="12 rue de la Paix, 75001 Paris" style="width:100%;background:rgba(255,255,255,0.65);border:1.5px solid rgba(218,165,32,0.15);border-radius:12px;padding:13px 16px;font-size:14px;color:var(--text);outline:none;">
-      </div>
-    </div>
-    <label for="dpe-file-input" id="dpe-upload-zone" style="display:block;border:2.5px dashed rgba(232,184,75,0.4);border-radius:16px;padding:36px 20px;text-align:center;cursor:pointer;background:rgba(232,184,75,0.04);transition:all 0.2s;" onmouseover="this.style.borderColor='var(--accent)';this.style.background='rgba(232,184,75,0.08)'" onmouseout="this.style.borderColor='rgba(232,184,75,0.4)';this.style.background='rgba(232,184,75,0.04)'">
-      <div style="font-size:44px;margin-bottom:10px;">🏠</div>
-      <div style="font-size:15px;font-weight:800;color:var(--text);margin-bottom:6px;">Importer le PDF du DPE</div>
-      <div style="font-size:12px;color:var(--text-3);">Cliquer pour sélectionner le PDF</div>
-      <div id="dpe-file-name" style="margin-top:10px;font-size:13px;font-weight:700;color:var(--accent);display:none;"></div>
-    </label>
-    <input type="file" id="dpe-file-input" accept="application/pdf,image/*" style="display:none;" onchange="dpeSelectFile(this)">
-    <div style="margin-top:12px;">
-      <div style="font-size:11px;font-weight:700;color:var(--text-3);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">✏️ Ou coller le texte du DPE manuellement</div>
-      <textarea id="dpe-texte-manuel" rows="4" placeholder="Colle ici le contenu texte du DPE si pas de PDF..." style="width:100%;background:rgba(255,255,255,0.65);border:1.5px solid rgba(218,165,32,0.15);border-radius:12px;padding:13px 16px;font-size:13px;color:var(--text);outline:none;resize:vertical;font-family:inherit;"></textarea>
-    </div>
-    <button onclick="analyserDPE()" class="btn-gen" style="margin-top:14px;" id="dpe-btn-analyser">
-      🤖 Analyser le DPE et générer les recommandations
-    </button>
-    <div id="dpe-status" class="status"></div>
-  </div>
-
-  <div id="dpe-results" style="display:none;">
-    <div class="section">
-      <div class="section-title">🏠 Logement analysé</div>
-      <div id="dpe-logement-info" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;"></div>
-    </div>
-    <div class="section">
-      <div class="section-title">⚡ Recommandations électriques</div>
-      <div id="dpe-reco-list" style="display:flex;flex-direction:column;gap:12px;"></div>
-    </div>
-    <div style="background:linear-gradient(135deg,#E8B84B,#C9962A);border-radius:16px;padding:20px 24px;display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;box-shadow:0 8px 24px rgba(232,184,75,0.25);">
-      <div>
-        <div style="font-size:11px;font-weight:800;color:rgba(0,0,0,0.6);letter-spacing:1.5px;text-transform:uppercase;">TOTAL ESTIMÉ</div>
-        <div id="dpe-total-amount" style="font-size:32px;font-weight:900;color:#000;letter-spacing:-1px;">0 €</div>
-      </div>
-      <button onclick="dpeGenererDevis()" style="background:#000;color:#E8B84B;border:none;border-radius:12px;padding:14px 22px;font-size:14px;font-weight:800;cursor:pointer;">
-        📋 Générer le devis
-      </button>
-    </div>
-    <button onclick="resetDPE()" style="width:100%;background:none;border:1px solid var(--border);border-radius:12px;padding:11px;font-size:13px;color:var(--text-3);cursor:pointer;margin-bottom:20px;">🔄 Analyser un autre DPE</button>
-  </div>
-
-</div>
-</div>
+<div id="page-dpe" class="page"><div class="content"><div class="section"><div class="section-title">🏠 Analyse DPE</div><div id="dpe-content"></div></div></div></div>
 <div id="page-rapport" class="page"><div class="content">
   <div class="section">
     <div class="section-title">📸 Rapport d'intervention</div>
@@ -2866,10 +2806,6 @@ table.histo-table tr:hover td { background:#fafbff; }
           style="background:#1B2A4A;color:#fff;border:none;border-radius:10px;padding:11px 20px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;transition:background 0.2s;">
           <span id="preview-btn-envoyer-text">Envoyer le document</span>
         </button>
-        <button id="preview-btn-sms-sig" onclick="envoyerSignatureSMS()"
-          style="background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border:none;border-radius:10px;padding:11px 20px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;white-space:nowrap;">
-          📱 Signer par SMS
-        </button>
       </div>
     </div>
 
@@ -3164,7 +3100,7 @@ function afficherHistorique() {
 
   container.innerHTML = filtered.map(item => {
     const statut = (item.statut || '').toLowerCase();
-    const type = item.type || (item.num?.startsWith('OS-') ? 'devis' : 'facture');
+    const type = item.type || 'facture';
     const isObat = item.source === 'obat';
     const montant = parseFloat(item.total_ht || item.totalht || 0).toFixed(0);
     const timeline = getTimeline(item.created_at || item.date);
@@ -3357,66 +3293,6 @@ async function annulerFacture(num) {
 
 // ─── POLLING SIGNATURE ────────────────────────────────────────
 let pollingSignatureInterval = null;
-
-
-// ─── SMS SIGNATURE ───────────────────────────────
-async function envoyerSignatureSMS() {
-  const num = currentDevisNum;
-  if (!num) return showToast('❌ Aucun devis sélectionné', '⚠️');
-
-  // Récupérer le téléphone stocké ou demander
-  const { data: doc } = await supabase.from('historique').select('telephone,client,total_ht').eq('num', num).single().catch(() => ({ data: null }));
-  
-  let tel = doc?.telephone || '';
-  if (!tel) {
-    tel = prompt(`📱 Numéro du client pour le devis ${num} :`);
-    if (!tel) return;
-  }
-
-  const btn = document.getElementById('btn-signer-sms');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Envoi...'; }
-
-  try {
-    const res = await fetch(`/api/envoyer-lien-signature/${num}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ telephone: tel })
-    });
-    const data = await res.json();
-    if (data.success) {
-      showToast(`✅ SMS envoyé au ${tel} !`, '📱');
-      shootConfetti();
-      // Démarrer le polling signature
-      demarrerPollingSignature();
-    } else {
-      showToast('❌ ' + (data.error || 'Erreur envoi SMS'), '⚠️');
-    }
-  } catch(e) {
-    showToast('❌ ' + e.message, '⚠️');
-  }
-
-  if (btn) { btn.disabled = false; btn.textContent = '📱 Signer par SMS'; }
-}
-
-// ─── SMS SIGNATURE depuis historique ─────────────
-async function envoyerSignatureSMSDepuisHisto(num) {
-  const { data: doc } = await supabase.from('historique').select('telephone,client').eq('num', num).single().catch(() => ({ data: null }));
-  let tel = doc?.telephone || '';
-  if (!tel) {
-    tel = prompt(`📱 Numéro du client pour ${num} :`);
-    if (!tel) return;
-  }
-  try {
-    const res = await fetch(`/api/envoyer-lien-signature/${num}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ telephone: tel })
-    });
-    const data = await res.json();
-    if (data.success) showToast(`✅ SMS signature envoyé → ${tel}`, '📱');
-    else showToast('❌ ' + (data.error || 'Erreur'), '⚠️');
-  } catch(e) { showToast('❌ ' + e.message, '⚠️'); }
-}
 
 function demarrerPollingSignature() {
   if (pollingSignatureInterval) return;
@@ -4950,7 +4826,7 @@ async function genererDepannageRapide() {
   try {
     const res = await fetch('/api/generer', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('sinelec_token')||''}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         type: depType,
         client: [prenom, nom].filter(Boolean).join(' '),
@@ -6165,7 +6041,7 @@ function renderTableauHistorique() {
 
   tbody.innerHTML = pageData.map(item => {
     const statut = (item.statut||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-    const type = item.type || (item.num?.startsWith('OS-') ? 'devis' : 'facture');
+    const type = item.type || 'facture';
     const isObat = item.source === 'obat';
     const montant = parseFloat(item.total_ht||0).toFixed(0);
     const date = new Date(item.created_at||item.date).toLocaleDateString('fr-FR');
@@ -6303,217 +6179,6 @@ async function chargerHistorique() {
     if (tbody) tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:40px;color:#ef4444;">❌ ${e.message}</td></tr>`;
   }
 }
-
-
-// ═══════════════════════════════════════════════════
-// ANALYSE DPE — COMPLET
-// ═══════════════════════════════════════════════════
-let dpeFileB64 = null;
-let dpeFileType = 'application/pdf';
-let dpeResultData = null;
-
-function initDPE() {
-  // Reset si pas de résultats actifs
-  const resultsDiv = document.getElementById('dpe-results');
-  if (!dpeResultData) {
-    resetDPE();
-  }
-}
-
-function resetDPE() {
-  dpeFileB64 = null;
-  dpeResultData = null;
-  const resultsDiv = document.getElementById('dpe-results');
-  if (resultsDiv) resultsDiv.style.display = 'none';
-  const status = document.getElementById('dpe-status');
-  if (status) { status.className = 'status'; status.textContent = ''; }
-  const fileNameEl = document.getElementById('dpe-file-name');
-  if (fileNameEl) { fileNameEl.style.display = 'none'; fileNameEl.textContent = ''; }
-  const texteEl = document.getElementById('dpe-texte-manuel');
-  if (texteEl) texteEl.value = '';
-  const fileInput = document.getElementById('dpe-file-input');
-  if (fileInput) fileInput.value = '';
-  const btn = document.getElementById('dpe-btn-analyser');
-  if (btn) { btn.disabled = false; btn.textContent = '🤖 Analyser le DPE et générer les recommandations'; }
-}
-
-function dpeSelectFile(input) {
-  const file = input.files[0];
-  if (!file) return;
-  dpeFileType = file.type || 'application/pdf';
-  const fileNameEl = document.getElementById('dpe-file-name');
-  if (fileNameEl) { fileNameEl.textContent = '📎 ' + file.name; fileNameEl.style.display = 'block'; }
-
-  const reader = new FileReader();
-  reader.onload = e => {
-    dpeFileB64 = e.target.result.split(',')[1];
-    showToast('✅ ' + file.name + ' chargé !', '📄');
-  };
-  reader.onerror = () => showToast('❌ Erreur lecture fichier', '⚠️');
-  reader.readAsDataURL(file);
-}
-
-async function analyserDPE() {
-  const nom = document.getElementById('dpe-nom')?.value.trim() || '';
-  const adresse = document.getElementById('dpe-adresse')?.value.trim() || '';
-  const texteManuel = document.getElementById('dpe-texte-manuel')?.value.trim() || '';
-  const btn = document.getElementById('dpe-btn-analyser');
-  const status = document.getElementById('dpe-status');
-
-  if (!dpeFileB64 && !texteManuel) {
-    showToast('⚠️ Importe un PDF ou colle le texte du DPE', '❌');
-    return;
-  }
-
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Analyse IA en cours...'; }
-  if (status) { status.className = 'status loading'; status.textContent = '🤖 Claude analyse le DPE... cela peut prendre 15-30 secondes'; status.style.display = 'block'; }
-
-  try {
-    const body = { nom_client: nom, adresse_client: adresse };
-    if (dpeFileB64) {
-      body.pdf_base64 = dpeFileB64;
-      body.pdf_type = dpeFileType;
-    } else {
-      body.pdf_text = texteManuel;
-    }
-
-    const res = await fetch('/api/dpe', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data.error || 'Erreur analyse DPE');
-
-    dpeResultData = data;
-    afficherResultatsDPE(data, nom, adresse);
-    if (status) { status.className = 'status'; status.style.display = 'none'; }
-    showToast('✅ Analyse terminée !', '🏠');
-    shootConfetti();
-
-  } catch(e) {
-    if (status) { status.className = 'status error'; status.textContent = '❌ ' + e.message; status.style.display = 'block'; }
-    showToast('❌ ' + e.message, '⚠️');
-  }
-
-  if (btn) { btn.disabled = false; btn.textContent = '🤖 Analyser le DPE et générer les recommandations'; }
-}
-
-function afficherResultatsDPE(data, nom, adresse) {
-  const resultsDiv = document.getElementById('dpe-results');
-  if (!resultsDiv) return;
-
-  // Logement info
-  const logement = data.logement || {};
-  const logEl = document.getElementById('dpe-logement-info');
-  if (logEl) {
-    const items = [
-      { icon: '📐', label: 'Surface', val: logement.surface ? logement.surface + ' m²' : '—' },
-      { icon: '🏷️', label: 'Classe DPE', val: logement.classe_dpe || '—' },
-      { icon: '📅', label: 'Année construction', val: logement.annee_construction || '—' },
-      { icon: '🔥', label: 'Chauffage', val: logement.chauffage || '—' },
-      { icon: '💧', label: 'Eau chaude', val: logement.eau_chaude || '—' },
-      { icon: '🌀', label: 'VMC', val: logement.vmc || '—' },
-    ];
-    logEl.innerHTML = items.map(it => `
-      <div style="background:#fff;border:1px solid rgba(0,0,0,0.08);border-radius:12px;padding:12px;text-align:center;">
-        <div style="font-size:20px;margin-bottom:4px;">${it.icon}</div>
-        <div style="font-size:10px;color:var(--text-3);font-weight:600;text-transform:uppercase;margin-bottom:3px;">${it.label}</div>
-        <div style="font-size:12px;font-weight:700;color:var(--text);">${it.val}</div>
-      </div>`).join('');
-  }
-
-  // Recommandations
-  const recoEl = document.getElementById('dpe-reco-list');
-  const recos = data.recommandations || [];
-  if (recoEl) {
-    if (!recos.length) {
-      recoEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-3);">Aucune recommandation électrique identifiée</div>';
-    } else {
-      const prioriteColors = {
-        haute: { bg: '#fef2f2', border: 'rgba(220,38,38,0.3)', badge: '#dc2626', badgeBg: '#fee2e2', icon: '🔴' },
-        moyenne: { bg: '#fff7ed', border: 'rgba(234,88,12,0.3)', badge: '#ea580c', badgeBg: '#ffedd5', icon: '🟠' },
-        basse: { bg: '#f0fdf4', border: 'rgba(22,163,74,0.3)', badge: '#16a34a', badgeBg: '#dcfce7', icon: '🟢' },
-      };
-      recoEl.innerHTML = recos.map((r, i) => {
-        const c = prioriteColors[r.priorite] || prioriteColors.basse;
-        const total = r.total || (r.prestations||[]).reduce((s,p) => s + p.prix*(p.quantite||1), 0);
-        return `
-        <div style="background:${c.bg};border:1.5px solid ${c.border};border-radius:14px;padding:16px;cursor:pointer;" onclick="dpToggleReco(${i})">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
-            <div style="flex:1;min-width:0;">
-              <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-                <span style="background:${c.badgeBg};color:${c.badge};border-radius:20px;padding:2px 10px;font-size:11px;font-weight:700;">${c.icon} ${(r.priorite||'basse').toUpperCase()}</span>
-              </div>
-              <div style="font-size:14px;font-weight:800;color:var(--text);">${r.titre}</div>
-              <div style="font-size:12px;color:var(--text-2);margin-top:4px;line-height:1.5;">${r.description || ''}</div>
-            </div>
-            <div style="font-size:18px;font-weight:900;color:var(--accent);white-space:nowrap;margin-left:12px;">${Math.round(total).toLocaleString('fr-FR')} €</div>
-          </div>
-          <div id="dpe-reco-detail-${i}" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid rgba(0,0,0,0.08);">
-            ${(r.prestations||[]).map(p => `
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(0,0,0,0.04);">
-              <span style="font-size:13px;color:var(--text-2);">${p.nom}</span>
-              <span style="font-size:13px;font-weight:700;color:var(--accent);">× ${p.quantite||1} — ${(p.prix*(p.quantite||1)).toLocaleString('fr-FR')} €</span>
-            </div>`).join('')}
-          </div>
-        </div>`;
-      }).join('');
-    }
-  }
-
-  // Total
-  const totalEl = document.getElementById('dpe-total-amount');
-  if (totalEl) totalEl.textContent = Math.round(data.total_general || 0).toLocaleString('fr-FR') + ' €';
-
-  resultsDiv.style.display = 'block';
-  resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-function dpToggleReco(idx) {
-  const detail = document.getElementById('dpe-reco-detail-' + idx);
-  if (detail) detail.style.display = detail.style.display === 'none' ? 'block' : 'none';
-}
-
-function dpeGenererDevis() {
-  if (!dpeResultData) return;
-  const nom = document.getElementById('dpe-nom')?.value.trim() || '';
-  const adresse = document.getElementById('dpe-adresse')?.value.trim() || '';
-  const recos = dpeResultData.recommandations || [];
-
-  // Construire le panier depuis les recommandations
-  const prestations = [];
-  recos.forEach(r => {
-    (r.prestations || []).forEach(p => {
-      prestations.push({
-        designation: p.nom,
-        prixUnit: p.prix,
-        qte: p.quantite || 1,
-        desc: r.description || ''
-      });
-    });
-  });
-
-  if (!prestations.length) {
-    showToast('⚠️ Aucune prestation à ajouter', '❌');
-    return;
-  }
-
-  // Pré-remplir le formulaire devis
-  panierD = prestations;
-  switchPage('devis', document.querySelector('.sidebar-item[onclick*="devis"]'));
-  setTimeout(() => {
-    const parts = nom.trim().split(' ');
-    const el = id => document.getElementById(id);
-    if (el('d-prenom')) el('d-prenom').value = parts[0] || '';
-    if (el('d-client')) el('d-client').value = parts.slice(1).join(' ') || nom;
-    if (el('d-adresse')) el('d-adresse').value = adresse;
-    renderPanier('d');
-    showToast('✅ ' + prestations.length + ' prestations importées depuis le DPE !', '📋');
-  }, 400);
-}
-
 
 console.log('⚡ SINELEC OS — IA Autonome activée');
 
@@ -7837,7 +7502,6 @@ async function envoyerSmsAvis(num, btn) {
 // ═══════════════════════════════════════════════════
 // PROCHAINE INTERVENTION — Dashboard accueil
 // ═══════════════════════════════════════════════════
-// ─── ÉTAT INTERVENTIONS ACCUEIL ───────────────────
 let _interventionsAccueil = [];
 let _interventionIdx = 0;
 
@@ -7846,143 +7510,145 @@ async function chargerProchaineIntervention() {
     const res = await fetch('/api/agenda');
     if (!res.ok) return;
     const data = await res.json();
-    const now = new Date();
-    const todayStr = now.toISOString().slice(0,10);
-
-    // Toutes les interventions à venir (non terminées / annulées)
-    _interventionsAccueil = (data || [])
-      .filter(a => {
-        const d = a.date_intervention || a.date || '';
-        const s = (a.statut || '').toLowerCase();
-        return d >= todayStr && s !== 'annule' && s !== 'annulé' && s !== 'termine' && s !== 'terminé';
-      })
-      .sort((a,b) => {
-        const da = (a.date_intervention||a.date||'') + 'T' + (a.heure||'00:00');
-        const db = (b.date_intervention||b.date||'') + 'T' + (b.heure||'00:00');
-        return da.localeCompare(db);
-      });
-
+    const todayStr = new Date().toISOString().slice(0,10);
+    _interventionsAccueil = (data||[]).filter(a => {
+      const d = a.date_intervention||a.date||'';
+      const s = (a.statut||'').toLowerCase();
+      return d >= todayStr && s!=='annule' && s!=='annulé' && s!=='termine' && s!=='terminé';
+    }).sort((a,b) => ((a.date_intervention||a.date||'')+'T'+(a.heure||'00:00')).localeCompare((b.date_intervention||b.date||'')+'T'+(b.heure||'00:00')));
     _interventionIdx = 0;
     afficherInterventionAccueil();
-  } catch(e) {
-    console.warn('chargerProchaineIntervention:', e.message);
-  }
+  } catch(e) { console.warn('chargerProchaineIntervention:', e.message); }
 }
 
 function afficherInterventionAccueil() {
   const card = document.getElementById('acc-next-card');
   if (!card) return;
-
-  if (!_interventionsAccueil.length) {
-    card.style.display = 'none';
-    return;
-  }
-
-  // S'assurer que l'index est valide
+  if (!_interventionsAccueil.length) { card.style.display='none'; return; }
   if (_interventionIdx >= _interventionsAccueil.length) _interventionIdx = 0;
   const next = _interventionsAccueil[_interventionIdx];
   const total = _interventionsAccueil.length;
-
-  const now = new Date();
-  const todayStr = now.toISOString().slice(0,10);
-  const tomorrowStr = new Date(now.getTime()+86400000).toISOString().slice(0,10);
+  const todayStr = new Date().toISOString().slice(0,10);
+  const tomorrowStr = new Date(Date.now()+86400000).toISOString().slice(0,10);
   const dateKey = (next.date_intervention||next.date||'').slice(0,10);
-  const dateLbl = dateKey === todayStr ? "Aujourd'hui" : dateKey === tomorrowStr ? "Demain"
-    : new Date(dateKey).toLocaleDateString('fr-FR', {weekday:'short',day:'numeric',month:'short'});
-
-  const el = (id) => document.getElementById(id);
-
-  // Badge + heure
-  const badge = card.querySelector('.acc-next-badge') || el('acc-next-badge');
-  if (badge) badge.textContent = '📅 ' + dateLbl;
-  if (el('acc-next-time')) el('acc-next-time').textContent = next.heure ? next.heure.slice(0,5) : '—';
-
-  // Compteur "1 / 3"
-  const counter = el('acc-next-counter');
-  if (counter) {
-    counter.textContent = total > 1 ? `${_interventionIdx + 1} / ${total}` : '';
-  }
-
-  // Client + adresse + type
-  if (el('acc-next-client')) el('acc-next-client').textContent = next.client || next.nom || '—';
-  const adresse = next.adresse || '';
-  if (el('acc-next-addr')) el('acc-next-addr').textContent = adresse ? '📍 ' + adresse : '';
-  const type = next.type_intervention || next.prestation || 'Intervention';
-  if (el('acc-next-type')) el('acc-next-type').textContent = '⚡ ' + type;
-
-  // Boutons navigation
+  const dateLbl = dateKey===todayStr ? "Aujourd'hui" : dateKey===tomorrowStr ? "Demain" : new Date(dateKey).toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'});
+  const el = id => document.getElementById(id);
+  const badge = el('acc-next-badge'); if(badge) badge.textContent = '📅 '+dateLbl;
+  if(el('acc-next-time')) el('acc-next-time').textContent = next.heure ? next.heure.slice(0,5) : '—';
+  const counter = el('acc-next-counter'); if(counter) counter.textContent = total>1 ? (_interventionIdx+1)+' / '+total : '';
+  if(el('acc-next-client')) el('acc-next-client').textContent = next.client||next.nom||'—';
+  const adresse = next.adresse||'';
+  if(el('acc-next-addr')) el('acc-next-addr').textContent = adresse ? '📍 '+adresse : '';
+  if(el('acc-next-type')) el('acc-next-type').textContent = '⚡ '+(next.type_intervention||next.prestation||'Intervention');
   const btnWaze = el('acc-next-waze');
-  const btnTel  = el('acc-next-tel');
-  const btnDevis = el('acc-next-devis');
+  if(btnWaze) { if(adresse){btnWaze.onclick=()=>window.open('https://waze.com/ul?q='+encodeURIComponent(adresse)+'&navigate=yes','_blank');btnWaze.style.display='';}else btnWaze.style.display='none'; }
+  const btnTel = el('acc-next-tel');
+  if(btnTel) { if(next.telephone){btnTel.onclick=()=>window.location.href='tel:'+next.telephone;btnTel.style.display='';}else btnTel.style.display='none'; }
   const btnSuivant = el('acc-next-suivant');
-
-  if (btnWaze) {
-    if (adresse) { btnWaze.onclick = () => window.open('https://waze.com/ul?q='+encodeURIComponent(adresse)+'&navigate=yes','_blank'); btnWaze.style.display = ''; }
-    else btnWaze.style.display = 'none';
-  }
-  if (btnTel) {
-    if (next.telephone) { btnTel.onclick = () => window.location.href = 'tel:'+next.telephone; btnTel.style.display = ''; }
-    else btnTel.style.display = 'none';
-  }
-  if (btnDevis && next.num_devis) {
-    btnDevis.onclick = () => previsualiserPDF(next.num_devis);
-  }
-
-  // Bouton "Suivante" visible seulement s'il y a plusieurs interventions
-  if (btnSuivant) {
-    btnSuivant.style.display = total > 1 ? 'flex' : 'none';
-  }
-
-  // Stocker l'id courant sur le bouton Terminer
+  if(btnSuivant) btnSuivant.style.display = total>1 ? 'block' : 'none';
   const btnTerminer = el('acc-next-terminer');
-  if (btnTerminer) {
-    btnTerminer.dataset.id = next.id || '';
-    btnTerminer.dataset.client = next.client || next.nom || '';
-  }
-
-  card.style.display = 'block';
+  if(btnTerminer) { btnTerminer.dataset.id=next.id||''; btnTerminer.dataset.client=next.client||next.nom||''; }
+  card.style.display='block';
 }
 
 async function terminerProchaineIntervention() {
   const btn = document.getElementById('acc-next-terminer');
-  if (!btn) return;
-  const id = btn.dataset.id;
-  const client = btn.dataset.client;
-
-  // Animation rapide
-  btn.textContent = '⏳';
-  btn.disabled = true;
-
+  if(!btn) return;
+  const id = btn.dataset.id; const client = btn.dataset.client;
+  btn.textContent='⏳'; btn.disabled=true;
   try {
-    if (id) {
-      await fetch(`/api/agenda/${id}/statut`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ statut: 'terminé' })
-      });
-    }
-    showToast(`✅ ${client || 'Intervention'} terminée !`, '🎉');
-    shootConfetti();
-
-    // Retirer cette intervention de la liste et afficher la suivante
-    _interventionsAccueil.splice(_interventionIdx, 1);
-    if (_interventionIdx >= _interventionsAccueil.length) _interventionIdx = 0;
+    if(id) await fetch('/api/agenda/'+id+'/statut',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({statut:'terminé'})});
+    showToast('✅ '+(client||'Intervention')+' terminée !','🎉');
+    if(typeof shootConfetti==='function') shootConfetti();
+    _interventionsAccueil.splice(_interventionIdx,1);
+    if(_interventionIdx>=_interventionsAccueil.length) _interventionIdx=0;
     afficherInterventionAccueil();
-
-    // Recharger l'accueil en arrière-plan pour mettre à jour les stats
-    setTimeout(chargerAccueil, 1000);
-
-  } catch(e) {
-    showToast('❌ Erreur : ' + e.message, '⚠️');
-    btn.textContent = '✅ Terminé';
-    btn.disabled = false;
-  }
+    setTimeout(chargerAccueil,1000);
+  } catch(e) { showToast('❌ '+e.message,'⚠️'); }
+  btn.textContent='✅ Terminé'; btn.disabled=false;
 }
 
 function suivanteProchaineIntervention() {
-  if (!_interventionsAccueil.length) return;
-  _interventionIdx = (_interventionIdx + 1) % _interventionsAccueil.length;
+  if(!_interventionsAccueil.length) return;
+  _interventionIdx = (_interventionIdx+1) % _interventionsAccueil.length;
   afficherInterventionAccueil();
+}
+
+// === ANCIENNE FONCTION (remplacée) ===
+async function chargerProchaineIntervention_OLD() {
+  try {
+    const res = await fetch('/api/agenda');
+    if (!res.ok) return;
+    const data = await res.json();
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0,10);
+
+    // Trouver la prochaine intervention planifiée (pas passée)
+    const futures = (data || [])
+      .filter(a => {
+        const d = a.date_intervention || a.date || '';
+        return d >= todayStr && a.statut !== 'annule' && a.statut !== 'termine';
+      })
+      .sort((a,b) => {
+        const da = (a.date_intervention||a.date||'') + (a.heure||'00:00');
+        const db = (b.date_intervention||b.date||'') + (b.heure||'00:00');
+        return da.localeCompare(db);
+      });
+
+    const card = document.getElementById('acc-next-card');
+    if (!card) return;
+
+    if (!futures.length) {
+      card.style.display = 'none';
+      return;
+    }
+
+    const next = futures[0];
+    const dateInter = new Date(next.date_intervention || next.date);
+    const isToday = (next.date_intervention||next.date||'').slice(0,10) === todayStr;
+    const isTomorrow = (next.date_intervention||next.date||'').slice(0,10) === new Date(now.getTime()+86400000).toISOString().slice(0,10);
+
+    const dateLbl = isToday ? "Aujourd'hui" : isTomorrow ? "Demain" : dateInter.toLocaleDateString('fr-FR', {weekday:'long',day:'numeric',month:'short'});
+    const heure = next.heure || '';
+
+    // Remplir les éléments
+    const el = (id) => document.getElementById(id);
+    if (el('acc-next-badge-txt')) el('acc-next-badge-txt').textContent = '📅 ' + dateLbl;
+    const badge = card.querySelector('.acc-next-badge');
+    if (badge) badge.textContent = '📅 ' + dateLbl;
+    if (el('acc-next-time')) el('acc-next-time').textContent = heure || '—';
+    if (el('acc-next-client')) el('acc-next-client').textContent = next.client || next.nom || '—';
+
+    const adresse = next.adresse || next.adresse_chantier || '';
+    if (el('acc-next-addr')) el('acc-next-addr').textContent = adresse ? '📍 ' + adresse : '';
+
+    const type = next.type_intervention || next.prestation || next.titre || 'Intervention';
+    if (el('acc-next-type')) el('acc-next-type').textContent = '⚡ ' + type;
+
+    // Boutons actions
+    const btnWaze = el('acc-next-waze');
+    const btnTel = el('acc-next-tel');
+    const btnDevis = el('acc-next-devis');
+
+    if (btnWaze && adresse) {
+      const wazeUrl = 'https://waze.com/ul?q=' + encodeURIComponent(adresse);
+      btnWaze.onclick = () => window.open(wazeUrl, '_blank');
+      btnWaze.style.display = '';
+    } else if (btnWaze) btnWaze.style.display = 'none';
+
+    if (btnTel && next.telephone) {
+      btnTel.onclick = () => window.location.href = 'tel:' + next.telephone;
+      btnTel.style.display = '';
+    } else if (btnTel) btnTel.style.display = 'none';
+
+    if (btnDevis && next.num_devis) {
+      btnDevis.onclick = () => previsualiserPDF(next.num_devis);
+    }
+
+    card.style.display = 'block';
+  } catch(e) {
+    console.warn('chargerProchaineIntervention:', e.message);
+  }
 }
 
 // ═══════════════════════════════════════════════════
@@ -8433,20 +8099,6 @@ async function genererEtTelecharger(type) {
   }
 }
 
-function annulerModification() {
-  window._devisARemplacer = null;
-  // Reset bouton
-  const btnGen = document.getElementById('d-btn');
-  if (btnGen) {
-    btnGen.textContent = '⚡ Générer le devis';
-    btnGen.style.background = '';
-    btnGen.style.color = '';
-  }
-  // Supprimer le bandeau
-  const banner = document.getElementById('modif-banner');
-  if (banner) banner.remove();
-}
-
 async function modifierDevis(num) {
   // Charger les données du devis depuis Supabase
   showToast('⏳ Chargement du devis...', '✏️');
@@ -8515,27 +8167,10 @@ async function modifierDevis(num) {
 
     renderPanier('d');
 
-    // ── Mode modification — garder le même numéro ──
+    // ── Stocker le numéro original pour le supprimer après regénération ──
     window._devisARemplacer = num;
 
-    // Changer le bouton pour indiquer le mode modification
-    const btnGen = document.getElementById('d-btn');
-    if (btnGen) {
-      btnGen.textContent = '🔄 Mettre à jour le devis ' + num;
-      btnGen.style.background = 'linear-gradient(135deg,#1B2A4A,#243660)';
-      btnGen.style.color = '#E8B84B';
-    }
-    // Afficher un bandeau d'info
-    const existingBanner = document.getElementById('modif-banner');
-    if (existingBanner) existingBanner.remove();
-    const banner = document.createElement('div');
-    banner.id = 'modif-banner';
-    banner.style.cssText = 'background:rgba(232,184,75,0.12);border:2px solid rgba(232,184,75,0.4);border-radius:12px;padding:10px 14px;margin-bottom:10px;display:flex;align-items:center;gap:10px;';
-    banner.innerHTML = `<span style="font-size:18px;">✏️</span><div><div style="font-size:13px;font-weight:800;color:#C9962A;">Mode modification — ${num}</div><div style="font-size:11px;color:rgba(0,0,0,0.5);">Le devis sera mis à jour avec le même numéro</div></div><button onclick="annulerModification()" style="margin-left:auto;background:none;border:none;color:#999;cursor:pointer;font-size:18px;">×</button>`;
-    const btnGenEl = document.getElementById('d-btn');
-    if (btnGenEl) btnGenEl.parentNode.insertBefore(banner, btnGenEl);
-
-    showToast('✏️ ' + num + ' chargé — modifie et valide !', '✅');
+    showToast('✏️ Devis chargé — modifie et renvoie !', '✅');
 
   } catch(e) {
     showToast('❌ ' + e.message, '⚠️');
@@ -8632,11 +8267,9 @@ async function generer(type) {
   try {
     const res = await fetch('/api/generer', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('sinelec_token')||''}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         type,
-        // Si modification d'un devis existant → réutiliser le même numéro
-        num_existant: (type === 'devis' && window._devisARemplacer) ? window._devisARemplacer : null,
         client,
         prenom: (document.getElementById(`${prefix}-prenom`)?.value || '').trim(),
         email: document.getElementById(`${prefix}-email`)?.value.trim() || '',
@@ -8652,23 +8285,26 @@ async function generer(type) {
         intervention_type: type === 'devis' ? typeIntervention : 'immediat'
       })
     });
-    const rawResponse = await res.text();
-    let data;
-    try { data = JSON.parse(rawResponse); }
-    catch(e) { throw new Error('Erreur serveur '+res.status+': ' + rawResponse.substring(0,200)); }
+    const data = await res.json();
     if (data.success) {
-      const isUpdate = type === 'devis' && window._devisARemplacer;
-      showToast(`${isUpdate ? '🔄 Devis mis à jour' : '✅ ' + (type === 'devis' ? 'Devis' : 'Facture')} ${data.num} !`, '⚡');
-      // Reset mode modification
-      if (isUpdate) annulerModification();
+      showToast(`✅ ${type === 'devis' ? 'Devis' : 'Facture'} ${data.num} généré !`, '⚡');
+      // ⚠️ On ne vide PAS le panier ici — l'utilisateur peut revenir en arrière
+      // Le panier sera vidé seulement après envoi réussi (dans envoyerDepuisPreview)
+      // Si modification d'un devis existant → supprimer l'ancien
+      if (type === 'devis' && window._devisARemplacer && window._devisARemplacer !== data.num) {
+        try {
+          await fetch(`/api/supprimer/${window._devisARemplacer}`, { method: 'DELETE' });
+          showToast(`🗑️ Ancien devis ${window._devisARemplacer} supprimé`, '✅');
+        } catch(e) { /* non bloquant */ }
+        window._devisARemplacer = null;
+      }
       // Ouvrir la prévisualisation avec actions
       // Récupérer le téléphone depuis le formulaire
       const telForPreview = (document.getElementById(`${prefix}-tel`)?.value || '').trim();
       ouvrirPreviewAvecActions(data.num, data.pdf_b64, data.email_client, type, telForPreview);
     } else {
-      const errMsg = data.error || data.message || JSON.stringify(data);
-      console.error('❌ Erreur generer:', errMsg, data.stack || '');
-      showToast('❌ ' + errMsg.substring(0, 100), '❌');
+      showToast('❌ ' + (data.error 
+|| 'Erreur génération'), '❌');
     }
   } catch(e) {
     console.error('generer:', e);
