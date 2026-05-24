@@ -1005,6 +1005,44 @@ app.post('/api/marquer-paye', async (req, res) => {
   } catch(error) { res.status(500).json({ error: error.message }); }
 });
 
+
+// ═══════════════════════════════════════════════════
+// API: ENVOI SMS LIEN SIGNATURE
+// ═══════════════════════════════════════════════════
+app.post('/api/envoyer-lien-signature/:num', async (req, res) => {
+  try {
+    const { num } = req.params;
+    const { telephone, message_custom } = req.body;
+
+    const { data: doc } = await supabase.from('historique').select('*').eq('num', num).single();
+    if (!doc) return res.status(404).json({ error: 'Devis non trouvé' });
+
+    const tel = telephone || doc.telephone;
+    if (!tel) return res.status(400).json({ error: 'Numéro de téléphone manquant' });
+
+    const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+    const lienSig = `${appUrl}/signer/${num}`;
+    const prenom = extractPrenom(doc.client || '');
+    const montant = parseFloat(doc.total_ht || 0).toFixed(0);
+
+    const msg = message_custom ||
+      `Bonjour ${prenom}, votre devis SINELEC n°${num} (${montant}€) est prêt à signer. Cliquez ici : ${lienSig} — Diahe ⚡`;
+
+    await envoyerSMS(tel, msg);
+
+    await supabase.from('historique').update({
+      sms_signature_envoye: true,
+      sms_signature_date: new Date().toISOString()
+    }).eq('num', num);
+
+    console.log(`✅ SMS signature envoyé: ${num} → ${tel}`);
+    res.json({ success: true, lien: lienSig, telephone: tel });
+  } catch(e) {
+    console.error('❌ /api/envoyer-lien-signature error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ═══════════════════════════════════════════════════
 // API: SMS
 // ═══════════════════════════════════════════════════
@@ -1085,8 +1123,6 @@ app.get('/api/pdf/:num', async (req, res) => {
       },
       _items: itemsArr
     };
-    fs.writeFileSync(detailsPath, JSON.stringify(jsonPayloadDl));
-
     const clientEsc = String(data.client || '').replace(/'/g, ' ');
     const addrParts = (data.adresse || '').split(',');
     const clientRue = String(addrParts[0] || '').trim().replace(/'/g, ' ');
@@ -1096,6 +1132,8 @@ app.get('/api/pdf/:num', async (req, res) => {
     const nomCourt = clientEsc.toUpperCase().split(' ').slice(0,2).join(' ').substring(0,14);
     const descObjet = String(data.description || 'Travaux d electricite generale').replace(/'/g,' ').replace(/"/g,' ').substring(0,120);
     const totalHT = detailsData.reduce((s,l) => s + l.total, 0);
+
+    fs.writeFileSync(detailsPath, JSON.stringify(jsonPayloadDl));
 
     const py = `# -*- coding: utf-8 -*-
 import json, base64, io, sys
