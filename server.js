@@ -643,37 +643,6 @@ doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
       try { fs.unlinkSync(detailsPath); } catch(e) {}
       try { fs.unlinkSync(pdfPath); } catch(e) {}
 
-      // Envoi automatique email + SMS dès génération
-      if (email) {
-        const prenomClient = extractPrenom(client);
-        const lienSig = `${process.env.APP_URL || 'https://sinelec-api-production.up.railway.app'}/signer/${num}`;
-        let htmlEmail = CONFIG.email[`template_${type}`]
-          .replace('{num}', num)
-          .replace('{lien_signature}', lienSig);
-        try {
-          const msgId = await envoyerEmail(email, `Votre ${type} n° ${num} - SINELEC Paris`, htmlEmail, { content: pdf_b64, name: `${num}.pdf` });
-          await supabase.from('historique').update({ email_msgid: msgId?.messageId || null }).eq('num', num);
-
-          console.log(`✅ Email envoyé: ${num} → ${email}`);
-        } catch(emailErr) {
-          console.error('⚠️ Email error (non bloquant):', emailErr.message);
-        }
-      }
-
-      // Auto SMS si téléphone fourni (avec ou sans email)
-      if (telephone && type === 'devis') {
-        try {
-          const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
-          const prenomSMS = extractPrenom(client);
-          const lienSig = `${appUrl}/signer/${num}`;
-          const totalStr = total_ht.toFixed(0);
-          const txtMsg = email
-            ? `Bonjour ${prenomSMS}, votre devis SINELEC n°${num} (${totalStr}€) vous a été envoyé par email. Signez-le ici : ${lienSig} — Diahe ⚡`
-            : `Bonjour ${prenomSMS}, votre devis SINELEC n°${num} (${totalStr}€) est prêt. Consultez et signez ici : ${lienSig} — Diahe ⚡`;
-          await envoyerSMS(telephone, txtMsg);
-          console.log(`✅ SMS auto: ${num} → ${telephone}`);
-        } catch(smsErr) { console.error('⚠️ SMS auto:', smsErr.message); }
-      }
     }
 
     res.json({ success: true, num, pdf_b64, email_client: email });
@@ -731,8 +700,7 @@ app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
 
 
 
-    // CC si fourni
-    if (cc) { try { await envoyerEmail(cc, sujet || `Document ${num}`, htmlWithPixel, attachment); } catch(e) {} }
+
 
     // SMS si demandé
     if (sms && telephone) {
@@ -810,22 +778,15 @@ app.post('/api/signature', async (req, res) => {
     // Email de confirmation au client
     const { data: doc } = await supabase.from('historique').select('*').eq('num', num).single();
     if (doc && doc.email) {
-      const html = `<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;background:#fff;">
-        <div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:20px;text-align:center;border-radius:12px 12px 0 0;">
-          <div style="font-size:32px;">✍️</div>
-          <h2 style="color:#fff;margin:8px 0 0;">Devis signé — SINELEC</h2>
-        </div>
-        <div style="padding:24px;border:1px solid #e8e8e8;border-top:none;border-radius:0 0 12px 12px;">
-          <p style="font-size:15px;">Bonjour,</p>
-          <p>Votre devis <strong>${num}</strong> a bien été signé le ${new Date().toLocaleDateString('fr-FR')}.</p>
-          <p>Nous vous contacterons rapidement pour planifier l'intervention.</p>
-          <p style="font-size:12px;color:#888;">📞 07 87 38 86 22 | sinelec.paris@gmail.com</p>
-        </div>
-      </div>`;
-      try { await envoyerEmail(doc.email, `Devis ${num} signé — Confirmation SINELEC`, html); } catch(e) {}
-      // Copie Diahe avec tableau récap
-      const htmlDiahe = `<p>✅ ${doc.client} a signé le devis ${num} (${(doc.total_ht||0).toFixed(0)}€) — ${new Date().toLocaleString('fr-FR')}</p><p>IP: ${ip || 'N/A'}</p>`;
-      try { await envoyerEmail('sinelec.paris@gmail.com', `[SIGNÉ] ${doc.client} — Devis ${num}`, htmlDiahe); } catch(e) {}
+
+      // UN SEUL email : Diahe reçoit la notif quand le client signe
+      const htmlDiahe = '<p><b>' + (doc.client||'') + '</b> a signé le devis <b>' + num
+        + '</b><br>Montant : <b>' + (doc.total_ht||0).toFixed(0) + ' €</b>'
+        + '<br>Date : ' + new Date().toLocaleString('fr-FR')
+        + '<br>Adresse : ' + (doc.adresse||'N/A') + '</p>';
+      try { await envoyerEmail('sinelec.paris@gmail.com',
+        '✍️ Signé — ' + (doc.client||'') + ' — ' + num + ' — ' + (doc.total_ht||0).toFixed(0) + '€',
+        htmlDiahe); } catch(e) { console.error('Email signature:', e.message); }
     }
     res.json({ success: true });
   } catch(error) {
