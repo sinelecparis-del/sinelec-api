@@ -3205,6 +3205,12 @@ function afficherHistorique() {
     return `
     <div data-paye="${estPaye}" style="background:${estPaye ? 'rgba(16,185,129,0.04)' : 'var(--glass)'};backdrop-filter:blur(20px);border:1.5px solid ${estPaye ? 'rgba(16,185,129,0.35)' : alerte ? 'rgba(220,38,38,0.35)' : 'var(--border)'};border-radius:16px;padding:16px;margin-bottom:12px;">
 
+      <!-- Bouton signature rapide — toujours visible pour les devis -->
+      ${(item.num||'').startsWith('OS-') && !['signe','signé','signed'].includes((item.statut||'').toLowerCase()) ? `
+      <button onclick="ouvrirPopupSig('${item.num}')" style="width:100%;padding:12px;border:none;border-radius:10px;background:linear-gradient(135deg,#C9962A,#E8B84B);color:#1B2A4A;font-size:14px;font-weight:800;cursor:pointer;margin-bottom:10px;display:flex;align-items:center;justify-content:center;gap:8px;">
+        ✍️ Signer le document
+      </button>` : ''}
+
       <!-- Numéro + Montant -->
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
         <div style="flex:1;min-width:0;">
