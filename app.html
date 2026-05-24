@@ -2866,6 +2866,10 @@ table.histo-table tr:hover td { background:#fafbff; }
           style="background:#1B2A4A;color:#fff;border:none;border-radius:10px;padding:11px 20px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;transition:background 0.2s;">
           <span id="preview-btn-envoyer-text">Envoyer le document</span>
         </button>
+        <button id="preview-btn-sms-sig" onclick="envoyerSignatureSMS()"
+          style="background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border:none;border-radius:10px;padding:11px 20px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;white-space:nowrap;">
+          📱 Signer par SMS
+        </button>
       </div>
     </div>
 
@@ -3353,6 +3357,66 @@ async function annulerFacture(num) {
 
 // ─── POLLING SIGNATURE ────────────────────────────────────────
 let pollingSignatureInterval = null;
+
+
+// ─── SMS SIGNATURE ───────────────────────────────
+async function envoyerSignatureSMS() {
+  const num = currentDevisNum;
+  if (!num) return showToast('❌ Aucun devis sélectionné', '⚠️');
+
+  // Récupérer le téléphone stocké ou demander
+  const { data: doc } = await supabase.from('historique').select('telephone,client,total_ht').eq('num', num).single().catch(() => ({ data: null }));
+  
+  let tel = doc?.telephone || '';
+  if (!tel) {
+    tel = prompt(`📱 Numéro du client pour le devis ${num} :`);
+    if (!tel) return;
+  }
+
+  const btn = document.getElementById('btn-signer-sms');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Envoi...'; }
+
+  try {
+    const res = await fetch(`/api/envoyer-lien-signature/${num}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ telephone: tel })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(`✅ SMS envoyé au ${tel} !`, '📱');
+      shootConfetti();
+      // Démarrer le polling signature
+      demarrerPollingSignature();
+    } else {
+      showToast('❌ ' + (data.error || 'Erreur envoi SMS'), '⚠️');
+    }
+  } catch(e) {
+    showToast('❌ ' + e.message, '⚠️');
+  }
+
+  if (btn) { btn.disabled = false; btn.textContent = '📱 Signer par SMS'; }
+}
+
+// ─── SMS SIGNATURE depuis historique ─────────────
+async function envoyerSignatureSMSDepuisHisto(num) {
+  const { data: doc } = await supabase.from('historique').select('telephone,client').eq('num', num).single().catch(() => ({ data: null }));
+  let tel = doc?.telephone || '';
+  if (!tel) {
+    tel = prompt(`📱 Numéro du client pour ${num} :`);
+    if (!tel) return;
+  }
+  try {
+    const res = await fetch(`/api/envoyer-lien-signature/${num}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ telephone: tel })
+    });
+    const data = await res.json();
+    if (data.success) showToast(`✅ SMS signature envoyé → ${tel}`, '📱');
+    else showToast('❌ ' + (data.error || 'Erreur'), '⚠️');
+  } catch(e) { showToast('❌ ' + e.message, '⚠️'); }
+}
 
 function demarrerPollingSignature() {
   if (pollingSignatureInterval) return;
