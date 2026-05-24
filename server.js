@@ -653,8 +653,7 @@ doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
         try {
           const msgId = await envoyerEmail(email, `Votre ${type} n° ${num} - SINELEC Paris`, htmlEmail, { content: pdf_b64, name: `${num}.pdf` });
           await supabase.from('historique').update({ email_msgid: msgId?.messageId || null }).eq('num', num);
-          // Copie à Diahe
-          try { await envoyerEmail('sinelec.paris@gmail.com', `[Copie] ${type} ${num} → ${client}`, htmlEmail, { content: pdf_b64, name: `${num}.pdf` }); } catch(e) {}
+
           console.log(`✅ Email envoyé: ${num} → ${email}`);
         } catch(emailErr) {
           console.error('⚠️ Email error (non bloquant):', emailErr.message);
@@ -730,8 +729,7 @@ app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
     const attachment = pdf_b64 ? { content: pdf_b64, name: `${num}.pdf` } : null;
     const emailRes = await envoyerEmail(email, sujet || `Document ${num} - SINELEC`, htmlWithPixel, attachment);
 
-    // Copie Diahe
-    try { await envoyerEmail('sinelec.paris@gmail.com', `[Copie] ${sujet || num} → ${email}`, htmlWithPixel, attachment); } catch(e) {}
+
 
     // CC si fourni
     if (cc) { try { await envoyerEmail(cc, sujet || `Document ${num}`, htmlWithPixel, attachment); } catch(e) {} }
@@ -1187,7 +1185,7 @@ async function signer() {
       document.getElementById('success-screen').style.display = 'block';
     } else {
       document.getElementById('sig-msg').textContent = '❌ ' + (data.error || 'Erreur');
-      btn.disabled = false; btn.textContent = '✅ Je signe et j\'accepte le devis';
+      btn.disabled = false; btn.textContent = 'Valider et signer';
     }
   } catch(e) {
     document.getElementById('sig-msg').textContent = '❌ Erreur réseau';
