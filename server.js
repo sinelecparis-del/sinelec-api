@@ -440,12 +440,9 @@ app.post('/api/generer', async (req, res) => {
       const clientTel = String(telephone || '').trim();
       const adresseRaw = String(adresse || '').replace(/'/g, ' ').trim();
       const adresseParts = adresseRaw.split(',').map(s => s.trim()).filter(Boolean);
-      const clientRue = adresseParts.length >= 2 && adresseParts[0].match(/^\d+$/) ? adresseParts[0] + ' ' + adresseParts[1] : adresseParts[0] || '';
-      const cpMatch = adresseRaw.match(/\b(\d{5})\b/);
-      const clientCP = String(codePostal || '').trim() || (cpMatch ? cpMatch[1] : '');
-      const villeManuelle = String(ville || '').trim();
-      const villeGPS = adresseParts.find(p => p.length > 2 && p.length < 30 && !p.match(/^\d{5}/) && !p.toLowerCase().includes('france')) || '';
-      const clientCPVille = [clientCP, villeManuelle || villeGPS].filter(Boolean).join(' ');
+      const clientRue = adresseParts[0] || '';
+      // Ville = dernière partie après la virgule (ex: "75008 Paris")
+      const clientCPVille = adresseParts.length > 1 ? adresseParts[adresseParts.length - 1] : (String(ville || '').trim());
       const descObjet = String(description || 'Travaux d electricite generale')
         .trim().replace(/'/g, ' ').replace(/"/g, ' ').replace(/\\/g, ' ')
         .replace(/\n/g, ' ').replace(/\r/g, ' ').substring(0, 120);
@@ -818,359 +815,284 @@ app.get('/signer/:num', async (req, res) => {
   const prenomClient = extractPrenom(doc.client || 'Client');
   const montant = parseFloat(doc.total_ht || 0).toFixed(2);
   const dateDevis = new Date(doc.date_envoi || doc.created_at).toLocaleDateString('fr-FR');
+  const telClient = String(doc.telephone || '').trim();
 
   if (['signe','signé'].includes(statut)) {
-    return res.send(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>Devis signé</title><style>body{font-family:Arial,sans-serif;background:#f5f5f5;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;}
-    .card{background:#fff;border-radius:16px;padding:40px 32px;max-width:400px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.1);}
-    .icon{font-size:64px;margin-bottom:16px;}.title{font-size:22px;font-weight:800;color:#16a34a;margin-bottom:8px;}.sub{color:#666;font-size:14px;}</style></head>
-    <body><div class="card"><div class="icon">✅</div><div class="title">Devis déjà signé</div>
-    <div class="sub">Le devis ${num} a déjà été accepté et signé.<br>Merci pour votre confiance !</div>
-    <div style="margin-top:24px;font-size:13px;color:#999;">📞 07 87 38 86 22</div></div></body></html>`);
+    return res.send('<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Deja signe</title></head><body style="font-family:Arial;background:#f5f5f5;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0"><div style="background:#fff;border-radius:16px;padding:40px;max-width:400px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,0.1)"><div style="font-size:64px">✅</div><h2 style="color:#16a34a">Devis deja signe</h2><p>Le devis ' + num + ' a deja ete signe. Merci !</p></div></body></html>');
   }
 
-  res.send(`<!DOCTYPE html>
+  const signerHtml = `<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Signature devis ${num} — SINELEC</title>
+<title>Signature devis — SINELEC</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-body{font-family:-apple-system,'Segoe UI',Arial,sans-serif;background:#F2EDE6;min-height:100vh;padding:0}
-.top-bar{background:#1B2A4A;padding:16px 20px;display:flex;align-items:center;gap:12px}
-.logo{width:36px;height:36px;background:linear-gradient(135deg,#C9962A,#E8B84B);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
-.top-info{color:#fff}
-.top-info .name{font-weight:800;font-size:15px}
-.top-info .sub{font-size:11px;color:rgba(255,255,255,0.5);margin-top:1px}
-.container{max-width:520px;margin:0 auto;padding:20px 16px 40px}
-.card{background:#fff;border-radius:16px;padding:20px;margin-bottom:16px;box-shadow:0 2px 12px rgba(0,0,0,0.06)}
-.card-title{font-size:13px;font-weight:800;color:#1B2A4A;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:14px;display:flex;align-items:center;gap:8px}
-.step-indicator{display:flex;gap:8px;margin-bottom:20px}
-.step-dot{flex:1;height:4px;border-radius:2px;background:#E0DDD6;transition:background 0.3s}
-.step-dot.active{background:#C9962A}
-.step-dot.done{background:#16a34a}
-
-/* Devis summary */
-.devis-ref{background:#F8F5EF;border-radius:10px;padding:14px 16px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center}
-.devis-ref .num{font-family:monospace;font-size:13px;font-weight:700;color:#1B2A4A}
-.devis-ref .montant{font-size:18px;font-weight:900;color:#C9962A}
-.client-name{font-size:16px;font-weight:700;color:#1B2A4A;margin-bottom:4px}
-.client-date{font-size:12px;color:#999}
-
-/* Checkboxes */
-.check-item{display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid #F5F2EE;cursor:pointer}
-.check-item:last-child{border-bottom:none}
-.check-box{width:22px;height:22px;border:2px solid #DDD;border-radius:6px;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all 0.2s;margin-top:1px}
-.check-box.checked{background:#16a34a;border-color:#16a34a;color:#fff}
-.check-text{font-size:13px;color:#333;line-height:1.5}
-
-/* OTP */
-.tel-display{background:#F8F5EF;border-radius:10px;padding:12px 16px;font-size:14px;color:#1B2A4A;font-weight:600;margin-bottom:14px;text-align:center}
-.otp-inputs{display:flex;gap:8px;justify-content:center;margin:16px 0}
-.otp-input{width:50px;height:60px;border:2px solid #E0DDD6;border-radius:12px;text-align:center;font-size:24px;font-weight:800;color:#1B2A4A;outline:none;-webkit-appearance:none;transition:border-color 0.2s}
-.otp-input:focus{border-color:#C9962A}
-.otp-input.filled{border-color:#1B2A4A;background:#F8F5EF}
-.resend-link{text-align:center;font-size:12px;color:#999;margin-top:8px}
-.resend-link span{color:#C9962A;font-weight:700;cursor:pointer}
-
-/* Signature */
-canvas{border:2px dashed #DDD;border-radius:12px;width:100%;height:160px;touch-action:none;cursor:crosshair;background:#FDFCF9;display:block}
-
-/* Buttons */
-.btn{width:100%;padding:16px;border:none;border-radius:12px;font-size:15px;font-weight:800;cursor:pointer;transition:all 0.2s;font-family:inherit}
-.btn-primary{background:linear-gradient(135deg,#1B2A4A,#243660);color:#fff}
-.btn-primary:disabled{background:#CCC;cursor:not-allowed}
-.btn-primary.ready{background:linear-gradient(135deg,#C9962A,#E8B84B);color:#1B2A4A}
+body{font-family:-apple-system,'Segoe UI',Arial,sans-serif;background:#F2EDE6;min-height:100vh}
+.top{background:#1B2A4A;padding:16px 20px;display:flex;align-items:center;gap:12px}
+.logo{width:38px;height:38px;background:linear-gradient(135deg,#C9962A,#E8B84B);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px}
+.top h1{color:#fff;font-size:15px;font-weight:800}
+.top p{color:rgba(255,255,255,0.5);font-size:11px;margin-top:1px}
+.wrap{max-width:520px;margin:0 auto;padding:20px 16px 40px}
+.card{background:#fff;border-radius:16px;padding:20px;margin-bottom:14px;box-shadow:0 2px 10px rgba(0,0,0,0.06)}
+.steps{display:flex;gap:8px;margin-bottom:18px}
+.step{flex:1;height:4px;border-radius:2px;background:#E0DDD6;transition:background 0.3s}
+.step.on{background:#C9962A}.step.done{background:#16a34a}
+.stitle{font-size:12px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:#1B2A4A;margin-bottom:12px}
+.devis-box{background:#F8F5EF;border-radius:10px;padding:14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.devis-num{font-family:monospace;font-size:13px;font-weight:700;color:#1B2A4A}
+.devis-date{font-size:11px;color:#999;margin-top:2px}
+.devis-amt{font-size:22px;font-weight:900;color:#C9962A}
+.client-name{font-size:16px;font-weight:700;color:#1B2A4A;margin-bottom:2px}
+.client-addr{font-size:12px;color:#888}
+.cb-item{display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid #F5F2EE;cursor:pointer;user-select:none}
+.cb-item:last-child{border-bottom:none}
+.cb{width:24px;height:24px;border:2px solid #DDD;border-radius:6px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px;margin-top:1px;transition:all .2s}
+.cb.on{background:#16a34a;border-color:#16a34a;color:#fff}
+.cb-txt{font-size:13px;color:#333;line-height:1.5}
+.tel-info{background:#F8F5EF;border-radius:10px;padding:12px;text-align:center;font-size:14px;font-weight:600;color:#1B2A4A;margin-bottom:14px}
+.otp-row{display:flex;gap:8px;justify-content:center;margin:16px 0}
+.otp-in{width:54px;height:64px;border:2px solid #E0DDD6;border-radius:12px;text-align:center;font-size:28px;font-weight:800;color:#1B2A4A;outline:none;transition:border .2s}
+.otp-in:focus,.otp-in.on{border-color:#C9962A;background:#FBF8F3}
+.resend{text-align:center;font-size:12px;color:#999;margin-top:6px}
+.resend b{color:#C9962A;cursor:pointer}
+canvas{border:2px dashed #DDD;border-radius:12px;width:100%;height:170px;touch-action:none;background:#FDFCF9;display:block}
+.btn{width:100%;padding:16px;border:none;border-radius:12px;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit;margin-top:10px;transition:opacity .2s}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-marine{background:#1B2A4A;color:#fff}
+.btn-gold{background:linear-gradient(135deg,#C9962A,#E8B84B);color:#1B2A4A}
 .btn-green{background:linear-gradient(135deg,#16a34a,#15803d);color:#fff}
-.btn-outline{background:none;border:1px solid #DDD;color:#666;font-size:13px;padding:10px;margin-top:8px}
-.msg{text-align:center;font-size:13px;padding:8px 0;min-height:20px}
-.msg.ok{color:#16a34a;font-weight:600}
-.msg.err{color:#dc2626;font-weight:600}
-
-/* Success */
-.success-screen{text-align:center;padding:20px 0;display:none}
-.success-icon{font-size:64px;margin-bottom:16px}
-.success-title{font-size:22px;font-weight:900;color:#16a34a;margin-bottom:8px}
-.success-sub{font-size:14px;color:#666;line-height:1.6}
-
-/* Hidden */
-.screen{display:none}
-.screen.active{display:block}
+.btn-clear{background:#f5f5f5;color:#666;font-size:13px;padding:10px;margin-top:6px}
+.msg{font-size:13px;text-align:center;padding:6px 0;min-height:20px}
+.msg.ok{color:#16a34a;font-weight:700}
+.msg.err{color:#dc2626;font-weight:700}
+.scr{display:none}.scr.on{display:block}
+.success{text-align:center;padding:24px 0}
 </style>
 </head>
 <body>
-
-<div class="top-bar">
+<div class="top">
   <div class="logo">⚡</div>
-  <div class="top-info">
-    <div class="name">SINELEC Paris</div>
-    <div class="sub">Signature électronique sécurisée</div>
-  </div>
+  <div><h1>SINELEC Paris</h1><p>Signature electronique securisee</p></div>
 </div>
-
-<div class="container">
-
-  <!-- Indicateur étapes -->
-  <div class="step-indicator" id="step-indicator">
-    <div class="step-dot active" id="dot-1"></div>
-    <div class="step-dot" id="dot-2"></div>
-    <div class="step-dot" id="dot-3"></div>
+<div class="wrap">
+  <div class="steps" id="steps">
+    <div class="step on" id="s1"></div>
+    <div class="step" id="s2"></div>
+    <div class="step" id="s3"></div>
   </div>
 
-  <!-- ÉTAPE 1 : Acceptation -->
-  <div class="screen active" id="screen-1">
+  <!-- ETAPE 1 -->
+  <div class="scr on" id="scr1">
     <div class="card">
-      <div class="card-title">📋 Votre devis</div>
-      <div class="devis-ref">
-        <div>
-          <div class="num">${num}</div>
-          <div style="font-size:11px;color:#999;margin-top:2px;">Date : ${dateDevis}</div>
-        </div>
-        <div class="montant">${montant} €</div>
+      <div class="stitle">📋 Votre devis</div>
+      <div class="devis-box">
+        <div><div class="devis-num">\${num}</div><div class="devis-date">Date : \${dateDevis}</div></div>
+        <div class="devis-amt">\${montant}&nbsp;€</div>
       </div>
-      <div class="client-name">${prenomClient}</div>
-      <div class="client-date">${doc.client || ''} — ${doc.adresse || ''}</div>
+      <div class="client-name">\${prenomClient}</div>
+      <div class="client-addr">\${doc.client || ''} — \${doc.adresse || ''}</div>
     </div>
-
     <div class="card">
-      <div class="card-title">☑️ Acceptation des conditions</div>
-      <div class="check-item" onclick="toggleCheck(1)">
-        <div class="check-box" id="cb1">✓</div>
-        <div class="check-text">J'ai lu et j'accepte le devis n°${num} et les prestations décrites pour un montant de <strong>${montant} €</strong></div>
+      <div class="stitle">Acceptation des conditions</div>
+      <div class="cb-item" id="ci1" onclick="tick(1)">
+        <div class="cb" id="cb1"></div>
+        <div class="cb-txt">J&apos;ai lu et j&apos;accepte le devis n&deg;\${num} pour un montant de <strong>\${montant}&nbsp;&euro;</strong></div>
       </div>
-      <div class="check-item" onclick="toggleCheck(2)">
-        <div class="check-box" id="cb2">✓</div>
-        <div class="check-text">J'autorise SINELEC Paris à réaliser les travaux décrits dans ce devis conformément à la norme NF C 15-100</div>
+      <div class="cb-item" id="ci2" onclick="tick(2)">
+        <div class="cb" id="cb2"></div>
+        <div class="cb-txt">J&apos;autorise SINELEC Paris a realiser les travaux conformement a la norme NF C 15-100</div>
       </div>
-      <div class="check-item" onclick="toggleCheck(3)">
-        <div class="check-box" id="cb3">✓</div>
-        <div class="check-text">Je reconnais que cette signature électronique a la même valeur légale qu'une signature manuscrite (loi n°2000-230)</div>
+      <div class="cb-item" id="ci3" onclick="tick(3)">
+        <div class="cb" id="cb3"></div>
+        <div class="cb-txt">Je reconnais que cette signature electronique a valeur legale (loi n&deg;2000-230)</div>
       </div>
     </div>
-
-    <button class="btn btn-primary" id="btn-step1" onclick="goToStep2()" disabled>
-      Continuer →
-    </button>
+    <button class="btn btn-gold" id="btn1" onclick="goStep2()" disabled>Continuer &rarr;</button>
   </div>
 
-  <!-- ÉTAPE 2 : Vérification OTP -->
-  <div class="screen" id="screen-2">
+  <!-- ETAPE 2 -->
+  <div class="scr" id="scr2">
     <div class="card">
-      <div class="card-title">📱 Vérification par SMS</div>
-      <p style="font-size:13px;color:#666;margin-bottom:16px;line-height:1.6">
-        Un code à 4 chiffres va être envoyé au numéro associé à ce devis pour confirmer votre identité.
-      </p>
-      <div class="tel-display" id="tel-display">📱 ${doc.telephone || 'Numéro non renseigné'}</div>
-      <button class="btn btn-primary" id="btn-send-otp" onclick="envoyerOTP()">
-        📨 Envoyer le code par SMS
-      </button>
-      <div class="msg" id="otp-send-msg"></div>
+      <div class="stitle">Verification par SMS</div>
+      <p style="font-size:13px;color:#666;margin-bottom:14px;line-height:1.6">Un code a 4 chiffres va etre envoye pour confirmer votre identite.</p>
+      <div class="tel-info" id="tel-box">📱 \${telClient || 'Numero non renseigne'}</div>
+      <button class="btn btn-marine" id="btn-send" onclick="sendOTP()">Envoyer le code par SMS</button>
+      <div class="msg" id="msg-send"></div>
     </div>
-
     <div class="card" id="otp-card" style="display:none">
-      <div class="card-title">🔢 Entrez le code reçu</div>
-      <div class="otp-inputs">
-        <input class="otp-input" id="otp0" maxlength="1" type="number" inputmode="numeric" oninput="otpInput(0)">
-        <input class="otp-input" id="otp1" maxlength="1" type="number" inputmode="numeric" oninput="otpInput(1)">
-        <input class="otp-input" id="otp2" maxlength="1" type="number" inputmode="numeric" oninput="otpInput(2)">
-        <input class="otp-input" id="otp3" maxlength="1" type="number" inputmode="numeric" oninput="otpInput(3)">
+      <div class="stitle">Entrez le code recu</div>
+      <div class="otp-row">
+        <input class="otp-in" id="o0" maxlength="1" inputmode="numeric" type="number" oninput="otpKey(0)">
+        <input class="otp-in" id="o1" maxlength="1" inputmode="numeric" type="number" oninput="otpKey(1)">
+        <input class="otp-in" id="o2" maxlength="1" inputmode="numeric" type="number" oninput="otpKey(2)">
+        <input class="otp-in" id="o3" maxlength="1" inputmode="numeric" type="number" oninput="otpKey(3)">
       </div>
-      <div class="resend-link">Pas reçu ? <span onclick="envoyerOTP()">Renvoyer le code</span></div>
-      <div class="msg" id="otp-verify-msg"></div>
-      <button class="btn btn-primary" id="btn-verify-otp" onclick="verifierOTP()" disabled style="margin-top:12px">
-        Vérifier →
-      </button>
+      <div class="resend">Code non recu ? <b onclick="sendOTP()">Renvoyer</b></div>
+      <div class="msg" id="msg-otp"></div>
+      <button class="btn btn-marine" id="btn-otp" onclick="checkOTP()" disabled style="margin-top:12px">Verifier &rarr;</button>
     </div>
   </div>
 
-  <!-- ÉTAPE 3 : Signature -->
-  <div class="screen" id="screen-3">
+  <!-- ETAPE 3 -->
+  <div class="scr" id="scr3">
     <div class="card">
-      <div class="card-title">✍️ Signez ici</div>
-      <p style="font-size:12px;color:#999;margin-bottom:12px;">Dessinez votre signature dans le cadre ci-dessous</p>
-      <canvas id="sig-canvas" width="480" height="160"></canvas>
-      <button class="btn btn-outline" onclick="clearSig()" style="margin-top:8px">↺ Effacer</button>
+      <div class="stitle">Signez ici avec le doigt</div>
+      <p style="font-size:12px;color:#999;margin-bottom:10px">Dessinez votre signature dans le cadre</p>
+      <canvas id="cv"></canvas>
+      <button class="btn btn-clear" onclick="clearCv()">Effacer</button>
     </div>
-    <div class="msg" id="sig-msg"></div>
-    <button class="btn btn-green" id="btn-sign" onclick="signer()">
-      ✅ Je signe et j'accepte le devis
-    </button>
+    <div class="msg" id="msg-sig"></div>
+    <button class="btn btn-green" id="btn-sign" onclick="sign()">Valider et signer le devis</button>
   </div>
 
   <!-- SUCCESS -->
-  <div class="success-screen" id="success-screen">
-    <div class="card">
-      <div class="success-icon">🎉</div>
-      <div class="success-title">Devis accepté !</div>
-      <div class="success-sub">
-        Merci ${prenomClient} !<br>
-        Votre devis n°${num} a été signé avec succès.<br>
-        Nous vous recontacterons très prochainement.<br><br>
-        <strong style="color:#1B2A4A">SINELEC Paris ⚡</strong><br>
-        <span style="color:#999">07 87 38 86 22</span>
-      </div>
+  <div class="scr" id="scr-ok">
+    <div class="card success">
+      <div style="font-size:64px;margin-bottom:14px">🎉</div>
+      <h2 style="color:#16a34a;margin-bottom:8px">Devis signe !</h2>
+      <p style="font-size:14px;color:#666;line-height:1.6">Merci \${prenomClient} !<br>Votre devis a ete signe avec succes.<br>Nous vous recontacterons tres prochainement.</p>
+      <p style="margin-top:20px;color:#999;font-size:13px">SINELEC Paris ⚡<br>07 87 38 86 22</p>
     </div>
   </div>
-
 </div>
 
 <script>
-const num = '${num}';
-const appUrl = '${appUrl}';
-let checks = {1: false, 2: false, 3: false};
-let otpVerified = false;
+var num = '\${num}';
+var url = '\${appUrl}';
+var checks = [false, false, false];
+var verified = false;
 
-// ── ÉTAPE 1 ──────────────────────────────
-function toggleCheck(n) {
-  checks[n] = !checks[n];
-  const cb = document.getElementById('cb' + n);
-  if (checks[n]) {
-    cb.classList.add('checked');
-  } else {
-    cb.classList.remove('checked');
-  }
-  const allChecked = checks[1] && checks[2] && checks[3];
-  const btn = document.getElementById('btn-step1');
-  btn.disabled = !allChecked;
-  if (allChecked) btn.classList.add('ready');
-  else btn.classList.remove('ready');
+function tick(n) {
+  checks[n-1] = !checks[n-1];
+  var el = document.getElementById('cb'+n);
+  if (checks[n-1]) { el.className='cb on'; el.textContent='✓'; }
+  else { el.className='cb'; el.textContent=''; }
+  document.getElementById('btn1').disabled = !(checks[0]&&checks[1]&&checks[2]);
+  if (checks[0]&&checks[1]&&checks[2]) document.getElementById('btn1').classList.add('btn-gold');
 }
 
-function goToStep2() {
-  setScreen(2);
-}
-
-// ── ÉTAPE 2 ──────────────────────────────
-async function envoyerOTP() {
-  const btn = document.getElementById('btn-send-otp');
-  const msg = document.getElementById('otp-send-msg');
-  btn.disabled = true; btn.textContent = '⏳ Envoi...';
-  try {
-    const res = await fetch(appUrl + '/api/otp-signature', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ num, telephone: '${doc.telephone || ''}' })
-    });
-    const data = await res.json();
-    if (data.success) {
-      msg.textContent = '✅ Code envoyé !'; msg.className = 'msg ok';
-      document.getElementById('otp-card').style.display = 'block';
-      document.getElementById('otp0').focus();
-      btn.textContent = '📨 Renvoyer le code';
-    } else {
-      msg.textContent = '❌ ' + (data.error || 'Erreur'); msg.className = 'msg err';
-    }
-  } catch(e) {
-    msg.textContent = '❌ Erreur réseau'; msg.className = 'msg err';
-  }
-  btn.disabled = false;
-}
-
-function otpInput(idx) {
-  const input = document.getElementById('otp' + idx);
-  const val = input.value.replace(/[^0-9]/g, '').slice(-1);
-  input.value = val;
-  if (val) { input.classList.add('filled'); if (idx < 3) document.getElementById('otp' + (idx+1)).focus(); }
-  else input.classList.remove('filled');
-  // Activer bouton si 4 chiffres
-  const code = [0,1,2,3].map(i => document.getElementById('otp'+i).value).join('');
-  document.getElementById('btn-verify-otp').disabled = code.length < 4;
-  if (code.length === 4) verifierOTP();
-}
-
-async function verifierOTP() {
-  const code = [0,1,2,3].map(i => document.getElementById('otp'+i).value).join('');
-  if (code.length < 4) return;
-  const msg = document.getElementById('otp-verify-msg');
-  const btn = document.getElementById('btn-verify-otp');
-  btn.disabled = true; btn.textContent = '⏳ Vérification...';
-  try {
-    const res = await fetch(appUrl + '/api/verifier-otp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ num, code })
-    });
-    const data = await res.json();
-    if (data.success) {
-      otpVerified = true;
-      msg.textContent = '✅ Identité vérifiée !'; msg.className = 'msg ok';
-      setTimeout(() => setScreen(3), 800);
-    } else {
-      msg.textContent = '❌ Code incorrect. Réessayez.'; msg.className = 'msg err';
-      btn.disabled = false; btn.textContent = 'Vérifier →';
-    }
-  } catch(e) {
-    msg.textContent = '❌ Erreur'; msg.className = 'msg err';
-    btn.disabled = false;
-  }
-}
-
-// ── ÉTAPE 3 ──────────────────────────────
-const cv = document.getElementById('sig-canvas');
-const ctx = cv ? cv.getContext('2d') : null;
-let drawing = false;
-if (ctx) {
-  ctx.strokeStyle = '#1B2A4A'; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  const pos = e => {
-    const r = cv.getBoundingClientRect();
-    const sx = cv.width/r.width; const sy = cv.height/r.height;
-    return e.touches ? { x:(e.touches[0].clientX-r.left)*sx, y:(e.touches[0].clientY-r.top)*sy }
-                     : { x:(e.clientX-r.left)*sx, y:(e.clientY-r.top)*sy };
-  };
-  cv.addEventListener('mousedown', e => { drawing=true; ctx.beginPath(); const p=pos(e); ctx.moveTo(p.x,p.y); });
-  cv.addEventListener('mousemove', e => { if(!drawing) return; const p=pos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); });
-  cv.addEventListener('mouseup', () => drawing=false);
-  cv.addEventListener('touchstart', e => { e.preventDefault(); drawing=true; ctx.beginPath(); const p=pos(e); ctx.moveTo(p.x,p.y); }, {passive:false});
-  cv.addEventListener('touchmove', e => { e.preventDefault(); if(!drawing) return; const p=pos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); }, {passive:false});
-  cv.addEventListener('touchend', () => drawing=false);
-}
-
-function clearSig() { if(ctx) ctx.clearRect(0,0,cv.width,cv.height); }
-
-async function signer() {
-  if (!otpVerified) { document.getElementById('sig-msg').textContent='❌ Identité non vérifiée'; return; }
-  const btn = document.getElementById('btn-sign');
-  btn.disabled = true; btn.textContent = '⏳ Enregistrement...';
-  try {
-    const sigData = cv ? cv.toDataURL('image/png') : null;
-    const res = await fetch(appUrl + '/api/signature', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ num, signature: sigData, ip: '' })
-    });
-    const data = await res.json();
-    if (data.success) {
-      document.getElementById('screen-3').style.display = 'none';
-      document.getElementById('step-indicator').style.display = 'none';
-      document.getElementById('success-screen').style.display = 'block';
-    } else {
-      document.getElementById('sig-msg').textContent = '❌ ' + (data.error || 'Erreur');
-      btn.disabled = false; btn.textContent = 'Valider et signer';
-    }
-  } catch(e) {
-    document.getElementById('sig-msg').textContent = '❌ Erreur réseau';
-    btn.disabled = false;
-  }
-}
-
-// ── NAVIGATION ─────────────────────────────
-function setScreen(n) {
-  [1,2,3].forEach(i => {
-    document.getElementById('screen-'+i).classList.remove('active');
-    const dot = document.getElementById('dot-'+i);
-    if (dot) {
-      dot.classList.remove('active','done');
-      if (i < n) dot.classList.add('done');
-      else if (i === n) dot.classList.add('active');
-    }
+function setStep(n) {
+  [1,2,3].forEach(function(i) {
+    document.getElementById('scr'+i).className='scr';
+    var dot = document.getElementById('s'+i);
+    dot.className = 'step' + (i<n?' done':i===n?' on':'');
   });
-  document.getElementById('screen-'+n).classList.add('active');
+  document.getElementById('scr'+n).className='scr on';
+}
+
+function goStep2() { setStep(2); }
+
+function sendOTP() {
+  var btn = document.getElementById('btn-send');
+  var msg = document.getElementById('msg-send');
+  btn.disabled=true; btn.textContent='Envoi...';
+  fetch(url+'/api/otp-signature', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({num:num, telephone:'\${telClient}'})
+  }).then(function(r){return r.json();}).then(function(d){
+    if (d.success) {
+      msg.textContent='Code envoye !'; msg.className='msg ok';
+      document.getElementById('otp-card').style.display='block';
+      document.getElementById('o0').focus();
+      btn.textContent='Renvoyer le code'; btn.disabled=false;
+    } else {
+      msg.textContent='Erreur : '+(d.error||'?'); msg.className='msg err';
+      btn.disabled=false; btn.textContent='Envoyer le code par SMS';
+    }
+  }).catch(function(){
+    msg.textContent='Erreur reseau'; msg.className='msg err';
+    btn.disabled=false; btn.textContent='Envoyer le code par SMS';
+  });
+}
+
+function otpKey(i) {
+  var el = document.getElementById('o'+i);
+  var v = el.value.replace(/[^0-9]/g,'').slice(-1);
+  el.value=v;
+  el.className = v ? 'otp-in on' : 'otp-in';
+  if (v && i<3) document.getElementById('o'+(i+1)).focus();
+  var code = [0,1,2,3].map(function(x){return document.getElementById('o'+x).value;}).join('');
+  document.getElementById('btn-otp').disabled = code.length<4;
+  if (code.length===4) checkOTP();
+}
+
+function checkOTP() {
+  var code = [0,1,2,3].map(function(x){return document.getElementById('o'+x).value;}).join('');
+  var msg = document.getElementById('msg-otp');
+  var btn = document.getElementById('btn-otp');
+  btn.disabled=true; btn.textContent='Verification...';
+  fetch(url+'/api/verifier-otp', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({num:num, code:code})
+  }).then(function(r){return r.json();}).then(function(d){
+    if (d.success) {
+      verified=true;
+      msg.textContent='Identite verifiee !'; msg.className='msg ok';
+      setTimeout(function(){setStep(3);},700);
+    } else {
+      msg.textContent='Code incorrect. Reessayez.'; msg.className='msg err';
+      btn.disabled=false; btn.textContent='Verifier';
+    }
+  }).catch(function(){
+    msg.textContent='Erreur reseau'; msg.className='msg err';
+    btn.disabled=false;
+  });
+}
+
+var cv = document.getElementById('cv');
+var ctx = cv ? cv.getContext('2d') : null;
+var drawing = false;
+if (ctx) {
+  ctx.strokeStyle='#1B2A4A'; ctx.lineWidth=2.5; ctx.lineCap='round';
+  function getPos(e) {
+    var r=cv.getBoundingClientRect();
+    var sx=cv.width/r.width; var sy=cv.height/r.height;
+    if (e.touches) return {x:(e.touches[0].clientX-r.left)*sx, y:(e.touches[0].clientY-r.top)*sy};
+    return {x:(e.clientX-r.left)*sx, y:(e.clientY-r.top)*sy};
+  }
+  cv.addEventListener('mousedown',function(e){drawing=true;ctx.beginPath();var p=getPos(e);ctx.moveTo(p.x,p.y);});
+  cv.addEventListener('mousemove',function(e){if(!drawing)return;var p=getPos(e);ctx.lineTo(p.x,p.y);ctx.stroke();});
+  cv.addEventListener('mouseup',function(){drawing=false;});
+  cv.addEventListener('touchstart',function(e){e.preventDefault();drawing=true;ctx.beginPath();var p=getPos(e);ctx.moveTo(p.x,p.y);},{passive:false});
+  cv.addEventListener('touchmove',function(e){e.preventDefault();if(!drawing)return;var p=getPos(e);ctx.lineTo(p.x,p.y);ctx.stroke();},{passive:false});
+  cv.addEventListener('touchend',function(){drawing=false;});
+}
+function clearCv(){if(ctx)ctx.clearRect(0,0,cv.width,cv.height);}
+
+function sign() {
+  if (!verified) { document.getElementById('msg-sig').textContent='Identite non verifiee'; document.getElementById('msg-sig').className='msg err'; return; }
+  var btn = document.getElementById('btn-sign');
+  btn.disabled=true; btn.textContent='Enregistrement...';
+  fetch(url+'/api/signature', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({num:num, signature:cv?cv.toDataURL('image/png'):null, ip:''})
+  }).then(function(r){return r.json();}).then(function(d){
+    if (d.success) {
+      [1,2,3].forEach(function(i){document.getElementById('scr'+i).className='scr';});
+      document.getElementById('steps').style.display='none';
+      document.getElementById('scr-ok').className='scr on';
+    } else {
+      document.getElementById('msg-sig').textContent='Erreur : '+(d.error||'?');
+      document.getElementById('msg-sig').className='msg err';
+      btn.disabled=false; btn.textContent='Valider et signer le devis';
+    }
+  }).catch(function(){
+    document.getElementById('msg-sig').textContent='Erreur reseau';
+    document.getElementById('msg-sig').className='msg err';
+    btn.disabled=false;
+  });
 }
 </script>
 </body>
-</html>`);
+</html>`;
+  res.send(signerHtml);
 });
+
 
 // ═══════════════════════════════════════════════════
 // API: CA COMPLET (historique + obat)
