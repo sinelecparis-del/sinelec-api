@@ -2340,12 +2340,13 @@ app.post('/api/otp-signature', async (req, res) => {
 app.post('/api/verifier-otp', async (req, res) => {
   try {
     const { num, code } = req.body;
-    const { data } = await supabase.from('signatures otp').select('code,expire_at,utilisé').eq('numéro', num).order('expire_at', { ascending: false }).limit(1).single();
+    const { data: rows } = await supabase.from('signatures otp').select('code,expire_at,utilisé').eq('numéro', num).order('expire_at', { ascending: false }).limit(1);
+    const data = rows?.[0];
     if (!data) return res.status(404).json({ success: false, error: 'Aucun code envoyé pour ce devis' });
-    if (data['utilisé']) return res.status(400).json({ success: false, error: 'Code déjà utilisé, cliquez Renvoyer' });
     if (new Date(data.expire_at) < new Date()) return res.status(400).json({ success: false, error: 'Code expiré, cliquez Renvoyer' });
     const stored = String(data.code).replace(/\D/g, '').trim();
     const entered = String(code).replace(/\D/g, '').trim();
+    console.log('OTP check:', num, '| stored:', stored, '| entered:', entered);
     if (!stored || !entered || stored !== entered) return res.status(400).json({ success: false, error: 'Code incorrect' });
     await supabase.from('signatures otp').update({ "utilisé": true }).eq('numéro', num);
     res.json({ success: true });
