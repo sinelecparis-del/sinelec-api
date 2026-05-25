@@ -2329,7 +2329,10 @@ app.post('/api/otp-signature', async (req, res) => {
     }
     const code = String(Math.floor(100000 + Math.random() * 900000));
     const expire_at = new Date(Date.now() + 15*60*1000).toISOString();
-    await supabase.from('signatures otp').upsert({ "numéro": num, code, expire_at, "utilisé": false }, { onConflict: 'numéro' });
+    await supabase.from('signatures otp').delete().eq('numéro', num);
+    const { error: insertErr } = await supabase.from('signatures otp').insert({ "numéro": num, code, expire_at, "utilisé": false });
+    if (insertErr) { console.error('❌ OTP insert error:', insertErr.message); return res.status(500).json({ success: false, error: 'Erreur sauvegarde code: ' + insertErr.message }); }
+    console.log('✅ OTP sauvegardé pour', num, '— code:', code);
     const smsResult = await envoyerSMS(telephone, `Votre code SINELEC : ${code}. Valable 15 minutes.`);
     if (!smsResult) return res.status(500).json({ success: false, error: "Impossible d'envoyer le SMS. Vérifiez votre numéro." });
     const telMasq = String(telephone).replace(/(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 ** ** $5');
