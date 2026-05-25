@@ -81,7 +81,7 @@ function verifierToken(token) {
 }
 
 function authMiddleware(req, res, next) {
-  const publicRoutes = ['/', '/health', '/api/login', '/signer/', '/paiement-confirme/', '/api/signature', '/api/otp-signature', '/api/auth/check', '/api/test-pdf', '/api/test'];
+  const publicRoutes = ['/', '/health', '/api/login', '/signer/', '/paiement-confirme/', '/api/signature', '/api/otp-signature', '/api/verifier-otp', '/api/auth/check', '/api/test-pdf', '/api/test'];
   if (publicRoutes.some(r => req.path.startsWith(r))) return next();
   const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
   if (!verifierToken(token)) return res.status(401).json({ error: 'Non autorisé', code: 'UNAUTHORIZED' });
@@ -747,6 +747,17 @@ app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
       }
     }
 
+    const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+    const lienSig = `${appUrl}/api/track/click/${num}?redirect=/signer/${num}`;
+    const docTypeLocal = num.startsWith('OS-') ? 'devis' : 'facture';
+
+    const signatureBlock = docTypeLocal === 'devis' ? `
+      <div style="background:#fffbf0;border:1.5px solid #C9A84C;border-radius:12px;padding:20px;text-align:center;margin:20px 0;">
+        <p style="font-size:13px;color:#555;margin-bottom:16px;">Pour accepter ce devis, signez-le directement en ligne :</p>
+        <a href="${lienSig}" style="background:linear-gradient(135deg,#C9A84C,#daa520);color:#fff;text-decoration:none;border-radius:10px;padding:14px 28px;font-size:15px;font-weight:800;display:inline-block;">✍️ Signer le devis en ligne</a>
+        <p style="font-size:11px;color:#aaa;margin-top:12px;">Signature électronique valide — Loi n°2000-230</p>
+      </div>` : '';
+
     const htmlEmail = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;">
       <div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:24px;text-align:center;border-radius:12px 12px 0 0;">
         <div style="font-size:28px;">⚡</div>
@@ -754,12 +765,12 @@ app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
       </div>
       <div style="padding:24px;border:1px solid #e8e8e8;border-top:none;border-radius:0 0 12px 12px;">
         <p style="white-space:pre-wrap;font-size:14px;color:#333;line-height:1.6;">${(message || '').replace(/</g,'&lt;')}</p>
+        ${signatureBlock}
         <p style="font-size:12px;color:#888;margin-top:16px;">📞 07 87 38 86 22 | sinelec.paris@gmail.com</p>
       </div>
     </div>`;
 
     // Pixel espion
-    const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
     const htmlWithPixel = htmlEmail + `<img src="${appUrl}/api/track/open/${num}" width="1" height="1" style="display:none">`;
 
     const attachment = pdf_b64 ? { content: pdf_b64, name: `${num}.pdf` } : null;
@@ -891,48 +902,244 @@ app.get('/signer/:num', async (req, res) => {
     return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Déjà signé</title></head><body style="font-family:Arial;text-align:center;padding:40px;"><h2>✅ Devis déjà signé</h2><p>Le devis ${num} a déjà été signé. Merci !</p><p>📞 07 87 38 86 22</p></body></html>`);
   }
   const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
-  res.send(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Signer le devis ${num}</title>
-<style>body{font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:20px;background:#f5f5f5;}
-.card{background:#fff;border-radius:16px;padding:24px;box-shadow:0 4px 20px rgba(0,0,0,0.1);}
-h2{color:#1B2A4A;margin-bottom:4px;}
-canvas{border:2px dashed #ccc;border-radius:12px;width:100%;height:160px;touch-action:none;cursor:crosshair;background:#fff;}
-.btn{width:100%;padding:16px;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;margin-top:10px;}
-.btn-sign{background:linear-gradient(135deg,#E8B84B,#C9962A);color:#fff;}
-.btn-clear{background:#f0f0f0;color:#666;}
-.info{font-size:13px;color:#888;margin:8px 0;}
-</style></head>
-<body><div class="card">
-<div style="text-align:center;margin-bottom:16px;"><div style="font-size:36px;">⚡</div><h2>SINELEC Paris</h2></div>
-<h3 style="color:#1B2A4A;">Devis n° ${num}</h3>
-<p><strong>${doc.client}</strong></p>
-<p style="color:#C9A84C;font-weight:700;">Montant : ${(doc.total_ht||0).toFixed(0)} € HT</p>
-<p class="info">En signant, vous acceptez les conditions du devis ci-joint.</p>
-<canvas id="sig" width="460" height="160"></canvas>
-<button class="btn btn-clear" onclick="clear()">↺ Effacer</button>
-<button class="btn btn-sign" onclick="sign()">✍️ Je signe et j'accepte le devis</button>
-<div id="msg" style="margin-top:12px;text-align:center;font-weight:700;"></div>
+  const telClient = (doc.telephone || '').replace(/(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 ** ** $5');
+  res.send(`<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Signature — ${num}</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0f1929;min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:16px;font-family:'Segoe UI',Arial,sans-serif}
+.card{background:#fff;border-radius:16px;width:100%;max-width:480px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,0.4)}
+.hdr{background:#1B2A4A;padding:18px 20px;text-align:center;border-bottom:3px solid #C9A84C}
+.hdr-icon{font-size:26px;margin-bottom:4px}
+.hdr-title{color:#fff;font-size:16px;font-weight:700}
+.hdr-num{background:rgba(201,164,76,0.2);border:1px solid #C9A84C;border-radius:20px;padding:3px 12px;color:#C9A84C;font-size:11px;font-weight:700;display:inline-block;margin-top:5px}
+.hdr-client{color:rgba(255,255,255,0.5);font-size:11px;margin-top:5px}
+.steps{display:flex;justify-content:center;gap:0;padding:14px 20px 0;position:relative}
+.steps::before{content:'';position:absolute;top:25px;left:80px;right:80px;height:2px;background:#e5e7eb;z-index:0}
+.step{display:flex;flex-direction:column;align-items:center;gap:3px;flex:1;position:relative;z-index:1}
+.step-c{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;border:2px solid}
+.step-c.done{background:#16a34a;border-color:#16a34a;color:#fff}
+.step-c.active{background:#1B2A4A;border-color:#1B2A4A;color:#fff}
+.step-c.pending{background:#fff;border-color:#d1d5db;color:#9ca3af}
+.step-l{font-size:9px;color:#6b7280;text-align:center;font-weight:500}
+.step-l.active{color:#1B2A4A;font-weight:700}
+.body{padding:18px 20px}
+.sec-title{font-size:12px;font-weight:700;color:#1B2A4A;margin-bottom:10px;display:flex;align-items:center;gap:5px}
+.cgv-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin-bottom:14px;max-height:130px;overflow-y:auto}
+.cgv-text{font-size:10.5px;color:#64748b;line-height:1.65}
+.cgv-text strong{color:#1B2A4A;display:block;margin-top:8px;margin-bottom:2px}
+.cgv-text strong:first-child{margin-top:0}
+.checks{display:flex;flex-direction:column;gap:9px;margin-bottom:18px}
+.check-item{display:flex;align-items:flex-start;gap:10px;padding:11px;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;cursor:pointer;transition:all .2s}
+.check-item.on{background:#f0fdf4;border-color:#16a34a}
+.check-box{width:20px;height:20px;border-radius:5px;border:2px solid #d1d5db;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;transition:all .2s;margin-top:1px}
+.check-item.on .check-box{background:#16a34a;border-color:#16a34a;color:#fff}
+.check-txt{font-size:11.5px;color:#374151;line-height:1.5}
+.check-txt strong{color:#1B2A4A;display:block;margin-bottom:1px;font-size:12px}
+.sms-box{background:#fffbf0;border:1.5px solid #C9A84C;border-radius:10px;padding:14px;margin-bottom:18px}
+.sms-title{font-size:12px;font-weight:700;color:#1B2A4A;margin-bottom:3px}
+.sms-sub{font-size:10.5px;color:#92400e;margin-bottom:11px}
+.sms-row{display:flex;gap:8px}
+.sms-inp{flex:1;border:1.5px solid #d1d5db;border-radius:8px;padding:11px;font-size:20px;letter-spacing:8px;text-align:center;font-weight:700;color:#1B2A4A;outline:none}
+.sms-inp:focus{border-color:#C9A84C}
+.btn-sms{background:#1B2A4A;color:#fff;border:none;border-radius:8px;padding:11px 12px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap}
+.sms-ok{font-size:11px;color:#16a34a;margin-top:7px;display:none}
+.sig-hint{font-size:11px;color:#9ca3af;text-align:center;margin-bottom:6px}
+.sig-wrap{border:1.5px dashed #d1d5db;border-radius:10px;background:#fafafa;position:relative;overflow:hidden;margin-bottom:10px}
+canvas{display:block;width:100%;height:150px;cursor:crosshair;touch-action:none}
+.sig-erase{position:absolute;top:7px;right:7px;background:rgba(0,0,0,0.06);border:none;border-radius:6px;padding:4px 10px;font-size:10px;color:#6b7280;cursor:pointer}
+.btn-val{width:100%;background:linear-gradient(135deg,#1B2A4A,#243660);color:#fff;border:none;border-radius:10px;padding:15px;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;margin-bottom:12px}
+.btn-val:disabled{background:#e5e7eb;color:#9ca3af;cursor:not-allowed}
+.btn-next{width:100%;background:linear-gradient(135deg,#1B2A4A,#243660);color:#fff;border:none;border-radius:10px;padding:15px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:12px}
+.btn-next:disabled{background:#e5e7eb;color:#9ca3af;cursor:not-allowed}
+.ftr{padding:12px 20px;background:#f8fafc;border-top:1px solid #f0f0f0;text-align:center}
+.ftr-txt{font-size:9.5px;color:#9ca3af}
+#msg{text-align:center;font-weight:700;font-size:13px;margin-top:8px;min-height:20px}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="hdr">
+    <div class="hdr-icon">⚡</div>
+    <div class="hdr-title">Signature électronique</div>
+    <div class="hdr-num">${num} · ${(doc.total_ht||0).toFixed(2)} €</div>
+    <div class="hdr-client">${doc.client}</div>
+  </div>
+
+  <div class="steps" id="steps">
+    <div class="step"><div class="step-c active" id="sc1">1</div><div class="step-l active" id="sl1">CGV</div></div>
+    <div class="step"><div class="step-c pending" id="sc2">2</div><div class="step-l" id="sl2">Code SMS</div></div>
+    <div class="step"><div class="step-c pending" id="sc3">3</div><div class="step-l" id="sl3">Signature</div></div>
+  </div>
+
+  <!-- ÉTAPE 1 : CGV + CASES -->
+  <div class="body" id="step1">
+    <div class="sec-title">📋 Conditions générales de vente</div>
+    <div class="cgv-box">
+      <div class="cgv-text">
+        <strong>1. Devis et acceptation</strong>Le devis est valable 30 jours. Toute commande implique l'acceptation sans réserve des présentes CGV. La signature vaut bon de commande.
+        <strong>2. Prix et paiement</strong>TVA non applicable art. 293B CGI. Acompte 40% à la signature si devis > 400€. Solde à la fin des travaux. CB, espèces, virement acceptés.
+        <strong>3. Réalisation des travaux</strong>Travaux conformes NF C 15-100. Le client s'engage à fournir un accès sécurisé et à informer de toute contrainte particulière.
+        <strong>4. Garanties</strong>Garantie décennale ORUS Assurances. Garantie parfait achèvement 1 an. Ne couvre pas les dégradations dues à une mauvaise utilisation.
+        <strong>5. Rétractation</strong>Droit de rétractation 14 jours (art. L221-18 Code Conso). Ne s'applique pas en cas d'urgence confirmée.
+        <strong>6. Responsabilité</strong>SINELEC ne peut être tenu responsable des dommages indirects. Force majeure : exécution suspendue sans indemnité.
+        <strong>7. Litiges</strong>Solution amiable privilégiée. À défaut, compétence exclusive des tribunaux de Paris.
+      </div>
+    </div>
+    <div class="checks" id="checks">
+      <div class="check-item" onclick="toggle(this)"><div class="check-box"></div><div class="check-txt"><strong>J'ai lu et j'accepte les CGV</strong>J'ai pris connaissance des conditions générales de vente SINELEC Paris</div></div>
+      <div class="check-item" onclick="toggle(this)"><div class="check-box"></div><div class="check-txt"><strong>J'accepte le devis et le montant</strong>Je valide les prestations et le montant total de ${(doc.total_ht||0).toFixed(2)} €</div></div>
+      <div class="check-item" onclick="toggle(this)"><div class="check-box"></div><div class="check-txt"><strong>Je confirme mes informations</strong>Mes coordonnées et adresse de chantier sont exactes</div></div>
+    </div>
+    <button class="btn-next" id="btn1" disabled onclick="goStep2()">Continuer →</button>
+  </div>
+
+  <!-- ÉTAPE 2 : CODE SMS -->
+  <div class="body hidden" id="step2">
+    <div class="sms-box">
+      <div class="sms-title">📱 Vérification par SMS</div>
+      <div class="sms-sub" id="sms-tel">Envoi du code sur votre mobile...</div>
+      <div class="sms-row">
+        <input class="sms-inp" id="otp-inp" type="text" maxlength="4" placeholder="_ _ _ _" inputmode="numeric">
+        <button class="btn-sms" onclick="renvoyerCode()">Renvoyer</button>
+      </div>
+      <div class="sms-ok" id="sms-ok">✅ Code envoyé par SMS</div>
+    </div>
+    <button class="btn-next" id="btn2" disabled onclick="goStep3()">Vérifier et continuer →</button>
+    <div id="msg2" style="text-align:center;font-size:12px;color:#dc2626;margin-top:6px;min-height:16px"></div>
+  </div>
+
+  <!-- ÉTAPE 3 : SIGNATURE -->
+  <div class="body hidden" id="step3">
+    <div class="sec-title">✍️ Votre signature</div>
+    <div class="sig-hint">Signez avec votre doigt dans le cadre ci-dessous</div>
+    <div class="sig-wrap">
+      <canvas id="sig" height="150"></canvas>
+      <button class="sig-erase" onclick="effacer()">Effacer</button>
+    </div>
+    <button class="btn-val" id="btn-val" onclick="valider()">✅ Valider et signer le devis</button>
+    <div id="msg"></div>
+  </div>
+
+  <div class="ftr">
+    <div class="ftr-txt">🔒 Signature électronique valide — Loi n°2000-230 du 13 mars 2000<br>SINELEC EI · SIRET 91015824500019</div>
+  </div>
 </div>
+
 <script>
-const cv=document.getElementById('sig'),ctx=cv.getContext('2d');
-let drawing=false;
-ctx.strokeStyle='#1B2A4A';ctx.lineWidth=2;ctx.lineCap='round';
-const pos=e=>{const r=cv.getBoundingClientRect();const sx=cv.width/r.width;const sy=cv.height/r.height;return e.touches?{x:(e.touches[0].clientX-r.left)*sx,y:(e.touches[0].clientY-r.top)*sy}:{x:(e.clientX-r.left)*sx,y:(e.clientY-r.top)*sy};};
-cv.addEventListener('mousedown',e=>{drawing=true;ctx.beginPath();const p=pos(e);ctx.moveTo(p.x,p.y);});
-cv.addEventListener('mousemove',e=>{if(!drawing)return;const p=pos(e);ctx.lineTo(p.x,p.y);ctx.stroke();});
-cv.addEventListener('mouseup',()=>drawing=false);
-cv.addEventListener('touchstart',e=>{e.preventDefault();drawing=true;ctx.beginPath();const p=pos(e);ctx.moveTo(p.x,p.y);},{passive:false});
-cv.addEventListener('touchmove',e=>{e.preventDefault();if(!drawing)return;const p=pos(e);ctx.lineTo(p.x,p.y);ctx.stroke();},{passive:false});
-cv.addEventListener('touchend',()=>drawing=false);
-function clear(){ctx.clearRect(0,0,cv.width,cv.height);}
-async function sign(){
-  const msg=document.getElementById('msg');
-  msg.textContent='⏳ Enregistrement...';msg.style.color='#C9A84C';
-  const res=await fetch('${appUrl}/api/signature',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({num:'${num}',signature:cv.toDataURL('image/png'),ip:''})});
-  const data=await res.json();
-  if(data.success){msg.textContent='✅ Signé ! Merci, nous vous recontactons.';msg.style.color='#16a34a';document.querySelector('.btn-sign').disabled=true;}
-  else{msg.textContent='❌ Erreur: '+data.error;msg.style.color='#dc2626';}
+const NUM='${num}';
+const TEL='${doc.telephone||""}';
+const APP='${appUrl}';
+
+// ── Étape 1 : cases à cocher ──
+function toggle(el){
+  el.classList.toggle('on');
+  el.querySelector('.check-box').textContent = el.classList.contains('on') ? '✓' : '';
+  const all = document.querySelectorAll('.check-item');
+  document.getElementById('btn1').disabled = ![...all].every(c=>c.classList.contains('on'));
 }
-</script></body></html>`);
+
+async function goStep2(){
+  document.getElementById('step1').classList.add('hidden');
+  document.getElementById('step2').classList.remove('hidden');
+  setStep(2);
+  await envoyerOTP();
+}
+
+async function envoyerOTP(){
+  try {
+    const r = await fetch(APP+'/api/otp-signature', '/api/verifier-otp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({num:NUM,telephone:TEL})});
+    const d = await r.json();
+    if(d.success){
+      const telMasq = TEL.replace(/(\\d{2})(\\d{2})(\\d{2})(\\d{2})(\\d{2})/,'$1 $2 ** ** $5');
+      document.getElementById('sms-tel').textContent = 'Code envoyé au ' + (telMasq||'votre mobile');
+      document.getElementById('sms-ok').style.display='flex';
+    }
+  } catch(e){}
+}
+
+async function renvoyerCode(){ await envoyerOTP(); }
+
+document.getElementById('otp-inp').addEventListener('input', function(){
+  document.getElementById('btn2').disabled = this.value.length < 4;
+});
+
+async function goStep3(){
+  const code = document.getElementById('otp-inp').value.trim();
+  try {
+    const r = await fetch(APP+'/api/verifier-otp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({num:NUM,code})});
+    const d = await r.json();
+    if(d.success){
+      document.getElementById('step2').classList.add('hidden');
+      document.getElementById('step3').classList.remove('hidden');
+      setStep(3);
+      initCanvas();
+    } else {
+      document.getElementById('msg2').textContent = '❌ Code incorrect ou expiré';
+    }
+  } catch(e){
+    document.getElementById('msg2').textContent = '❌ Erreur vérification';
+  }
+}
+
+// ── Étape 3 : canvas signature ──
+let cv, ctx, drawing=false;
+function initCanvas(){
+  cv = document.getElementById('sig');
+  ctx = cv.getContext('2d');
+  cv.width = cv.offsetWidth * window.devicePixelRatio;
+  cv.height = 150 * window.devicePixelRatio;
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  ctx.strokeStyle='#1B2A4A'; ctx.lineWidth=2.5; ctx.lineCap='round'; ctx.lineJoin='round';
+  const pos=e=>{const r=cv.getBoundingClientRect();return e.touches?{x:e.touches[0].clientX-r.left,y:e.touches[0].clientY-r.top}:{x:e.clientX-r.left,y:e.clientY-r.top};};
+  cv.addEventListener('mousedown',e=>{drawing=true;ctx.beginPath();const p=pos(e);ctx.moveTo(p.x,p.y);});
+  cv.addEventListener('mousemove',e=>{if(!drawing)return;const p=pos(e);ctx.lineTo(p.x,p.y);ctx.stroke();});
+  cv.addEventListener('mouseup',()=>drawing=false);
+  cv.addEventListener('touchstart',e=>{e.preventDefault();drawing=true;ctx.beginPath();const p=pos(e);ctx.moveTo(p.x,p.y);},{passive:false});
+  cv.addEventListener('touchmove',e=>{e.preventDefault();if(!drawing)return;const p=pos(e);ctx.lineTo(p.x,p.y);ctx.stroke();},{passive:false});
+  cv.addEventListener('touchend',()=>drawing=false);
+}
+function effacer(){ if(ctx) ctx.clearRect(0,0,cv.width,cv.height); }
+
+async function valider(){
+  const msg=document.getElementById('msg');
+  const btn=document.getElementById('btn-val');
+  btn.disabled=true; msg.textContent='⏳ Enregistrement...'; msg.style.color='#C9A84C';
+  try {
+    const r=await fetch(APP+'/api/signature',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({num:NUM,signature:cv.toDataURL('image/png'),ip:''})});
+    const d=await r.json();
+    if(d.success){
+      msg.textContent='✅ Devis signé ! Merci, nous vous recontactons.';
+      msg.style.color='#16a34a';
+    } else {
+      msg.textContent='❌ Erreur: '+(d.error||'Inconnue');
+      msg.style.color='#dc2626';
+      btn.disabled=false;
+    }
+  } catch(e){
+    msg.textContent='❌ Erreur réseau';
+    msg.style.color='#dc2626';
+    btn.disabled=false;
+  }
+}
+
+function setStep(n){
+  [1,2,3].forEach(i=>{
+    const c=document.getElementById('sc'+i);
+    const l=document.getElementById('sl'+i);
+    if(i<n){c.className='step-c done';c.textContent='✓';}
+    else if(i===n){c.className='step-c active';l.className='step-l active';}
+    else{c.className='step-c pending';l.className='step-l';}
+  });
+}
+</script>
+</body>
+</html>`);
 });
 
 // ═══════════════════════════════════════════════════
@@ -2004,12 +2211,24 @@ app.post('/api/relances/lancer', authMiddleware, async (req, res) => {
 // ═══════════════════════════════════════════════════
 // API: OTP SIGNATURE
 // ═══════════════════════════════════════════════════
-app.post('/api/otp-signature', async (req, res) => {
+app.post('/api/otp-signature', '/api/verifier-otp', async (req, res) => {
   try {
     const { num, telephone } = req.body;
     const code = String(Math.floor(1000 + Math.random() * 9000));
     await supabase.from('historique').update({ otp_code: code, otp_expiry: new Date(Date.now() + 15*60*1000).toISOString() }).eq('num', num);
     await envoyerSMS(telephone, `Votre code SINELEC : ${code}. Valable 15 minutes.`);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/verifier-otp', async (req, res) => {
+  try {
+    const { num, code } = req.body;
+    const { data } = await supabase.from('historique').select('otp_code,otp_expiry').eq('num', num).single();
+    if (!data) return res.status(404).json({ success: false, error: 'Document introuvable' });
+    if (!data.otp_code) return res.status(400).json({ success: false, error: 'Aucun code envoyé' });
+    if (new Date(data.otp_expiry) < new Date()) return res.status(400).json({ success: false, error: 'Code expiré' });
+    if (String(data.otp_code).trim() !== String(code).trim()) return res.status(400).json({ success: false, error: 'Code incorrect' });
     res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
