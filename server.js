@@ -81,7 +81,7 @@ function verifierToken(token) {
 }
 
 function authMiddleware(req, res, next) {
-  const publicRoutes = ['/', '/health', '/api/login', '/signer/', '/paiement-confirme/', '/api/signature', '/api/otp-signature', '/api/verifier-otp', '/api/auth/check', '/api/test-pdf', '/api/test'];
+  const publicRoutes = ['/', '/health', '/api/login', '/signer/', '/paiement-confirme/', '/api/signature', '/api/otp-signature', '/api/verifier-otp', '/api/track/click/', '/api/track/open/', '/api/auth/check', '/api/test-pdf', '/api/test'];
   if (publicRoutes.some(r => req.path.startsWith(r))) return next();
   const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
   if (!verifierToken(token)) return res.status(401).json({ error: 'Non autorisé', code: 'UNAUTHORIZED' });
@@ -1053,7 +1053,7 @@ async function goStep2(){
 
 async function envoyerOTP(){
   try {
-    const r = await fetch(APP+'/api/otp-signature', '/api/verifier-otp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({num:NUM,telephone:TEL})});
+    const r = await fetch(APP+'/api/otp-signature', '/api/verifier-otp', '/api/track/click/', '/api/track/open/',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({num:NUM,telephone:TEL})});
     const d = await r.json();
     if(d.success){
       const telMasq = TEL.replace(/(\\d{2})(\\d{2})(\\d{2})(\\d{2})(\\d{2})/,'$1 $2 ** ** $5');
@@ -2206,6 +2206,30 @@ app.post('/api/relances/lancer', authMiddleware, async (req, res) => {
     }
     res.json({ success: true, nb_relances: nb });
   } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/track/click/:num', async (req, res) => {
+  const { num } = req.params;
+  const redirect = req.query.redirect || `/signer/${num}`;
+  try {
+    const now = new Date().toISOString();
+    await supabase.from('historique').update({ email_ouvert: true, derniere_ouverture: now }).eq('num', num);
+    const { data } = await supabase.from('historique').select('premiere_ouverture').eq('num', num).single();
+    if (!data?.premiere_ouverture) await supabase.from('historique').update({ premiere_ouverture: now }).eq('num', num);
+  } catch(e) {}
+  res.redirect(redirect);
+});
+
+app.get('/api/track/open/:num', async (req, res) => {
+  const { num } = req.params;
+  try {
+    const now = new Date().toISOString();
+    await supabase.from('historique').update({ email_ouvert: true, derniere_ouverture: now }).eq('num', num);
+  } catch(e) {}
+  const gif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
+  res.setHeader('Content-Type', 'image/gif');
+  res.setHeader('Cache-Control', 'no-cache, no-store');
+  res.send(gif);
 });
 
 // ═══════════════════════════════════════════════════
