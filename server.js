@@ -689,6 +689,66 @@ if doc_type=='devis':
         sig_t=Table([[p('\u270d\ufe0f  Signature \u00e9lectronique uniquement \u2022 Loi n\u00b02000-230',8,'Helvetica-Bold',colors.HexColor('#16a34a'),TA_CENTER)]],colWidths=[18.2*cm])
         sig_t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f0fdf4')),('BOX',(0,0),(-1,-1),1.5,colors.HexColor('#16a34a')),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
         story.append(sig_t)
+if is_signe:
+    story.append(PageBreak())
+    hdr_cgv=Table([[p('\u26a1  SINELEC PARIS',11,'Helvetica-Bold',BLANC),p('CONDITIONS G\u00c9N\u00c9RALES DE VENTE',11,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[8.5*cm,9*cm])
+    hdr_cgv.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10)]))
+    story.append(hdr_cgv); story.append(Spacer(1,0.2*cm))
+    date_sig=str(meta.get('datePaiement',''))
+    story.append(Table([[p('Applicables au devis n\u00b0 '+doc_num+' \u2014 Accept\u00e9es par '+client_nom+' le '+date_sig,7.5,'Helvetica',GRIS_SOFT),p('SIRET 91015824500019 \u2022 TVA non applicable art. 293B CGI',7.5,'Helvetica',GRIS_SOFT,TA_RIGHT)]],colWidths=[9.5*cm,8*cm]))
+    story.append(Table([[p('',1)]],colWidths=[18.2*cm],style=[('LINEBELOW',(0,0),(-1,-1),1,OR)]))
+    story.append(Spacer(1,0.15*cm))
+    GRIS_L=colors.HexColor('#f8fafc')
+    cgv_arts=[('Art. 1 \u2014 Devis et acceptation','Le devis est valable 30 jours. Toute commande implique l\u2019acceptation sans r\u00e9serve des pr\u00e9sentes CGV. La signature \u00e9lectronique vaut bon de commande ferme.'),('Art. 2 \u2014 Prix et paiement','TVA non applicable art. 293B CGI. Acompte 40% \u00e0 la signature si devis > 400\u20ac. Solde \u00e0 la fin des travaux. Paiement : esp\u00e8ces, virement, CB SumUp, PayPal.'),('Art. 3 \u2014 R\u00e9alisation des travaux','Travaux conform\u00e9ment \u00e0 la norme NF C 15-100. Le client s\u2019engage \u00e0 fournir un acc\u00e8s s\u00e9curis\u00e9 et informer SINELEC de toute contrainte avant intervention.'),('Art. 4 \u2014 Garanties','Garantie d\u00e9cennale ORUS Assurances (Lyon). Garantie parfait ach\u00e8vement 1 an. Ne couvre pas les d\u00e9gradations dues \u00e0 mauvaise utilisation ou intervention tierce.'),('Art. 5 \u2014 Droit de r\u00e9tractation','Droit de r\u00e9tractation 14 jours (art. L221-18 Code Conso). Ne s\u2019applique pas aux interventions d\u2019urgence expressément sollicit\u00e9es par le client.'),('Art. 6 \u2014 Responsabilit\u00e9','SINELEC ne saurait \u00eatre tenu responsable des dommages indirects. Force majeure : ex\u00e9cution suspendue sans indemnit\u00e9.'),('Art. 7 \u2014 Litiges','Solution amiable privil\u00e9gi\u00e9e. \u00c0 d\u00e9faut, comp\u00e9tence exclusive des tribunaux de Paris.')]
+    for titre,texte in cgv_arts:
+        r=Table([[p(titre,8,'Helvetica-Bold',MARINE),p(texte,7.5,'Helvetica',GRIS_SOFT)]],colWidths=[4.8*cm,13.4*cm])
+        r.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GRIS_L),('LINEBELOW',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0')),('LEFTPADDING',(0,0),(-1,-1),8),('RIGHTPADDING',(0,0),(-1,-1),8),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),('VALIGN',(0,0),(-1,-1),'TOP')]))
+        story.append(r)
+    story.append(Spacer(1,0.4*cm))
+    VERT_G=colors.HexColor('#16a34a')
+    accept=Table([[p('\u2705  CGV lues et accept\u00e9es \u00e9lectroniquement',8,'Helvetica-Bold',VERT_G),p(client_nom+' \u2022 '+date_sig+' \u2022 Paris',8,'Helvetica-Bold',MARINE,TA_RIGHT)]],colWidths=[9*cm,8.5*cm])
+    accept.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f0fdf4')),('BOX',(0,0),(-1,-1),1.5,VERT_G),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
+    story.append(accept)
+doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')if is_signe:
+    story.append(PageBreak())
+    hdr_cgv=Table([[p('\u26a1  SINELEC PARIS',11,'Helvetica-Bold',BLANC),p('CONDITIONS G\u00c9N\u00c9RALES DE VENTE',11,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[8.5*cm,9*cm])
+    hdr_cgv.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10)]))
+    story.append(hdr_cgv); story.append(Spacer(1,0.2*cm))
+    date_sig=str(meta.get('datePaiement',''))
+    story.append(Table([[p('Applicables au devis n\u00b0 '+doc_num+' \u2014 Accept\u00e9es par '+client_nom+' le '+date_sig,7.5,'Helvetica',GRIS_SOFT),p('SIRET 91015824500019 \u2022 TVA non applicable art. 293B CGI',7.5,'Helvetica',GRIS_SOFT,TA_RIGHT)]],colWidths=[9.5*cm,8*cm]))
+    story.append(Table([[p('',1)]],colWidths=[18.2*cm],style=[('LINEBELOW',(0,0),(-1,-1),1,OR)]))
+    story.append(Spacer(1,0.15*cm))
+    GRIS_L=colors.HexColor('#f8fafc')
+    cgv_arts=[('Art. 1 \u2014 Devis et acceptation','Le devis est valable 30 jours. Toute commande implique l\u2019acceptation sans r\u00e9serve des pr\u00e9sentes CGV. La signature \u00e9lectronique vaut bon de commande ferme.'),('Art. 2 \u2014 Prix et paiement','TVA non applicable art. 293B CGI. Acompte 40% \u00e0 la signature si devis > 400\u20ac. Solde \u00e0 la fin des travaux. Paiement : esp\u00e8ces, virement, CB SumUp, PayPal.'),('Art. 3 \u2014 R\u00e9alisation des travaux','Travaux conform\u00e9ment \u00e0 la norme NF C 15-100. Le client s\u2019engage \u00e0 fournir un acc\u00e8s s\u00e9curis\u00e9 et informer SINELEC de toute contrainte avant intervention.'),('Art. 4 \u2014 Garanties','Garantie d\u00e9cennale ORUS Assurances (Lyon). Garantie parfait ach\u00e8vement 1 an. Ne couvre pas les d\u00e9gradations dues \u00e0 mauvaise utilisation ou intervention tierce.'),('Art. 5 \u2014 Droit de r\u00e9tractation','Droit de r\u00e9tractation 14 jours (art. L221-18 Code Conso). Ne s\u2019applique pas aux interventions d\u2019urgence expressément sollicit\u00e9es par le client.'),('Art. 6 \u2014 Responsabilit\u00e9','SINELEC ne saurait \u00eatre tenu responsable des dommages indirects. Force majeure : ex\u00e9cution suspendue sans indemnit\u00e9.'),('Art. 7 \u2014 Litiges','Solution amiable privil\u00e9gi\u00e9e. \u00c0 d\u00e9faut, comp\u00e9tence exclusive des tribunaux de Paris.')]
+    for titre,texte in cgv_arts:
+        r=Table([[p(titre,8,'Helvetica-Bold',MARINE),p(texte,7.5,'Helvetica',GRIS_SOFT)]],colWidths=[4.8*cm,13.4*cm])
+        r.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GRIS_L),('LINEBELOW',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0')),('LEFTPADDING',(0,0),(-1,-1),8),('RIGHTPADDING',(0,0),(-1,-1),8),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),('VALIGN',(0,0),(-1,-1),'TOP')]))
+        story.append(r)
+    story.append(Spacer(1,0.4*cm))
+    VERT_G=colors.HexColor('#16a34a')
+    accept=Table([[p('\u2705  CGV lues et accept\u00e9es \u00e9lectroniquement',8,'Helvetica-Bold',VERT_G),p(client_nom+' \u2022 '+date_sig+' \u2022 Paris',8,'Helvetica-Bold',MARINE,TA_RIGHT)]],colWidths=[9*cm,8.5*cm])
+    accept.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f0fdf4')),('BOX',(0,0),(-1,-1),1.5,VERT_G),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
+    story.append(accept)
+if is_signe:
+    story.append(PageBreak())
+    hdr_cgv=Table([[p('\u26a1  SINELEC PARIS',11,'Helvetica-Bold',BLANC),p('CONDITIONS G\u00c9N\u00c9RALES DE VENTE',11,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[8.5*cm,9*cm])
+    hdr_cgv.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10)]))
+    story.append(hdr_cgv); story.append(Spacer(1,0.2*cm))
+    date_sig=str(meta.get('datePaiement',''))
+    story.append(Table([[p('Applicables au devis n\u00b0 '+doc_num+' \u2014 Accept\u00e9es par '+client_nom+' le '+date_sig,7.5,'Helvetica',GRIS_SOFT),p('SIRET 91015824500019 \u2022 TVA non applicable art. 293B CGI',7.5,'Helvetica',GRIS_SOFT,TA_RIGHT)]],colWidths=[9.5*cm,8*cm]))
+    story.append(Table([[p('',1)]],colWidths=[18.2*cm],style=[('LINEBELOW',(0,0),(-1,-1),1,OR)]))
+    story.append(Spacer(1,0.15*cm))
+    GRIS_L=colors.HexColor('#f8fafc')
+    cgv_arts=[('Art. 1 \u2014 Devis et acceptation','Le devis est valable 30 jours. Toute commande implique l\u2019acceptation sans r\u00e9serve des pr\u00e9sentes CGV. La signature \u00e9lectronique vaut bon de commande ferme.'),('Art. 2 \u2014 Prix et paiement','TVA non applicable art. 293B CGI. Acompte 40% \u00e0 la signature si devis > 400\u20ac. Solde \u00e0 la fin des travaux. Paiement : esp\u00e8ces, virement, CB SumUp, PayPal.'),('Art. 3 \u2014 R\u00e9alisation des travaux','Travaux conform\u00e9ment \u00e0 la norme NF C 15-100. Le client s\u2019engage \u00e0 fournir un acc\u00e8s s\u00e9curis\u00e9 et informer SINELEC de toute contrainte avant intervention.'),('Art. 4 \u2014 Garanties','Garantie d\u00e9cennale ORUS Assurances (Lyon). Garantie parfait ach\u00e8vement 1 an. Ne couvre pas les d\u00e9gradations dues \u00e0 mauvaise utilisation ou intervention tierce.'),('Art. 5 \u2014 Droit de r\u00e9tractation','Droit de r\u00e9tractation 14 jours (art. L221-18 Code Conso). Ne s\u2019applique pas aux interventions d\u2019urgence expressément sollicit\u00e9es par le client.'),('Art. 6 \u2014 Responsabilit\u00e9','SINELEC ne saurait \u00eatre tenu responsable des dommages indirects. Force majeure : ex\u00e9cution suspendue sans indemnit\u00e9.'),('Art. 7 \u2014 Litiges','Solution amiable privil\u00e9gi\u00e9e. \u00c0 d\u00e9faut, comp\u00e9tence exclusive des tribunaux de Paris.')]
+    for titre,texte in cgv_arts:
+        r=Table([[p(titre,8,'Helvetica-Bold',MARINE),p(texte,7.5,'Helvetica',GRIS_SOFT)]],colWidths=[4.8*cm,13.4*cm])
+        r.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GRIS_L),('LINEBELOW',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0')),('LEFTPADDING',(0,0),(-1,-1),8),('RIGHTPADDING',(0,0),(-1,-1),8),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),('VALIGN',(0,0),(-1,-1),'TOP')]))
+        story.append(r)
+    story.append(Spacer(1,0.4*cm))
+    VERT_G=colors.HexColor('#16a34a')
+    accept=Table([[p('\u2705  CGV lues et accept\u00e9es \u00e9lectroniquement',8,'Helvetica-Bold',VERT_G),p(client_nom+' \u2022 '+date_sig+' \u2022 Paris',8,'Helvetica-Bold',MARINE,TA_RIGHT)]],colWidths=[9*cm,8.5*cm])
+    accept.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f0fdf4')),('BOX',(0,0),(-1,-1),1.5,VERT_G),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
+    story.append(accept)
 doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
 `;
       fs.writeFileSync(pyPath, py, 'utf8');
@@ -766,6 +826,7 @@ app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
       <div style="padding:24px;border:1px solid #e8e8e8;border-top:none;border-radius:0 0 12px 12px;">
         <p style="white-space:pre-wrap;font-size:14px;color:#333;line-height:1.6;">${(message || '').replace(/</g,'&lt;')}</p>
         ${signatureBlock}
+        ${docTypeLocal === 'devis' ? `<div style="background:#1e2a3a;border-left:3px solid #C9A84C;border-radius:8px;padding:12px 14px;margin:16px 0;"><p style="color:#C9A84C;font-size:11px;font-weight:700;margin:0 0 6px;">📋 CONDITIONS GÉNÉRALES DE VENTE</p><p style="color:#9ca3af;font-size:11px;line-height:1.6;margin:0;">En signant ce devis, vous reconnaissez avoir pris connaissance et acceptez sans réserve les CGV de SINELEC Paris. Les CGV complètes sont affichées lors de la signature en ligne.</p></div>` : ''}
         <p style="font-size:12px;color:#888;margin-top:16px;">📞 07 87 38 86 22 | sinelec.paris@gmail.com</p>
       </div>
     </div>`;
@@ -1472,6 +1533,26 @@ net=Table([[p('NET \\u00c0 PAYER',13,'Helvetica-Bold',BLANC),p('%.2f \\u20ac'%to
 net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8),('LINEBELOW',(0,0),(-1,-1),2,OR)]))
 story.append(net); story.append(Spacer(1,0.25*cm))
 story.append(Table([[p('TVA non applicable, art. 293B du CGI',8,color=GRIS_SOFT),p('Paiement : Esp\\u00e8ces  \\u2022  Virement  \\u2022  CB (SumUp)',8,color=GRIS_SOFT,align=TA_RIGHT)]],colWidths=[9.5*cm,8.7*cm]))
+doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')if is_signe:
+    story.append(PageBreak())
+    hdr_cgv=Table([[p('\u26a1  SINELEC PARIS',11,'Helvetica-Bold',BLANC),p('CONDITIONS G\u00c9N\u00c9RALES DE VENTE',11,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[8.5*cm,9*cm])
+    hdr_cgv.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10)]))
+    story.append(hdr_cgv); story.append(Spacer(1,0.2*cm))
+    date_sig=str(meta.get('datePaiement',''))
+    story.append(Table([[p('Applicables au devis n\u00b0 '+doc_num+' \u2014 Accept\u00e9es par '+client_nom+' le '+date_sig,7.5,'Helvetica',GRIS_SOFT),p('SIRET 91015824500019 \u2022 TVA non applicable art. 293B CGI',7.5,'Helvetica',GRIS_SOFT,TA_RIGHT)]],colWidths=[9.5*cm,8*cm]))
+    story.append(Table([[p('',1)]],colWidths=[18.2*cm],style=[('LINEBELOW',(0,0),(-1,-1),1,OR)]))
+    story.append(Spacer(1,0.15*cm))
+    GRIS_L=colors.HexColor('#f8fafc')
+    cgv_arts=[('Art. 1 \u2014 Devis et acceptation','Le devis est valable 30 jours. Toute commande implique l\u2019acceptation sans r\u00e9serve des pr\u00e9sentes CGV. La signature \u00e9lectronique vaut bon de commande ferme.'),('Art. 2 \u2014 Prix et paiement','TVA non applicable art. 293B CGI. Acompte 40% \u00e0 la signature si devis > 400\u20ac. Solde \u00e0 la fin des travaux. Paiement : esp\u00e8ces, virement, CB SumUp, PayPal.'),('Art. 3 \u2014 R\u00e9alisation des travaux','Travaux conform\u00e9ment \u00e0 la norme NF C 15-100. Le client s\u2019engage \u00e0 fournir un acc\u00e8s s\u00e9curis\u00e9 et informer SINELEC de toute contrainte avant intervention.'),('Art. 4 \u2014 Garanties','Garantie d\u00e9cennale ORUS Assurances (Lyon). Garantie parfait ach\u00e8vement 1 an. Ne couvre pas les d\u00e9gradations dues \u00e0 mauvaise utilisation ou intervention tierce.'),('Art. 5 \u2014 Droit de r\u00e9tractation','Droit de r\u00e9tractation 14 jours (art. L221-18 Code Conso). Ne s\u2019applique pas aux interventions d\u2019urgence expressément sollicit\u00e9es par le client.'),('Art. 6 \u2014 Responsabilit\u00e9','SINELEC ne saurait \u00eatre tenu responsable des dommages indirects. Force majeure : ex\u00e9cution suspendue sans indemnit\u00e9.'),('Art. 7 \u2014 Litiges','Solution amiable privil\u00e9gi\u00e9e. \u00c0 d\u00e9faut, comp\u00e9tence exclusive des tribunaux de Paris.')]
+    for titre,texte in cgv_arts:
+        r=Table([[p(titre,8,'Helvetica-Bold',MARINE),p(texte,7.5,'Helvetica',GRIS_SOFT)]],colWidths=[4.8*cm,13.4*cm])
+        r.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GRIS_L),('LINEBELOW',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0')),('LEFTPADDING',(0,0),(-1,-1),8),('RIGHTPADDING',(0,0),(-1,-1),8),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),('VALIGN',(0,0),(-1,-1),'TOP')]))
+        story.append(r)
+    story.append(Spacer(1,0.4*cm))
+    VERT_G=colors.HexColor('#16a34a')
+    accept=Table([[p('\u2705  CGV lues et accept\u00e9es \u00e9lectroniquement',8,'Helvetica-Bold',VERT_G),p(client_nom+' \u2022 '+date_sig+' \u2022 Paris',8,'Helvetica-Bold',MARINE,TA_RIGHT)]],colWidths=[9*cm,8.5*cm])
+    accept.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f0fdf4')),('BOX',(0,0),(-1,-1),1.5,VERT_G),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
+    story.append(accept)
 doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
 `;
     fs.writeFileSync(pyPath, py, 'utf8');
@@ -1655,7 +1736,7 @@ net=Table([[p('ACOMPTE \\u00c0 R\\u00c9GLER',13,'Helvetica-Bold',BLANC),p('%.2f 
 net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),BLEU),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8),('LINEBELOW',(0,0),(-1,-1),2,OR)]))
 story.append(net); story.append(Spacer(1,0.25*cm))
 story.append(Table([[p('TVA non applicable, art. 293B du CGI',8,color=GRIS_SOFT),p('Paiement : Esp\\u00e8ces  \\u2022  Virement  \\u2022  CB (SumUp)',8,color=GRIS_SOFT,align=TA_RIGHT)]],colWidths=[9.5*cm,8.7*cm]))
-doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
+doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
 `;
     fs.writeFileSync(pyPath, py, 'utf8');
     execSync(`python3 "${pyPath}" "${detailsPath}" "${pdfPath}"`, { cwd: __dirname, timeout: 40000 });
@@ -2239,44 +2320,34 @@ app.post('/api/otp-signature', async (req, res) => {
   try {
     const { num } = req.body;
     let { telephone } = req.body;
-
-    // Si pas de tel dans la requête → récupérer depuis la DB
     if (!telephone) {
       const { data: doc } = await supabase.from('historique').select('telephone').eq('num', num).single();
       telephone = doc?.telephone || '';
     }
-
     if (!telephone || String(telephone).trim().length < 8) {
-      return res.status(400).json({ success: false, error: 'Numéro de téléphone introuvable pour ce devis. Contactez SINELEC au 07 87 38 86 22.' });
+      return res.status(400).json({ success: false, error: 'Numéro introuvable. Contactez SINELEC au 07 87 38 86 22.' });
     }
-
-    const code = String(Math.floor(1000 + Math.random() * 9000));
-    await supabase.from('historique').update({
-      otp_code: code,
-      otp_expiry: new Date(Date.now() + 15*60*1000).toISOString()
-    }).eq('num', num);
-
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const expire_at = new Date(Date.now() + 15*60*1000).toISOString();
+    await supabase.from('signatures otp').upsert({ "numéro": num, code, expire_at, "utilisé": false }, { onConflict: 'numéro' });
     const smsResult = await envoyerSMS(telephone, `Votre code SINELEC : ${code}. Valable 15 minutes.`);
-    if (!smsResult) {
-      console.error('❌ SMS OTP non envoyé pour', num, 'tel:', telephone);
-      return res.status(500).json({ success: false, error: 'Impossible d\'envoyer le SMS. Vérifiez votre numéro ou contactez SINELEC.' });
-    }
-
-    res.json({ success: true, tel: telephone.replace(/(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 ** ** $5') });
-  } catch(e) {
-    console.error('❌ OTP error:', e.message);
-    res.status(500).json({ error: e.message });
-  }
+    if (!smsResult) return res.status(500).json({ success: false, error: "Impossible d'envoyer le SMS. Vérifiez votre numéro." });
+    const telMasq = String(telephone).replace(/(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 ** ** $5');
+    res.json({ success: true, tel: telMasq });
+  } catch(e) { console.error('❌ OTP:', e.message); res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/verifier-otp', async (req, res) => {
   try {
     const { num, code } = req.body;
-    const { data } = await supabase.from('historique').select('otp_code,otp_expiry').eq('num', num).single();
-    if (!data) return res.status(404).json({ success: false, error: 'Document introuvable' });
-    if (!data.otp_code) return res.status(400).json({ success: false, error: 'Aucun code envoyé' });
-    if (new Date(data.otp_expiry) < new Date()) return res.status(400).json({ success: false, error: 'Code expiré' });
-    if (String(data.otp_code).trim() !== String(code).trim()) return res.status(400).json({ success: false, error: 'Code incorrect' });
+    const { data } = await supabase.from('signatures otp').select('code,expire_at,utilisé').eq('numéro', num).order('expire_at', { ascending: false }).limit(1).single();
+    if (!data) return res.status(404).json({ success: false, error: 'Aucun code envoyé pour ce devis' });
+    if (data['utilisé']) return res.status(400).json({ success: false, error: 'Code déjà utilisé, cliquez Renvoyer' });
+    if (new Date(data.expire_at) < new Date()) return res.status(400).json({ success: false, error: 'Code expiré, cliquez Renvoyer' });
+    const stored = String(data.code).replace(/\D/g, '').trim();
+    const entered = String(code).replace(/\D/g, '').trim();
+    if (!stored || !entered || stored !== entered) return res.status(400).json({ success: false, error: 'Code incorrect' });
+    await supabase.from('signatures otp').update({ "utilisé": true }).eq('numéro', num);
     res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
