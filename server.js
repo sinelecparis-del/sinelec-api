@@ -1053,7 +1053,7 @@ async function goStep2(){
 
 async function envoyerOTP(){
   try {
-    const r = await fetch(APP+'/api/otp-signature', '/api/verifier-otp', '/api/track/click/', '/api/track/open/',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({num:NUM,telephone:TEL})});
+    const r = await fetch(APP+'/api/otp-signature',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({num:NUM,telephone:TEL})});
     const d = await r.json();
     if(d.success){
       const telMasq = TEL.replace(/(\\d{2})(\\d{2})(\\d{2})(\\d{2})(\\d{2})/,'$1 $2 ** ** $5');
@@ -2237,12 +2237,36 @@ app.get('/api/track/open/:num', async (req, res) => {
 // ═══════════════════════════════════════════════════
 app.post('/api/otp-signature', async (req, res) => {
   try {
-    const { num, telephone } = req.body;
+    const { num } = req.body;
+    let { telephone } = req.body;
+
+    // Si pas de tel dans la requête → récupérer depuis la DB
+    if (!telephone) {
+      const { data: doc } = await supabase.from('historique').select('telephone').eq('num', num).single();
+      telephone = doc?.telephone || '';
+    }
+
+    if (!telephone || String(telephone).trim().length < 8) {
+      return res.status(400).json({ success: false, error: 'Numéro de téléphone introuvable pour ce devis. Contactez SINELEC au 07 87 38 86 22.' });
+    }
+
     const code = String(Math.floor(1000 + Math.random() * 9000));
-    await supabase.from('historique').update({ otp_code: code, otp_expiry: new Date(Date.now() + 15*60*1000).toISOString() }).eq('num', num);
-    await envoyerSMS(telephone, `Votre code SINELEC : ${code}. Valable 15 minutes.`);
-    res.json({ success: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+    await supabase.from('historique').update({
+      otp_code: code,
+      otp_expiry: new Date(Date.now() + 15*60*1000).toISOString()
+    }).eq('num', num);
+
+    const smsResult = await envoyerSMS(telephone, `Votre code SINELEC : ${code}. Valable 15 minutes.`);
+    if (!smsResult) {
+      console.error('❌ SMS OTP non envoyé pour', num, 'tel:', telephone);
+      return res.status(500).json({ success: false, error: 'Impossible d\'envoyer le SMS. Vérifiez votre numéro ou contactez SINELEC.' });
+    }
+
+    res.json({ success: true, tel: telephone.replace(/(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 ** ** $5') });
+  } catch(e) {
+    console.error('❌ OTP error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.post('/api/verifier-otp', async (req, res) => {
