@@ -2211,7 +2211,7 @@ app.post('/api/relances/lancer', authMiddleware, async (req, res) => {
 // ═══════════════════════════════════════════════════
 // API: OTP SIGNATURE
 // ═══════════════════════════════════════════════════
-app.post('/api/otp-signature', '/api/verifier-otp', async (req, res) => {
+app.post('/api/otp-signature', async (req, res) => {
   try {
     const { num, telephone } = req.body;
     const code = String(Math.floor(1000 + Math.random() * 9000));
