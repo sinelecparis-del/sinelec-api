@@ -1066,7 +1066,7 @@ canvas{display:block;width:100%;height:150px;cursor:crosshair;touch-action:none}
       <div class="sms-title">📱 Vérification par SMS</div>
       <div class="sms-sub" id="sms-tel">Envoi du code sur votre mobile...</div>
       <div class="sms-row">
-        <input class="sms-inp" id="otp-inp" type="text" maxlength="4" placeholder="_ _ _ _" inputmode="numeric">
+        <input class="sms-inp" id="otp-inp" type="text" maxlength="6" placeholder="_ _ _ _ _ _" inputmode="numeric">
         <button class="btn-sms" onclick="renvoyerCode()">Renvoyer</button>
       </div>
       <div class="sms-ok" id="sms-ok">✅ Code envoyé par SMS</div>
@@ -1127,7 +1127,7 @@ async function envoyerOTP(){
 async function renvoyerCode(){ await envoyerOTP(); }
 
 document.getElementById('otp-inp').addEventListener('input', function(){
-  document.getElementById('btn2').disabled = this.value.length < 4;
+  document.getElementById('btn2').disabled = this.value.length < 6;
 });
 
 async function goStep3(){
