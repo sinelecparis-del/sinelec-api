@@ -560,7 +560,7 @@ class SC(pdfcanvas.Canvas):
         rouge=colors.HexColor('#cc0000'); vert=colors.HexColor('#16a34a')
         couleur=rouge if is_paye else (vert if is_signe else None)
         if not couleur: return
-        cx=W-5.0*cm; cy=9.0*cm; r=1.9*cm
+        cx=W-3.8*cm; cy=3.5*cm; r=1.7*cm
         self.saveState(); self.setStrokeColor(couleur); self.setFillColor(couleur)
         self.setFillAlpha(0.85); self.setLineWidth(3.5); self.circle(cx,cy,r,fill=0,stroke=1)
         self.setLineWidth(0.8); self.setFillAlpha(0.4); self.circle(cx,cy,r-0.22*cm,fill=0,stroke=1)
@@ -1188,7 +1188,9 @@ class SC(pdfcanvas.Canvas):
         self.drawString(5.9*cm,H-3.0*cm,'Tel : 07 87 38 86 22'); self.drawString(5.9*cm,H-3.4*cm,'sinelec.paris@gmail.com')
         self.setFillColor(colors.HexColor('#243660')); self.roundRect(5.9*cm,H-4.15*cm,5.5*cm,0.55*cm,0.1*cm,fill=1,stroke=0)
         self.setFont('Helvetica-Bold',8); self.setFillColor(OR); self.drawString(6.1*cm,H-3.88*cm,'SIRET : 91015824500019')
-        self.setFont('Helvetica-Bold',40); self.setFillColor(BLANC); self.drawRightString(W-1.2*cm,H-2.2*cm,'${typeLabelUpper}')
+        _lbl='${typeLabelUpper}'
+        _lbl_sz=40 if len(_lbl)<=7 else (28 if len(_lbl)<=14 else 20)
+        self.setFont('Helvetica-Bold',_lbl_sz); self.setFillColor(BLANC); self.drawRightString(W-1.2*cm,H-2.2*cm,_lbl)
         self.setStrokeColor(OR); self.setLineWidth(1.5); self.line(13*cm,H-2.65*cm,W-1.2*cm,H-2.65*cm)
         self.setFillColor(OR); self.roundRect(W-6.5*cm,H-3.55*cm,5.3*cm,0.65*cm,0.15*cm,fill=1,stroke=0)
         self.setFont('Helvetica-Bold',9); self.setFillColor(MARINE); self.drawCentredString(W-3.85*cm,H-3.22*cm,'N\\u00b0 ${num}')
@@ -1213,7 +1215,7 @@ class SC(pdfcanvas.Canvas):
         rouge = colors.HexColor('#cc0000'); vert=colors.HexColor('#16a34a')
         couleur = rouge if IS_PAYE else (vert if IS_SIGNE else None)
         if not couleur: return
-        cx=W-5.0*cm; cy=9.0*cm; r=1.9*cm
+        cx=W-3.8*cm; cy=3.5*cm; r=1.7*cm
         self.saveState(); self.setStrokeColor(couleur); self.setFillColor(couleur)
         self.setFillAlpha(0.85); self.setLineWidth(3.5); self.circle(cx,cy,r,fill=0,stroke=1)
         self.setLineWidth(0.8); self.setFillAlpha(0.4); self.circle(cx,cy,r-0.22*cm,fill=0,stroke=1)
