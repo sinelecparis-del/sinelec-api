@@ -81,7 +81,7 @@ function verifierToken(token) {
 }
 
 function authMiddleware(req, res, next) {
-  const publicRoutes = ['/', '/health', '/api/login', '/signer/', '/paiement-confirme/', '/api/signature', '/api/otp-signature', '/api/auth/check', '/api/test-pdf', '/api/test', '/api/verifier-otp', '/api/otp-signature', '/signer/'];
+  const publicRoutes = ['/', '/health', '/api/login', '/signer/', '/paiement-confirme/', '/api/signature', '/api/otp-signature', '/api/auth/check', '/api/test-pdf', '/api/test'];
   if (publicRoutes.some(r => req.path.startsWith(r))) return next();
   const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
   if (!verifierToken(token)) return res.status(401).json({ error: 'Non autorisé', code: 'UNAUTHORIZED' });
@@ -325,7 +325,7 @@ app.post('/api/generer', async (req, res) => {
     let num;
     if (num_existant && type === 'devis') {
       num = num_existant;
-    console.log('🔄 Mise à jour:', num);
+      console.log('🔄 Mise à jour devis existant:', num);
     } else {
       const compteur = await incrementerCompteur(type);
       const annee = new Date().getFullYear();
@@ -366,6 +366,7 @@ app.post('/api/generer', async (req, res) => {
       }
     }
 
+    console.log('📄 generer START — type:', type, '| client:', client, '| prestations:', prestations?.length);
 
     // ── UPSERT FICHE CLIENT AUTO ──────────────────
     if (client && (email || telephone)) {
@@ -440,9 +441,12 @@ app.post('/api/generer', async (req, res) => {
       const clientTel = String(telephone || '').trim();
       const adresseRaw = String(adresse || '').replace(/'/g, ' ').trim();
       const adresseParts = adresseRaw.split(',').map(s => s.trim()).filter(Boolean);
-      const clientRue = adresseParts[0] || '';
-      // Ville = dernière partie après la virgule (ex: "75008 Paris")
-      const clientCPVille = adresseParts.length > 1 ? adresseParts[adresseParts.length - 1] : (String(ville || '').trim());
+      const clientRue = adresseParts.length >= 2 && adresseParts[0].match(/^\d+$/) ? adresseParts[0] + ' ' + adresseParts[1] : adresseParts[0] || '';
+      const cpMatch = adresseRaw.match(/\b(\d{5})\b/);
+      const clientCP = String(codePostal || '').trim() || (cpMatch ? cpMatch[1] : '');
+      const villeManuelle = String(ville || '').trim();
+      const villeGPS = adresseParts.find(p => p.length > 2 && p.length < 30 && !p.match(/^\d{5}/) && !p.toLowerCase().includes('france')) || '';
+      const clientCPVille = [clientCP, villeManuelle || villeGPS].filter(Boolean).join(' ');
       const descObjet = String(description || 'Travaux d electricite generale')
         .trim().replace(/'/g, ' ').replace(/"/g, ' ').replace(/\\/g, ' ')
         .replace(/\n/g, ' ').replace(/\r/g, ' ').substring(0, 120);
@@ -531,7 +535,8 @@ class SC(pdfcanvas.Canvas):
         self.drawString(5.9*cm,H-3.4*cm,'sinelec.paris@gmail.com')
         self.setFillColor(colors.HexColor('#243660')); self.roundRect(5.9*cm,H-4.15*cm,5.5*cm,0.55*cm,0.1*cm,fill=1,stroke=0)
         self.setFont('Helvetica-Bold',8); self.setFillColor(OR); self.drawString(6.1*cm,H-3.88*cm,'SIRET : 91015824500019')
-        self.setFont('Helvetica-Bold',40); self.setFillColor(BLANC); self.drawRightString(W-1.2*cm,H-2.2*cm,doc_label)
+        lbl_sz=40 if len(doc_label)<=7 else (28 if len(doc_label)<=14 else 20)
+        self.setFont('Helvetica-Bold',lbl_sz); self.setFillColor(BLANC); self.drawRightString(W-1.2*cm,H-2.2*cm,doc_label)
         self.setStrokeColor(OR); self.setLineWidth(1.5); self.line(13*cm,H-2.65*cm,W-1.2*cm,H-2.65*cm)
         self.setFillColor(OR); self.roundRect(W-6.5*cm,H-3.55*cm,5.3*cm,0.65*cm,0.15*cm,fill=1,stroke=0)
         self.setFont('Helvetica-Bold',9); self.setFillColor(MARINE); self.drawCentredString(W-3.85*cm,H-3.22*cm,'N\u00b0 '+doc_num)
@@ -596,18 +601,36 @@ for ligne in data:
     for d in (ligne.get('details') or []):
         if d: desig_cell.append(p(str(d),7.5,'Helvetica',GRIS_SOFT,sb=1,sa=0))
     rows.append([p(sub_num,8,color=GRIS_SOFT,align=TA_CENTER),desig_cell,p(str(qte),9,align=TA_CENTER),p((str(round(pu))+' \u20ac') if not is_offert else 'OFFERT',9,align=TA_RIGHT),(p('OFFERT',9,'Helvetica-Bold',align=TA_RIGHT,color=colors.HexColor('#16a34a')) if is_offert else p(str(round(tot))+' \u20ac',9,'Helvetica-Bold',align=TA_RIGHT,color=OR_FONCE))])
-COL=[1.0*cm,8.8*cm,1.3*cm,2.2*cm,2.9*cm]
+COL=[1.0*cm,10.8*cm,1.3*cm,2.2*cm,2.9*cm]
 t=Table(rows,colWidths=COL,repeatRows=1)
 ts=[('BACKGROUND',(0,0),(-1,0),MARINE),('ROWBACKGROUNDS',(0,1),(-1,-1),[CREME,OR_PALE]),('LINEBELOW',(0,0),(-1,0),1.5,OR),('LINEBELOW',(0,-1),(-1,-1),1.5,MARINE),('LEFTPADDING',(0,0),(-1,-1),4),('RIGHTPADDING',(0,0),(-1,-1),4),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('VALIGN',(0,0),(-1,-1),'TOP'),('ALIGN',(2,0),(4,-1),'RIGHT')]
 for i,row in enumerate(rows):
     if i>0 and isinstance(row[1],str) and row[1]=='':
         ts+=[('BACKGROUND',(0,i),(-1,i),colors.HexColor('#243660')),('SPAN',(0,i),(-1,i)),('TEXTCOLOR',(0,i),(-1,i),BLANC)]
 t.setStyle(TableStyle(ts))
-story.append(KeepInFrame(0,0,[t],mode='shrink'))
+story.append(t)
 story.append(Spacer(1,0.4*cm))
 net=Table([[p('NET \u00c0 PAYER',13,'Helvetica-Bold',BLANC),p('%.2f \u20ac'%totalHT,16,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
 net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8),('LINEBELOW',(0,0),(-1,-1),2,OR)]))
-story.append(net); story.append(Spacer(1,0.25*cm))
+story.append(net); story.append(Spacer(1,0.3*cm))
+if doc_type=='facture' and not is_paye:
+    ORANGE=colors.HexColor('#ea580c'); ORANGE_BG=colors.HexColor('#fff7ed')
+    band=Table([[p('\u23f3  PAIEMENT EN ATTENTE',11,'Helvetica-Bold',ORANGE,TA_CENTER)],[p('\u00c9ch\u00e9ance : 30 jours \u2022 Merci de r\u00e9gler dans les meilleurs d\u00e9lais',8,'Helvetica',colors.HexColor('#9a3412'),TA_CENTER)]],colWidths=[18.2*cm])
+    band.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),ORANGE_BG),('BOX',(0,0),(-1,-1),2.5,ORANGE),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10)]))
+    story.append(band); story.append(Spacer(1,0.3*cm))
+    iban_t=Table([[p('\U0001f4b3  Comment r\u00e9gler ?',9,'Helvetica-Bold',MARINE),p('\u2022 Esp\u00e8ces  \u2022  CB SumUp  \u2022  Virement  \u2022  PayPal',8,'Helvetica',GRIS_SOFT,TA_RIGHT)],[p('IBAN : FR76 1695 8000 0174 2540 5920 931  \u2022  BIC : QNTOFRP1XXX',8,'Helvetica-Bold',MARINE),p('')]],colWidths=[13*cm,5.2*cm])
+    iban_t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),ORANGE_BG),('BOX',(0,0),(-1,-1),1.5,ORANGE),('LINEBELOW',(0,0),(-1,0),0.5,colors.HexColor('#fed7aa')),('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7)]))
+    story.append(iban_t)
+elif doc_type=='facture' and is_paye:
+    VERT_P=colors.HexColor('#16a34a'); VERT_BG=colors.HexColor('#f0fdf4')
+    date_p=str(meta.get('datePaiement','')); mode_p=str(meta.get('modePaiement','R\u00e8glement re\u00e7u'))
+    band=Table([[p('\u2705  PAIEMENT RE\u00c7U',11,'Helvetica-Bold',VERT_P,TA_CENTER)],[p('Le '+date_p+'  \u2022  '+mode_p,8,'Helvetica',colors.HexColor('#166534'),TA_CENTER)]],colWidths=[18.2*cm])
+    band.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),VERT_BG),('BOX',(0,0),(-1,-1),2.5,VERT_P),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10)]))
+    story.append(band); story.append(Spacer(1,0.3*cm))
+    recap=Table([[p('\U0001f9fe  R\u00e9capitulatif du r\u00e8glement',9,'Helvetica-Bold',MARINE),p('')],[p('Mode :',8,'Helvetica',GRIS_SOFT),p(mode_p,8,'Helvetica-Bold',MARINE,TA_RIGHT)],[p('Date :',8,'Helvetica',GRIS_SOFT),p(date_p,8,'Helvetica-Bold',MARINE,TA_RIGHT)],[p('Montant encaiss\u00e9 :',9,'Helvetica-Bold',VERT_P),p('%.2f \u20ac'%totalHT,10,'Helvetica-Bold',VERT_P,TA_RIGHT)]],colWidths=[9.1*cm,9.1*cm])
+    recap.setStyle(TableStyle([('SPAN',(0,0),(1,0)),('BACKGROUND',(0,0),(-1,-1),VERT_BG),('BOX',(0,0),(-1,-1),1.5,VERT_P),('LINEABOVE',(0,3),(-1,3),1,colors.HexColor('#bbf7d0')),('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6)]))
+    story.append(recap)
+story.append(Spacer(1,0.25*cm))
 if doc_type=='devis' and totalHT>=400:
     acompte=totalHT*0.4; solde=totalHT*0.6
     at=Table([[p('Acompte \u00e0 la signature (40%)',10,color=GRIS_TEXTE),p('%.2f \u20ac'%acompte,10,'Helvetica-Bold',OR_FONCE,TA_RIGHT)],[p('Solde fin de travaux (60%)',10,color=GRIS_TEXTE),p('%.2f \u20ac'%solde,10,'Helvetica-Bold',MARINE,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
@@ -616,15 +639,61 @@ if doc_type=='devis' and totalHT>=400:
 story.append(Table([[p('TVA non applicable, art. 293B du CGI',8,color=GRIS_SOFT),p('Paiement : Esp\u00e8ces  \u2022  Virement  \u2022  CB (SumUp)',8,color=GRIS_SOFT,align=TA_RIGHT)]],colWidths=[9.5*cm,8.7*cm]))
 story.append(Spacer(1,0.3*cm))
 if doc_type=='devis':
-    story.append(Table([[p('Devis valable 30 jours \u2022 Signature = acceptation \u2022 Garantie decennale ORUS',7.5,color=GRIS_SOFT)]],colWidths=[18.2*cm]))
-    story.append(Spacer(1,0.4*cm))
-    sig_t=Table([[p('Bon pour accord',8,'Helvetica-Bold',MARINE),p('Signature SINELEC',8,'Helvetica-Bold',MARINE,TA_RIGHT)],[p('Nom : ___________________________',8,color=GRIS_SOFT),p('Diahe',9,'Helvetica-Bold',MARINE,TA_RIGHT)],[p('Date : ___________________________',8,color=GRIS_SOFT),p('')],[p('Signature :',8,color=GRIS_SOFT),p('')]],colWidths=[9.5*cm,8.7*cm])
-    sig_t.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,0),1,MARINE),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5)]))
-    story.append(sig_t)
+    story.append(Spacer(1,0.15*cm))
+    story.append(Table([[p('Devis valable 30 jours \u2022 Signature = acceptation \u2022 Garantie d\u00e9cennale ORUS',7.5,color=GRIS_SOFT)]],colWidths=[18.2*cm]))
+    story.append(Spacer(1,0.2*cm))
+    if is_signe:
+        VERT_S=colors.HexColor('#16a34a'); VERT_BG_S=colors.HexColor('#f0fdf4'); VERT_L=colors.HexColor('#bbf7d0')
+        date_sig=str(meta.get('datePaiement',''))
+        sig_b64=meta.get('signatureBase64','')
+        from reportlab.platypus import Flowable as _F
+        class _SigBox(_F):
+            def __init__(s,b64,w=6.2*cm,h=2.2*cm): s.b64=b64; s.w=w; s.h=h
+            def wrap(s,*a): return s.w,s.h
+            def draw(s):
+                s.canv.setFillColor(colors.HexColor('#F8F7F4')); s.canv.setStrokeColor(colors.HexColor('#D1D5DB'))
+                s.canv.setDash([4,4]); s.canv.roundRect(0,0,s.w,s.h,4,stroke=1,fill=1); s.canv.setDash([])
+                if s.b64:
+                    import base64 as _b64,io as _io
+                    try:
+                        from reportlab.lib.utils import ImageReader
+                        d=_b64.b64decode(s.b64.split(',')[-1]); ir=ImageReader(_io.BytesIO(d))
+                        s.canv.drawImage(ir,4,4,s.w-8,s.h-8,mask='auto')
+                    except: pass
+                else:
+                    s.canv.setStrokeColor(colors.HexColor('#1B2A4A')); s.canv.setLineWidth(2); s.canv.setLineCap(1)
+                    pts=[(0.08,0.55),(0.14,0.78),(0.18,0.42),(0.24,0.76),(0.30,0.40),(0.36,0.74),(0.43,0.44),(0.49,0.73),(0.55,0.48),(0.61,0.70),(0.67,0.46),(0.73,0.68),(0.79,0.50),(0.85,0.64),(0.91,0.52)]
+                    path=s.canv.beginPath(); path.moveTo(pts[0][0]*s.w,pts[0][1]*s.h)
+                    for x,y in pts[1:]: path.lineTo(x*s.w,y*s.h)
+                    s.canv.drawPath(path,stroke=1,fill=0)
+                    s.canv.setLineWidth(1); p2=s.canv.beginPath(); p2.moveTo(0.08*s.w,0.2*s.h); p2.lineTo(0.5*s.w,0.2*s.h); s.canv.drawPath(p2,stroke=1,fill=0)
+        class _Badge(_F):
+            def __init__(s,w=3.2*cm,h=3.2*cm): s.w=w; s.h=h
+            def wrap(s,*a): return s.w,s.h
+            def draw(s):
+                cx,cy=s.w/2,s.h/2
+                s.canv.setFillColor(colors.HexColor('#f0fdf4')); s.canv.setStrokeColor(colors.HexColor('#16a34a')); s.canv.setLineWidth(2)
+                s.canv.circle(cx,cy,s.w/2-3,stroke=1,fill=1)
+                s.canv.setStrokeColor(colors.HexColor('#16a34a')); s.canv.setLineWidth(3); s.canv.setLineCap(1); s.canv.setLineJoin(1)
+                path=s.canv.beginPath(); path.moveTo(cx-0.2*s.w,cy+0.02*s.h); path.lineTo(cx-0.03*s.w,cy-0.17*s.h); path.lineTo(cx+0.22*s.w,cy+0.18*s.h)
+                s.canv.drawPath(path,stroke=1,fill=0)
+                s.canv.setFillColor(colors.HexColor('#16a34a')); s.canv.setFont('Helvetica-Bold',6); s.canv.drawCentredString(cx,6,'V\u00c9RIFI\u00c9')
+        left_c=Table([[p('\u2705  SIGNATURE \u00c9LECTRONIQUE VALID\u00c9E',7.5,'Helvetica-Bold',VERT_S)],[Spacer(1,0.08*cm)],[p(client_nom,11,'Helvetica-Bold',MARINE)],[p('Sign\u00e9 le : '+date_sig,7.5,'Helvetica',colors.HexColor('#6b7280'))],[p('IP enregistr\u00e9e \u2022 Horodatage certifi\u00e9 \u2022 Loi n\u00b02000-230',6.5,'Helvetica',colors.HexColor('#9ca3af'))],[Spacer(1,0.12*cm)],[p('Signature du client :',7,'Helvetica-Bold',colors.HexColor('#6b7280'))],[_SigBox(sig_b64,6.2*cm,2.2*cm)]],colWidths=[9.2*cm])
+        left_c.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),2),('BOTTOMPADDING',(0,0),(-1,-1),2),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)]))
+        right_c=Table([[_Badge(3.2*cm,3.2*cm)],[Spacer(1,0.1*cm)],[p('Certifi\u00e9\n\u00e9lectroniquement',7.5,'Helvetica-Bold',VERT_S,TA_CENTER)]],colWidths=[4.8*cm])
+        right_c.setStyle(TableStyle([('ALIGN',(0,0),(-1,-1),'CENTER'),('VALIGN',(0,0),(-1,-1),'MIDDLE'),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4)]))
+        cert=Table([[left_c,right_c]],colWidths=[9.5*cm,4.8*cm])
+        cert.setStyle(TableStyle([('BOX',(0,0),(-1,-1),1.5,VERT_S),('BACKGROUND',(0,0),(0,-1),VERT_BG_S),('BACKGROUND',(1,0),(1,-1),colors.white),('LINEAFTER',(0,0),(0,-1),1,VERT_L),('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),8),('TOPPADDING',(0,0),(-1,-1),12),('BOTTOMPADDING',(0,0),(-1,-1),12),('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
+        story.append(cert)
+    else:
+        sig_t=Table([[p('\u270d\ufe0f  Signature \u00e9lectronique uniquement \u2022 Loi n\u00b02000-230',8,'Helvetica-Bold',colors.HexColor('#16a34a'),TA_CENTER)]],colWidths=[18.2*cm])
+        sig_t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f0fdf4')),('BOX',(0,0),(-1,-1),1.5,colors.HexColor('#16a34a')),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
+        story.append(sig_t)
 doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
 `;
       fs.writeFileSync(pyPath, py, 'utf8');
-        try {
+      console.log('🐍 Python:', pyPath, '→', pdfPath);
+      try {
         execSync(`python3 "${pyPath}" "${detailsPath}" "${pdfPath}"`, {
           timeout: 60000, stdio: ['pipe','pipe','pipe']
         });
@@ -640,6 +709,7 @@ doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
       try { fs.unlinkSync(detailsPath); } catch(e) {}
       try { fs.unlinkSync(pdfPath); } catch(e) {}
 
+      // Email NON envoyé automatiquement — cliquer Envoyer manuellement
     }
 
     res.json({ success: true, num, pdf_b64, email_client: email });
@@ -695,9 +765,8 @@ app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
     const attachment = pdf_b64 ? { content: pdf_b64, name: `${num}.pdf` } : null;
     const emailRes = await envoyerEmail(email, sujet || `Document ${num} - SINELEC`, htmlWithPixel, attachment);
 
-
-
-
+    // CC si fourni
+    if (cc) { try { await envoyerEmail(cc, sujet || `Document ${num}`, htmlWithPixel, attachment); } catch(e) {} }
 
     // SMS si demandé
     if (sms && telephone) {
@@ -775,15 +844,22 @@ app.post('/api/signature', async (req, res) => {
     // Email de confirmation au client
     const { data: doc } = await supabase.from('historique').select('*').eq('num', num).single();
     if (doc && doc.email) {
-
-      // UN SEUL email : Diahe reçoit la notif quand le client signe
-      const htmlDiahe = '<p><b>' + (doc.client||'') + '</b> a signé le devis <b>' + num
-        + '</b><br>Montant : <b>' + (doc.total_ht||0).toFixed(0) + ' €</b>'
-        + '<br>Date : ' + new Date().toLocaleString('fr-FR')
-        + '<br>Adresse : ' + (doc.adresse||'N/A') + '</p>';
-      try { await envoyerEmail('sinelec.paris@gmail.com',
-        '✍️ Signé — ' + (doc.client||'') + ' — ' + num + ' — ' + (doc.total_ht||0).toFixed(0) + '€',
-        htmlDiahe); } catch(e) { console.error('Email signature:', e.message); }
+      const html = `<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;background:#fff;">
+        <div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:20px;text-align:center;border-radius:12px 12px 0 0;">
+          <div style="font-size:32px;">✍️</div>
+          <h2 style="color:#fff;margin:8px 0 0;">Devis signé — SINELEC</h2>
+        </div>
+        <div style="padding:24px;border:1px solid #e8e8e8;border-top:none;border-radius:0 0 12px 12px;">
+          <p style="font-size:15px;">Bonjour,</p>
+          <p>Votre devis <strong>${num}</strong> a bien été signé le ${new Date().toLocaleDateString('fr-FR')}.</p>
+          <p>Nous vous contacterons rapidement pour planifier l'intervention.</p>
+          <p style="font-size:12px;color:#888;">📞 07 87 38 86 22 | sinelec.paris@gmail.com</p>
+        </div>
+      </div>`;
+      try { await envoyerEmail(doc.email, `Devis ${num} signé — Confirmation SINELEC`, html); } catch(e) {}
+      // Copie Diahe avec tableau récap
+      const htmlDiahe = `<p>✅ ${doc.client} a signé le devis ${num} (${(doc.total_ht||0).toFixed(0)}€) — ${new Date().toLocaleString('fr-FR')}</p><p>IP: ${ip || 'N/A'}</p>`;
+      try { await envoyerEmail('sinelec.paris@gmail.com', `[SIGNÉ] ${doc.client} — Devis ${num}`, htmlDiahe); } catch(e) {}
     }
     res.json({ success: true });
   } catch(error) {
@@ -811,288 +887,53 @@ app.get('/signer/:num', async (req, res) => {
   const { data: doc } = await supabase.from('historique').select('*').eq('num', num).single();
   if (!doc) return res.status(404).send('<h1>Document introuvable</h1>');
   const statut = (doc.statut || '').toLowerCase();
-  const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
-  const prenomClient = extractPrenom(doc.client || 'Client');
-  const montant = parseFloat(doc.total_ht || 0).toFixed(2);
-  const dateDevis = new Date(doc.date_envoi || doc.created_at).toLocaleDateString('fr-FR');
-  const telClient = String(doc.telephone || '').trim();
-
   if (['signe','signé'].includes(statut)) {
-    return res.send('<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Deja signe</title></head><body style="font-family:Arial;background:#f5f5f5;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0"><div style="background:#fff;border-radius:16px;padding:40px;max-width:400px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,0.1)"><div style="font-size:64px">✅</div><h2 style="color:#16a34a">Devis deja signe</h2><p>Le devis ' + num + ' a deja ete signe. Merci !</p></div></body></html>');
+    return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Déjà signé</title></head><body style="font-family:Arial;text-align:center;padding:40px;"><h2>✅ Devis déjà signé</h2><p>Le devis ${num} a déjà été signé. Merci !</p><p>📞 07 87 38 86 22</p></body></html>`);
   }
-
-  const signerHtml = `<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Signature devis — SINELEC</title>
-<style>
-*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-body{font-family:-apple-system,'Segoe UI',Arial,sans-serif;background:#F2EDE6;min-height:100vh}
-.top{background:#1B2A4A;padding:16px 20px;display:flex;align-items:center;gap:12px}
-.logo{width:38px;height:38px;background:linear-gradient(135deg,#C9962A,#E8B84B);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px}
-.top h1{color:#fff;font-size:15px;font-weight:800}
-.top p{color:rgba(255,255,255,0.5);font-size:11px;margin-top:1px}
-.wrap{max-width:520px;margin:0 auto;padding:20px 16px 40px}
-.card{background:#fff;border-radius:16px;padding:20px;margin-bottom:14px;box-shadow:0 2px 10px rgba(0,0,0,0.06)}
-.steps{display:flex;gap:8px;margin-bottom:18px}
-.step{flex:1;height:4px;border-radius:2px;background:#E0DDD6;transition:background 0.3s}
-.step.on{background:#C9962A}.step.done{background:#16a34a}
-.stitle{font-size:12px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:#1B2A4A;margin-bottom:12px}
-.devis-box{background:#F8F5EF;border-radius:10px;padding:14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
-.devis-num{font-family:monospace;font-size:13px;font-weight:700;color:#1B2A4A}
-.devis-date{font-size:11px;color:#999;margin-top:2px}
-.devis-amt{font-size:22px;font-weight:900;color:#C9962A}
-.client-name{font-size:16px;font-weight:700;color:#1B2A4A;margin-bottom:2px}
-.client-addr{font-size:12px;color:#888}
-.cb-item{display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid #F5F2EE;cursor:pointer;user-select:none}
-.cb-item:last-child{border-bottom:none}
-.cb{width:24px;height:24px;border:2px solid #DDD;border-radius:6px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px;margin-top:1px;transition:all .2s}
-.cb.on{background:#16a34a;border-color:#16a34a;color:#fff}
-.cb-txt{font-size:13px;color:#333;line-height:1.5}
-.tel-info{background:#F8F5EF;border-radius:10px;padding:12px;text-align:center;font-size:14px;font-weight:600;color:#1B2A4A;margin-bottom:14px}
-.otp-row{display:flex;gap:8px;justify-content:center;margin:16px 0}
-.otp-in{width:54px;height:64px;border:2px solid #E0DDD6;border-radius:12px;text-align:center;font-size:28px;font-weight:800;color:#1B2A4A;outline:none;transition:border .2s}
-.otp-in:focus,.otp-in.on{border-color:#C9962A;background:#FBF8F3}
-.resend{text-align:center;font-size:12px;color:#999;margin-top:6px}
-.resend b{color:#C9962A;cursor:pointer}
-canvas{border:2px dashed #DDD;border-radius:12px;width:100%;height:170px;touch-action:none;background:#FDFCF9;display:block}
-.btn{width:100%;padding:16px;border:none;border-radius:12px;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit;margin-top:10px;transition:opacity .2s}
-.btn:disabled{opacity:.4;cursor:not-allowed}
-.btn-marine{background:#1B2A4A;color:#fff}
-.btn-gold{background:linear-gradient(135deg,#C9962A,#E8B84B);color:#1B2A4A}
-.btn-green{background:linear-gradient(135deg,#16a34a,#15803d);color:#fff}
-.btn-clear{background:#f5f5f5;color:#666;font-size:13px;padding:10px;margin-top:6px}
-.msg{font-size:13px;text-align:center;padding:6px 0;min-height:20px}
-.msg.ok{color:#16a34a;font-weight:700}
-.msg.err{color:#dc2626;font-weight:700}
-.scr{display:none}.scr.on{display:block}
-.success{text-align:center;padding:24px 0}
-</style>
-</head>
-<body>
-<div class="top">
-  <div class="logo">⚡</div>
-  <div><h1>SINELEC Paris</h1><p>Signature electronique securisee</p></div>
+  const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+  res.send(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Signer le devis ${num}</title>
+<style>body{font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:20px;background:#f5f5f5;}
+.card{background:#fff;border-radius:16px;padding:24px;box-shadow:0 4px 20px rgba(0,0,0,0.1);}
+h2{color:#1B2A4A;margin-bottom:4px;}
+canvas{border:2px dashed #ccc;border-radius:12px;width:100%;height:160px;touch-action:none;cursor:crosshair;background:#fff;}
+.btn{width:100%;padding:16px;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;margin-top:10px;}
+.btn-sign{background:linear-gradient(135deg,#E8B84B,#C9962A);color:#fff;}
+.btn-clear{background:#f0f0f0;color:#666;}
+.info{font-size:13px;color:#888;margin:8px 0;}
+</style></head>
+<body><div class="card">
+<div style="text-align:center;margin-bottom:16px;"><div style="font-size:36px;">⚡</div><h2>SINELEC Paris</h2></div>
+<h3 style="color:#1B2A4A;">Devis n° ${num}</h3>
+<p><strong>${doc.client}</strong></p>
+<p style="color:#C9A84C;font-weight:700;">Montant : ${(doc.total_ht||0).toFixed(0)} € HT</p>
+<p class="info">En signant, vous acceptez les conditions du devis ci-joint.</p>
+<canvas id="sig" width="460" height="160"></canvas>
+<button class="btn btn-clear" onclick="clear()">↺ Effacer</button>
+<button class="btn btn-sign" onclick="sign()">✍️ Je signe et j'accepte le devis</button>
+<div id="msg" style="margin-top:12px;text-align:center;font-weight:700;"></div>
 </div>
-<div class="wrap">
-  <div class="steps" id="steps">
-    <div class="step on" id="s1"></div>
-    <div class="step" id="s2"></div>
-    <div class="step" id="s3"></div>
-  </div>
-
-  <!-- ETAPE 1 -->
-  <div class="scr on" id="scr1">
-    <div class="card">
-      <div class="stitle">📋 Votre devis</div>
-      <div class="devis-box">
-        <div><div class="devis-num">\${num}</div><div class="devis-date">Date : \${dateDevis}</div></div>
-        <div class="devis-amt">\${montant}&nbsp;€</div>
-      </div>
-      <div class="client-name">\${prenomClient}</div>
-      <div class="client-addr">\${doc.client || ''} — \${doc.adresse || ''}</div>
-    </div>
-    <div class="card">
-      <div class="stitle">Acceptation des conditions</div>
-      <div class="cb-item" id="ci1" onclick="tick(1)">
-        <div class="cb" id="cb1"></div>
-        <div class="cb-txt">J&apos;ai lu et j&apos;accepte le devis n&deg;\${num} pour un montant de <strong>\${montant}&nbsp;&euro;</strong></div>
-      </div>
-      <div class="cb-item" id="ci2" onclick="tick(2)">
-        <div class="cb" id="cb2"></div>
-        <div class="cb-txt">J&apos;autorise SINELEC Paris a realiser les travaux conformement a la norme NF C 15-100</div>
-      </div>
-      <div class="cb-item" id="ci3" onclick="tick(3)">
-        <div class="cb" id="cb3"></div>
-        <div class="cb-txt">Je reconnais que cette signature electronique a valeur legale (loi n&deg;2000-230)</div>
-      </div>
-    </div>
-    <button class="btn btn-gold" id="btn1" onclick="goStep2()" disabled>Continuer &rarr;</button>
-  </div>
-
-  <!-- ETAPE 2 -->
-  <div class="scr" id="scr2">
-    <div class="card">
-      <div class="stitle">Verification par SMS</div>
-      <p style="font-size:13px;color:#666;margin-bottom:14px;line-height:1.6">Un code a 4 chiffres va etre envoye pour confirmer votre identite.</p>
-      <div class="tel-info" id="tel-box">📱 \${telClient || 'Numero non renseigne'}</div>
-      <button class="btn btn-marine" id="btn-send" onclick="sendOTP()">Envoyer le code par SMS</button>
-      <div class="msg" id="msg-send"></div>
-    </div>
-    <div class="card" id="otp-card" style="display:none">
-      <div class="stitle">Entrez le code recu</div>
-      <div class="otp-row">
-        <input class="otp-in" id="o0" maxlength="1" inputmode="numeric" type="number" oninput="otpKey(0)">
-        <input class="otp-in" id="o1" maxlength="1" inputmode="numeric" type="number" oninput="otpKey(1)">
-        <input class="otp-in" id="o2" maxlength="1" inputmode="numeric" type="number" oninput="otpKey(2)">
-        <input class="otp-in" id="o3" maxlength="1" inputmode="numeric" type="number" oninput="otpKey(3)">
-      </div>
-      <div class="resend">Code non recu ? <b onclick="sendOTP()">Renvoyer</b></div>
-      <div class="msg" id="msg-otp"></div>
-      <button class="btn btn-marine" id="btn-otp" onclick="checkOTP()" disabled style="margin-top:12px">Verifier &rarr;</button>
-    </div>
-  </div>
-
-  <!-- ETAPE 3 -->
-  <div class="scr" id="scr3">
-    <div class="card">
-      <div class="stitle">Signez ici avec le doigt</div>
-      <p style="font-size:12px;color:#999;margin-bottom:10px">Dessinez votre signature dans le cadre</p>
-      <canvas id="cv"></canvas>
-      <button class="btn btn-clear" onclick="clearCv()">Effacer</button>
-    </div>
-    <div class="msg" id="msg-sig"></div>
-    <button class="btn btn-green" id="btn-sign" onclick="sign()">Valider et signer le devis</button>
-  </div>
-
-  <!-- SUCCESS -->
-  <div class="scr" id="scr-ok">
-    <div class="card success">
-      <div style="font-size:64px;margin-bottom:14px">🎉</div>
-      <h2 style="color:#16a34a;margin-bottom:8px">Devis signe !</h2>
-      <p style="font-size:14px;color:#666;line-height:1.6">Merci \${prenomClient} !<br>Votre devis a ete signe avec succes.<br>Nous vous recontacterons tres prochainement.</p>
-      <p style="margin-top:20px;color:#999;font-size:13px">SINELEC Paris ⚡<br>07 87 38 86 22</p>
-    </div>
-  </div>
-</div>
-
 <script>
-var num = '\${num}';
-var url = '\${appUrl}';
-var checks = [false, false, false];
-var verified = false;
-
-function tick(n) {
-  checks[n-1] = !checks[n-1];
-  var el = document.getElementById('cb'+n);
-  if (checks[n-1]) { el.className='cb on'; el.textContent='✓'; }
-  else { el.className='cb'; el.textContent=''; }
-  document.getElementById('btn1').disabled = !(checks[0]&&checks[1]&&checks[2]);
-  if (checks[0]&&checks[1]&&checks[2]) document.getElementById('btn1').classList.add('btn-gold');
+const cv=document.getElementById('sig'),ctx=cv.getContext('2d');
+let drawing=false;
+ctx.strokeStyle='#1B2A4A';ctx.lineWidth=2;ctx.lineCap='round';
+const pos=e=>{const r=cv.getBoundingClientRect();const sx=cv.width/r.width;const sy=cv.height/r.height;return e.touches?{x:(e.touches[0].clientX-r.left)*sx,y:(e.touches[0].clientY-r.top)*sy}:{x:(e.clientX-r.left)*sx,y:(e.clientY-r.top)*sy};};
+cv.addEventListener('mousedown',e=>{drawing=true;ctx.beginPath();const p=pos(e);ctx.moveTo(p.x,p.y);});
+cv.addEventListener('mousemove',e=>{if(!drawing)return;const p=pos(e);ctx.lineTo(p.x,p.y);ctx.stroke();});
+cv.addEventListener('mouseup',()=>drawing=false);
+cv.addEventListener('touchstart',e=>{e.preventDefault();drawing=true;ctx.beginPath();const p=pos(e);ctx.moveTo(p.x,p.y);},{passive:false});
+cv.addEventListener('touchmove',e=>{e.preventDefault();if(!drawing)return;const p=pos(e);ctx.lineTo(p.x,p.y);ctx.stroke();},{passive:false});
+cv.addEventListener('touchend',()=>drawing=false);
+function clear(){ctx.clearRect(0,0,cv.width,cv.height);}
+async function sign(){
+  const msg=document.getElementById('msg');
+  msg.textContent='⏳ Enregistrement...';msg.style.color='#C9A84C';
+  const res=await fetch('${appUrl}/api/signature',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({num:'${num}',signature:cv.toDataURL('image/png'),ip:''})});
+  const data=await res.json();
+  if(data.success){msg.textContent='✅ Signé ! Merci, nous vous recontactons.';msg.style.color='#16a34a';document.querySelector('.btn-sign').disabled=true;}
+  else{msg.textContent='❌ Erreur: '+data.error;msg.style.color='#dc2626';}
 }
-
-function setStep(n) {
-  [1,2,3].forEach(function(i) {
-    document.getElementById('scr'+i).className='scr';
-    var dot = document.getElementById('s'+i);
-    dot.className = 'step' + (i<n?' done':i===n?' on':'');
-  });
-  document.getElementById('scr'+n).className='scr on';
-}
-
-function goStep2() { setStep(2); }
-
-function sendOTP() {
-  var btn = document.getElementById('btn-send');
-  var msg = document.getElementById('msg-send');
-  btn.disabled=true; btn.textContent='Envoi...';
-  fetch(url+'/api/otp-signature', {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({num:num, telephone:'\${telClient}'})
-  }).then(function(r){return r.json();}).then(function(d){
-    if (d.success) {
-      msg.textContent='Code envoye !'; msg.className='msg ok';
-      document.getElementById('otp-card').style.display='block';
-      document.getElementById('o0').focus();
-      btn.textContent='Renvoyer le code'; btn.disabled=false;
-    } else {
-      msg.textContent='Erreur : '+(d.error||'?'); msg.className='msg err';
-      btn.disabled=false; btn.textContent='Envoyer le code par SMS';
-    }
-  }).catch(function(){
-    msg.textContent='Erreur reseau'; msg.className='msg err';
-    btn.disabled=false; btn.textContent='Envoyer le code par SMS';
-  });
-}
-
-function otpKey(i) {
-  var el = document.getElementById('o'+i);
-  var v = el.value.replace(/[^0-9]/g,'').slice(-1);
-  el.value=v;
-  el.className = v ? 'otp-in on' : 'otp-in';
-  if (v && i<3) document.getElementById('o'+(i+1)).focus();
-  var code = [0,1,2,3].map(function(x){return document.getElementById('o'+x).value;}).join('');
-  document.getElementById('btn-otp').disabled = code.length<4;
-  if (code.length===4) checkOTP();
-}
-
-function checkOTP() {
-  var code = [0,1,2,3].map(function(x){return document.getElementById('o'+x).value;}).join('');
-  var msg = document.getElementById('msg-otp');
-  var btn = document.getElementById('btn-otp');
-  btn.disabled=true; btn.textContent='Verification...';
-  fetch(url+'/api/verifier-otp', {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({num:num, code:code})
-  }).then(function(r){return r.json();}).then(function(d){
-    if (d.success) {
-      verified=true;
-      msg.textContent='Identite verifiee !'; msg.className='msg ok';
-      setTimeout(function(){setStep(3);},700);
-    } else {
-      msg.textContent='Code incorrect. Reessayez.'; msg.className='msg err';
-      btn.disabled=false; btn.textContent='Verifier';
-    }
-  }).catch(function(){
-    msg.textContent='Erreur reseau'; msg.className='msg err';
-    btn.disabled=false;
-  });
-}
-
-var cv = document.getElementById('cv');
-var ctx = cv ? cv.getContext('2d') : null;
-var drawing = false;
-if (ctx) {
-  ctx.strokeStyle='#1B2A4A'; ctx.lineWidth=2.5; ctx.lineCap='round';
-  function getPos(e) {
-    var r=cv.getBoundingClientRect();
-    var sx=cv.width/r.width; var sy=cv.height/r.height;
-    if (e.touches) return {x:(e.touches[0].clientX-r.left)*sx, y:(e.touches[0].clientY-r.top)*sy};
-    return {x:(e.clientX-r.left)*sx, y:(e.clientY-r.top)*sy};
-  }
-  cv.addEventListener('mousedown',function(e){drawing=true;ctx.beginPath();var p=getPos(e);ctx.moveTo(p.x,p.y);});
-  cv.addEventListener('mousemove',function(e){if(!drawing)return;var p=getPos(e);ctx.lineTo(p.x,p.y);ctx.stroke();});
-  cv.addEventListener('mouseup',function(){drawing=false;});
-  cv.addEventListener('touchstart',function(e){e.preventDefault();drawing=true;ctx.beginPath();var p=getPos(e);ctx.moveTo(p.x,p.y);},{passive:false});
-  cv.addEventListener('touchmove',function(e){e.preventDefault();if(!drawing)return;var p=getPos(e);ctx.lineTo(p.x,p.y);ctx.stroke();},{passive:false});
-  cv.addEventListener('touchend',function(){drawing=false;});
-}
-function clearCv(){if(ctx)ctx.clearRect(0,0,cv.width,cv.height);}
-
-function sign() {
-  if (!verified) { document.getElementById('msg-sig').textContent='Identite non verifiee'; document.getElementById('msg-sig').className='msg err'; return; }
-  var btn = document.getElementById('btn-sign');
-  btn.disabled=true; btn.textContent='Enregistrement...';
-  fetch(url+'/api/signature', {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({num:num, signature:cv?cv.toDataURL('image/png'):null, ip:''})
-  }).then(function(r){return r.json();}).then(function(d){
-    if (d.success) {
-      [1,2,3].forEach(function(i){document.getElementById('scr'+i).className='scr';});
-      document.getElementById('steps').style.display='none';
-      document.getElementById('scr-ok').className='scr on';
-    } else {
-      document.getElementById('msg-sig').textContent='Erreur : '+(d.error||'?');
-      document.getElementById('msg-sig').className='msg err';
-      btn.disabled=false; btn.textContent='Valider et signer le devis';
-    }
-  }).catch(function(){
-    document.getElementById('msg-sig').textContent='Erreur reseau';
-    document.getElementById('msg-sig').className='msg err';
-    btn.disabled=false;
-  });
-}
-</script>
-</body>
-</html>`;
-  res.send(signerHtml);
+</script></body></html>`);
 });
-
 
 // ═══════════════════════════════════════════════════
 // API: CA COMPLET (historique + obat)
@@ -1211,64 +1052,6 @@ app.post('/api/marquer-paye', async (req, res) => {
   } catch(error) { res.status(500).json({ error: error.message }); }
 });
 
-
-
-// ═══════════════════════════════════════════════════
-// API: VÉRIFIER OTP SIGNATURE
-// ═══════════════════════════════════════════════════
-app.post('/api/verifier-otp', async (req, res) => {
-  try {
-    const { num, code } = req.body;
-    const { data: doc } = await supabase.from('historique').select('otp_code, otp_expiry').eq('num', num).single();
-    if (!doc) return res.status(404).json({ error: 'Document non trouvé' });
-    if (!doc.otp_code) return res.status(400).json({ error: 'Aucun code envoyé' });
-    if (new Date(doc.otp_expiry) < new Date()) return res.status(400).json({ error: 'Code expiré', expired: true });
-    if (String(doc.otp_code) !== String(code)) return res.json({ success: false, error: 'Code incorrect' });
-    // Code correct — effacer l'OTP
-    await supabase.from('historique').update({ otp_code: null, otp_expiry: null }).eq('num', num);
-    res.json({ success: true });
-  } catch(e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// ═══════════════════════════════════════════════════
-// API: ENVOI SMS LIEN SIGNATURE
-// ═══════════════════════════════════════════════════
-app.post('/api/envoyer-lien-signature/:num', async (req, res) => {
-  try {
-    const { num } = req.params;
-    const { telephone, message_custom } = req.body;
-
-    const { data: doc } = await supabase.from('historique').select('*').eq('num', num).single();
-    if (!doc) return res.status(404).json({ error: 'Devis non trouvé' });
-
-    const tel = telephone || doc.telephone;
-    if (!tel) return res.status(400).json({ error: 'Numéro de téléphone manquant' });
-
-    const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
-    const lienSig = `${appUrl}/signer/${num}`;
-    const prenom = extractPrenom(doc.client || '');
-    const montant = parseFloat(doc.total_ht || 0).toFixed(0);
-
-    const msg = message_custom ||
-      `Bonjour ${prenom}, votre devis SINELEC n°${num} (${montant}€) est prêt à signer. Cliquez ici : ${lienSig} — Diahe ⚡`;
-
-    await envoyerSMS(tel, msg);
-
-    await supabase.from('historique').update({
-      sms_signature_envoye: true,
-      sms_signature_date: new Date().toISOString()
-    }).eq('num', num);
-
-    console.log(`✅ SMS signature envoyé: ${num} → ${tel}`);
-    res.json({ success: true, lien: lienSig, telephone: tel });
-  } catch(e) {
-    console.error('❌ /api/envoyer-lien-signature error:', e.message);
-    res.status(500).json({ error: e.message });
-  }
-});
-
 // ═══════════════════════════════════════════════════
 // API: SMS
 // ═══════════════════════════════════════════════════
@@ -1349,6 +1132,8 @@ app.get('/api/pdf/:num', async (req, res) => {
       },
       _items: itemsArr
     };
+    fs.writeFileSync(detailsPath, JSON.stringify(jsonPayloadDl));
+
     const clientEsc = String(data.client || '').replace(/'/g, ' ');
     const addrParts = (data.adresse || '').split(',');
     const clientRue = String(addrParts[0] || '').trim().replace(/'/g, ' ');
@@ -1357,9 +1142,7 @@ app.get('/api/pdf/:num', async (req, res) => {
     const modePaiement = String(data.mode_paiement || 'Règlement reçu').replace(/'/g,' ').substring(0,30);
     const nomCourt = clientEsc.toUpperCase().split(' ').slice(0,2).join(' ').substring(0,14);
     const descObjet = String(data.description || 'Travaux d electricite generale').replace(/'/g,' ').replace(/"/g,' ').substring(0,120);
-    const totalHT = detailsData.reduce((s,l) => s + l.total, 0);
-
-    fs.writeFileSync(detailsPath, JSON.stringify(jsonPayloadDl));
+    const totalHT = itemsArr.reduce((s,l) => s + l.total, 0);
 
     const py = `# -*- coding: utf-8 -*-
 import json, base64, io, sys
@@ -1467,14 +1250,14 @@ for ligne in data:
     for d in (ligne.get('details') or []):
         if d: desig_cell.append(p(str(d),7.5,'Helvetica',GRIS_SOFT,sb=1,sa=0))
     rows.append([p(sub_num,8,color=GRIS_SOFT,align=TA_CENTER),desig_cell,p(str(qte),9,align=TA_CENTER),p(f'{pu:.0f} \\u20ac' if not is_offert else 'OFFERT',9,align=TA_RIGHT),p('OFFERT' if is_offert else f'{tot:.0f} \\u20ac',9,'Helvetica-Bold',align=TA_RIGHT,color=colors.HexColor('#16a34a') if is_offert else OR_FONCE)])
-COL=[1.0*cm,8.8*cm,1.3*cm,2.2*cm,2.9*cm]
+COL=[1.0*cm,10.8*cm,1.3*cm,2.2*cm,2.9*cm]
 t=Table(rows,colWidths=COL,repeatRows=1)
 ts=[('BACKGROUND',(0,0),(-1,0),MARINE),('ROWBACKGROUNDS',(0,1),(-1,-1),[CREME,OR_PALE]),('LINEBELOW',(0,0),(-1,0),1.5,OR),('LINEBELOW',(0,-1),(-1,-1),1.5,MARINE),('LEFTPADDING',(0,0),(-1,-1),4),('RIGHTPADDING',(0,0),(-1,-1),4),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('VALIGN',(0,0),(-1,-1),'TOP'),('ALIGN',(2,0),(4,-1),'RIGHT')]
 for i,row in enumerate(rows):
     if i>0 and isinstance(row[1],str) and row[1]=='':
         ts+=[('BACKGROUND',(0,i),(-1,i),colors.HexColor('#243660')),('SPAN',(0,i),(-1,i)),('TEXTCOLOR',(0,i),(-1,i),BLANC)]
 t.setStyle(TableStyle(ts))
-story.append(KeepInFrame(0,0,[t],mode='shrink'))
+story.append(t)
 story.append(Spacer(1,0.4*cm))
 net=Table([[p('NET \\u00c0 PAYER',13,'Helvetica-Bold',BLANC),p('%.2f \\u20ac'%totalHT,16,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
 net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8),('LINEBELOW',(0,0),(-1,-1),2,OR)]))
