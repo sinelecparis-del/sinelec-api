@@ -925,25 +925,54 @@ app.post('/api/signature', async (req, res) => {
       signature_data: signature || null
     }).eq('num', num);
 
-    // Email de confirmation au client
+    // Emails avec PDF signé en pièce jointe
     const { data: doc } = await supabase.from('historique').select('*').eq('num', num).single();
-    if (doc && doc.email) {
-      const html = `<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;background:#fff;">
-        <div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:20px;text-align:center;border-radius:12px 12px 0 0;">
-          <div style="font-size:32px;">✍️</div>
-          <h2 style="color:#fff;margin:8px 0 0;">Devis signé — SINELEC</h2>
-        </div>
-        <div style="padding:24px;border:1px solid #e8e8e8;border-top:none;border-radius:0 0 12px 12px;">
-          <p style="font-size:15px;">Bonjour,</p>
-          <p>Votre devis <strong>${num}</strong> a bien été signé le ${new Date().toLocaleDateString('fr-FR')}.</p>
-          <p>Nous vous contacterons rapidement pour planifier l'intervention.</p>
-          <p style="font-size:12px;color:#888;">📞 07 87 38 86 22 | sinelec.paris@gmail.com</p>
-        </div>
-      </div>`;
-      try { await envoyerEmail(doc.email, `Devis ${num} signé — Confirmation SINELEC`, html); } catch(e) {}
-      // Copie Diahe avec tableau récap
-      const htmlDiahe = `<p>✅ ${doc.client} a signé le devis ${num} (${(doc.total_ht||0).toFixed(0)}€) — ${new Date().toLocaleString('fr-FR')}</p><p>IP: ${ip || 'N/A'}</p>`;
-      try { await envoyerEmail('sinelec.paris@gmail.com', `[SIGNÉ] ${doc.client} — Devis ${num}`, htmlDiahe); } catch(e) {}
+    if (doc) {
+      // Générer le PDF signé
+      let pdfAttachment = null;
+      try {
+        const pdfRes = await fetch((process.env.APP_URL || 'https://sinelec-api-production.up.railway.app') + '/api/pdf/' + num, {
+          headers: { 'Authorization': 'Bearer ' + genererToken() }
+        });
+        if (pdfRes.ok) {
+          const pdfBuf = Buffer.from(await pdfRes.arrayBuffer());
+          pdfAttachment = { content: pdfBuf.toString('base64'), name: num + '_signe.pdf' };
+        }
+      } catch(pdfErr) { console.error('PDF génération pour email:', pdfErr.message); }
+
+      const dateSign = new Date().toLocaleDateString('fr-FR');
+      const montant = (doc.total_ht||0).toFixed(0);
+
+      // Email client (si email dispo)
+      if (doc.email) {
+        const htmlClient = '<div style="font-family:Arial,sans-serif;max-width:480px;">'
+          + '<div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:20px;text-align:center;border-radius:12px 12px 0 0;">'
+          + '<div style="font-size:32px">✍️</div>'
+          + '<h2 style="color:#fff;margin:8px 0 0">Devis signé — SINELEC</h2></div>'
+          + '<div style="padding:24px;border:1px solid #e8e8e8;border-top:none;border-radius:0 0 12px 12px;">'
+          + '<p>Bonjour,</p>'
+          + '<p>Votre devis <strong>' + num + '</strong> a bien été signé le ' + dateSign + '. Le document signé est en pièce jointe.</p>'
+          + '<p>Nous vous recontacterons rapidement pour planifier l’intervention.</p>'
+          + '<p style="font-size:12px;color:#888">☎️ 07 87 38 86 22 | sinelec.paris@gmail.com</p>'
+          + '</div></div>';
+        try { await envoyerEmail(doc.email, 'Devis ' + num + ' signé — SINELEC Paris', htmlClient, pdfAttachment); }
+        catch(e) { console.error('Email client signature:', e.message); }
+      }
+
+      // Email Diahe — TOUJOURS envoyé avec PDF
+      const htmlDiahe = '<div style="font-family:Arial,sans-serif;max-width:440px;">'
+        + '<div style="background:#1B2A4A;padding:18px;border-radius:10px 10px 0 0;text-align:center;">'
+        + '<div style="font-size:40px">✍️</div>'
+        + '<h2 style="color:#16a34a;margin:8px 0 0">Devis SIGNÉ !</h2></div>'
+        + '<div style="padding:20px;border:1px solid #e8e8e8;border-top:none;border-radius:0 0 10px 10px;">'
+        + '<p><b>Client :</b> ' + (doc.client||'') + '</p>'
+        + '<p><b>Devis :</b> ' + num + '</p>'
+        + '<p><b>Montant :</b> <span style="color:#C9962A;font-size:16px;font-weight:700">' + montant + ' €</span></p>'
+        + '<p><b>Signé le :</b> ' + dateSign + '</p>'
+        + (doc.adresse ? '<p><b>Adresse :</b> ' + doc.adresse + '</p>' : '')
+        + '</div></div>';
+      try { await envoyerEmail('sinelec.paris@gmail.com', '✍️ Signé — ' + (doc.client||'') + ' — ' + num + ' — ' + montant + '€', htmlDiahe, pdfAttachment); }
+      catch(e) { console.error('Email Diahe signature:', e.message); }
     }
     res.json({ success: true });
   } catch(error) {
