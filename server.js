@@ -2352,12 +2352,11 @@ app.post('/api/otp-signature', async (req, res) => {
     }
     const code = String(Math.floor(100000 + Math.random() * 900000));
     const expire_at = new Date(Date.now() + 15*60*1000).toISOString();
-    await supabase.from('signatures otp').delete().eq('numéro', num);
-    const { error: insertErr } = await supabase.from('signatures otp').insert({ "numéro": num, code, expire_at, "utilisé": false });
-    if (insertErr) { console.error('❌ OTP insert error:', insertErr.message); return res.status(500).json({ success: false, error: 'Erreur sauvegarde code: ' + insertErr.message }); }
-    console.log('✅ OTP sauvegardé pour', num, '— code:', code);
-    const smsResult = await envoyerSMS(telephone, `Votre code SINELEC : ${code}. Valable 15 minutes.`);
-    if (!smsResult) return res.status(500).json({ success: false, error: "Impossible d'envoyer le SMS. Vérifiez votre numéro." });
+    // Stocker dans historique (table qui existe)
+    await supabase.from('historique').update({ otp_code: code, otp_expiry: expire_at }).eq('num', num);
+    console.log('✅ OTP pour', num, '— code:', code);
+    const smsResult = await envoyerSMS(telephone, 'Votre code SINELEC : ' + code + '. Valable 15 minutes.');
+    if (!smsResult) return res.status(500).json({ success: false, error: "Impossible d'envoyer le SMS. Verifiez votre numero." });
     const telMasq = String(telephone).replace(/(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 ** ** $5');
     res.json({ success: true, tel: telMasq });
   } catch(e) { console.error('❌ OTP:', e.message); res.status(500).json({ error: e.message }); }
@@ -2366,7 +2365,8 @@ app.post('/api/otp-signature', async (req, res) => {
 app.post('/api/verifier-otp', async (req, res) => {
   try {
     const { num, code } = req.body;
-    const { data: rows } = await supabase.from('signatures otp').select('code,expire_at,utilisé').eq('numéro', num).order('expire_at', { ascending: false }).limit(1);
+    const { data: hRow } = await supabase.from('historique').select('otp_code, otp_expiry').eq('num', num).single();
+    const rows = hRow?.otp_code ? [{ code: hRow.otp_code, expire_at: hRow.otp_expiry }] : [];
     const data = rows?.[0];
     if (!data) return res.status(404).json({ success: false, error: 'Aucun code envoyé pour ce devis' });
     if (new Date(data.expire_at) < new Date()) return res.status(400).json({ success: false, error: 'Code expiré, cliquez Renvoyer' });
@@ -2374,7 +2374,7 @@ app.post('/api/verifier-otp', async (req, res) => {
     const entered = String(code).replace(/\D/g, '').trim();
     console.log('OTP check:', num, '| stored:', stored, '| entered:', entered);
     if (!stored || !entered || stored !== entered) return res.status(400).json({ success: false, error: 'Code incorrect' });
-    await supabase.from('signatures otp').update({ "utilisé": true }).eq('numéro', num);
+    await supabase.from('historique').update({ otp_code: null, otp_expiry: null }).eq('num', num);
     res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
