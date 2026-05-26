@@ -645,9 +645,48 @@ elif doc_type=='facture' and is_paye:
 story.append(Spacer(1,0.25*cm))
 if doc_type=='devis' and totalHT>=400:
     acompte=totalHT*0.4; solde=totalHT*0.6
-    at=Table([[p('Acompte \u00e0 la signature (40%)',10,color=GRIS_TEXTE),p('%.2f \u20ac'%acompte,10,'Helvetica-Bold',OR_FONCE,TA_RIGHT)],[p('Solde fin de travaux (60%)',10,color=GRIS_TEXTE),p('%.2f \u20ac'%solde,10,'Helvetica-Bold',MARINE,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
-    at.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,0),0.5,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10)]))
-    story.append(at); story.append(Spacer(1,0.3*cm))
+    BLEU_L=colors.HexColor('#EFF6FF'); BLEU_B=colors.HexColor('#BAE6FD'); BLEU_T=colors.HexColor('#0369A1')
+    VERT_L2=colors.HexColor('#F0FDF4'); VERT_B2=colors.HexColor('#BBF7D0')
+    # Header modalités
+    hdr_ac=Table([[p('\U0001f4b3  Modalit\u00e9s de paiement',10,'Helvetica-Bold',MARINE),p('Devis > 400 \u20ac',8,'Helvetica',GRIS_SOFT,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
+    hdr_ac.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#F8F5EF')),('BOX',(0,0),(-1,-1),1,GRIS_LIGNE),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7)]))
+    story.append(hdr_ac)
+    # Cellule acompte
+    cell_ac=[p('ACOMPTE',8,'Helvetica-Bold',OR_FONCE),p('\u00c0 la signature',8,'Helvetica',GRIS_SOFT),Spacer(1,4),p('%.2f \u20ac'%acompte,16,'Helvetica-Bold',MARINE,TA_CENTER),p('40 %',9,'Helvetica-Bold',OR_FONCE,TA_CENTER)]
+    cell_tx=[p('INTERVENTION',8,'Helvetica-Bold',BLEU_T),p('Planifi\u00e9e ensemble',8,'Helvetica',GRIS_SOFT),Spacer(1,4),p('\u26a1 Travaux SINELEC',11,'Helvetica-Bold',BLEU_T,TA_CENTER),p('NF C 15-100',8,'Helvetica',GRIS_SOFT,TA_CENTER)]
+    cell_sl=[p('SOLDE',8,'Helvetica-Bold',GRIS_TEXTE),p('Fin des travaux',8,'Helvetica',GRIS_SOFT),Spacer(1,4),p('%.2f \u20ac'%solde,16,'Helvetica-Bold',MARINE,TA_CENTER),p('60 %',9,'Helvetica-Bold',GRIS_TEXTE,TA_CENTER)]
+    tl=Table([[cell_ac,cell_tx,cell_sl]],colWidths=[6.0*cm,6.2*cm,6.0*cm])
+    tl.setStyle(TableStyle([
+        ('BACKGROUND',(0,0),(0,0),colors.HexColor('#FEF3C7')),
+        ('BACKGROUND',(1,0),(1,0),BLEU_L),
+        ('BACKGROUND',(2,0),(2,0),VERT_L2),
+        ('BOX',(0,0),(-1,-1),1,GRIS_LIGNE),
+        ('LINEBEFORE',(1,0),(1,0),1,GRIS_LIGNE),
+        ('LINEBEFORE',(2,0),(2,0),1,GRIS_LIGNE),
+        ('VALIGN',(0,0),(-1,-1),'TOP'),
+        ('ALIGN',(0,0),(-1,-1),'CENTER'),
+        ('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),
+        ('LEFTPADDING',(0,0),(-1,-1),8),('RIGHTPADDING',(0,0),(-1,-1),8),
+    ]))
+    story.append(tl)
+    # Modes de paiement
+    pm=Table([[p('\U0001f4b5 Esp\u00e8ces  \u2022  \U0001f3e6 Virement  \u2022  \U0001f4b3 CB  \u2022  \U0001f17f\ufe0f PayPal',9,'Helvetica',GRIS_SOFT,TA_CENTER)]],colWidths=[18.2*cm])
+    pm.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#FDFCF9')),('BOX',(0,0),(-1,-1),1,GRIS_LIGNE),('LINEABOVE',(0,0),(-1,-1),1,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7)]))
+    story.append(pm)
+    story.append(Spacer(1,0.3*cm))
+else:
+    # Devis < 400€ — paiement intégral à la fin
+    VERT_L2=colors.HexColor('#F0FDF4'); VERT_B2=colors.HexColor('#BBF7D0')
+    hdr_ac2=Table([[p('\U0001f4b3  Modalit\u00e9s de paiement',10,'Helvetica-Bold',MARINE),p('',8,'Helvetica',GRIS_SOFT,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
+    hdr_ac2.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#F8F5EF')),('BOX',(0,0),(-1,-1),1,GRIS_LIGNE),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7)]))
+    story.append(hdr_ac2)
+    paiement_unique=Table([[p('\u2705  Paiement int\u00e9gral \u00e0 la fin des travaux',11,'Helvetica-Bold',MARINE),p('%.2f \u20ac'%totalHT,14,'Helvetica-Bold',OR_FONCE,TA_RIGHT)]],colWidths=[11.0*cm,7.2*cm])
+    paiement_unique.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),VERT_L2),('BOX',(0,0),(-1,-1),1,GRIS_LIGNE),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('TOPPADDING',(0,0),(-1,-1),12),('BOTTOMPADDING',(0,0),(-1,-1),12)]))
+    story.append(paiement_unique)
+    pm2=Table([[p('\U0001f4b5 Esp\u00e8ces  \u2022  \U0001f3e6 Virement  \u2022  \U0001f4b3 CB  \u2022  \U0001f17f\ufe0f PayPal',9,'Helvetica',GRIS_SOFT,TA_CENTER)]],colWidths=[18.2*cm])
+    pm2.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#FDFCF9')),('BOX',(0,0),(-1,-1),1,GRIS_LIGNE),('LINEABOVE',(0,0),(-1,-1),1,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7)]))
+    story.append(pm2)
+    story.append(Spacer(1,0.3*cm))
 story.append(Table([[p('TVA non applicable, art. 293B du CGI',8,color=GRIS_SOFT),p('Paiement : Esp\u00e8ces  \u2022  Virement  \u2022  CB (SumUp)',8,color=GRIS_SOFT,align=TA_RIGHT)]],colWidths=[9.5*cm,8.7*cm]))
 story.append(Spacer(1,0.3*cm))
 if doc_type=='devis':
