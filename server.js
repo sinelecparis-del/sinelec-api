@@ -441,12 +441,9 @@ app.post('/api/generer', async (req, res) => {
       const clientTel = String(telephone || '').trim();
       const adresseRaw = String(adresse || '').replace(/'/g, ' ').trim();
       const adresseParts = adresseRaw.split(',').map(s => s.trim()).filter(Boolean);
-      const clientRue = adresseParts.length >= 2 && adresseParts[0].match(/^\d+$/) ? adresseParts[0] + ' ' + adresseParts[1] : adresseParts[0] || '';
-      const cpMatch = adresseRaw.match(/\b(\d{5})\b/);
-      const clientCP = String(codePostal || '').trim() || (cpMatch ? cpMatch[1] : '');
-      const villeManuelle = String(ville || '').trim();
-      const villeGPS = adresseParts.find(p => p.length > 2 && p.length < 30 && !p.match(/^\d{5}/) && !p.toLowerCase().includes('france')) || '';
-      const clientCPVille = [clientCP, villeManuelle || villeGPS].filter(Boolean).join(' ');
+      const clientRue = adresseParts[0] || '';
+      // Ville = dernière partie après virgule (ex: "75008 Paris")
+      const clientCPVille = adresseParts.length > 1 ? adresseParts[adresseParts.length - 1] : String(ville || '').trim();
       const descObjet = String(description || 'Travaux d electricite generale')
         .trim().replace(/'/g, ' ').replace(/"/g, ' ').replace(/\\/g, ' ')
         .replace(/\n/g, ' ').replace(/\r/g, ' ').substring(0, 120);
@@ -1318,6 +1315,32 @@ app.post('/api/marquer-paye', async (req, res) => {
 
     res.json({ success: true });
   } catch(error) { res.status(500).json({ error: error.message }); }
+});
+
+
+// ═══════════════════════════════════════════════════
+// API: ENVOI SMS LIEN SIGNATURE
+// ═══════════════════════════════════════════════════
+app.post('/api/envoyer-lien-signature/:num', async (req, res) => {
+  try {
+    const { num } = req.params;
+    const { telephone } = req.body;
+    const { data: doc } = await supabase.from('historique').select('*').eq('num', num).single();
+    if (!doc) return res.status(404).json({ error: 'Devis non trouve' });
+    const tel = telephone || doc.telephone;
+    if (!tel) return res.status(400).json({ error: 'Numero de telephone manquant' });
+    const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+    const lienSig = appUrl + '/signer/' + num;
+    const prenom = extractPrenom(doc.client || '');
+    const montant = parseFloat(doc.total_ht || 0).toFixed(0);
+    const msg = 'Bonjour ' + prenom + ', votre devis SINELEC n°' + num + ' (' + montant + '€) est prêt. Signez-le ici : ' + lienSig + ' — Diahe ⚡';
+    await envoyerSMS(tel, msg);
+    await supabase.from('historique').update({ sms_signature_envoye: true, sms_signature_date: new Date().toISOString() }).eq('num', num);
+    res.json({ success: true, lien: lienSig, telephone: tel });
+  } catch(e) {
+    console.error('/api/envoyer-lien-signature error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ═══════════════════════════════════════════════════
