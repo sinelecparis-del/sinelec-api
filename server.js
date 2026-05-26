@@ -1400,6 +1400,22 @@ app.post('/api/marquer-paye', async (req, res) => {
           await envoyerEmail(doc.email, `Facture acquittée ${num} — SINELEC Paris`, html, pdf_b64 ? { content: pdf_b64, name: `${num}_acquittee.pdf` } : null);
           console.log(`✅ Facture acquittée envoyée: ${num} → ${doc.email}`);
         }
+
+        // ── SMS avis Google automatique (si téléphone et pas encore envoyé) ──
+        if (doc && doc.telephone && !doc.sms_avis_envoye) {
+          try {
+            const prenom = extractPrenom(doc.client || '');
+            const smsAvis = `Bonjour ${prenom}, merci pour votre confiance ! ⚡ Un petit avis Google nous aiderait beaucoup : https://g.page/r/CSw-MABnFUAYEAE/review — Diahe, SINELEC Paris`;
+            await envoyerSMS(doc.telephone, smsAvis);
+            await supabase.from('historique').update({
+              sms_avis_envoye: true,
+              sms_avis_date: new Date().toISOString(),
+              sms_avis_statut: 'envoye_auto'
+            }).eq('num', num);
+            console.log(`✅ SMS avis Google auto envoyé: ${num} → ${doc.telephone}`);
+          } catch(e) { console.error('SMS avis auto error:', e.message); }
+        }
+
       } catch(e) { console.error('Facture acquittée email error:', e.message); }
     });
 
@@ -2540,6 +2556,68 @@ cron.schedule('0 7 * * *', async () => {
     await envoyerEmail('sinelec.paris@gmail.com', `⚡ Agenda du ${new Date().toLocaleDateString('fr-FR')} — ${nb} intervention${nb>1?'s':''}`, html);
     console.log(`✅ Récap agenda envoyé: ${nb} interventions`);
   } catch(e) { console.error('Cron agenda:', e.message); }
+});
+
+
+// ══════════════════════════════════════════════════════════════
+// RELANCES COMMERCIALES AUTOMATIQUES — J+7, J+14, J+21
+// Chaque matin à 9h — 3 tons progressifs
+// ══════════════════════════════════════════════════════════════
+cron.schedule('0 9 * * *', async () => {
+  try {
+    const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+    const now = Date.now();
+
+    const { data: devis } = await supabase
+      .from('historique')
+      .select('*')
+      .eq('type', 'devis')
+      .in('statut', ['envoye', 'envoyé', 'en attente'])
+      .order('created_at', { ascending: true });
+
+    let nb7 = 0, nb14 = 0, nb21 = 0;
+
+    for (const d of (devis || [])) {
+      if (!d.telephone) continue;
+
+      const ageJours = Math.floor((now - new Date(d.created_at).getTime()) / (24 * 3600 * 1000));
+      const prenom = extractPrenom(d.client || '');
+      const montant = parseFloat(d.total_ht || 0).toFixed(0);
+      const lien = `${appUrl}/signer/${d.num}`;
+
+      try {
+        // ── J+7 : Rappel simple et professionnel ─────────────────
+        if (ageJours >= 7 && ageJours < 14 && !d.sms_relance_j7) {
+          const msg = `Bonjour ${prenom}, votre devis SINELEC n°${d.num} de ${montant}€ est toujours en attente. Pour planifier votre intervention, signez-le ici : ${lien} — Diahe ⚡`;
+          await envoyerSMS(d.telephone, msg);
+          await supabase.from('historique').update({ sms_relance_j7: true, sms_relance_j7_date: new Date().toISOString() }).eq('num', d.num);
+          console.log(`📨 Relance J+7: ${d.num} → ${d.telephone}`);
+          nb7++;
+        }
+
+        // ── J+14 : Ton commercial — met en avant la valeur ───────
+        else if (ageJours >= 14 && ageJours < 21 && !d.sms_relance_j14) {
+          const msg = `Bonjour ${prenom}, votre installation électrique mérite d'être sécurisée ! Notre devis n°${d.num} (${montant}€) inclut garantie décennale + norme NF C 15-100. On peut intervenir rapidement 👉 ${lien} — Diahe, SINELEC Paris ⚡`;
+          await envoyerSMS(d.telephone, msg);
+          await supabase.from('historique').update({ sms_relance_j14: true, sms_relance_j14_date: new Date().toISOString() }).eq('num', d.num);
+          console.log(`📨 Relance J+14: ${d.num} → ${d.telephone}`);
+          nb14++;
+        }
+
+        // ── J+21 : Négociation — dernière chance ─────────────────
+        else if (ageJours >= 21 && !d.sms_relance_j21) {
+          const msg = `Bonjour ${prenom}, c'est Diahe de SINELEC. Je voulais savoir si vous avez des questions sur votre devis n°${d.num} (${montant}€). Je suis disponible pour en discuter et m'adapter à votre budget si besoin. 📞 07 87 38 86 22 — SINELEC Paris ⚡`;
+          await envoyerSMS(d.telephone, msg);
+          await supabase.from('historique').update({ sms_relance_j21: true, sms_relance_j21_date: new Date().toISOString() }).eq('num', d.num);
+          console.log(`📨 Relance J+21 (négo): ${d.num} → ${d.telephone}`);
+          nb21++;
+        }
+      } catch(e) { console.error(`Relance ${d.num}:`, e.message); }
+    }
+
+    const total = nb7 + nb14 + nb21;
+    if (total > 0) console.log(`✅ Relances du jour — J+7: ${nb7} | J+14: ${nb14} | J+21: ${nb21}`);
+  } catch(e) { console.error('Cron relances:', e.message); }
 });
 
 // Rappel SMS client veille à 18h
