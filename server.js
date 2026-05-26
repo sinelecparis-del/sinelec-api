@@ -553,7 +553,7 @@ class SC(pdfcanvas.Canvas):
         self.setFillColor(OR); self.roundRect(W-6.5*cm,H-3.55*cm,5.3*cm,0.65*cm,0.15*cm,fill=1,stroke=0)
         self.setFont('Helvetica-Bold',9); self.setFillColor(MARINE); self.drawCentredString(W-3.85*cm,H-3.22*cm,'N\u00b0 '+doc_num)
         self.setFont('Helvetica',8); self.setFillColor(colors.HexColor('#BFC8D6'))
-        self.drawRightString(W-1.2*cm,H-3.9*cm,'Date : '+doc_date+'   |   Valable : '+doc_valide)
+        self.drawRightString(W-1.2*cm,H-3.9*cm,'Date : '+doc_date)
     def _draw_header_small(self):
         self.setFillColor(MARINE); self.rect(0.78*cm,H-1.5*cm,W-0.78*cm,1.5*cm,fill=1,stroke=0)
         self.setFillColor(OR); self.rect(0.78*cm,H-1.5*cm,W-0.78*cm,0.08*cm,fill=1,stroke=0)
@@ -627,7 +627,7 @@ net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('LEFTPADDING',(0,0
 story.append(net); story.append(Spacer(1,0.3*cm))
 if doc_type=='facture' and not is_paye:
     ORANGE=colors.HexColor('#ea580c'); ORANGE_BG=colors.HexColor('#fff7ed')
-    band=Table([[p('\u23f3  PAIEMENT EN ATTENTE',11,'Helvetica-Bold',ORANGE,TA_CENTER)],[p('\u00c9ch\u00e9ance : 30 jours \u2022 Merci de r\u00e9gler dans les meilleurs d\u00e9lais',8,'Helvetica',colors.HexColor('#9a3412'),TA_CENTER)]],colWidths=[18.2*cm])
+    band=Table([[p('\u23f3  PAIEMENT EN ATTENTE',11,'Helvetica-Bold',ORANGE,TA_CENTER)],[p('Merci de r\u00e9gler dans les meilleurs d\u00e9lais',8,'Helvetica',colors.HexColor('#9a3412'),TA_CENTER)]],colWidths=[18.2*cm])
     band.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),ORANGE_BG),('BOX',(0,0),(-1,-1),2.5,ORANGE),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10)]))
     story.append(band); story.append(Spacer(1,0.3*cm))
     iban_t=Table([[p('\U0001f4b3  Comment r\u00e9gler ?',9,'Helvetica-Bold',MARINE),p('\u2022 Esp\u00e8ces  \u2022  CB SumUp  \u2022  Virement  \u2022  PayPal',8,'Helvetica',GRIS_SOFT,TA_RIGHT)],[p('IBAN : FR76 1695 8000 0174 2540 5920 931  \u2022  BIC : QNTOFRP1XXX',8,'Helvetica-Bold',MARINE),p('')]],colWidths=[13*cm,5.2*cm])
@@ -1604,7 +1604,7 @@ class SC(pdfcanvas.Canvas):
         self.setStrokeColor(OR); self.setLineWidth(1.5); self.line(13*cm,H-2.65*cm,W-1.2*cm,H-2.65*cm)
         self.setFillColor(OR); self.roundRect(W-6.5*cm,H-3.55*cm,5.3*cm,0.65*cm,0.15*cm,fill=1,stroke=0)
         self.setFont('Helvetica-Bold',9); self.setFillColor(MARINE); self.drawCentredString(W-3.85*cm,H-3.22*cm,'N\\u00b0 ${num}')
-        self.setFont('Helvetica',8); self.setFillColor(colors.HexColor('#BFC8D6')); self.drawRightString(W-1.2*cm,H-3.9*cm,'Date : ${dateStr}   |   Valable : ${dateValide}')
+        self.setFont('Helvetica',8); self.setFillColor(colors.HexColor('#BFC8D6')); self.drawRightString(W-1.2*cm,H-3.9*cm,'Date : ${dateStr}')
     def _draw_header_small(self):
         self.setFillColor(MARINE); self.rect(0.78*cm,H-1.5*cm,W-0.78*cm,1.5*cm,fill=1,stroke=0)
         self.setFillColor(OR); self.rect(0.78*cm,H-1.5*cm,W-0.78*cm,0.08*cm,fill=1,stroke=0)
