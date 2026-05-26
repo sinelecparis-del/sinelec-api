@@ -721,6 +721,17 @@ if is_signe:
     accept=Table([[p('\u2705  CGV lues et accept\u00e9es \u00e9lectroniquement',8,'Helvetica-Bold',VERT_G),p(client_nom+' \u2022 '+date_sig+' \u2022 Paris',8,'Helvetica-Bold',MARINE,TA_RIGHT)]],colWidths=[9*cm,8.5*cm])
     accept.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f0fdf4')),('BOX',(0,0),(-1,-1),1.5,VERT_G),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
     story.append(accept)
+    story.append(Spacer(1,0.3*cm))
+    sig_cells_l=[p('Signature du client',8,'Helvetica-Bold',MARINE),p(client_nom,8,color=GRIS_SOFT),p(date_sig+' \u2022 Paris',7,color=GRIS_SOFT)]
+    if sig_data_b64 and 'data:image' in sig_data_b64:
+        try:
+            raw_b64=sig_data_b64.split(',',1)[1]
+            sig_img=Image(io.BytesIO(base64.b64decode(raw_b64)),width=5*cm,height=2*cm)
+            sig_cells_l.append(sig_img)
+        except: pass
+    sig_tbl=Table([[sig_cells_l,[p('Signature SINELEC',8,'Helvetica-Bold',MARINE),p('Diahe',8,color=GRIS_SOFT),p('SINELEC Paris \u26a1',7,color=OR)]]],colWidths=[9*cm,9.2*cm])
+    sig_tbl.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0')),('LEFTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8)]))
+    story.append(sig_tbl)
 if is_signe:
     story.append(PageBreak())
     hdr_cgv=Table([[p('\u26a1  SINELEC PARIS',11,'Helvetica-Bold',BLANC),p('CONDITIONS G\u00c9N\u00c9RALES DE VENTE',11,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[8.5*cm,9*cm])
@@ -741,6 +752,17 @@ if is_signe:
     accept=Table([[p('\u2705  CGV lues et accept\u00e9es \u00e9lectroniquement',8,'Helvetica-Bold',VERT_G),p(client_nom+' \u2022 '+date_sig+' \u2022 Paris',8,'Helvetica-Bold',MARINE,TA_RIGHT)]],colWidths=[9*cm,8.5*cm])
     accept.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f0fdf4')),('BOX',(0,0),(-1,-1),1.5,VERT_G),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
     story.append(accept)
+    story.append(Spacer(1,0.3*cm))
+    sig_cells_l=[p('Signature du client',8,'Helvetica-Bold',MARINE),p(client_nom,8,color=GRIS_SOFT),p(date_sig+' \u2022 Paris',7,color=GRIS_SOFT)]
+    if sig_data_b64 and 'data:image' in sig_data_b64:
+        try:
+            raw_b64=sig_data_b64.split(',',1)[1]
+            sig_img=Image(io.BytesIO(base64.b64decode(raw_b64)),width=5*cm,height=2*cm)
+            sig_cells_l.append(sig_img)
+        except: pass
+    sig_tbl=Table([[sig_cells_l,[p('Signature SINELEC',8,'Helvetica-Bold',MARINE),p('Diahe',8,color=GRIS_SOFT),p('SINELEC Paris \u26a1',7,color=OR)]]],colWidths=[9*cm,9.2*cm])
+    sig_tbl.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0')),('LEFTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8)]))
+    story.append(sig_tbl)
 if is_signe:
     story.append(PageBreak())
     hdr_cgv=Table([[p('\u26a1  SINELEC PARIS',11,'Helvetica-Bold',BLANC),p('CONDITIONS G\u00c9N\u00c9RALES DE VENTE',11,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[8.5*cm,9*cm])
@@ -761,6 +783,17 @@ if is_signe:
     accept=Table([[p('\u2705  CGV lues et accept\u00e9es \u00e9lectroniquement',8,'Helvetica-Bold',VERT_G),p(client_nom+' \u2022 '+date_sig+' \u2022 Paris',8,'Helvetica-Bold',MARINE,TA_RIGHT)]],colWidths=[9*cm,8.5*cm])
     accept.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f0fdf4')),('BOX',(0,0),(-1,-1),1.5,VERT_G),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
     story.append(accept)
+    story.append(Spacer(1,0.3*cm))
+    sig_cells_l=[p('Signature du client',8,'Helvetica-Bold',MARINE),p(client_nom,8,color=GRIS_SOFT),p(date_sig+' \u2022 Paris',7,color=GRIS_SOFT)]
+    if sig_data_b64 and 'data:image' in sig_data_b64:
+        try:
+            raw_b64=sig_data_b64.split(',',1)[1]
+            sig_img=Image(io.BytesIO(base64.b64decode(raw_b64)),width=5*cm,height=2*cm)
+            sig_cells_l.append(sig_img)
+        except: pass
+    sig_tbl=Table([[sig_cells_l,[p('Signature SINELEC',8,'Helvetica-Bold',MARINE),p('Diahe',8,color=GRIS_SOFT),p('SINELEC Paris \u26a1',7,color=OR)]]],colWidths=[9*cm,9.2*cm])
+    sig_tbl.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0')),('LEFTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8)]))
+    story.append(sig_tbl)
 doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
 `;
       fs.writeFileSync(pyPath, py, 'utf8');
@@ -1476,7 +1509,9 @@ app.get('/api/pdf/:num', async (req, res) => {
         clientSiret: '',
         descObjet: String(data.description || 'Travaux electricite').substring(0,120),
         isPaye, isSigne: ['signe','signé'].includes(docStatut.toLowerCase()),
-        datePaiement, modePaiement, nomCourt: clientEscDl.toUpperCase().split(' ').slice(0,2).join(' ').substring(0,14)
+        datePaiement, modePaiement, nomCourt: clientEscDl.toUpperCase().split(' ').slice(0,2).join(' ').substring(0,14),
+        signatureData: data.signature_data || '',
+        dateSignature: data.date_signature ? new Date(data.date_signature).toLocaleDateString('fr-FR') : ''
       },
       _items: itemsArr
     };
@@ -1520,8 +1555,9 @@ client_tel=meta.get('clientTel','')
 desc_objet=meta.get('descObjet','Travaux electricite')
 is_paye=meta.get('isPaye',False)
 is_signe=meta.get('isSigne',False)
-date_sig=str(meta.get('datePaiement',''))
+date_sig=str(meta.get('datePaiement','')) or str(meta.get('dateSignature',''))
 nom_court=str(meta.get('nomCourt',''))
+sig_data_b64=str(meta.get('signatureData',''))
 try:
     logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
 except:
@@ -1645,6 +1681,17 @@ if is_signe:
     accept=Table([[p('\u2705  CGV lues et accept\u00e9es \u00e9lectroniquement',8,'Helvetica-Bold',VERT_G),p(client_nom+' \u2022 '+date_sig+' \u2022 Paris',8,'Helvetica-Bold',MARINE,TA_RIGHT)]],colWidths=[9*cm,8.5*cm])
     accept.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f0fdf4')),('BOX',(0,0),(-1,-1),1.5,VERT_G),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
     story.append(accept)
+    story.append(Spacer(1,0.3*cm))
+    sig_cells_l=[p('Signature du client',8,'Helvetica-Bold',MARINE),p(client_nom,8,color=GRIS_SOFT),p(date_sig+' \u2022 Paris',7,color=GRIS_SOFT)]
+    if sig_data_b64 and 'data:image' in sig_data_b64:
+        try:
+            raw_b64=sig_data_b64.split(',',1)[1]
+            sig_img=Image(io.BytesIO(base64.b64decode(raw_b64)),width=5*cm,height=2*cm)
+            sig_cells_l.append(sig_img)
+        except: pass
+    sig_tbl=Table([[sig_cells_l,[p('Signature SINELEC',8,'Helvetica-Bold',MARINE),p('Diahe',8,color=GRIS_SOFT),p('SINELEC Paris \u26a1',7,color=OR)]]],colWidths=[9*cm,9.2*cm])
+    sig_tbl.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0')),('LEFTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8)]))
+    story.append(sig_tbl)
 doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
 `;
     fs.writeFileSync(pyPath, py, 'utf8');
