@@ -928,17 +928,27 @@ app.post('/api/signature', async (req, res) => {
     // Emails avec PDF signé en pièce jointe
     const { data: doc } = await supabase.from('historique').select('*').eq('num', num).single();
     if (doc) {
-      // Générer le PDF signé
+      // Générer le PDF signé via appel interne
       let pdfAttachment = null;
+      const appUrlLocal = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
       try {
-        const pdfRes = await fetch((process.env.APP_URL || 'https://sinelec-api-production.up.railway.app') + '/api/pdf/' + num, {
-          headers: { 'Authorization': 'Bearer ' + genererToken() }
+        const pdfRes = await fetch(appUrlLocal + '/api/pdf/' + num, {
+          headers: { 'Authorization': 'Bearer ' + genererToken() },
+          signal: AbortSignal.timeout(25000)
         });
+        console.log('📄 PDF pour email:', num, '| status:', pdfRes.status, '| content-type:', pdfRes.headers.get('content-type'));
         if (pdfRes.ok) {
           const pdfBuf = Buffer.from(await pdfRes.arrayBuffer());
-          pdfAttachment = { content: pdfBuf.toString('base64'), name: num + '_signe.pdf' };
+          console.log('📄 PDF buffer size:', pdfBuf.length, 'bytes');
+          if (pdfBuf.length > 500) {
+            pdfAttachment = { content: pdfBuf.toString('base64'), name: num + '_signe.pdf' };
+            console.log('✅ PDF prêt pour pièce jointe');
+          }
+        } else {
+          const errText = await pdfRes.text();
+          console.error('❌ PDF route error:', pdfRes.status, errText.substring(0,100));
         }
-      } catch(pdfErr) { console.error('PDF génération pour email:', pdfErr.message); }
+      } catch(pdfErr) { console.error('❌ PDF fetch error:', pdfErr.message); }
 
       const dateSign = new Date().toLocaleDateString('fr-FR');
       const montant = (doc.total_ht||0).toFixed(0);
@@ -953,6 +963,7 @@ app.post('/api/signature', async (req, res) => {
           + '<p>Bonjour,</p>'
           + '<p>Votre devis <strong>' + num + '</strong> a bien été signé le ' + dateSign + '. Le document signé est en pièce jointe.</p>'
           + '<p>Nous vous recontacterons rapidement pour planifier l’intervention.</p>'
+          + '<p><a href="' + appUrlLocal + '/api/pdf/' + num + '" style="background:#1B2A4A;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:700;">Télécharger le PDF signé</a></p>'
           + '<p style="font-size:12px;color:#888">☎️ 07 87 38 86 22 | sinelec.paris@gmail.com</p>'
           + '</div></div>';
         try { await envoyerEmail(doc.email, 'Devis ' + num + ' signé — SINELEC Paris', htmlClient, pdfAttachment); }
