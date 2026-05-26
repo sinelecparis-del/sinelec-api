@@ -8320,6 +8320,245 @@ async function generer(type) {
     btn.textContent = type === 'devis' ? '⚡ Générer le devis' : '💶 Générer et envoyer la facture';
   }
 }
+
+// ═══════════════════════════════════════════════════
+// PHOTO DEVIS — Analyse IA depuis image
+// ═══════════════════════════════════════════════════
+let photoDevisData = null;
+let photoDevisB64 = null;
+let photoDevisMediaType = null;
+let photoDevisResultats = null;
+
+function photoDevisOnChange(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const dataUrl = e.target.result;
+    photoDevisB64 = dataUrl.split(',')[1];
+    photoDevisMediaType = file.type || 'image/jpeg';
+
+    // Preview
+    document.getElementById('photo-preview-img').src = dataUrl;
+    document.getElementById('photo-preview-name').textContent = file.name + ' — ' + (file.size/1024).toFixed(0) + ' KB';
+    document.getElementById('photo-upload-zone').style.display = 'none';
+    document.getElementById('photo-preview-box').style.display = 'block';
+    document.getElementById('btn-analyser-photo').disabled = false;
+    document.getElementById('btn-analyser-photo').style.opacity = '1';
+    document.getElementById('photo-results').style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+}
+
+function photoDevisReset() {
+  photoDevisB64 = null;
+  photoDevisResultats = null;
+  document.getElementById('photo-input').value = '';
+  document.getElementById('photo-upload-zone').style.display = 'block';
+  document.getElementById('photo-preview-box').style.display = 'none';
+  document.getElementById('photo-results').style.display = 'none';
+  document.getElementById('photo-loader').style.display = 'none';
+  document.getElementById('btn-analyser-photo').disabled = true;
+  document.getElementById('btn-analyser-photo').style.opacity = '.4';
+}
+
+async function lancerAnalysePhoto() {
+  if (!photoDevisB64) return;
+  const btn = document.getElementById('btn-analyser-photo');
+  btn.disabled = true;
+  document.getElementById('photo-loader').style.display = 'block';
+  document.getElementById('photo-results').style.display = 'none';
+
+  try {
+    const contexte = document.getElementById('photo-contexte').value || '';
+    const res = await fetch('/api/analyser-photo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('sinelec_token') || '') },
+      body: JSON.stringify({ image_b64: photoDevisB64, media_type: photoDevisMediaType, contexte })
+    });
+    const data = await res.json();
+    if (!data.success) { showToast('❌ ' + (data.error || 'Erreur analyse'), '⚠️'); return; }
+
+    photoDevisResultats = data;
+    afficherResultatsPhoto(data);
+  } catch(e) {
+    showToast('❌ ' + e.message, '⚠️');
+  } finally {
+    document.getElementById('photo-loader').style.display = 'none';
+    btn.disabled = false;
+    btn.style.opacity = '1';
+  }
+}
+
+function afficherResultatsPhoto(data) {
+  // Analyse texte
+  document.getElementById('photo-analyse-text').textContent = data.analyse || '';
+
+  // Badge urgence
+  const badge = document.getElementById('photo-urgence-badge');
+  const urgences = { haute: ['🔴 Urgence haute', '#FEE2E2', '#DC2626'], normale: ['🟡 Priorité normale', '#FEF9C3', '#CA8A04'], faible: ['🟢 Non urgent', '#DCFCE7', '#16A34A'] };
+  const [label, bg, color] = urgences[data.urgence] || urgences.normale;
+  badge.textContent = label; badge.style.background = bg; badge.style.color = color; badge.style.padding = '4px 12px'; badge.style.borderRadius = '20px'; badge.style.fontSize = '11px'; badge.style.fontWeight = '700';
+
+  // Prestations
+  const list = document.getElementById('photo-prestations-list');
+  list.innerHTML = (data.prestations || []).map((p, i) => `
+    <div style="background:var(--glass);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:8px;display:flex;gap:12px;align-items:flex-start;">
+      <input type="checkbox" id="photo-p-${i}" checked onchange="photoRecalcTotal()" style="margin-top:3px;width:16px;height:16px;flex-shrink:0;accent-color:#C9962A;">
+      <div style="flex:1;">
+        <div style="font-size:13px;font-weight:700;color:var(--text)">${p.designation}</div>
+        <div style="font-size:11px;color:var(--text-3);margin-top:3px">${p.detail}</div>
+        <div style="display:flex;gap:8px;margin-top:6px;align-items:center">
+          <input type="number" id="photo-qte-${i}" value="${p.qte}" min="1" max="20" onchange="photoRecalcTotal()"
+            style="width:52px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--glass);color:var(--text);font-size:12px;text-align:center;">
+          <span style="font-size:12px;color:var(--text-3)">×</span>
+          <span style="font-size:13px;font-weight:700;color:var(--accent)">${p.prix} €</span>
+          <span id="photo-subtotal-${i}" style="font-size:12px;color:var(--text-3);margin-left:auto">= ${p.prix * p.qte} €</span>
+        </div>
+      </div>
+    </div>`).join('');
+
+  // Total
+  photoRecalcTotal();
+
+  // Notes
+  if (data.notes) {
+    document.getElementById('photo-notes-text').textContent = data.notes;
+    document.getElementById('photo-notes-box').style.display = 'block';
+  }
+
+  document.getElementById('photo-results').style.display = 'block';
+  document.getElementById('photo-results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function photoRecalcTotal() {
+  if (!photoDevisResultats) return;
+  let total = 0;
+  (photoDevisResultats.prestations || []).forEach((p, i) => {
+    const cb = document.getElementById('photo-p-' + i);
+    const qteEl = document.getElementById('photo-qte-' + i);
+    const subEl = document.getElementById('photo-subtotal-' + i);
+    if (!cb || !qteEl) return;
+    const qte = parseInt(qteEl.value) || 1;
+    const sub = cb.checked ? p.prix * qte : 0;
+    total += sub;
+    if (subEl) subEl.textContent = cb.checked ? '= ' + (p.prix * qte) + ' €' : '— annulé';
+    if (subEl) subEl.style.color = cb.checked ? 'var(--text-3)' : '#ef4444';
+  });
+  const el = document.getElementById('photo-total');
+  if (el) el.textContent = total.toFixed(0) + ' €';
+}
+
+function photoDevisGenerer() {
+  if (!photoDevisResultats) return;
+  const prestations = (photoDevisResultats.prestations || [])
+    .filter((p, i) => document.getElementById('photo-p-' + i)?.checked)
+    .map((p, i) => ({
+      designation: p.designation,
+      detail: p.detail,
+      prix: p.prix,
+      qte: parseInt(document.getElementById('photo-qte-' + i)?.value || '1')
+    }));
+
+  if (!prestations.length) { showToast('Sélectionne au moins une prestation', '⚠️'); return; }
+
+  // Pré-remplir le formulaire devis
+  switchPage('devis');
+  setTimeout(() => {
+    if (typeof preFillDevisFromPhoto === 'function') preFillDevisFromPhoto(prestations, photoDevisResultats.analyse);
+    else showToast('Ouvre le formulaire Devis et ajoute les prestations manuellement', 'ℹ️');
+  }, 300);
+}
+
 </script>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- PAGE : DEVIS DEPUIS PHOTO                          -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div id="page-photo-devis" class="page"><div class="content">
+
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+    <div style="width:44px;height:44px;background:linear-gradient(135deg,#C9962A,#E8B84B);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;">📷</div>
+    <div>
+      <div style="font-size:18px;font-weight:800;color:var(--text)">Devis depuis photo</div>
+      <div style="font-size:12px;color:var(--text-3)">L'IA analyse l'installation et génère le devis</div>
+    </div>
+  </div>
+
+  <!-- Upload zone -->
+  <div id="photo-upload-zone" onclick="document.getElementById('photo-input').click()"
+    style="border:2px dashed var(--border);border-radius:16px;padding:40px 20px;text-align:center;cursor:pointer;background:var(--glass);transition:all 0.2s;margin-bottom:16px;">
+    <div style="font-size:48px;margin-bottom:12px">📷</div>
+    <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:6px">Prends ou charge une photo</div>
+    <div style="font-size:12px;color:var(--text-3)">Tableau électrique, tableau de disjoncteurs, installation…</div>
+  </div>
+  <input type="file" id="photo-input" accept="image/*" capture="environment" style="display:none" onchange="photoDevisOnChange(this)">
+
+  <!-- Preview image -->
+  <div id="photo-preview-box" style="display:none;margin-bottom:16px;border-radius:12px;overflow:hidden;border:1px solid var(--border)">
+    <img id="photo-preview-img" style="width:100%;max-height:280px;object-fit:cover;display:block;">
+    <div style="padding:10px 14px;background:var(--glass);display:flex;justify-content:space-between;align-items:center;">
+      <span id="photo-preview-name" style="font-size:12px;color:var(--text-3)"></span>
+      <button onclick="photoDevisReset()" style="background:none;border:none;color:var(--text-3);font-size:12px;cursor:pointer;">✕ Changer</button>
+    </div>
+  </div>
+
+  <!-- Contexte optionnel -->
+  <div style="margin-bottom:16px">
+    <label style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:6px;display:block">Contexte (optionnel)</label>
+    <input id="photo-contexte" type="text" placeholder="Ex: appartement 60m² Paris 8e, tableau années 80…"
+      style="width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:10px;background:var(--glass);color:var(--text);font-size:13px;font-family:inherit;outline:none;">
+  </div>
+
+  <!-- Bouton analyser -->
+  <button id="btn-analyser-photo" onclick="lancerAnalysePhoto()" disabled
+    style="width:100%;padding:15px;border:none;border-radius:12px;background:linear-gradient(135deg,#C9962A,#E8B84B);color:#1B2A4A;font-size:15px;font-weight:800;cursor:pointer;opacity:.4;transition:all 0.2s;margin-bottom:20px;">
+    ✨ Analyser et générer le devis
+  </button>
+
+  <!-- Loader -->
+  <div id="photo-loader" style="display:none;text-align:center;padding:24px;">
+    <div style="font-size:36px;animation:spin 2s linear infinite;display:inline-block">🔍</div>
+    <div style="font-size:14px;font-weight:600;color:var(--text);margin-top:10px">L'IA analyse votre installation…</div>
+    <div style="font-size:12px;color:var(--text-3);margin-top:4px">10 à 15 secondes</div>
+  </div>
+
+  <!-- Résultats -->
+  <div id="photo-results" style="display:none">
+
+    <!-- Analyse -->
+    <div style="background:var(--glass);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px">
+      <div style="font-size:11px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--accent);margin-bottom:8px">🔍 Analyse IA</div>
+      <div id="photo-analyse-text" style="font-size:13px;color:var(--text);line-height:1.6"></div>
+      <div id="photo-urgence-badge" style="display:inline-block;margin-top:10px;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700"></div>
+    </div>
+
+    <!-- Prestations -->
+    <div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:10px">Prestations suggérées</div>
+    <div id="photo-prestations-list" style="margin-bottom:16px"></div>
+
+    <!-- Total -->
+    <div style="background:#1B2A4A;border-radius:10px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <span style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.7)">TOTAL ESTIMÉ</span>
+      <span id="photo-total" style="font-size:22px;font-weight:900;color:#C9962A"></span>
+    </div>
+
+    <!-- Notes -->
+    <div id="photo-notes-box" style="display:none;background:rgba(201,150,42,0.08);border:1px solid rgba(201,150,42,0.3);border-radius:8px;padding:12px 14px;margin-bottom:16px">
+      <div style="font-size:10px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:#C9962A;margin-bottom:4px">⚠️ Notes</div>
+      <div id="photo-notes-text" style="font-size:12px;color:var(--text-2);line-height:1.6"></div>
+    </div>
+
+    <!-- Actions -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <button onclick="photoDevisReset()" style="padding:13px;border:1.5px solid var(--border);border-radius:10px;background:var(--glass);color:var(--text-2);font-size:13px;font-weight:700;cursor:pointer;">📷 Nouvelle photo</button>
+      <button onclick="photoDevisGenerer()" style="padding:13px;border:none;border-radius:10px;background:linear-gradient(135deg,#1B2A4A,#243660);color:#fff;font-size:13px;font-weight:800;cursor:pointer;">📋 Créer le devis</button>
+    </div>
+  </div>
+
+</div></div>
+
+
 </body>
 </html>
