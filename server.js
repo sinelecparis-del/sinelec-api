@@ -1952,7 +1952,7 @@ net=Table([[p('ACOMPTE \\u00c0 R\\u00c9GLER',13,'Helvetica-Bold',BLANC),p('%.2f 
 net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),BLEU),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8),('LINEBELOW',(0,0),(-1,-1),2,OR)]))
 story.append(net); story.append(Spacer(1,0.25*cm))
 story.append(Table([[p('TVA non applicable, art. 293B du CGI',8,color=GRIS_SOFT),p('Paiement : Esp\\u00e8ces  \\u2022  Virement  \\u2022  CB (SumUp)',8,color=GRIS_SOFT,align=TA_RIGHT)]],colWidths=[9.5*cm,8.7*cm]))
-doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
+doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
 `;
     fs.writeFileSync(pyPath, py, 'utf8');
     execSync(`python3 "${pyPath}" "${detailsPath}" "${pdfPath}"`, { cwd: __dirname, timeout: 40000 });
