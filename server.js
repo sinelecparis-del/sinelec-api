@@ -2303,6 +2303,92 @@ RÈGLES :
 // ═══════════════════════════════════════════════════
 // API: ANALYSE DPE
 // ═══════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════
+// API: ANALYSE PHOTO → DEVIS AUTO
+// ═══════════════════════════════════════════════════
+app.post('/api/analyser-photo', authMiddleware, async (req, res) => {
+  try {
+    const { image_b64, media_type, contexte } = req.body;
+    if (!image_b64) return res.status(400).json({ error: 'Image requise' });
+
+    const prompt = `Tu es un expert électricien parisien. Analyse cette photo d'installation électrique et génère une liste de prestations à réaliser.
+
+CONTEXTE : ${contexte || 'Installation électrique résidentielle Paris'}
+
+GRILLE TARIFAIRE SINELEC (prix TTC, TVA non applicable) :
+- Disjoncteur standard : 150€ | Différentiel 63A type A : 250€ | Parafoudre : 160€
+- Tableau 1 rangée : 1200€ | Tableau 2 rangées : 1700€ | Tableau 3 rangées : 2200€
+- Prise standard : 90€ | Prise déplacement : 130€ | Interrupteur : 90€
+- Luminaire simple : 115€ | Spot encastré : 75€/u | Point DCL : 100€
+- Mise à la terre : 650€ | Liaison équipo SdB : 140€ | DAAF : 85€
+- Recherche panne : 120€ | Court-circuit : 125€ | Remise en service : 90€
+- Circuit encastré 5m : 300€ | Circuit apparent 5m : 200€
+- Déplacement Paris : 50€ (offert si intervention > 200€)
+- Mise en conformité NF C 15-100 : 65€/m²
+
+CONSIGNES :
+1. Identifie les travaux nécessaires en regardant l'image
+2. Pour chaque problème visible, propose la prestation correspondante
+3. Sois précis mais ne sur-vends pas
+4. Si l'image est floue ou insuffisante, dis-le
+
+Réponds UNIQUEMENT en JSON valide, sans markdown :
+{
+  "analyse": "Description courte de ce que tu vois (2-3 phrases)",
+  "urgence": "haute|normale|faible",
+  "prestations": [
+    {
+      "designation": "Nom de la prestation",
+      "detail": "Pourquoi c'est nécessaire (1 phrase)",
+      "prix": 150,
+      "qte": 1
+    }
+  ],
+  "notes": "Observations importantes ou limites de l'analyse"
+}`;
+
+    const response = await anthropic.messages.create({
+      model: 'claude-opus-4-5',
+      max_tokens: 1500,
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: media_type || 'image/jpeg',
+              data: image_b64
+            }
+          },
+          { type: 'text', text: prompt }
+        ]
+      }]
+    });
+
+    const raw = response.content[0].text.trim();
+    let result;
+    try {
+      const clean = raw.replace(/^```json?\s*/,'').replace(/\s*```$/,'');
+      result = JSON.parse(clean);
+    } catch(e) {
+      return res.status(500).json({ error: 'Réponse IA invalide', raw: raw.substring(0,200) });
+    }
+
+    // Calculer le total
+    const total = (result.prestations || []).reduce((s, p) => s + (p.prix * p.qte), 0);
+    result.total = total;
+
+    console.log(`📷 Analyse photo: ${(result.prestations||[]).length} prestations, ${total}€`);
+    res.json({ success: true, ...result });
+
+  } catch(e) {
+    console.error('❌ analyser-photo:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post('/api/dpe', async (req, res) => {
   try {
     const { pdf_base64, pdf_type, pdf_text, nom_client, adresse_client } = req.body;
