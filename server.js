@@ -951,12 +951,14 @@ app.post('/api/signature', async (req, res) => {
       fs.writeFileSync(sigPath, Buffer.from(b64, 'base64'));
     }
     const now = new Date().toISOString();
-    await supabase.from('historique').update({
+    const { error: updErr } = await supabase.from('historique').update({
       statut: 'signe',
       date_signature: now,
       signature_ip: ip || null,
       signature_data: signature || null
     }).eq('num', num);
+    if (updErr) console.error('❌ Signature update error:', updErr.message);
+    else console.log('✅ Signature sauvegardée pour', num, '| data length:', (signature||'').length);
 
     // Emails avec PDF signé en pièce jointe
     const { data: doc } = await supabase.from('historique').select('*').eq('num', num).single();
@@ -1570,6 +1572,18 @@ class SC(pdfcanvas.Canvas):
         self.saveState(); self.setFillColor(CREME); self.rect(0,0,W,H,fill=1,stroke=0)
         self.setFillColor(MARINE); self.rect(0,0,0.7*cm,H,fill=1,stroke=0)
         self.setFillColor(OR); self.rect(0.7*cm,0,0.08*cm,H,fill=1,stroke=0)
+        # Filigrane SIGNÉ diagonal
+        try:
+            if IS_SIGNE:
+                self.saveState()
+                self.setFillColor(colors.HexColor('#16a34a'))
+                self.setFillAlpha(0.055)
+                self.setFont('Helvetica-Bold',88)
+                self.translate(W/2,H/2)
+                self.rotate(45)
+                self.drawCentredString(0,0,'SIGN\u00c9')
+                self.restoreState()
+        except: pass
         if self._pg==0: self._draw_header()
         else: self._draw_header_small()
         self.restoreState()
@@ -1666,7 +1680,7 @@ if is_signe:
     hdr_cgv=Table([[p('\u26a1  SINELEC PARIS',11,'Helvetica-Bold',BLANC),p('CONDITIONS G\u00c9N\u00c9RALES DE VENTE',11,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[8.5*cm,9*cm])
     hdr_cgv.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10)]))
     story.append(hdr_cgv); story.append(Spacer(1,0.2*cm))
-    date_sig=str(meta.get('datePaiement',''))
+    date_sig=str(meta.get('dateSignature','')) or str(meta.get('datePaiement','')) or dateStr
     story.append(Table([[p('Applicables au devis n\u00b0 '+doc_num+' \u2014 Accept\u00e9es par '+client_nom+' le '+date_sig,7.5,'Helvetica',GRIS_SOFT),p('SIRET 91015824500019 \u2022 TVA non applicable art. 293B CGI',7.5,'Helvetica',GRIS_SOFT,TA_RIGHT)]],colWidths=[9.5*cm,8*cm]))
     story.append(Table([[p('',1)]],colWidths=[18.2*cm],style=[('LINEBELOW',(0,0),(-1,-1),1,OR)]))
     story.append(Spacer(1,0.15*cm))
@@ -1682,15 +1696,23 @@ if is_signe:
     accept.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f0fdf4')),('BOX',(0,0),(-1,-1),1.5,VERT_G),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
     story.append(accept)
     story.append(Spacer(1,0.3*cm))
-    sig_cells_l=[p('Signature du client',8,'Helvetica-Bold',MARINE),p(client_nom,8,color=GRIS_SOFT),p(date_sig+' \u2022 Paris',7,color=GRIS_SOFT)]
-    if sig_data_b64 and 'data:image' in sig_data_b64:
+    # Signature client
+    sig_left_items=[p('Signature du client',8,'Helvetica-Bold',MARINE),p(client_nom,8,color=GRIS_SOFT),p(date_sig+' \u2022 Paris, France',7,color=GRIS_SOFT)]
+    sig_img_ok=False
+    if sig_data_b64 and len(sig_data_b64)>100:
         try:
-            raw_b64=sig_data_b64.split(',',1)[1]
-            sig_img=Image(io.BytesIO(base64.b64decode(raw_b64)),width=5*cm,height=2*cm)
-            sig_cells_l.append(sig_img)
-        except: pass
-    sig_tbl=Table([[sig_cells_l,[p('Signature SINELEC',8,'Helvetica-Bold',MARINE),p('Diahe',8,color=GRIS_SOFT),p('SINELEC Paris \u26a1',7,color=OR)]]],colWidths=[9*cm,9.2*cm])
-    sig_tbl.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0')),('LEFTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8)]))
+            raw_b64=sig_data_b64.split(',',1)[-1] if ',' in sig_data_b64 else sig_data_b64
+            img_bytes=base64.b64decode(raw_b64)
+            sig_img=Image(io.BytesIO(img_bytes),width=5.5*cm,height=2.2*cm)
+            sig_left_items.append(sig_img)
+            sig_img_ok=True
+        except Exception as e:
+            import sys; print('SIG_ERR:'+str(e),file=sys.stderr)
+    if not sig_img_ok:
+        sig_left_items.append(Table([[p('[ Signature non disponible ]',8,color=GRIS_SOFT)]],colWidths=[8*cm]))
+    sig_right_items=[p('Signature SINELEC',8,'Helvetica-Bold',MARINE),p('Diahe',8,color=GRIS_SOFT),p('SINELEC Paris \u26a1',7,color=OR)]
+    sig_tbl=Table([[sig_left_items,sig_right_items]],colWidths=[9.2*cm,9*cm])
+    sig_tbl.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f8fafc')),('BOX',(0,0),(-1,-1),1,colors.HexColor('#e2e8f0')),('LINEAFTER',(0,0),(0,-1),1,colors.HexColor('#e2e8f0')),('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10)]))
     story.append(sig_tbl)
 doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
 `;
