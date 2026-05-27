@@ -384,7 +384,7 @@ app.post('/api/generer', async (req, res) => {
     console.log('📄 generer START — type:', type, '| client:', client, '| prestations:', prestations?.length);
 
     // ── UPSERT FICHE CLIENT AUTO ──────────────────
-    if (client && (email || telephone)) {
+    if (client) { // Créer fiche client dès qu'on a un nom
       try {
         // Chercher si client existe déjà (par email ou téléphone)
         let existant = null;
@@ -399,26 +399,24 @@ app.post('/api/generer', async (req, res) => {
 
         if (existant) {
           // Mettre à jour les infos
-          await supabase.from('clients').update({
+          const { error: cliUpdErr } = await supabase.from('clients').update({
             nom: client,
             email: email || existant.email,
             telephone: telephone || existant.telephone,
-            adresse: adresse || existant.adresse,
-            derniere_intervention: new Date().toISOString(),
-            updated_at: new Date().toISOString()
+            adresse: adresse || existant.adresse
           }).eq('id', existant.id);
+          if (cliUpdErr) console.error('❌ Client update:', cliUpdErr.message);
         } else {
           // Créer nouvelle fiche client
-          await supabase.from('clients').insert({
+          const { error: cliErr } = await supabase.from('clients').insert({
             nom: client,
             email: email || null,
             telephone: telephone || null,
             adresse: adresse || null,
             source: 'app',
-            premiere_intervention: new Date().toISOString(),
-            derniere_intervention: new Date().toISOString(),
             created_at: new Date().toISOString()
           });
+          if (cliErr) console.error('❌ Client insert:', cliErr.message);
         }
         console.log(`✅ Fiche client mise à jour : ${client}`);
       } catch(e) {
@@ -1868,14 +1866,17 @@ app.post('/api/acompte/:num', async (req, res) => {
       desc: p.desc || ''
     }));
 
-    // Insérer la facture d'acompte
-    await supabase.from('historique').insert({
+    // Insérer la facture d'acompte dans historique
+    const { error: insertErr } = await supabase.from('historique').insert({
       num: numAcompte, type: 'facture', client: devis.client,
       email: devis.email, telephone: devis.telephone, adresse: devis.adresse,
       prestations: prestationsAcompte, total_ht: montantAcompte,
-      statut: 'envoye', source: 'app', description: `Facture d'acompte 40% — devis ${num}`,
+      statut: 'envoye', source: 'app', created_at: new Date().toISOString(),
+      description: `Facture d'acompte 40% — devis ${num}`,
       date_envoi: new Date().toISOString()
     });
+    if (insertErr) console.error('❌ Acompte insert error:', insertErr.message);
+    else console.log('✅ Facture acompte insérée:', numAcompte);
 
     // Générer PDF
     const detailsPath = path.join('/tmp', `_acompte_${numAcompte}.json`);
@@ -2052,6 +2053,95 @@ app.delete('/api/agenda/:id', async (req, res) => {
 // ═══════════════════════════════════════════════════
 // API: CLIENTS
 // ═══════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════
+// API: RECHERCHE CLIENTS (autocomplete)
+// ═══════════════════════════════════════════════════
+app.get('/api/clients/search', authMiddleware, async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q || q.length < 2) return res.json([]);
+
+    const term = q.toLowerCase().trim();
+
+    // Chercher dans clients + dans historique
+    const [{ data: clients }, { data: histo }] = await Promise.all([
+      supabase.from('clients').select('id,nom,email,telephone,adresse,nb_interventions,ca_total').limit(20),
+      supabase.from('historique').select('client,email,telephone,adresse').neq('client', null).limit(200)
+    ]);
+
+    // Fusionner et filtrer
+    const seen = new Set();
+    const results = [];
+
+    // D'abord les fiches clients
+    for (const c of (clients || [])) {
+      const nom = (c.nom || '').toLowerCase();
+      const tel = (c.telephone || '').toLowerCase();
+      const adr = (c.adresse || '').toLowerCase();
+      if (nom.includes(term) || tel.includes(term) || adr.includes(term)) {
+        const key = c.nom + c.telephone;
+        if (!seen.has(key)) {
+          seen.add(key);
+          results.push({ id: c.id, nom: c.nom, email: c.email, telephone: c.telephone, adresse: c.adresse, source: 'client', nb_interventions: c.nb_interventions || 0, ca_total: c.ca_total || 0 });
+        }
+      }
+    }
+
+    // Ensuite depuis l'historique
+    for (const h of (histo || [])) {
+      const nom = (h.client || '').toLowerCase();
+      const tel = (h.telephone || '').toLowerCase();
+      const adr = (h.adresse || '').toLowerCase();
+      if (nom.includes(term) || tel.includes(term) || adr.includes(term)) {
+        const key = h.client + h.telephone;
+        if (!seen.has(key)) {
+          seen.add(key);
+          results.push({ nom: h.client, email: h.email, telephone: h.telephone, adresse: h.adresse, source: 'historique' });
+        }
+      }
+    }
+
+    res.json(results.slice(0, 8));
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════
+// API: FICHE CLIENT COMPLÈTE avec historique
+// ═══════════════════════════════════════════════════
+app.get('/api/clients/:id/fiche', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { data: client } = await supabase.from('clients').select('*').eq('id', id).single();
+    if (!client) return res.status(404).json({ error: 'Client non trouvé' });
+
+    // Historique du client
+    const { data: histo } = await supabase
+      .from('historique')
+      .select('num,type,statut,total_ht,date_envoi,description,created_at')
+      .or(`client.ilike.%${client.nom}%,telephone.eq.${client.telephone || 'null'}`)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    const docs = histo || [];
+    const ca_total = docs.filter(d => d.type === 'facture').reduce((s, d) => s + parseFloat(d.total_ht || 0), 0);
+    const nb_devis = docs.filter(d => d.type === 'devis').length;
+    const nb_factures = docs.filter(d => d.type === 'facture').length;
+
+    // Mise à jour stats
+    await supabase.from('clients').update({
+      ca_total, nb_interventions: nb_factures,
+      derniere_intervention: docs[0]?.created_at || null
+    }).eq('id', id);
+
+    res.json({ ...client, historique: docs, stats: { ca_total, nb_devis, nb_factures } });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/api/clients', async (req, res) => {
   try {
     const { data, error } = await supabase.from('clients').select('*').order('nom', { ascending: true });
