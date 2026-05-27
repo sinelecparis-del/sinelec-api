@@ -4254,6 +4254,7 @@ function renderListeClients(liste) {
         <div style="text-align:right;margin-left:12px;">
           <div style="font-size:16px;font-weight:900;color:var(--accent);">${ca} €</div>
           <div style="font-size:11px;color:var(--text-3);">${nbInter} inter.</div>
+          ${nbInter >= 2 ? '<div style="font-size:9px;background:#F0FDF4;color:#16a34a;font-weight:700;padding:2px 6px;border-radius:8px;margin-top:3px">⭐ Régulier</div>' : ''}
         </div>
         <span style="font-size:18px;color:var(--text-3);margin-left:10px;transition:transform 0.2s;" id="arrow-${c.id||nom.replace(/\s/g,'')}">▾</span>
       </div>
@@ -4297,6 +4298,10 @@ function renderListeClients(liste) {
           <button onclick="nouveauDevisClient('${nom}','${tel}','${email}','${adresse}')"
             style="width:100%;background:linear-gradient(135deg,var(--accent),var(--gold));color:#fff;border:none;border-radius:12px;padding:12px;font-size:13px;font-weight:800;cursor:pointer;margin-top:4px;">
             📋 Nouveau devis pour ce client
+          </button>
+          <button onclick="ouvrirFicheClient('${c.id||''}','${nom}')"
+            style="width:100%;background:var(--glass);border:1.5px solid var(--border);color:var(--text);border-radius:12px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:0">
+            📊 Historique complet
           </button>
 
         </div>
@@ -4390,26 +4395,52 @@ async function getClientsCache() {
   }
 }
 
+let _clientSearchTimer = null;
 async function autocompleteClient(prefix, query, champ) {
   const suggestEl = document.getElementById(`${prefix}-client-suggestions`);
   if (!suggestEl) return;
   if (!query || query.length < 2) { suggestEl.style.display = 'none'; return; }
 
-  const clients = await getClientsCache();
-  const q = query.toLowerCase();
-  const matches = clients.filter(c => (c.nom||'').toLowerCase().includes(q)).slice(0, 6);
+  clearTimeout(_clientSearchTimer);
+  _clientSearchTimer = setTimeout(async () => {
+    try {
+      const res = await fetch('/api/clients/search?q=' + encodeURIComponent(query), {
+        headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('sinelec_token') || '') }
+      });
+      const matches = await res.json();
+      if (!matches.length) { suggestEl.style.display = 'none'; return; }
 
-  if (!matches.length) { suggestEl.style.display = 'none'; return; }
-
-  suggestEl.style.display = 'block';
-  suggestEl.innerHTML = matches.map(c => `
-    <div onclick="selectionnerClient('${prefix}','${(c.nom||'').replace(/'/g,"\'")}','${(c.telephone||'').replace(/'/g,"\'")}','${(c.email||'').replace(/'/g,"\'")}','${(c.adresse||'').replace(/'/g,"\'")}')"
-      style="padding:12px 14px;cursor:pointer;border-bottom:1px solid var(--border);transition:background 0.15s;"
-      onmouseenter="this.style.background='rgba(212,165,116,0.1)'"
-      onmouseleave="this.style.background='transparent'">
-      <div style="font-size:14px;font-weight:700;color:var(--text);">${c.nom}</div>
-      <div style="font-size:11px;color:var(--text-3);">${c.telephone ? '📞 '+c.telephone : ''} ${c.adresse ? '· '+c.adresse.substring(0,30)+'...' : ''}</div>
-    </div>`).join('');
+      suggestEl.style.display = 'block';
+      suggestEl.innerHTML = matches.map(c => {
+        const nb = c.nb_interventions || 0;
+        const badge = nb >= 2
+          ? '<span style="background:#F0FDF4;color:#16a34a;font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;margin-left:6px;">⭐ ' + nb + ' inter.</span>'
+          : '';
+        const nom_esc = (c.nom||'').replace(/'/g, "\'").replace(/"/g, '&quot;');
+        const tel_esc = (c.telephone||'').replace(/'/g, "\'");
+        const email_esc = (c.email||'').replace(/'/g, "\'");
+        const adr_esc = (c.adresse||'').replace(/'/g, "\'");
+        return `<div onclick="selectionnerClient('${prefix}','${nom_esc}','${tel_esc}','${email_esc}','${adr_esc}')"
+          style="padding:12px 14px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;"
+          onmouseenter="this.style.background='rgba(201,150,42,0.08)'"
+          onmouseleave="this.style.background='transparent'">
+          <div style="width:34px;height:34px;background:linear-gradient(135deg,#C9962A,#E8B84B);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#1B2A4A;flex-shrink:0">${(c.nom||'?')[0]}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:700;color:var(--text)">${c.nom}${badge}</div>
+            <div style="font-size:11px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.telephone ? '📞 '+c.telephone : ''} ${c.adresse ? '· '+c.adresse.substring(0,25) : ''}</div>
+          </div>
+        </div>`;
+      }).join('');
+    } catch(e) {
+      // Fallback sur cache local
+      const clients = await getClientsCache();
+      const q = query.toLowerCase();
+      const matches = clients.filter(c => (c.nom||'').toLowerCase().includes(q)).slice(0,6);
+      if (!matches.length) { suggestEl.style.display = 'none'; return; }
+      suggestEl.style.display = 'block';
+      suggestEl.innerHTML = matches.map(c => `<div onclick="selectionnerClient('${prefix}','${(c.nom||'').replace(/'/g,"\'")}','${(c.telephone||'').replace(/'/g,"\'")}','${(c.email||'').replace(/'/g,"\'")}','${(c.adresse||'').replace(/'/g,"\'")}') "style="padding:11px 14px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px;font-weight:600;color:var(--text)">${c.nom}</div>`).join('');
+    }
+  }, 200);
 }
 
 function selectionnerClient(prefix, nom, tel, email, adresse) {
@@ -4443,6 +4474,181 @@ document.addEventListener('click', e => {
     }
   });
 });
+
+
+// ═══════════════════════════════════════════════════
+// RECHERCHE CLIENTS — Page clients
+// ═══════════════════════════════════════════════════
+let _clientsSearchTimer = null;
+
+async function rechercherClients(query) {
+  const results = document.getElementById('clients-search-results');
+  if (!results) return;
+  if (!query || query.length < 2) { results.style.display = 'none'; return; }
+
+  clearTimeout(_clientsSearchTimer);
+  _clientsSearchTimer = setTimeout(async () => {
+    try {
+      const res = await fetch('/api/clients/search?q=' + encodeURIComponent(query), {
+        headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('sinelec_token') || '') }
+      });
+      const data = await res.json();
+      if (!data.length) { results.style.display = 'none'; return; }
+
+      results.style.display = 'block';
+      results.innerHTML = data.map(c => {
+        const nb = c.nb_interventions || 0;
+        const badge = nb >= 2 ? `<span style="background:#F0FDF4;color:#16a34a;font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px">⭐ ${nb} inter.</span>` : '';
+        return `<div onclick="ouvrirFicheClient('${(c.id||'').replace(/'/g,"\'")}','${(c.nom||'').replace(/'/g,"\'")}')"
+          style="padding:12px 14px;cursor:pointer;border-bottom:1px solid rgba(0,0,0,0.06);display:flex;align-items:center;gap:10px;"
+          onmouseenter="this.style.background='rgba(201,150,42,0.08)'"
+          onmouseleave="this.style.background='transparent'">
+          <div style="width:38px;height:38px;background:linear-gradient(135deg,#C9962A,#E8B84B);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#1B2A4A;flex-shrink:0">${(c.nom||'?')[0]}</div>
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:700;color:var(--text)">${c.nom} ${badge}</div>
+            <div style="font-size:11px;color:var(--text-3)">${c.telephone ? '📞 '+c.telephone : ''} ${c.adresse ? '· '+(c.adresse||'').substring(0,30) : ''}</div>
+          </div>
+          <div style="font-size:12px;font-weight:700;color:var(--accent)">${c.ca_total ? (c.ca_total).toFixed(0)+' €' : ''}</div>
+        </div>`;
+      }).join('');
+    } catch(e) { results.style.display = 'none'; }
+  }, 250);
+}
+
+document.addEventListener('click', (e) => {
+  const r = document.getElementById('clients-search-results');
+  const inp = document.getElementById('clients-search-input');
+  if (r && inp && !r.contains(e.target) && e.target !== inp) r.style.display = 'none';
+});
+
+// ═══════════════════════════════════════════════════
+// FICHE CLIENT — Modal avec historique complet
+// ═══════════════════════════════════════════════════
+async function ouvrirFicheClient(id, nomFallback) {
+  // Fermer le dropdown
+  const r = document.getElementById('clients-search-results');
+  if (r) r.style.display = 'none';
+
+  // Créer/ouvrir le modal
+  let modal = document.getElementById('modal-fiche-client');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'modal-fiche-client';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(4px)';
+    modal.onclick = (e) => { if (e.target === modal) fermerFicheClient(); };
+    document.body.appendChild(modal);
+  }
+  modal.style.display = 'flex';
+  modal.innerHTML = `<div style="background:var(--bg);border-radius:20px 20px 0 0;width:100%;max-width:540px;max-height:88vh;overflow-y:auto;padding:20px;animation:slideUp .25s ease">
+    <div style="text-align:center;margin-bottom:16px">
+      <div style="width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 14px"></div>
+      <div style="font-size:16px;font-weight:800;color:var(--text)">⏳ Chargement...</div>
+    </div>
+  </div>`;
+
+  try {
+    let data;
+    if (id) {
+      const res = await fetch('/api/clients/' + id + '/fiche', {
+        headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('sinelec_token') || '') }
+      });
+      data = await res.json();
+    } else {
+      // Recherche par nom dans historique
+      const res = await fetch('/api/clients/search?q=' + encodeURIComponent(nomFallback), {
+        headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('sinelec_token') || '') }
+      });
+      const found = await res.json();
+      if (found[0]?.id) {
+        const res2 = await fetch('/api/clients/' + found[0].id + '/fiche', {
+          headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('sinelec_token') || '') }
+        });
+        data = await res2.json();
+      } else {
+        data = found[0] || { nom: nomFallback, historique: [], stats: { ca_total: 0, nb_devis: 0, nb_factures: 0 } };
+      }
+    }
+
+    const initials = (data.nom || '?').split(' ').map(w => w[0]).slice(0,2).join('');
+    const stats = data.stats || {};
+    const histo = (data.historique || []).slice(0, 20);
+    const isRegulier = (stats.nb_factures || 0) >= 2;
+
+    modal.innerHTML = `<div style="background:var(--bg);border-radius:20px 20px 0 0;width:100%;max-width:540px;max-height:88vh;overflow-y:auto;animation:slideUp .25s ease">
+      <!-- Handle -->
+      <div style="padding:12px;text-align:center"><div style="width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto"></div></div>
+      <!-- Header -->
+      <div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:16px 20px 18px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+          <div style="width:48px;height:48px;background:linear-gradient(135deg,#C9962A,#E8B84B);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:#1B2A4A;flex-shrink:0">${initials}</div>
+          <div style="flex:1">
+            <div style="font-size:17px;font-weight:800;color:#fff">${data.nom || nomFallback}</div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-top:2px">${data.adresse || ''}</div>
+          </div>
+          ${isRegulier ? '<div style="background:rgba(201,150,42,0.2);border:1px solid rgba(201,150,42,0.4);color:#C9962A;font-size:10px;font-weight:700;padding:4px 10px;border-radius:20px;white-space:nowrap">⭐ Régulier</div>' : ''}
+        </div>
+        <!-- Stats -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+          <div style="background:rgba(255,255,255,0.08);border-radius:8px;padding:8px;text-align:center">
+            <div style="font-size:17px;font-weight:800;color:#C9962A">${(stats.ca_total||0).toFixed(0)} €</div>
+            <div style="font-size:9px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:.5px;margin-top:1px">CA total</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.08);border-radius:8px;padding:8px;text-align:center">
+            <div style="font-size:17px;font-weight:800;color:#fff">${stats.nb_factures||0}</div>
+            <div style="font-size:9px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:.5px;margin-top:1px">Interventions</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.08);border-radius:8px;padding:8px;text-align:center">
+            <div style="font-size:17px;font-weight:800;color:#fff">${stats.nb_devis||0}</div>
+            <div style="font-size:9px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:.5px;margin-top:1px">Devis</div>
+          </div>
+        </div>
+      </div>
+      <!-- Contact -->
+      <div style="padding:14px 16px;border-bottom:1px solid var(--border)">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          ${data.telephone ? `<a href="tel:${data.telephone}" style="background:var(--glass);border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:600;color:var(--text);text-decoration:none;display:flex;align-items:center;gap:6px">📞 ${data.telephone}</a>` : ''}
+          ${data.email ? `<a href="mailto:${data.email}" style="background:var(--glass);border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:600;color:var(--text);text-decoration:none;display:flex;align-items:center;gap:6px">✉️ ${data.email}</a>` : ''}
+          ${data.adresse ? `<div onclick="window.open('https://waze.com/ul?q='+encodeURIComponent('${(data.adresse||'').replace(/'/g,"\'")}')+'&navigate=yes','_blank')" style="background:var(--glass);border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:600;color:var(--text);cursor:pointer;display:flex;align-items:center;gap:6px">🗺️ Waze</div>` : ''}
+        </div>
+      </div>
+      <!-- Historique -->
+      <div style="padding:14px 16px">
+        <div style="font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">Historique (${histo.length})</div>
+        ${histo.length ? histo.map(h => {
+          const statut = (h.statut||'').toLowerCase();
+          const scolor = statut.includes('pay') ? '#16a34a' : statut.includes('sign') ? '#C9962A' : '#3b82f6';
+          const sbg = statut.includes('pay') ? '#F0FDF4' : statut.includes('sign') ? '#FEF3C7' : '#EFF6FF';
+          return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">
+            <div style="width:8px;height:8px;border-radius:50%;background:${scolor};flex-shrink:0"></div>
+            <div style="flex:1">
+              <div style="font-size:12px;font-weight:700;color:var(--text);font-family:monospace">${h.num}</div>
+              <div style="font-size:10px;color:var(--text-3)">${(h.description||'').substring(0,40)||'Travaux électricité'}</div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-size:13px;font-weight:800;color:var(--text)">${parseFloat(h.total_ht||0).toFixed(0)} €</div>
+              <div style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:8px;background:${sbg};color:${scolor};white-space:nowrap">${h.statut||''}</div>
+            </div>
+          </div>`;
+        }).join('') : '<div style="text-align:center;padding:20px;color:var(--text-3);font-size:13px">Aucun historique</div>'}
+      </div>
+      <!-- Actions -->
+      <div style="padding:14px 16px;display:grid;grid-template-columns:1fr 1fr;gap:10px;border-top:1px solid var(--border)">
+        <button onclick="fermerFicheClient();switchPage('devis')" style="padding:13px;background:linear-gradient(135deg,#1B2A4A,#243660);color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">📋 Nouveau devis</button>
+        <button onclick="fermerFicheClient()" style="padding:13px;background:var(--glass);border:1.5px solid var(--border);color:var(--text);border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Fermer</button>
+      </div>
+    </div>`;
+  } catch(e) {
+    modal.innerHTML = `<div style="background:var(--bg);border-radius:20px 20px 0 0;padding:20px;text-align:center">
+      <div style="color:var(--text-3);font-size:13px">Erreur chargement fiche</div>
+      <button onclick="fermerFicheClient()" style="margin-top:12px;padding:10px 20px;background:var(--glass);border:1px solid var(--border);color:var(--text);border-radius:10px;cursor:pointer;font-family:inherit">Fermer</button>
+    </div>`;
+  }
+}
+
+function fermerFicheClient() {
+  const modal = document.getElementById('modal-fiche-client');
+  if (modal) modal.style.display = 'none';
+}
 
 // ═══════════════════════════════════════════════════
 // SANTÉ SYSTÈME
