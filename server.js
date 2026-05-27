@@ -1887,6 +1887,7 @@ app.post('/api/acompte/:num', async (req, res) => {
     const addrParts = (devis.adresse || '').split(',');
     const clientRue = String(addrParts[0] || '').trim().replace(/'/g, ' ');
     const clientVille = addrParts.slice(1).join(',').trim().replace(/'/g, ' ');
+    const descObjet = String(devis.description || 'Travaux d electricite generale').replace(/'/g,' ').substring(0,80);
     const dateStr = new Date().toLocaleDateString('fr-FR');
 
     const py = `# -*- coding: utf-8 -*-
@@ -1895,63 +1896,88 @@ from reportlab.lib.pagesizes import A4; from reportlab.lib import colors; from r
 from reportlab.platypus import *; from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT; from reportlab.pdfgen import canvas as pdfcanvas
 from reportlab.lib.utils import ImageReader
-W,H=A4; MARINE=colors.HexColor('#1B2A4A'); OR=colors.HexColor('#C9A84C')
-OR_PALE=colors.HexColor('#FBF7EC'); OR_FONCE=colors.HexColor('#A07830')
-BLANC=colors.white; CREME=colors.HexColor('#FDFCF9'); GRIS_TEXTE=colors.HexColor('#3A3A3A'); GRIS_SOFT=colors.HexColor('#777777'); GRIS_LIGNE=colors.HexColor('#E0DDD6'); BLEU=colors.HexColor('#3b82f6')
+W,H=A4
+MARINE=colors.HexColor('#1B2A4A'); OR=colors.HexColor('#C9A84C'); OR_FONCE=colors.HexColor('#A07830')
+BLANC=colors.white; CREME=colors.HexColor('#FDFCF9'); GRIS_TEXTE=colors.HexColor('#3A3A3A')
+GRIS_SOFT=colors.HexColor('#777777'); GRIS_LIGNE=colors.HexColor('#E0DDD6')
+BLEU=colors.HexColor('#3b82f6'); BLEU_L=colors.HexColor('#EFF6FF'); VERT_L=colors.HexColor('#F0FDF4')
 def p(txt,sz=9,font='Helvetica',color=GRIS_TEXTE,align=TA_LEFT,sb=0,sa=2,leading=None):
     if leading is None: leading=sz*1.35
     return Paragraph(str(txt),ParagraphStyle('s',fontName=font,fontSize=sz,textColor=color,alignment=align,spaceBefore=sb,spaceAfter=sa,leading=leading,wordWrap='CJK'))
-data=json.loads(open(sys.argv[1],encoding='utf-8').read())
-totalHT=sum(l.get('total',0) for l in data)
 try:
     logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
 except:
     logo_bytes=None
 class SC(pdfcanvas.Canvas):
-    def __init__(self,fn,**kw): pdfcanvas.Canvas.__init__(self,fn,**kw); self._pg=0; self.saveState(); self._draw_page()
-    def showPage(self): self._draw_footer(); pdfcanvas.Canvas.showPage(self); self._pg+=1
+    def __init__(self,fn,**kw): pdfcanvas.Canvas.__init__(self,fn,**kw); self.saveState(); self._draw_page()
+    def showPage(self): self._draw_footer(); pdfcanvas.Canvas.showPage(self)
     def save(self): self._draw_footer(); pdfcanvas.Canvas.save(self)
     def _draw_page(self):
-        self.saveState(); self.setFillColor(CREME); self.rect(0,0,W,H,fill=1,stroke=0)
+        self.saveState()
+        self.setFillColor(CREME); self.rect(0,0,W,H,fill=1,stroke=0)
         self.setFillColor(MARINE); self.rect(0,0,0.7*cm,H,fill=1,stroke=0)
         self.setFillColor(OR); self.rect(0.7*cm,0,0.08*cm,H,fill=1,stroke=0)
         self._draw_header(); self.restoreState()
     def _draw_header(self):
-        self.setFillColor(MARINE); self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,5.4*cm,fill=1,stroke=0)
-        self.setFillColor(OR); self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,0.12*cm,fill=1,stroke=0)
+        # Fond header marine
+        self.setFillColor(MARINE); self.rect(0.78*cm,H-5.0*cm,W-0.78*cm,5.0*cm,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0.78*cm,H-5.0*cm,W-0.78*cm,0.1*cm,fill=1,stroke=0)
+        # Logo
         if logo_bytes:
-            self.drawImage(ImageReader(io.BytesIO(logo_bytes)),0.9*cm,H-5.05*cm,width=4.2*cm,height=4.2*cm,preserveAspectRatio=True,mask='auto')
-        self.setFont('Helvetica-Bold',15); self.setFillColor(colors.white); self.drawString(5.9*cm,H-1.7*cm,'SINELEC PARIS')
-        self.setFont('Helvetica-Bold',9); self.setFillColor(colors.white); self.drawString(5.9*cm,H-2.5*cm,'128 Rue La Boetie, 75008 Paris')
-        self.setFont('Helvetica',8.5); self.setFillColor(colors.HexColor('#BFC8D6'))
-        self.drawString(5.9*cm,H-3.0*cm,'Tel : 07 87 38 86 22'); self.drawString(5.9*cm,H-3.4*cm,'sinelec.paris@gmail.com')
-        self.setFont('Helvetica-Bold',30); self.setFillColor(BLANC); self.drawRightString(W-1.2*cm,H-2.2*cm,'FACTURE D\\u2019ACOMPTE')
-        self.setFillColor(BLEU); self.roundRect(W-6.5*cm,H-3.55*cm,5.3*cm,0.65*cm,0.15*cm,fill=1,stroke=0)
-        self.setFont('Helvetica-Bold',9); self.setFillColor(BLANC); self.drawCentredString(W-3.85*cm,H-3.22*cm,'N\\u00b0 ${numAcompte}')
-        self.setFont('Helvetica',8); self.setFillColor(colors.HexColor('#BFC8D6')); self.drawRightString(W-1.2*cm,H-3.9*cm,'Date : ${dateStr}   |   Acompte 40% du devis ${num}')
+            self.drawImage(ImageReader(io.BytesIO(logo_bytes)),0.9*cm,H-4.7*cm,width=3.8*cm,height=3.8*cm,preserveAspectRatio=True,mask='auto')
+        # Infos société (colonne gauche)
+        self.setFont('Helvetica-Bold',14); self.setFillColor(BLANC); self.drawString(5.4*cm,H-1.6*cm,'SINELEC PARIS')
+        self.setFont('Helvetica',8); self.setFillColor(colors.HexColor('#BFC8D6'))
+        self.drawString(5.4*cm,H-2.2*cm,'128 Rue La Boetie, 75008 Paris')
+        self.drawString(5.4*cm,H-2.65*cm,'Tel : 07 87 38 86 22  |  sinelec.paris@gmail.com')
+        self.drawString(5.4*cm,H-3.1*cm,'SIRET : 91015824500019')
+        # Titre + numero (colonne droite)
+        self.setFont('Helvetica-Bold',18); self.setFillColor(BLANC)
+        self.drawRightString(W-1.2*cm,H-1.7*cm,'FACTURE D\u2019ACOMPTE')
+        self.setFillColor(BLEU); self.roundRect(W-5.8*cm,H-2.75*cm,4.6*cm,0.6*cm,0.12*cm,fill=1,stroke=0)
+        self.setFont('Helvetica-Bold',9); self.setFillColor(BLANC)
+        self.drawCentredString(W-3.5*cm,H-2.43*cm,'N\u00b0 ${numAcompte}')
+        self.setFont('Helvetica',8); self.setFillColor(colors.HexColor('#BFC8D6'))
+        self.drawRightString(W-1.2*cm,H-3.3*cm,'Date : ${dateStr}')
+        self.drawRightString(W-1.2*cm,H-3.7*cm,'Ref. devis : ${num}')
+        self.drawRightString(W-1.2*cm,H-4.15*cm,'Acompte 40% sur devis sign\u00e9')
     def _draw_footer(self):
         self.saveState(); self.setFillColor(MARINE); self.rect(0,0,W,1.0*cm,fill=1,stroke=0)
-        self.setFillColor(OR); self.rect(0,1.0*cm,W,0.08*cm,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0,1.0*cm,W,0.07*cm,fill=1,stroke=0)
         self.setFont('Helvetica',6.5); self.setFillColor(colors.HexColor('#8899BB'))
-        self.drawCentredString(W/2,0.5*cm,'SINELEC EI  \\u2022  128 Rue La Boetie, 75008 Paris  \\u2022  SIRET : 91015824500019  \\u2022  TVA non applicable art. 293B CGI')
+        self.drawCentredString(W/2,0.45*cm,'SINELEC EI  \u2022  128 Rue La Boetie, 75008 Paris  \u2022  SIRET : 91015824500019  \u2022  TVA non applicable art. 293B CGI')
         self.restoreState()
-doc=SimpleDocTemplate(sys.argv[2],pagesize=A4,leftMargin=1.2*cm,rightMargin=1.0*cm,topMargin=5.6*cm,bottomMargin=1.6*cm)
+doc=SimpleDocTemplate(sys.argv[2],pagesize=A4,leftMargin=1.2*cm,rightMargin=1.0*cm,topMargin=5.3*cm,bottomMargin=1.6*cm)
 story=[]
-client_b=Table([[p('DESTINATAIRE',7,'Helvetica-Bold',OR,sa=3)],[p('${clientEsc}',11,'Helvetica-Bold',MARINE)],[p('${clientRue}',9)],[p('${clientVille}',9)]],colWidths=[8.2*cm])
+# Client
+client_b=Table([[p('DESTINATAIRE',7,'Helvetica-Bold',OR,sa=3)],[p('${clientEsc}',11,'Helvetica-Bold',MARINE)],[p('${clientRue}',9)],[p('${clientVille}',9)]],colWidths=[10*cm])
 client_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),2),('BOTTOMPADDING',(0,0),(-1,-1),2),('LEFTPADDING',(0,0),(-1,-1),0)]))
-acompte_info=Table([[p('Facture d\\u2019acompte 40%',9,'Helvetica-Bold',BLEU)],[p('Devis ${num} — Solde : ' + '${montantSolde.toFixed(2)}' + ' \\u20ac (60%) exigible \\u00e0 la fin des travaux',8,color=GRIS_SOFT)]],colWidths=[9.0*cm])
-hdr_row=Table([[client_b,acompte_info]],colWidths=[9.5*cm,8.7*cm])
-hdr_row.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)]))
-story.append(hdr_row); story.append(Spacer(1,0.5*cm))
-rows=[[p('N\\u00b0',8,'Helvetica-Bold',BLANC,TA_CENTER),p('D\\u00e9signation',8,'Helvetica-Bold',BLANC),p('Total (40%)',8,'Helvetica-Bold',BLANC,TA_RIGHT)]]
-for i,l in enumerate(data): rows.append([p(str(i+1),8,align=TA_CENTER),[p(str(l.get('designation','')),9,'Helvetica-Bold',MARINE)],p(f'{l.get("total",0):.0f} \\u20ac',9,'Helvetica-Bold',align=TA_RIGHT,color=OR_FONCE)])
-t=Table(rows,colWidths=[1.0*cm,13.0*cm,4.2*cm],repeatRows=1)
-t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),MARINE),('ROWBACKGROUNDS',(0,1),(-1,-1),[CREME,OR_PALE]),('LINEBELOW',(0,0),(-1,0),1.5,OR),('LINEBELOW',(0,-1),(-1,-1),1.5,MARINE),('LEFTPADDING',(0,0),(-1,-1),4),('RIGHTPADDING',(0,0),(-1,-1),4),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('VALIGN',(0,0),(-1,-1),'TOP'),('ALIGN',(2,0),(2,-1),'RIGHT')]))
-story.append(t); story.append(Spacer(1,0.4*cm))
-net=Table([[p('ACOMPTE \\u00c0 R\\u00c9GLER',13,'Helvetica-Bold',BLANC),p('%.2f \\u20ac'%totalHT,16,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
-net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),BLEU),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8),('LINEBELOW',(0,0),(-1,-1),2,OR)]))
-story.append(net); story.append(Spacer(1,0.25*cm))
-story.append(Table([[p('TVA non applicable, art. 293B du CGI',8,color=GRIS_SOFT),p('Paiement : Esp\\u00e8ces  \\u2022  Virement  \\u2022  CB (SumUp)',8,color=GRIS_SOFT,align=TA_RIGHT)]],colWidths=[9.5*cm,8.7*cm]))
+story.append(client_b); story.append(Spacer(1,0.7*cm))
+# Objet
+objet_b=Table([[p('OBJET DES TRAVAUX',7,'Helvetica-Bold',OR,sa=3)],[p('${descObjet}',10,'Helvetica-Bold',MARINE)]],colWidths=[18.2*cm])
+objet_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),2),('BOTTOMPADDING',(0,0),(-1,-1),2),('LEFTPADDING',(0,0),(-1,-1),0),('LINEBELOW',(0,-1),(-1,-1),1,GRIS_LIGNE)]))
+story.append(objet_b); story.append(Spacer(1,0.5*cm))
+# Ligne unique acompte
+acompte_line=Table([
+    [p('Acompte 40% sur devis n\u00b0 ${num}',11,'Helvetica-Bold',MARINE), p('${montantAcompte.toFixed(2)} \u20ac',14,'Helvetica-Bold',OR_FONCE,TA_RIGHT)]
+],colWidths=[13*cm,5.2*cm])
+acompte_line.setStyle(TableStyle([
+    ('BACKGROUND',(0,0),(-1,-1),BLEU_L),
+    ('BOX',(0,0),(-1,-1),1.5,BLEU),
+    ('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),
+    ('TOPPADDING',(0,0),(-1,-1),12),('BOTTOMPADDING',(0,0),(-1,-1),12),
+]))
+story.append(acompte_line); story.append(Spacer(1,0.2*cm))
+# NET À RÉGLER
+net=Table([[p('ACOMPTE \u00c0 R\u00c9GLER',13,'Helvetica-Bold',BLANC),p('${montantAcompte.toFixed(2)} \u20ac',18,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[9.5*cm,8.7*cm])
+net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),('LINEBELOW',(0,0),(-1,-1),2,OR)]))
+story.append(net); story.append(Spacer(1,0.2*cm))
+# Solde restant
+solde_b=Table([[p('\u26a0\ufe0f  Solde restant d\u00fb : ${montantSolde.toFixed(2)} \u20ac (60%)  \u2014  Exigible \u00e0 la r\u00e9ception des travaux',9,'Helvetica-Bold',colors.HexColor('#92400E'),TA_CENTER)]],colWidths=[18.2*cm])
+solde_b.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#FEF3C7')),('BOX',(0,0),(-1,-1),1,colors.HexColor('#F59E0B')),('TOPPADDING',(0,0),(-1,-1),9),('BOTTOMPADDING',(0,0),(-1,-1),9)]))
+story.append(solde_b); story.append(Spacer(1,0.3*cm))
+# Paiement + TVA
+story.append(Table([[p('TVA non applicable, art. 293B du CGI',8,color=GRIS_SOFT),p('Paiement : Esp\u00e8ces  \u2022  Virement  \u2022  CB (SumUp)  \u2022  PayPal',8,color=GRIS_SOFT,align=TA_RIGHT)]],colWidths=[9.5*cm,8.7*cm]))
 doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
 `;
     fs.writeFileSync(pyPath, py, 'utf8');
