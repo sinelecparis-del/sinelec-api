@@ -1080,8 +1080,28 @@ app.get('/api/historique/:num/check-signature', async (req, res) => {
 // ═══════════════════════════════════════════════════
 app.get('/signer/:num', async (req, res) => {
   const { num } = req.params;
-  const { data: doc } = await supabase.from('historique').select('*').eq('num', num).single();
-  if (!doc) return res.status(404).send('<h1>Document introuvable</h1>');
+  const numClean = decodeURIComponent(num).trim();
+
+  // Essai exact d'abord
+  let { data: doc } = await supabase.from('historique').select('*').eq('num', numClean).single();
+
+  // Fallback: recherche insensible à la casse
+  if (!doc) {
+    const { data: docs } = await supabase.from('historique').select('*').ilike('num', numClean).limit(1);
+    doc = docs?.[0] || null;
+  }
+
+  if (!doc) {
+    console.error('❌ Document introuvable pour num:', numClean);
+    return res.status(404).send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Introuvable</title></head>
+    <body style="font-family:Arial;text-align:center;padding:60px;background:#f5f5f5;">
+    <div style="background:#fff;border-radius:16px;padding:40px;max-width:400px;margin:0 auto;box-shadow:0 4px 20px rgba(0,0,0,0.1)">
+    <div style="font-size:48px;margin-bottom:16px">🔍</div>
+    <h2 style="color:#1B2A4A;margin-bottom:8px">Document introuvable</h2>
+    <p style="color:#666;margin-bottom:20px">Le devis <strong>${numClean}</strong> n'a pas été trouvé.</p>
+    <p style="color:#999;font-size:13px">Contactez SINELEC Paris<br>📞 07 87 38 86 22</p>
+    </div></body></html>`);
+  }
   const statut = (doc.statut || '').toLowerCase();
   if (['signe','signé'].includes(statut)) {
     return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Déjà signé</title></head><body style="font-family:Arial;text-align:center;padding:40px;"><h2>✅ Devis déjà signé</h2><p>Le devis ${num} a déjà été signé. Merci !</p><p>📞 07 87 38 86 22</p></body></html>`);
