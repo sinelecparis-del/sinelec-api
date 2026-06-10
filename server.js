@@ -514,6 +514,8 @@ client_siret=meta.get('clientSiret','')
 desc_objet=meta.get('descObjet','Travaux electricite')
 is_paye=meta.get('isPaye',False)
 is_signe=meta.get('isSigne',False)
+sig_data_b64=str(meta.get('signatureData',''))
+date_sig=str(meta.get('dateSignature','')) or str(meta.get('datePaiement','')) or doc_date
 try:
     logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
 except:
@@ -748,74 +750,26 @@ if is_signe:
     story.append(Table([[p('',1)]],colWidths=[18.2*cm],style=[('LINEBELOW',(0,0),(-1,-1),1,OR)]))
     story.append(Spacer(1,0.15*cm))
     GRIS_L=colors.HexColor('#f8fafc')
-    cgv_arts=[('Art. 1 \u2014 Devis et acceptation','Le devis est valable 30 jours. Toute commande implique l\u2019acceptation sans r\u00e9serve des pr\u00e9sentes CGV. La signature \u00e9lectronique vaut bon de commande ferme.'),('Art. 2 \u2014 Prix et paiement','TVA non applicable art. 293B CGI. Acompte 40% \u00e0 la signature si devis > 400\u20ac. Solde \u00e0 la fin des travaux. Paiement : esp\u00e8ces, virement, CB SumUp, PayPal.'),('Art. 3 \u2014 R\u00e9alisation des travaux','Travaux conform\u00e9ment \u00e0 la norme NF C 15-100. Le client s\u2019engage \u00e0 fournir un acc\u00e8s s\u00e9curis\u00e9 et informer SINELEC de toute contrainte avant intervention.'),('Art. 4 \u2014 Garanties','Garantie d\u00e9cennale ORUS Assurances (Lyon). Garantie parfait ach\u00e8vement 1 an. Ne couvre pas les d\u00e9gradations dues \u00e0 mauvaise utilisation ou intervention tierce.'),('Art. 5 \u2014 Droit de r\u00e9tractation','Droit de r\u00e9tractation 14 jours (art. L221-18 Code Conso). Ne s\u2019applique pas aux interventions d\u2019urgence expressément sollicit\u00e9es par le client.'),('Art. 6 \u2014 Responsabilit\u00e9','SINELEC ne saurait \u00eatre tenu responsable des dommages indirects. Force majeure : ex\u00e9cution suspendue sans indemnit\u00e9.'),('Art. 7 \u2014 Litiges','Solution amiable privil\u00e9gi\u00e9e. \u00c0 d\u00e9faut, comp\u00e9tence exclusive des tribunaux de Paris.')]
+    cgv_arts=[
+('Art. 1 \u2014 Devis et acceptation','Le devis est valable 30 jours \u00e0 compter de son \u00e9mission. La signature du devis, manuscrite ou \u00e9lectronique (avec v\u00e9rification par code SMS), vaut acceptation pleine et enti\u00e8re des prestations d\u00e9crites et des pr\u00e9sentes CGV, et a la m\u00eame valeur juridique qu\u2019une signature manuscrite (art. 1367 Code civil).'),
+('Art. 2 \u2014 Prix et paiement','TVA non applicable, art. 293B du CGI. Acompte de 40% \u00e0 la signature si le devis exc\u00e8de 400\u20ac, solde \u00e0 la fin des travaux. Paiement accept\u00e9 : esp\u00e8ces, virement, CB (SumUp), PayPal. Toute prestation suppl\u00e9mentaire ou modification fera l\u2019objet d\u2019un devis compl\u00e9mentaire accept\u00e9 pr\u00e9alablement, sauf urgence mettant en jeu la s\u00e9curit\u00e9.'),
+('Art. 3 \u2014 R\u00e9alisation des travaux','Travaux r\u00e9alis\u00e9s conform\u00e9ment \u00e0 la norme NF C 15-100. Le client garantit un acc\u00e8s libre et s\u00e9curis\u00e9 \u00e0 l\u2019installation et informe SINELEC de toute contrainte (acc\u00e8s, horaires, sp\u00e9cificit\u00e9s) avant l\u2019intervention. SINELEC se r\u00e9serve le droit de refuser ou suspendre une intervention en cas de danger immediat ou de non-conformit\u00e9 grave d\u00e9couverte sur place, sans que cela n\u2019engage sa responsabilit\u00e9.'),
+('Art. 4 \u2014 R\u00e9ception et r\u00e9serves (48h)','La r\u00e9ception des travaux intervient d\u00e8s leur ach\u00e8vement. La prise de possession ou l\u2019utilisation des installations par le client, m\u00eame sans paiement int\u00e9gral, vaut r\u00e9ception sans r\u00e9serve. Le client dispose de 48 heures \u00e0 compter de la fin de l\u2019intervention pour notifier par \u00e9crit (SMS, email) toute r\u00e9serve motiv\u00e9e. Pass\u00e9 ce d\u00e9lai, aucune r\u00e9clamation relative \u00e0 la qualit\u00e9 ou la conformit\u00e9 des travaux ne sera recevable, sauf vice cach\u00e9 relevant de la garantie d\u00e9cennale.'),
+('Art. 5 \u2014 Valeur probante des \u00e9changes num\u00e9riques','Le client reconna\u00eet la pleine valeur probante des SMS, emails, photos horodat\u00e9es, du rapport d\u2019intervention et de la signature \u00e9lectronique (code OTP, horodatage, IP) comme preuve de la r\u00e9alisation, de la conformit\u00e9 et de l\u2019acceptation des travaux. Ces \u00e9l\u00e9ments pourront \u00eatre produits en cas de proc\u00e9dure amiable ou contentieuse.'),
+('Art. 6 \u2014 D\u00e9faut ou retard de paiement','Tout retard de paiement entra\u00eene de plein droit, sans mise en demeure pr\u00e9alable : des int\u00e9r\u00eats moratoires au taux de 3 fois le taux l\u00e9gal par jour de retard, une indemnit\u00e9 forfaitaire de recouvrement de 40\u20ac, et l\u2019exigibilit\u00e9 imm\u00e9diate de toute somme restant due. En cas de non-paiement persistant 8 jours apr\u00e8s mise en demeure, SINELEC pourra suspendre toute prestation et engager une proc\u00e9dure de recouvrement (injonction de payer).'),
+('Art. 7 \u2014 R\u00e9serve de propri\u00e9t\u00e9','Conform\u00e9ment \u00e0 l\u2019art. L.624-16 du Code de commerce, les mat\u00e9riaux et \u00e9quipements install\u00e9s demeurent la propri\u00e9t\u00e9 exclusive de SINELEC jusqu\u2019au paiement int\u00e9gral du prix. En cas de non-paiement persistant apr\u00e8s mise en demeure infructueuse, SINELEC se r\u00e9serve le droit de proc\u00e9der \u00e0 la d\u00e9pose des \u00e9l\u00e9ments install\u00e9s et non pay\u00e9s.'),
+('Art. 8 \u2014 Garanties et assurances','SINELEC est couvert par une garantie d\u00e9cennale ORUS Assurances (114 Bd Marius Vivier Merle, 69003 Lyon) et une assurance Responsabilit\u00e9 Civile Professionnelle couvrant les dommages survenus pendant l\u2019intervention. Ces garanties excluent : l\u2019usure normale, la n\u00e9gligence ou le d\u00e9faut d\u2019entretien du client, l\u2019intervention d\u2019un tiers post\u00e9rieure aux travaux, et toute utilisation non conforme non signal\u00e9e au moment du devis.'),
+('Art. 9 \u2014 Droit de r\u00e9tractation','Pour les contrats conclus hors \u00e9tablissement ou \u00e0 distance, le client particulier b\u00e9n\u00e9ficie d\u2019un d\u00e9lai de r\u00e9tractation de 14 jours (art. L221-18 Code de la consommation). Ce droit ne s\u2019applique pas lorsque le client a express\u00e9ment sollicit\u00e9 une intervention d\u2019urgence ou lorsque l\u2019ex\u00e9cution a commenc\u00e9 \u00e0 sa demande expresse avant la fin du d\u00e9lai (art. L221-28).'),
+('Art. 10 \u2014 Responsabilit\u00e9 et sous-traitance','SINELEC ne saurait \u00eatre tenu responsable des dommages indirects (pertes d\u2019exploitation, troubles de jouissance). En cas de force majeure, l\u2019ex\u00e9cution est suspendue sans indemnit\u00e9. SINELEC peut faire intervenir des sous-traitants qualifi\u00e9s sous sa responsabilit\u00e9 et sa supervision, sans que cela ne modifie les pr\u00e9sentes CGV ni n\u2019engage de surco\u00fbt pour le client.'),
+('Art. 11 \u2014 R\u00e9siliation \u00e0 l\u2019initiative du client','En cas d\u2019annulation par le client apr\u00e8s signature et avant le d\u00e9but des travaux (hors r\u00e9tractation l\u00e9gale), l\u2019acompte vers\u00e9 reste acquis \u00e0 SINELEC \u00e0 titre d\u2019indemnisation. Si l\u2019annulation intervient apr\u00e8s commencement des travaux, le client r\u00e8gle l\u2019int\u00e9gralit\u00e9 des prestations r\u00e9alis\u00e9es et des mat\u00e9riaux command\u00e9s, sur justificatifs.'),
+('Art. 12 \u2014 Donn\u00e9es personnelles','Les donn\u00e9es du client sont trait\u00e9es uniquement pour l\u2019ex\u00e9cution du devis et les obligations l\u00e9gales (facturation). Conform\u00e9ment au RGPD, le client dispose d\u2019un droit d\u2019acc\u00e8s, de rectification, de portabilit\u00e9 et d\u2019effacement, exer\u00e7able \u00e0 sinelec.paris@gmail.com.'),
+('Art. 13 \u2014 Litiges et juridiction','En cas de diff\u00e9rend, les parties privil\u00e9gient une r\u00e9solution amiable. \u00c0 d\u00e9faut, le client consommateur peut saisir le m\u00e9diateur CM2C (cm2c@cm2c.net). Tout litige relevera de la comp\u00e9tence exclusive du Tribunal judiciaire de Paris. Droit fran\u00e7ais applicable.')
+]
     for titre,texte in cgv_arts:
-        r=Table([[p(titre,8,'Helvetica-Bold',MARINE),p(texte,7.5,'Helvetica',GRIS_SOFT)]],colWidths=[4.8*cm,13.4*cm])
-        r.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GRIS_L),('LINEBELOW',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0')),('LEFTPADDING',(0,0),(-1,-1),8),('RIGHTPADDING',(0,0),(-1,-1),8),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),('VALIGN',(0,0),(-1,-1),'TOP')]))
+        r=Table([[p(titre,7.5,'Helvetica-Bold',MARINE),p(texte,7,'Helvetica',GRIS_SOFT,leading=9.5)]],colWidths=[4.6*cm,13.6*cm])
+        r.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GRIS_L),('LINEBELOW',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0')),('LEFTPADDING',(0,0),(-1,-1),7),('RIGHTPADDING',(0,0),(-1,-1),7),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4),('VALIGN',(0,0),(-1,-1),'TOP')]))
         story.append(r)
-    story.append(Spacer(1,0.4*cm))
-    VERT_G=colors.HexColor('#16a34a')
-    accept=Table([[p('\u2705  CGV lues et accept\u00e9es \u00e9lectroniquement',8,'Helvetica-Bold',VERT_G),p(client_nom+' \u2022 '+date_sig+' \u2022 Paris',8,'Helvetica-Bold',MARINE,TA_RIGHT)]],colWidths=[9*cm,8.5*cm])
-    accept.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f0fdf4')),('BOX',(0,0),(-1,-1),1.5,VERT_G),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
-    story.append(accept)
-    story.append(Spacer(1,0.3*cm))
-    sig_cells_l=[p('Signature du client',8,'Helvetica-Bold',MARINE),p(client_nom,8,color=GRIS_SOFT),p(date_sig+' \u2022 Paris',7,color=GRIS_SOFT)]
-    if sig_data_b64 and 'data:image' in sig_data_b64:
-        try:
-            raw_b64=sig_data_b64.split(',',1)[1]
-            sig_img=Image(io.BytesIO(base64.b64decode(raw_b64)),width=5*cm,height=2*cm)
-            sig_cells_l.append(sig_img)
-        except: pass
-    sig_tbl=Table([[sig_cells_l,[p('Signature SINELEC',8,'Helvetica-Bold',MARINE),p('Diahe',8,color=GRIS_SOFT),p('SINELEC Paris \u26a1',7,color=OR)]]],colWidths=[9*cm,9.2*cm])
-    sig_tbl.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0')),('LEFTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8)]))
-    story.append(sig_tbl)
-if is_signe:
-    story.append(PageBreak())
-    hdr_cgv=Table([[p('\u26a1  SINELEC PARIS',11,'Helvetica-Bold',BLANC),p('CONDITIONS G\u00c9N\u00c9RALES DE VENTE',11,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[8.5*cm,9*cm])
-    hdr_cgv.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10)]))
-    story.append(hdr_cgv); story.append(Spacer(1,0.2*cm))
-    date_sig=str(meta.get('datePaiement',''))
-    story.append(Table([[p('Applicables au devis n\u00b0 '+doc_num+' \u2014 Accept\u00e9es par '+client_nom+' le '+date_sig,7.5,'Helvetica',GRIS_SOFT),p('SIRET 91015824500019 \u2022 TVA non applicable art. 293B CGI',7.5,'Helvetica',GRIS_SOFT,TA_RIGHT)]],colWidths=[9.5*cm,8*cm]))
-    story.append(Table([[p('',1)]],colWidths=[18.2*cm],style=[('LINEBELOW',(0,0),(-1,-1),1,OR)]))
-    story.append(Spacer(1,0.15*cm))
-    GRIS_L=colors.HexColor('#f8fafc')
-    cgv_arts=[('Art. 1 \u2014 Devis et acceptation','Le devis est valable 30 jours. Toute commande implique l\u2019acceptation sans r\u00e9serve des pr\u00e9sentes CGV. La signature \u00e9lectronique vaut bon de commande ferme.'),('Art. 2 \u2014 Prix et paiement','TVA non applicable art. 293B CGI. Acompte 40% \u00e0 la signature si devis > 400\u20ac. Solde \u00e0 la fin des travaux. Paiement : esp\u00e8ces, virement, CB SumUp, PayPal.'),('Art. 3 \u2014 R\u00e9alisation des travaux','Travaux conform\u00e9ment \u00e0 la norme NF C 15-100. Le client s\u2019engage \u00e0 fournir un acc\u00e8s s\u00e9curis\u00e9 et informer SINELEC de toute contrainte avant intervention.'),('Art. 4 \u2014 Garanties','Garantie d\u00e9cennale ORUS Assurances (Lyon). Garantie parfait ach\u00e8vement 1 an. Ne couvre pas les d\u00e9gradations dues \u00e0 mauvaise utilisation ou intervention tierce.'),('Art. 5 \u2014 Droit de r\u00e9tractation','Droit de r\u00e9tractation 14 jours (art. L221-18 Code Conso). Ne s\u2019applique pas aux interventions d\u2019urgence expressément sollicit\u00e9es par le client.'),('Art. 6 \u2014 Responsabilit\u00e9','SINELEC ne saurait \u00eatre tenu responsable des dommages indirects. Force majeure : ex\u00e9cution suspendue sans indemnit\u00e9.'),('Art. 7 \u2014 Litiges','Solution amiable privil\u00e9gi\u00e9e. \u00c0 d\u00e9faut, comp\u00e9tence exclusive des tribunaux de Paris.')]
-    for titre,texte in cgv_arts:
-        r=Table([[p(titre,8,'Helvetica-Bold',MARINE),p(texte,7.5,'Helvetica',GRIS_SOFT)]],colWidths=[4.8*cm,13.4*cm])
-        r.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GRIS_L),('LINEBELOW',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0')),('LEFTPADDING',(0,0),(-1,-1),8),('RIGHTPADDING',(0,0),(-1,-1),8),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),('VALIGN',(0,0),(-1,-1),'TOP')]))
-        story.append(r)
-    story.append(Spacer(1,0.4*cm))
-    VERT_G=colors.HexColor('#16a34a')
-    accept=Table([[p('\u2705  CGV lues et accept\u00e9es \u00e9lectroniquement',8,'Helvetica-Bold',VERT_G),p(client_nom+' \u2022 '+date_sig+' \u2022 Paris',8,'Helvetica-Bold',MARINE,TA_RIGHT)]],colWidths=[9*cm,8.5*cm])
-    accept.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f0fdf4')),('BOX',(0,0),(-1,-1),1.5,VERT_G),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
-    story.append(accept)
-    story.append(Spacer(1,0.3*cm))
-    sig_cells_l=[p('Signature du client',8,'Helvetica-Bold',MARINE),p(client_nom,8,color=GRIS_SOFT),p(date_sig+' \u2022 Paris',7,color=GRIS_SOFT)]
-    if sig_data_b64 and 'data:image' in sig_data_b64:
-        try:
-            raw_b64=sig_data_b64.split(',',1)[1]
-            sig_img=Image(io.BytesIO(base64.b64decode(raw_b64)),width=5*cm,height=2*cm)
-            sig_cells_l.append(sig_img)
-        except: pass
-    sig_tbl=Table([[sig_cells_l,[p('Signature SINELEC',8,'Helvetica-Bold',MARINE),p('Diahe',8,color=GRIS_SOFT),p('SINELEC Paris \u26a1',7,color=OR)]]],colWidths=[9*cm,9.2*cm])
-    sig_tbl.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0')),('LEFTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8)]))
-    story.append(sig_tbl)
-if is_signe:
-    story.append(PageBreak())
-    hdr_cgv=Table([[p('\u26a1  SINELEC PARIS',11,'Helvetica-Bold',BLANC),p('CONDITIONS G\u00c9N\u00c9RALES DE VENTE',11,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[8.5*cm,9*cm])
-    hdr_cgv.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10)]))
-    story.append(hdr_cgv); story.append(Spacer(1,0.2*cm))
-    date_sig=str(meta.get('datePaiement',''))
-    story.append(Table([[p('Applicables au devis n\u00b0 '+doc_num+' \u2014 Accept\u00e9es par '+client_nom+' le '+date_sig,7.5,'Helvetica',GRIS_SOFT),p('SIRET 91015824500019 \u2022 TVA non applicable art. 293B CGI',7.5,'Helvetica',GRIS_SOFT,TA_RIGHT)]],colWidths=[9.5*cm,8*cm]))
-    story.append(Table([[p('',1)]],colWidths=[18.2*cm],style=[('LINEBELOW',(0,0),(-1,-1),1,OR)]))
-    story.append(Spacer(1,0.15*cm))
-    GRIS_L=colors.HexColor('#f8fafc')
-    cgv_arts=[('Art. 1 \u2014 Devis et acceptation','Le devis est valable 30 jours. Toute commande implique l\u2019acceptation sans r\u00e9serve des pr\u00e9sentes CGV. La signature \u00e9lectronique vaut bon de commande ferme.'),('Art. 2 \u2014 Prix et paiement','TVA non applicable art. 293B CGI. Acompte 40% \u00e0 la signature si devis > 400\u20ac. Solde \u00e0 la fin des travaux. Paiement : esp\u00e8ces, virement, CB SumUp, PayPal.'),('Art. 3 \u2014 R\u00e9alisation des travaux','Travaux conform\u00e9ment \u00e0 la norme NF C 15-100. Le client s\u2019engage \u00e0 fournir un acc\u00e8s s\u00e9curis\u00e9 et informer SINELEC de toute contrainte avant intervention.'),('Art. 4 \u2014 Garanties','Garantie d\u00e9cennale ORUS Assurances (Lyon). Garantie parfait ach\u00e8vement 1 an. Ne couvre pas les d\u00e9gradations dues \u00e0 mauvaise utilisation ou intervention tierce.'),('Art. 5 \u2014 Droit de r\u00e9tractation','Droit de r\u00e9tractation 14 jours (art. L221-18 Code Conso). Ne s\u2019applique pas aux interventions d\u2019urgence expressément sollicit\u00e9es par le client.'),('Art. 6 \u2014 Responsabilit\u00e9','SINELEC ne saurait \u00eatre tenu responsable des dommages indirects. Force majeure : ex\u00e9cution suspendue sans indemnit\u00e9.'),('Art. 7 \u2014 Litiges','Solution amiable privil\u00e9gi\u00e9e. \u00c0 d\u00e9faut, comp\u00e9tence exclusive des tribunaux de Paris.')]
-    for titre,texte in cgv_arts:
-        r=Table([[p(titre,8,'Helvetica-Bold',MARINE),p(texte,7.5,'Helvetica',GRIS_SOFT)]],colWidths=[4.8*cm,13.4*cm])
-        r.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GRIS_L),('LINEBELOW',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0')),('LEFTPADDING',(0,0),(-1,-1),8),('RIGHTPADDING',(0,0),(-1,-1),8),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),('VALIGN',(0,0),(-1,-1),'TOP')]))
-        story.append(r)
-    story.append(Spacer(1,0.4*cm))
+    story.append(Spacer(1,0.2*cm))
     VERT_G=colors.HexColor('#16a34a')
     accept=Table([[p('\u2705  CGV lues et accept\u00e9es \u00e9lectroniquement',8,'Helvetica-Bold',VERT_G),p(client_nom+' \u2022 '+date_sig+' \u2022 Paris',8,'Helvetica-Bold',MARINE,TA_RIGHT)]],colWidths=[9*cm,8.5*cm])
     accept.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f0fdf4')),('BOX',(0,0),(-1,-1),1.5,VERT_G),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
@@ -1630,9 +1584,9 @@ client_tel=meta.get('clientTel','')
 desc_objet=meta.get('descObjet','Travaux electricite')
 is_paye=meta.get('isPaye',False)
 is_signe=meta.get('isSigne',False)
-date_sig=str(meta.get('datePaiement','')) or str(meta.get('dateSignature',''))
-nom_court=str(meta.get('nomCourt',''))
 sig_data_b64=str(meta.get('signatureData',''))
+date_sig=str(meta.get('dateSignature','')) or str(meta.get('datePaiement','')) or doc_date
+nom_court=str(meta.get('nomCourt',''))
 try:
     logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
 except:
@@ -1758,12 +1712,26 @@ if is_signe:
     story.append(Table([[p('',1)]],colWidths=[18.2*cm],style=[('LINEBELOW',(0,0),(-1,-1),1,OR)]))
     story.append(Spacer(1,0.15*cm))
     GRIS_L=colors.HexColor('#f8fafc')
-    cgv_arts=[('Art. 1 \u2014 Devis et acceptation','Le devis est valable 30 jours. Toute commande implique l\u2019acceptation sans r\u00e9serve des pr\u00e9sentes CGV. La signature \u00e9lectronique vaut bon de commande ferme.'),('Art. 2 \u2014 Prix et paiement','TVA non applicable art. 293B CGI. Acompte 40% \u00e0 la signature si devis > 400\u20ac. Solde \u00e0 la fin des travaux. Paiement : esp\u00e8ces, virement, CB SumUp, PayPal.'),('Art. 3 \u2014 R\u00e9alisation des travaux','Travaux conform\u00e9ment \u00e0 la norme NF C 15-100. Le client s\u2019engage \u00e0 fournir un acc\u00e8s s\u00e9curis\u00e9 et informer SINELEC de toute contrainte avant intervention.'),('Art. 4 \u2014 Garanties','Garantie d\u00e9cennale ORUS Assurances (Lyon). Garantie parfait ach\u00e8vement 1 an. Ne couvre pas les d\u00e9gradations dues \u00e0 mauvaise utilisation ou intervention tierce.'),('Art. 5 \u2014 Droit de r\u00e9tractation','Droit de r\u00e9tractation 14 jours (art. L221-18 Code Conso). Ne s\u2019applique pas aux interventions d\u2019urgence expressément sollicit\u00e9es par le client.'),('Art. 6 \u2014 Responsabilit\u00e9','SINELEC ne saurait \u00eatre tenu responsable des dommages indirects. Force majeure : ex\u00e9cution suspendue sans indemnit\u00e9.'),('Art. 7 \u2014 Litiges','Solution amiable privil\u00e9gi\u00e9e. \u00c0 d\u00e9faut, comp\u00e9tence exclusive des tribunaux de Paris.')]
+    cgv_arts=[
+('Art. 1 \u2014 Devis et acceptation','Le devis est valable 30 jours \u00e0 compter de son \u00e9mission. La signature du devis, manuscrite ou \u00e9lectronique (avec v\u00e9rification par code SMS), vaut acceptation pleine et enti\u00e8re des prestations d\u00e9crites et des pr\u00e9sentes CGV, et a la m\u00eame valeur juridique qu\u2019une signature manuscrite (art. 1367 Code civil).'),
+('Art. 2 \u2014 Prix et paiement','TVA non applicable, art. 293B du CGI. Acompte de 40% \u00e0 la signature si le devis exc\u00e8de 400\u20ac, solde \u00e0 la fin des travaux. Paiement accept\u00e9 : esp\u00e8ces, virement, CB (SumUp), PayPal. Toute prestation suppl\u00e9mentaire ou modification fera l\u2019objet d\u2019un devis compl\u00e9mentaire accept\u00e9 pr\u00e9alablement, sauf urgence mettant en jeu la s\u00e9curit\u00e9.'),
+('Art. 3 \u2014 R\u00e9alisation des travaux','Travaux r\u00e9alis\u00e9s conform\u00e9ment \u00e0 la norme NF C 15-100. Le client garantit un acc\u00e8s libre et s\u00e9curis\u00e9 \u00e0 l\u2019installation et informe SINELEC de toute contrainte (acc\u00e8s, horaires, sp\u00e9cificit\u00e9s) avant l\u2019intervention. SINELEC se r\u00e9serve le droit de refuser ou suspendre une intervention en cas de danger immediat ou de non-conformit\u00e9 grave d\u00e9couverte sur place, sans que cela n\u2019engage sa responsabilit\u00e9.'),
+('Art. 4 \u2014 R\u00e9ception et r\u00e9serves (48h)','La r\u00e9ception des travaux intervient d\u00e8s leur ach\u00e8vement. La prise de possession ou l\u2019utilisation des installations par le client, m\u00eame sans paiement int\u00e9gral, vaut r\u00e9ception sans r\u00e9serve. Le client dispose de 48 heures \u00e0 compter de la fin de l\u2019intervention pour notifier par \u00e9crit (SMS, email) toute r\u00e9serve motiv\u00e9e. Pass\u00e9 ce d\u00e9lai, aucune r\u00e9clamation relative \u00e0 la qualit\u00e9 ou la conformit\u00e9 des travaux ne sera recevable, sauf vice cach\u00e9 relevant de la garantie d\u00e9cennale.'),
+('Art. 5 \u2014 Valeur probante des \u00e9changes num\u00e9riques','Le client reconna\u00eet la pleine valeur probante des SMS, emails, photos horodat\u00e9es, du rapport d\u2019intervention et de la signature \u00e9lectronique (code OTP, horodatage, IP) comme preuve de la r\u00e9alisation, de la conformit\u00e9 et de l\u2019acceptation des travaux. Ces \u00e9l\u00e9ments pourront \u00eatre produits en cas de proc\u00e9dure amiable ou contentieuse.'),
+('Art. 6 \u2014 D\u00e9faut ou retard de paiement','Tout retard de paiement entra\u00eene de plein droit, sans mise en demeure pr\u00e9alable : des int\u00e9r\u00eats moratoires au taux de 3 fois le taux l\u00e9gal par jour de retard, une indemnit\u00e9 forfaitaire de recouvrement de 40\u20ac, et l\u2019exigibilit\u00e9 imm\u00e9diate de toute somme restant due. En cas de non-paiement persistant 8 jours apr\u00e8s mise en demeure, SINELEC pourra suspendre toute prestation et engager une proc\u00e9dure de recouvrement (injonction de payer).'),
+('Art. 7 \u2014 R\u00e9serve de propri\u00e9t\u00e9','Conform\u00e9ment \u00e0 l\u2019art. L.624-16 du Code de commerce, les mat\u00e9riaux et \u00e9quipements install\u00e9s demeurent la propri\u00e9t\u00e9 exclusive de SINELEC jusqu\u2019au paiement int\u00e9gral du prix. En cas de non-paiement persistant apr\u00e8s mise en demeure infructueuse, SINELEC se r\u00e9serve le droit de proc\u00e9der \u00e0 la d\u00e9pose des \u00e9l\u00e9ments install\u00e9s et non pay\u00e9s.'),
+('Art. 8 \u2014 Garanties et assurances','SINELEC est couvert par une garantie d\u00e9cennale ORUS Assurances (114 Bd Marius Vivier Merle, 69003 Lyon) et une assurance Responsabilit\u00e9 Civile Professionnelle couvrant les dommages survenus pendant l\u2019intervention. Ces garanties excluent : l\u2019usure normale, la n\u00e9gligence ou le d\u00e9faut d\u2019entretien du client, l\u2019intervention d\u2019un tiers post\u00e9rieure aux travaux, et toute utilisation non conforme non signal\u00e9e au moment du devis.'),
+('Art. 9 \u2014 Droit de r\u00e9tractation','Pour les contrats conclus hors \u00e9tablissement ou \u00e0 distance, le client particulier b\u00e9n\u00e9ficie d\u2019un d\u00e9lai de r\u00e9tractation de 14 jours (art. L221-18 Code de la consommation). Ce droit ne s\u2019applique pas lorsque le client a express\u00e9ment sollicit\u00e9 une intervention d\u2019urgence ou lorsque l\u2019ex\u00e9cution a commenc\u00e9 \u00e0 sa demande expresse avant la fin du d\u00e9lai (art. L221-28).'),
+('Art. 10 \u2014 Responsabilit\u00e9 et sous-traitance','SINELEC ne saurait \u00eatre tenu responsable des dommages indirects (pertes d\u2019exploitation, troubles de jouissance). En cas de force majeure, l\u2019ex\u00e9cution est suspendue sans indemnit\u00e9. SINELEC peut faire intervenir des sous-traitants qualifi\u00e9s sous sa responsabilit\u00e9 et sa supervision, sans que cela ne modifie les pr\u00e9sentes CGV ni n\u2019engage de surco\u00fbt pour le client.'),
+('Art. 11 \u2014 R\u00e9siliation \u00e0 l\u2019initiative du client','En cas d\u2019annulation par le client apr\u00e8s signature et avant le d\u00e9but des travaux (hors r\u00e9tractation l\u00e9gale), l\u2019acompte vers\u00e9 reste acquis \u00e0 SINELEC \u00e0 titre d\u2019indemnisation. Si l\u2019annulation intervient apr\u00e8s commencement des travaux, le client r\u00e8gle l\u2019int\u00e9gralit\u00e9 des prestations r\u00e9alis\u00e9es et des mat\u00e9riaux command\u00e9s, sur justificatifs.'),
+('Art. 12 \u2014 Donn\u00e9es personnelles','Les donn\u00e9es du client sont trait\u00e9es uniquement pour l\u2019ex\u00e9cution du devis et les obligations l\u00e9gales (facturation). Conform\u00e9ment au RGPD, le client dispose d\u2019un droit d\u2019acc\u00e8s, de rectification, de portabilit\u00e9 et d\u2019effacement, exer\u00e7able \u00e0 sinelec.paris@gmail.com.'),
+('Art. 13 \u2014 Litiges et juridiction','En cas de diff\u00e9rend, les parties privil\u00e9gient une r\u00e9solution amiable. \u00c0 d\u00e9faut, le client consommateur peut saisir le m\u00e9diateur CM2C (cm2c@cm2c.net). Tout litige relevera de la comp\u00e9tence exclusive du Tribunal judiciaire de Paris. Droit fran\u00e7ais applicable.')
+]
     for titre,texte in cgv_arts:
-        r=Table([[p(titre,8,'Helvetica-Bold',MARINE),p(texte,7.5,'Helvetica',GRIS_SOFT)]],colWidths=[4.8*cm,13.4*cm])
-        r.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GRIS_L),('LINEBELOW',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0')),('LEFTPADDING',(0,0),(-1,-1),8),('RIGHTPADDING',(0,0),(-1,-1),8),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),('VALIGN',(0,0),(-1,-1),'TOP')]))
+        r=Table([[p(titre,7.5,'Helvetica-Bold',MARINE),p(texte,7,'Helvetica',GRIS_SOFT,leading=9.5)]],colWidths=[4.6*cm,13.6*cm])
+        r.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GRIS_L),('LINEBELOW',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0')),('LEFTPADDING',(0,0),(-1,-1),7),('RIGHTPADDING',(0,0),(-1,-1),7),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4),('VALIGN',(0,0),(-1,-1),'TOP')]))
         story.append(r)
-    story.append(Spacer(1,0.4*cm))
+    story.append(Spacer(1,0.2*cm))
     VERT_G=colors.HexColor('#16a34a')
     accept=Table([[p('\u2705  CGV lues et accept\u00e9es \u00e9lectroniquement',8,'Helvetica-Bold',VERT_G),p(client_nom+' \u2022 '+date_sig+' \u2022 Paris',8,'Helvetica-Bold',MARINE,TA_RIGHT)]],colWidths=[9*cm,8.5*cm])
     accept.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f0fdf4')),('BOX',(0,0),(-1,-1),1.5,VERT_G),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
