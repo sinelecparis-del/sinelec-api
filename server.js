@@ -533,14 +533,19 @@ class SC(pdfcanvas.Canvas):
         self.setFillColor(MARINE); self.rect(0,0,0.7*cm,H,fill=1,stroke=0)
         self.setFillColor(OR); self.rect(0.7*cm,0,0.08*cm,H,fill=1,stroke=0)
         try:
-            if is_signe:
+            wm_label=None; wm_color=None
+            if is_paye:
+                wm_label='PAY\u00c9'; wm_color=colors.HexColor('#dc2626')
+            elif is_signe:
+                wm_label='SIGN\u00c9'; wm_color=colors.HexColor('#16a34a')
+            if wm_label:
                 self.saveState()
-                self.setFillColor(colors.HexColor('#16a34a'))
+                self.setFillColor(wm_color)
                 self.setFillAlpha(0.30)
                 self.setFont('Helvetica-Bold',130)
                 self.translate(W/2,H/2-1*cm)
                 self.rotate(45)
-                self.drawCentredString(0,0,'SIGN\u00c9')
+                self.drawCentredString(0,0,wm_label)
                 self.restoreState()
         except: pass
         if self._pg==0: self._draw_header()
