@@ -532,6 +532,17 @@ class SC(pdfcanvas.Canvas):
         self.setFillColor(CREME); self.rect(0,0,W,H,fill=1,stroke=0)
         self.setFillColor(MARINE); self.rect(0,0,0.7*cm,H,fill=1,stroke=0)
         self.setFillColor(OR); self.rect(0.7*cm,0,0.08*cm,H,fill=1,stroke=0)
+        try:
+            if is_signe:
+                self.saveState()
+                self.setFillColor(colors.HexColor('#16a34a'))
+                self.setFillAlpha(0.30)
+                self.setFont('Helvetica-Bold',130)
+                self.translate(W/2,H/2-1*cm)
+                self.rotate(45)
+                self.drawCentredString(0,0,'SIGN\u00c9')
+                self.restoreState()
+        except: pass
         if self._pg==0: self._draw_header()
         else: self._draw_header_small()
         self.restoreState()
