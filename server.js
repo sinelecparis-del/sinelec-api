@@ -740,13 +740,14 @@ if doc_type=='devis':
         sig_t=Table([[p('\u270d\ufe0f  Signature \u00e9lectronique uniquement \u2022 Loi n\u00b02000-230',8,'Helvetica-Bold',colors.HexColor('#16a34a'),TA_CENTER)]],colWidths=[18.2*cm])
         sig_t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f0fdf4')),('BOX',(0,0),(-1,-1),1.5,colors.HexColor('#16a34a')),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
         story.append(sig_t)
-if is_signe:
+if doc_type=='devis':
     story.append(PageBreak())
     hdr_cgv=Table([[p('\u26a1  SINELEC PARIS',11,'Helvetica-Bold',BLANC),p('CONDITIONS G\u00c9N\u00c9RALES DE VENTE',11,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[8.5*cm,9*cm])
     hdr_cgv.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10)]))
     story.append(hdr_cgv); story.append(Spacer(1,0.2*cm))
-    date_sig=str(meta.get('datePaiement',''))
-    story.append(Table([[p('Applicables au devis n\u00b0 '+doc_num+' \u2014 Accept\u00e9es par '+client_nom+' le '+date_sig,7.5,'Helvetica',GRIS_SOFT),p('SIRET 91015824500019 \u2022 TVA non applicable art. 293B CGI',7.5,'Helvetica',GRIS_SOFT,TA_RIGHT)]],colWidths=[9.5*cm,8*cm]))
+    date_sig=str(meta.get('datePaiement','')) or str(meta.get('dateSignature',''))
+    cgv_subtitle = ('Applicables au devis n\u00b0 '+doc_num+' \u2014 Accept\u00e9es par '+client_nom+' le '+date_sig) if is_signe else ('Conditions applicables au devis n\u00b0 '+doc_num+' \u2014 \u00c0 lire avant signature')
+    story.append(Table([[p(cgv_subtitle,7.5,'Helvetica',GRIS_SOFT),p('SIRET 91015824500019 \u2022 TVA non applicable art. 293B CGI',7.5,'Helvetica',GRIS_SOFT,TA_RIGHT)]],colWidths=[9.5*cm,8*cm]))
     story.append(Table([[p('',1)]],colWidths=[18.2*cm],style=[('LINEBELOW',(0,0),(-1,-1),1,OR)]))
     story.append(Spacer(1,0.15*cm))
     GRIS_L=colors.HexColor('#f8fafc')
@@ -766,25 +767,30 @@ if is_signe:
 ('Art. 13 \u2014 Litiges et juridiction','En cas de diff\u00e9rend, les parties privil\u00e9gient une r\u00e9solution amiable. \u00c0 d\u00e9faut, le client consommateur peut saisir le m\u00e9diateur CM2C (cm2c@cm2c.net). Tout litige relevera de la comp\u00e9tence exclusive du Tribunal judiciaire de Paris. Droit fran\u00e7ais applicable.')
 ]
     for titre,texte in cgv_arts:
-        r=Table([[p(titre,7.5,'Helvetica-Bold',MARINE),p(texte,7,'Helvetica',GRIS_SOFT,leading=9.5)]],colWidths=[4.6*cm,13.6*cm])
-        r.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GRIS_L),('LINEBELOW',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0')),('LEFTPADDING',(0,0),(-1,-1),7),('RIGHTPADDING',(0,0),(-1,-1),7),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4),('VALIGN',(0,0),(-1,-1),'TOP')]))
+        r=Table([[p(titre,6.5,'Helvetica-Bold',MARINE),p(texte,6,'Helvetica',GRIS_SOFT,leading=8.2)]],colWidths=[4.2*cm,14*cm])
+        r.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GRIS_L),('LINEBELOW',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0')),('LEFTPADDING',(0,0),(-1,-1),5),('RIGHTPADDING',(0,0),(-1,-1),5),('TOPPADDING',(0,0),(-1,-1),2.5),('BOTTOMPADDING',(0,0),(-1,-1),2.5),('VALIGN',(0,0),(-1,-1),'TOP')]))
         story.append(r)
-    story.append(Spacer(1,0.2*cm))
-    VERT_G=colors.HexColor('#16a34a')
-    accept=Table([[p('\u2705  CGV lues et accept\u00e9es \u00e9lectroniquement',8,'Helvetica-Bold',VERT_G),p(client_nom+' \u2022 '+date_sig+' \u2022 Paris',8,'Helvetica-Bold',MARINE,TA_RIGHT)]],colWidths=[9*cm,8.5*cm])
-    accept.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f0fdf4')),('BOX',(0,0),(-1,-1),1.5,VERT_G),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
-    story.append(accept)
-    story.append(Spacer(1,0.3*cm))
-    sig_cells_l=[p('Signature du client',8,'Helvetica-Bold',MARINE),p(client_nom,8,color=GRIS_SOFT),p(date_sig+' \u2022 Paris',7,color=GRIS_SOFT)]
-    if sig_data_b64 and 'data:image' in sig_data_b64:
-        try:
-            raw_b64=sig_data_b64.split(',',1)[1]
-            sig_img=Image(io.BytesIO(base64.b64decode(raw_b64)),width=5*cm,height=2*cm)
-            sig_cells_l.append(sig_img)
-        except: pass
-    sig_tbl=Table([[sig_cells_l,[p('Signature SINELEC',8,'Helvetica-Bold',MARINE),p('Diahe',8,color=GRIS_SOFT),p('SINELEC Paris \u26a1',7,color=OR)]]],colWidths=[9*cm,9.2*cm])
-    sig_tbl.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0')),('LEFTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8)]))
-    story.append(sig_tbl)
+    story.append(Spacer(1,0.1*cm))
+    if is_signe:
+        VERT_G=colors.HexColor('#16a34a')
+        accept=Table([[p('\u2705  CGV lues et accept\u00e9es \u00e9lectroniquement',8,'Helvetica-Bold',VERT_G),p(client_nom+' \u2022 '+date_sig+' \u2022 Paris',8,'Helvetica-Bold',MARINE,TA_RIGHT)]],colWidths=[9*cm,8.5*cm])
+        accept.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f0fdf4')),('BOX',(0,0),(-1,-1),1.5,VERT_G),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
+        story.append(accept)
+        story.append(Spacer(1,0.3*cm))
+        sig_cells_l=[p('Signature du client',8,'Helvetica-Bold',MARINE),p(client_nom,8,color=GRIS_SOFT),p(date_sig+' \u2022 Paris',7,color=GRIS_SOFT)]
+        if sig_data_b64 and 'data:image' in sig_data_b64:
+            try:
+                raw_b64=sig_data_b64.split(',',1)[1]
+                sig_img=Image(io.BytesIO(base64.b64decode(raw_b64)),width=5*cm,height=2*cm)
+                sig_cells_l.append(sig_img)
+            except: pass
+        sig_tbl=Table([[sig_cells_l,[p('Signature SINELEC',8,'Helvetica-Bold',MARINE),p('Diahe',8,color=GRIS_SOFT),p('SINELEC Paris \u26a1',7,color=OR)]]],colWidths=[9*cm,9.2*cm])
+        sig_tbl.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0')),('LEFTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8)]))
+        story.append(sig_tbl)
+    else:
+        notice=Table([[p('\u270d\ufe0f  En signant ce devis (\u00e9lectroniquement, code SMS), vous acceptez l\u2019int\u00e9gralit\u00e9 des pr\u00e9sentes conditions g\u00e9n\u00e9rales (Art. 1 \u00e0 13).',8,'Helvetica-Bold',MARINE,TA_CENTER)]],colWidths=[18.2*cm])
+        notice.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#FBF7EC')),('BOX',(0,0),(-1,-1),1.5,OR),('TOPPADDING',(0,0),(-1,-1),9),('BOTTOMPADDING',(0,0),(-1,-1),9)]))
+        story.append(notice)
 doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
 `;
       fs.writeFileSync(pyPath, py, 'utf8');
@@ -1728,10 +1734,10 @@ if is_signe:
 ('Art. 13 \u2014 Litiges et juridiction','En cas de diff\u00e9rend, les parties privil\u00e9gient une r\u00e9solution amiable. \u00c0 d\u00e9faut, le client consommateur peut saisir le m\u00e9diateur CM2C (cm2c@cm2c.net). Tout litige relevera de la comp\u00e9tence exclusive du Tribunal judiciaire de Paris. Droit fran\u00e7ais applicable.')
 ]
     for titre,texte in cgv_arts:
-        r=Table([[p(titre,7.5,'Helvetica-Bold',MARINE),p(texte,7,'Helvetica',GRIS_SOFT,leading=9.5)]],colWidths=[4.6*cm,13.6*cm])
-        r.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GRIS_L),('LINEBELOW',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0')),('LEFTPADDING',(0,0),(-1,-1),7),('RIGHTPADDING',(0,0),(-1,-1),7),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4),('VALIGN',(0,0),(-1,-1),'TOP')]))
+        r=Table([[p(titre,6.5,'Helvetica-Bold',MARINE),p(texte,6,'Helvetica',GRIS_SOFT,leading=8.2)]],colWidths=[4.2*cm,14*cm])
+        r.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GRIS_L),('LINEBELOW',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0')),('LEFTPADDING',(0,0),(-1,-1),5),('RIGHTPADDING',(0,0),(-1,-1),5),('TOPPADDING',(0,0),(-1,-1),2.5),('BOTTOMPADDING',(0,0),(-1,-1),2.5),('VALIGN',(0,0),(-1,-1),'TOP')]))
         story.append(r)
-    story.append(Spacer(1,0.2*cm))
+    story.append(Spacer(1,0.1*cm))
     VERT_G=colors.HexColor('#16a34a')
     accept=Table([[p('\u2705  CGV lues et accept\u00e9es \u00e9lectroniquement',8,'Helvetica-Bold',VERT_G),p(client_nom+' \u2022 '+date_sig+' \u2022 Paris',8,'Helvetica-Bold',MARINE,TA_RIGHT)]],colWidths=[9*cm,8.5*cm])
     accept.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f0fdf4')),('BOX',(0,0),(-1,-1),1.5,VERT_G),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
