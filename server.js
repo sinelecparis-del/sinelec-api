@@ -96,7 +96,7 @@ function verifierToken(token) {
 }
 
 function authMiddleware(req, res, next) {
-  const publicRoutes = ['/', '/health', '/api/login', '/signer/', '/paiement-confirme/', '/api/signature', '/api/otp-signature', '/api/verifier-otp', '/api/track/click/', '/api/track/open/', '/api/auth/check', '/api/test-pdf', '/api/test'];
+  const publicRoutes = ['/', '/health', '/api/login', '/signer/', '/paiement-confirme/', '/paiement-retour/', '/api/signature', '/api/otp-signature', '/api/verifier-otp', '/api/track/click/', '/api/track/open/', '/api/auth/check', '/api/test-pdf', '/api/test'];
   if (publicRoutes.some(r => req.path.startsWith(r))) return next();
   const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
   if (!verifierToken(token)) return res.status(401).json({ error: 'Non autorisé', code: 'UNAUTHORIZED' });
@@ -131,6 +131,7 @@ try { anthropic = new Anthropic({ apiKey: (process.env.ANTHROPIC_API_KEY || '').
 catch(e) { console.error('⚠️ Anthropic init:', e.message); anthropic = null; }
 const BREVO_API_KEY = process.env.BREVO_API_KEY;
 const SUMUP_API_KEY = process.env.SUMUP_API_KEY;
+const SUMUP_MERCHANT_CODE = process.env.SUMUP_MERCHANT_CODE;
 
 
 // ═══════════════════════════════════════════════════
@@ -1392,6 +1393,62 @@ app.patch('/api/historique/:num/statut', async (req, res) => {
 // ═══════════════════════════════════════════════════
 // API: MARQUER PAYÉ
 // ═══════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════
+// HELPERS: SUMUP HOSTED CHECKOUT
+// ═══════════════════════════════════════════════════
+async function creerCheckoutSumUp(num, montant, description) {
+  if (!SUMUP_API_KEY || !SUMUP_MERCHANT_CODE) {
+    console.error('❌ SumUp non configuré (clé ou merchant_code manquant)');
+    return null;
+  }
+  try {
+    const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+    const checkout_reference = `${num}-${Date.now()}`;
+    const r = await fetch('https://api.sumup.com/v0.1/checkouts', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + SUMUP_API_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        checkout_reference,
+        amount: Math.round(montant * 100) / 100,
+        currency: 'EUR',
+        merchant_code: SUMUP_MERCHANT_CODE,
+        description: description || `SINELEC - ${num}`,
+        hosted_checkout: { enabled: true },
+        redirect_url: `${appUrl}/paiement-retour/${num}`
+      })
+    });
+    const data = await r.json();
+    if (!r.ok) { console.error('❌ SumUp checkout error:', JSON.stringify(data)); return null; }
+    return { id: data.id, hosted_checkout_url: data.hosted_checkout_url || data.href || null, checkout_reference };
+  } catch(e) { console.error('❌ SumUp checkout exception:', e.message); return null; }
+}
+
+async function verifierCheckoutSumUp(checkoutId) {
+  if (!SUMUP_API_KEY || !checkoutId) return null;
+  try {
+    const r = await fetch(`https://api.sumup.com/v0.1/checkouts/${checkoutId}`, {
+      headers: { 'Authorization': 'Bearer ' + SUMUP_API_KEY }
+    });
+    const data = await r.json();
+    if (!r.ok) { console.error('❌ SumUp verif error:', JSON.stringify(data)); return null; }
+    return data; // { status: 'PENDING' | 'PAID' | 'FAILED', ... }
+  } catch(e) { console.error('❌ SumUp verif exception:', e.message); return null; }
+}
+
+async function marquerPayeInterne(num, mode_paiement) {
+  try {
+    const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+    const token = genererToken();
+    const r = await fetch(`${appUrl}/api/marquer-paye`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ num, mode_paiement: mode_paiement || 'sumup' })
+    });
+    return r.ok;
+  } catch(e) { console.error('❌ marquerPayeInterne:', e.message); return false; }
+}
+
 app.post('/api/marquer-paye', async (req, res) => {
   try {
     const { num, mode_paiement } = req.body;
@@ -1846,9 +1903,62 @@ doc.build(story); print('PDF_OK')
 // ═══════════════════════════════════════════════════
 // API: PAIEMENT CONFIRMÉ (page web)
 // ═══════════════════════════════════════════════════
+function pagePaiement({icon, titre, couleur, message, num, extra}) {
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${titre}</title></head><body style="font-family:Arial,sans-serif;text-align:center;padding:40px 20px;background:#f5f5f5;"><div style="background:#fff;border-radius:16px;padding:40px;max-width:400px;margin:0 auto;box-shadow:0 4px 20px rgba(0,0,0,0.1);"><div style="font-size:60px;">${icon}</div><h2 style="color:${couleur};">${titre}</h2><p style="color:#555;">${message}${num ? `<br>Facture n° <strong>${num}</strong>` : ''}</p>${extra || ''}<p style="color:#888;font-size:14px;margin-top:20px;">📞 07 87 38 86 22<br>sinelec.paris@gmail.com</p></div></body></html>`;
+}
+
 app.get('/paiement-confirme/:num', async (req, res) => {
   const { num } = req.params;
-  res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Paiement confirmé</title></head><body style="font-family:Arial;text-align:center;padding:60px;background:#f5f5f5;"><div style="background:#fff;border-radius:16px;padding:40px;max-width:400px;margin:0 auto;box-shadow:0 4px 20px rgba(0,0,0,0.1);"><div style="font-size:60px;">✅</div><h2 style="color:#16a34a;">Paiement confirmé !</h2><p style="color:#555;">Merci pour votre règlement.<br>Facture n° <strong>${num}</strong></p><p style="color:#888;font-size:14px;">📞 07 87 38 86 22<br>sinelec.paris@gmail.com</p></div></body></html>`);
+  try {
+    const { data: doc } = await supabase.from('historique').select('*').eq('num', num).single();
+    if (!doc) return res.send(pagePaiement({ icon:'❓', titre:'Facture introuvable', couleur:'#dc2626', message:'Cette facture n\'existe pas ou plus.', num }));
+
+    const isPaye = ['paye','payé','payee','acquitte','acquitté'].includes((doc.statut||'').toLowerCase());
+    if (isPaye) return res.send(pagePaiement({ icon:'✅', titre:'Déjà réglée', couleur:'#16a34a', message:'Cette facture a déjà été payée. Merci !', num }));
+
+    const total = parseFloat(doc.total_ht || 0);
+    if (!(total > 0)) return res.send(pagePaiement({ icon:'⚠️', titre:'Montant invalide', couleur:'#dc2626', message:'Impossible de générer le paiement pour cette facture. Contactez-nous.', num }));
+
+    const checkout = await creerCheckoutSumUp(num, total, `SINELEC - Facture ${num}`);
+    if (!checkout || !checkout.hosted_checkout_url) {
+      return res.send(pagePaiement({ icon:'⚠️', titre:'Paiement indisponible', couleur:'#dc2626', message:'Le paiement en ligne est momentanément indisponible. Merci de nous contacter pour régler par un autre moyen.', num }));
+    }
+
+    await supabase.from('historique').update({ sumup_checkout_id: checkout.id }).eq('num', num);
+    res.redirect(checkout.hosted_checkout_url);
+  } catch(e) {
+    console.error('❌ paiement-confirme:', e.message);
+    res.send(pagePaiement({ icon:'⚠️', titre:'Erreur', couleur:'#dc2626', message:'Une erreur est survenue. Merci de nous contacter.', num }));
+  }
+});
+
+app.get('/paiement-retour/:num', async (req, res) => {
+  const { num } = req.params;
+  try {
+    const { data: doc } = await supabase.from('historique').select('*').eq('num', num).single();
+    if (!doc) return res.send(pagePaiement({ icon:'❓', titre:'Facture introuvable', couleur:'#dc2626', message:'Cette facture n\'existe pas ou plus.', num }));
+
+    const dejaPaye = ['paye','payé','payee','acquitte','acquitté'].includes((doc.statut||'').toLowerCase());
+    if (dejaPaye) return res.send(pagePaiement({ icon:'✅', titre:'Paiement confirmé !', couleur:'#16a34a', message:'Merci pour votre règlement.', num }));
+
+    const checkoutData = await verifierCheckoutSumUp(doc.sumup_checkout_id);
+    const status = (checkoutData?.status || '').toUpperCase();
+
+    if (status === 'PAID') {
+      await marquerPayeInterne(num, 'sumup');
+      return res.send(pagePaiement({ icon:'✅', titre:'Paiement confirmé !', couleur:'#16a34a', message:'Merci pour votre règlement. Une facture acquittée vous sera envoyée par email.', num }));
+    }
+    if (status === 'FAILED') {
+      return res.send(pagePaiement({ icon:'❌', titre:'Paiement échoué', couleur:'#dc2626', message:'Le paiement n\'a pas pu être traité.', num,
+        extra: `<a href="/paiement-confirme/${num}" style="display:inline-block;margin-top:14px;background:#1B2A4A;color:#fff;padding:12px 24px;border-radius:10px;text-decoration:none;font-weight:700;">Réessayer</a>` }));
+    }
+    // PENDING ou inconnu
+    return res.send(pagePaiement({ icon:'⏳', titre:'Paiement en cours', couleur:'#C9962A', message:'Votre paiement est en cours de traitement. Si vous avez bien payé, cette page se mettra à jour sous peu.', num,
+      extra: `<a href="/paiement-retour/${num}" style="display:inline-block;margin-top:14px;background:#1B2A4A;color:#fff;padding:12px 24px;border-radius:10px;text-decoration:none;font-weight:700;">Actualiser</a>` }));
+  } catch(e) {
+    console.error('❌ paiement-retour:', e.message);
+    res.send(pagePaiement({ icon:'⚠️', titre:'Erreur', couleur:'#dc2626', message:'Une erreur est survenue. Merci de nous contacter.', num }));
+  }
 });
 
 // ═══════════════════════════════════════════════════
