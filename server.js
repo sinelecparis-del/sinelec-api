@@ -2797,6 +2797,27 @@ app.post('/api/sante/verifier', authMiddleware, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+
+// ═══════════════════════════════════════════════════
+// API: SUMUP DIAGNOSTIC — Récupérer merchant_code (TEMPORAIRE)
+// ═══════════════════════════════════════════════════
+app.get('/api/sumup/me', authMiddleware, async (req, res) => {
+  try {
+    if (!SUMUP_API_KEY) return res.status(400).json({ error: 'SUMUP_API_KEY non configurée' });
+    const r = await fetch('https://api.sumup.com/v0.1/me', {
+      headers: { 'Authorization': 'Bearer ' + SUMUP_API_KEY }
+    });
+    const data = await r.json();
+    if (!r.ok) return res.status(r.status).json({ error: 'Erreur SumUp', details: data });
+    res.json({
+      success: true,
+      merchant_code: data.merchant_profile?.merchant_code || data.merchant_code || null,
+      email: data.personal_profile?.email || data.email || null,
+      raw: data
+    });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ═══════════════════════════════════════════════════
 // API: SUMUP LIEN PAIEMENT
 // ═══════════════════════════════════════════════════
