@@ -2303,6 +2303,16 @@ table.histo-table tr:hover td { background:#fafbff; }
 <div id="page-avis" class="page">
 <div class="content" style="max-width:700px;">
 
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- CAMPAGNE AVIS — Relance clients passés               -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-title">📨 Campagne avis clients passés</div>
+    <div id="campagne-avis-preview">
+      <div style="text-align:center;padding:20px;color:var(--text-3);font-size:13px;">Chargement...</div>
+    </div>
+  </div>
+
   <div class="section">
     <div class="section-title">⭐ Avis reçu</div>
     <div class="input-group">
@@ -2992,6 +3002,7 @@ function switchPage(page, el) {
   if (page === 'agenda') setTimeout(chargerAgenda, 100);
   if (page === 'rentabilite') setTimeout(chargerRentabilite, 100);
   if (page === 'dpe') setTimeout(initDPE, 100);
+  if (page === 'avis') setTimeout(chargerCampagneAvis, 100);
   // Page header animé
   requestAnimationFrame(() => ajouterPageHeader(page));
 }
@@ -5092,6 +5103,159 @@ function setEtoiles(n) {
       btn.style.color = 'var(--text-2)';
     }
   });
+}
+
+
+// ═══════════════════════════════════════════════════
+// CAMPAGNE AVIS GOOGLE — Relance clients passés
+// ═══════════════════════════════════════════════════
+let _campagnePollTimer = null;
+
+async function chargerCampagneAvis() {
+  const el = document.getElementById('campagne-avis-preview');
+  if (!el) return;
+
+  try {
+    const res = await fetch('/api/avis/campagne/status', {
+      headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('sinelec_token') || '') }
+    });
+    const status = await res.json();
+
+    if (status.running) {
+      afficherCampagneEnCours(status);
+      if (!_campagnePollTimer) _campagnePollTimer = setInterval(pollCampagneStatus, 2000);
+      return;
+    }
+
+    if (status.termine && status.avis_avant != null) {
+      afficherCampagneTerminee(status);
+      return;
+    }
+
+    // Sinon afficher l'aperçu pour lancer une nouvelle campagne
+    const res2 = await fetch('/api/avis/campagne/preview', {
+      headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('sinelec_token') || '') }
+    });
+    const data = await res2.json();
+    afficherCampagnePreview(data);
+
+  } catch(e) {
+    el.innerHTML = `<div style="text-align:center;padding:16px;color:var(--text-3);font-size:13px;">Erreur de chargement</div>`;
+  }
+}
+
+function afficherCampagnePreview(data) {
+  const el = document.getElementById('campagne-avis-preview');
+  if (!el) return;
+
+  if (data.eligibles === 0) {
+    el.innerHTML = `<div style="text-align:center;padding:20px;background:var(--glass);border:1px solid var(--border);border-radius:12px;">
+      <div style="font-size:32px;margin-bottom:8px">🎉</div>
+      <div style="font-size:13px;font-weight:700;color:var(--text)">Tous les clients ont déjà été sollicités</div>
+      <div style="font-size:11px;color:var(--text-3);margin-top:4px">${data.total_contacts} contacts au total</div>
+    </div>`;
+    return;
+  }
+
+  el.innerHTML = `
+    <div style="background:linear-gradient(135deg,#1B2A4A,#243660);border-radius:14px;padding:20px;text-align:center;margin-bottom:12px">
+      <div style="font-family:Georgia,serif;font-size:42px;color:#C9962A;line-height:1">${data.eligibles}</div>
+      <div style="font-size:11px;color:rgba(255,255,255,0.6);margin-top:4px;text-transform:uppercase;letter-spacing:1px;font-weight:700">Clients éligibles</div>
+    </div>
+    <div style="background:var(--glass);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px;font-size:12.5px;">
+      <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);"><span style="color:var(--text-3)">Total contacts en base</span><span style="font-weight:700;color:var(--text)">${data.total_contacts}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);"><span style="color:var(--text-3)">Sans téléphone</span><span style="font-weight:700;color:var(--text)">−${data.sans_telephone}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:5px 0;"><span style="color:var(--text-3)">Déjà sollicités</span><span style="font-weight:700;color:var(--text)">−${data.deja_sollicites}</span></div>
+    </div>
+    <div style="background:var(--glass);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px;">
+      <div style="font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--text-3);margin-bottom:8px">✉️ Message envoyé</div>
+      <div style="background:#fff;border-radius:10px 10px 10px 3px;padding:12px;font-size:12px;color:#1B2A4A;line-height:1.6;">
+        Bonjour ${data.exemple_prenom}, c'est SINELEC, votre électricien à Paris ⚡ On espère que tout va bien depuis notre intervention. Si vous avez 30 secondes, un avis Google nous aiderait énormément : <span style="color:#3b82f6">g.page/r/CSw-MAB...</span> Merci ! — Diahe
+      </div>
+    </div>
+    <div style="background:rgba(254,243,199,0.5);border:1.5px solid #F59E0B;border-radius:10px;padding:10px 12px;font-size:11.5px;color:#92400E;margin-bottom:12px;line-height:1.6">
+      ⚠️ Envoi unique par client — aucun doublon possible, même en relançant plus tard.
+    </div>
+    <button onclick="lancerCampagneAvis(${data.eligibles})" style="width:100%;padding:14px;border:none;border-radius:12px;background:linear-gradient(135deg,#C9962A,#E8B84B);color:#1B2A4A;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit">
+      🚀 Lancer la campagne (${data.eligibles} SMS)
+    </button>
+  `;
+}
+
+function afficherCampagneEnCours(status) {
+  const el = document.getElementById('campagne-avis-preview');
+  if (!el) return;
+  const pct = status.total ? Math.round((status.envoyes / status.total) * 100) : 0;
+  el.innerHTML = `
+    <div style="background:linear-gradient(135deg,#1B2A4A,#243660);border-radius:14px;padding:20px;text-align:center;margin-bottom:12px">
+      <div style="font-family:Georgia,serif;font-size:42px;color:#C9962A;line-height:1">${status.envoyes}</div>
+      <div style="font-size:11px;color:rgba(255,255,255,0.6);margin-top:4px;text-transform:uppercase;letter-spacing:1px;font-weight:700">SMS envoyés / ${status.total}</div>
+    </div>
+    <div style="background:var(--glass);border-radius:20px;height:10px;overflow:hidden;margin-bottom:8px">
+      <div style="background:linear-gradient(90deg,#C9962A,#E8B84B);height:100%;border-radius:20px;width:${pct}%;transition:width .5s"></div>
+    </div>
+    <div style="text-align:center;font-size:11px;color:var(--text-3);font-family:monospace;margin-bottom:12px">${status.envoyes} / ${status.total} · ${pct}%</div>
+    <div style="background:var(--glass);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center;font-size:12.5px;color:var(--text-2)">
+      📨 Envoi en cours — environ ${Math.ceil((status.total - status.envoyes) * 0.8 / 60)} min restantes.<br>Tu peux quitter cette page, ça continue en arrière-plan.
+    </div>
+  `;
+}
+
+function afficherCampagneTerminee(status) {
+  const el = document.getElementById('campagne-avis-preview');
+  if (!el) return;
+  const gain = status.gain;
+  el.innerHTML = `
+    <div style="background:linear-gradient(135deg,#16a34a,#15803d);border-radius:14px;padding:20px;text-align:center;margin-bottom:12px">
+      <div style="font-size:32px;margin-bottom:6px">✅</div>
+      <div style="font-size:14px;font-weight:800;color:#fff">Campagne terminée</div>
+      <div style="font-size:11px;color:rgba(255,255,255,0.7);margin-top:2px">${status.envoyes} / ${status.total} SMS envoyés</div>
+    </div>
+    <div style="background:var(--glass);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center;">
+      <div style="font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:8px">Évolution des avis</div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:14px">
+        <div><div style="font-size:24px;font-weight:800;color:var(--text-3)">${status.avis_avant ?? '—'}</div><div style="font-size:10px;color:var(--text-3)">avant</div></div>
+        <div style="font-size:20px;color:var(--text-3)">→</div>
+        <div><div style="font-size:24px;font-weight:800;color:#C9962A">${status.avis_actuel ?? '—'}</div><div style="font-size:10px;color:var(--text-3)">maintenant</div></div>
+        ${gain != null ? `<div style="background:#F0FDF4;color:#16a34a;border-radius:10px;padding:6px 10px;font-size:13px;font-weight:800">+${gain}</div>` : ''}
+      </div>
+      <div style="font-size:11px;color:var(--text-3);margin-top:10px">Mets à jour le compteur d'avis ci-dessous pour voir le gain réel.</div>
+    </div>
+  `;
+}
+
+async function pollCampagneStatus() {
+  try {
+    const res = await fetch('/api/avis/campagne/status', {
+      headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('sinelec_token') || '') }
+    });
+    const status = await res.json();
+    if (status.running) {
+      afficherCampagneEnCours(status);
+    } else {
+      clearInterval(_campagnePollTimer);
+      _campagnePollTimer = null;
+      if (status.termine) afficherCampagneTerminee(status);
+      else chargerCampagneAvis();
+    }
+  } catch(e) {}
+}
+
+async function lancerCampagneAvis(nb) {
+  if (!confirm(`Envoyer ${nb} SMS de demande d'avis ? Chaque client ne le recevra qu'une seule fois.`)) return;
+  try {
+    const res = await fetch('/api/avis/campagne/lancer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('sinelec_token') || '') }
+    });
+    const data = await res.json();
+    if (!data.success) { showToast('❌ ' + (data.error || 'Erreur'), '⚠️'); return; }
+    showToast(`🚀 Campagne lancée — ${data.total} SMS`, '📨');
+    afficherCampagneEnCours({ running: true, total: data.total, envoyes: 0 });
+    _campagnePollTimer = setInterval(pollCampagneStatus, 2000);
+  } catch(e) {
+    showToast('❌ ' + e.message, '⚠️');
+  }
 }
 
 async function genererReponseAvis() {
