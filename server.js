@@ -2443,6 +2443,133 @@ app.post('/api/avis/compteur', authMiddleware, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+
+// ═══════════════════════════════════════════════════
+// API: CAMPAGNE AVIS GOOGLE — Relance clients passés
+// ═══════════════════════════════════════════════════
+
+// État en mémoire de la campagne en cours
+let campagneAvisState = { running: false, total: 0, envoyes: 0, erreurs: 0, termine: false };
+
+app.get('/api/avis/campagne/preview', authMiddleware, async (req, res) => {
+  try {
+    // Tous les clients avec un numéro
+    const { data: clients } = await supabase.from('clients').select('id,nom,telephone,sms_avis_campagne_envoye');
+    const totalClients = (clients || []).length;
+    const avecTel = (clients || []).filter(c => c.telephone && c.telephone.trim());
+
+    // Numéros déjà sollicités via le système auto (post-paiement)
+    const { data: histoEnvoyes } = await supabase.from('historique').select('telephone').eq('sms_avis_envoye', true);
+    const telsAutoEnvoyes = new Set((histoEnvoyes || []).map(h => (h.telephone || '').replace(/\s/g, '')));
+
+    // Eligibles = a un tel, pas déjà reçu via auto, pas déjà reçu via campagne
+    const eligibles = avecTel.filter(c => {
+      const telClean = (c.telephone || '').replace(/\s/g, '');
+      return !telsAutoEnvoyes.has(telClean) && !c.sms_avis_campagne_envoye;
+    });
+
+    const sansTel = totalClients - avecTel.length;
+    const dejaSollicites = avecTel.length - eligibles.length;
+
+    // Compteur avis actuel (pour avant/après)
+    const { data: compteurData } = await supabase.from('compteurs').select('valeur').eq('type', 'avis_google').single();
+    const avisActuel = compteurData?.valeur || 96;
+
+    res.json({
+      success: true,
+      total_contacts: totalClients,
+      sans_telephone: sansTel,
+      deja_sollicites: dejaSollicites,
+      eligibles: eligibles.length,
+      avis_actuel: avisActuel,
+      exemple_prenom: eligibles[0] ? extractPrenom(eligibles[0].nom || '') : 'Client'
+    });
+  } catch(e) {
+    console.error('❌ avis/campagne/preview:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/avis/campagne/lancer', authMiddleware, async (req, res) => {
+  try {
+    if (campagneAvisState.running) {
+      return res.status(409).json({ error: 'Une campagne est déjà en cours' });
+    }
+
+    const { data: clients } = await supabase.from('clients').select('id,nom,telephone,sms_avis_campagne_envoye');
+    const avecTel = (clients || []).filter(c => c.telephone && c.telephone.trim());
+
+    const { data: histoEnvoyes } = await supabase.from('historique').select('telephone').eq('sms_avis_envoye', true);
+    const telsAutoEnvoyes = new Set((histoEnvoyes || []).map(h => (h.telephone || '').replace(/\s/g, '')));
+
+    const eligibles = avecTel.filter(c => {
+      const telClean = (c.telephone || '').replace(/\s/g, '');
+      return !telsAutoEnvoyes.has(telClean) && !c.sms_avis_campagne_envoye;
+    });
+
+    if (!eligibles.length) {
+      return res.json({ success: true, total: 0, message: 'Aucun client éligible' });
+    }
+
+    // Enregistrer le compteur avis avant campagne (pour comparaison)
+    const { data: compteurData } = await supabase.from('compteurs').select('valeur').eq('type', 'avis_google').single();
+    const avisAvant = compteurData?.valeur || 96;
+    const { data: baselineExist } = await supabase.from('compteurs').select('*').eq('type', 'avis_baseline_campagne').single();
+    if (baselineExist) {
+      await supabase.from('compteurs').update({ valeur: avisAvant }).eq('type', 'avis_baseline_campagne');
+    } else {
+      await supabase.from('compteurs').insert({ type: 'avis_baseline_campagne', valeur: avisAvant });
+    }
+
+    campagneAvisState = { running: true, total: eligibles.length, envoyes: 0, erreurs: 0, termine: false };
+    res.json({ success: true, total: eligibles.length, avis_avant: avisAvant });
+
+    // Envoi en arrière-plan, espacé pour respecter les limites Brevo
+    setImmediate(async () => {
+      for (const c of eligibles) {
+        try {
+          const prenom = extractPrenom(c.nom || '');
+          const msg = `Bonjour ${prenom}, c'est SINELEC, votre électricien à Paris ⚡ On espère que tout va bien depuis notre intervention. Si vous avez 30 secondes, un avis Google nous aiderait énormément : https://g.page/r/CSw-MABnFUAYEAE/review Merci ! — Diahe`;
+          await envoyerSMS(c.telephone, msg);
+          await supabase.from('clients').update({
+            sms_avis_campagne_envoye: true,
+            sms_avis_campagne_date: new Date().toISOString()
+          }).eq('id', c.id);
+          campagneAvisState.envoyes++;
+        } catch(e) {
+          console.error(`Campagne avis erreur ${c.id}:`, e.message);
+          campagneAvisState.erreurs++;
+        }
+        await new Promise(r => setTimeout(r, 800)); // 800ms entre chaque SMS
+      }
+      campagneAvisState.running = false;
+      campagneAvisState.termine = true;
+      console.log(`✅ Campagne avis terminée: ${campagneAvisState.envoyes}/${campagneAvisState.total} envoyés`);
+    });
+
+  } catch(e) {
+    console.error('❌ avis/campagne/lancer:', e.message);
+    campagneAvisState.running = false;
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/avis/campagne/status', authMiddleware, async (req, res) => {
+  try {
+    const { data: baseline } = await supabase.from('compteurs').select('valeur').eq('type', 'avis_baseline_campagne').single();
+    const { data: actuel } = await supabase.from('compteurs').select('valeur').eq('type', 'avis_google').single();
+    res.json({
+      success: true,
+      ...campagneAvisState,
+      avis_avant: baseline?.valeur || null,
+      avis_actuel: actuel?.valeur || null,
+      gain: (baseline?.valeur != null && actuel?.valeur != null) ? (actuel.valeur - baseline.valeur) : null
+    });
+  } catch(e) {
+    res.json({ success: true, ...campagneAvisState });
+  }
+});
+
 app.post('/api/avis/generer', authMiddleware, async (req, res) => {
   try {
     const { texte, etoiles, intervention } = req.body;
