@@ -989,6 +989,7 @@ body {
 }
 .acc-alerte-chip:hover { background:#fee2e2; border-color:#ef4444; transform:translateY(-1px); }
 .acc-alerte-chip-client { font-size:10px; color:#991b1b; opacity:0.8; }
+.acc-alerte-chip-badge { font-size:9px; font-weight:800; padding:2px 6px; border-radius:5px; }
 
 /* ══ AGENDA ══ */
 .obat-agenda-item {
@@ -1522,6 +1523,7 @@ table.histo-table tr:hover td { background:#fafbff; }
         <div class="acc-alerte-pulse"></div>
         <div class="acc-alerte-txt">
           <div class="acc-alerte-title" id="acc-alerte-title">Devis sans réponse depuis +48h</div>
+          <div class="acc-alerte-sub" id="acc-alerte-sub" style="margin-bottom:6px;"></div>
           <div class="acc-alerte-chips" id="acc-alerte-chips"></div>
         </div>
       </div>
@@ -6020,7 +6022,14 @@ async function relancerDevis(num, tel, client) {
       body: JSON.stringify({ telephone: tel, message: msg })
     });
     const data = await res.json();
-    if (data.success) showToast(`SMS de relance envoye a ${client}`, 'ok');
+    if (data.success) {
+      showToast(`SMS de relance envoye a ${client}`, 'ok');
+      // Marque l'étape J+7 comme faite (relance manuelle = équivalent) pour éviter un doublon avec le cron
+      await fetch(`/api/historique/${num}/relance-manuelle`, {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('sinelec_token') || '') }
+      }).catch(()=>{});
+    }
     else showToast('Erreur SMS: ' + (data.error||''), 'error');
   } catch(e) { showToast('Erreur reseau', 'error'); }
 }
@@ -6092,20 +6101,37 @@ async function chargerAccueil() {
     const relEl = document.getElementById('acc-devis-relance');
     if (relEl) relEl.style.color = devisRelances.length > 0 ? '#dc2626' : '#16a34a';
 
-    // Alerte chips
+    // Alerte chips — avec étape de relance J7/14/21
+    const etapeRelance = (d) => {
+      if (d.sms_relance_j21) return { code:'j21', label:'J+21', color:'#dc2626', bg:'#fee2e2' };
+      if (d.sms_relance_j14) return { code:'j14', label:'J+14', color:'#ea580c', bg:'#ffedd5' };
+      if (d.sms_relance_j7)  return { code:'j7',  label:'J+7',  color:'#d97706', bg:'#fef3c7' };
+      return { code:'',    label:'J+2',  color:'#94a3b8', bg:'#f1f5f9' };
+    };
+    const nbJ7  = devisRelances.filter(d => d.sms_relance_j7 && !d.sms_relance_j14).length;
+    const nbJ14 = devisRelances.filter(d => d.sms_relance_j14 && !d.sms_relance_j21).length;
+    const nbJ21 = devisRelances.filter(d => d.sms_relance_j21).length;
+
     const alerteBox = document.getElementById('acc-alerte-box');
     const chipsEl   = document.getElementById('acc-alerte-chips');
     if (alerteBox) {
       if (devisRelances.length > 0) {
         alerteBox.style.display = 'block';
         set('acc-alerte-title', `${devisRelances.length} devis sans r\u00e9ponse depuis plus de 48h`);
+        const subEl = document.getElementById('acc-alerte-sub');
+        if (subEl) subEl.textContent = `J+7: ${nbJ7} \u00b7 J+14: ${nbJ14} \u00b7 J+21: ${nbJ21}`;
         if (chipsEl) {
-          chipsEl.innerHTML = devisRelances.map(d => `
+          chipsEl.innerHTML = devisRelances
+            .sort((a,b) => (b.sms_relance_j21?3:b.sms_relance_j14?2:b.sms_relance_j7?1:0) - (a.sms_relance_j21?3:a.sms_relance_j14?2:a.sms_relance_j7?1:0))
+            .map(d => {
+              const e = etapeRelance(d);
+              return `
             <div class="acc-alerte-chip" onclick="allerSurDoc('${d.num}')" title="Aller sur ce devis">
+              <span class="acc-alerte-chip-badge" style="background:${e.bg};color:${e.color};">${e.label}</span>
               <span>${d.num}</span>
               <span class="acc-alerte-chip-client">${(d.client||'').substring(0,22)} \u00b7 ${parseFloat(d.total_ht||0).toFixed(0)} \u20ac</span>
               <span>\u2192</span>
-            </div>`).join('');
+            </div>`;}).join('');
         }
       } else {
         alerteBox.style.display = 'none';
