@@ -2959,6 +2959,17 @@ app.post('/api/sumup/lien/:num', async (req, res) => {
 // ═══════════════════════════════════════════════════
 // API: RELANCES AUTO
 // ═══════════════════════════════════════════════════
+
+app.post('/api/historique/:num/relance-manuelle', authMiddleware, async (req, res) => {
+  try {
+    const { num } = req.params;
+    await supabase.from('historique').update({
+      sms_relance_j7: true, sms_relance_j7_date: new Date().toISOString()
+    }).eq('num', num);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/relances/lancer', authMiddleware, async (req, res) => {
   try {
     const since = new Date(Date.now() - 48*3600*1000).toISOString();
@@ -3084,12 +3095,21 @@ cron.schedule('0 9 * * *', async () => {
       .in('statut', ['envoye', 'envoyé', 'en attente'])
       .order('created_at', { ascending: true });
 
-    let nb7 = 0, nb14 = 0, nb21 = 0;
+    let nb7 = 0, nb14 = 0, nb21 = 0, nb30 = 0;
 
     for (const d of (devis || [])) {
+      const ageJours = Math.floor((now - new Date(d.created_at).getTime()) / (24 * 3600 * 1000));
+
+      // ── J+30 : devis expiré (CGV Art.1 — validité 30 jours) ──
+      if (ageJours >= 30) {
+        await supabase.from('historique').update({ statut: 'expire' }).eq('num', d.num);
+        console.log(`📁 Devis expiré: ${d.num} (${ageJours}j)`);
+        nb30++;
+        continue;
+      }
+
       if (!d.telephone) continue;
 
-      const ageJours = Math.floor((now - new Date(d.created_at).getTime()) / (24 * 3600 * 1000));
       const prenom = extractPrenom(d.client || '');
       const montant = parseFloat(d.total_ht || 0).toFixed(0);
       const lien = `${appUrl}/signer/${d.num}`;
@@ -3124,8 +3144,8 @@ cron.schedule('0 9 * * *', async () => {
       } catch(e) { console.error(`Relance ${d.num}:`, e.message); }
     }
 
-    const total = nb7 + nb14 + nb21;
-    if (total > 0) console.log(`✅ Relances du jour — J+7: ${nb7} | J+14: ${nb14} | J+21: ${nb21}`);
+    const total = nb7 + nb14 + nb21 + nb30;
+    if (total > 0) console.log(`✅ Relances/expirations du jour — J+7: ${nb7} | J+14: ${nb14} | J+21: ${nb21} | Expirés: ${nb30}`);
   } catch(e) { console.error('Cron relances:', e.message); }
 });
 
