@@ -4040,6 +4040,34 @@ let agendaInterventions = [];
 // ═══════════════════════════════════════════════════
 // CRÉER DEVIS DEPUIS UN LEAD AGENDA
 // ═══════════════════════════════════════════════════
+
+function partagerLeadWhatsApp(nom, adresse, type, date, heure, tel) {
+  // Formater la date
+  let dateStr = date;
+  if (date) {
+    const d = new Date(date);
+    const jours = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+    const mois = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
+    dateStr = `${jours[d.getDay()]} ${d.getDate()} ${mois[d.getMonth()]}`;
+  }
+  const heureStr = heure ? ` à ${heure}` : '';
+
+  const msg = [
+    '⚡ *Mission SINELEC*',
+    '',
+    `👤 Client : ${nom || 'Non renseigné'}`,
+    `📍 Adresse : ${adresse || 'Non renseignée'}`,
+    type ? `🔧 Intervention : ${type}` : null,
+    (dateStr || heureStr) ? `📅 Date : ${dateStr}${heureStr}` : null,
+    tel ? `📞 Tel client : ${tel}` : null,
+    '',
+    '_Envoyé depuis SINELEC OS_'
+  ].filter(l => l !== null).join('\n');
+
+  const url = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+  window.open(url, '_blank');
+}
+
 function creerDevisFromLead(id, nom, adresse, tel, email, typeIntervention) {
   // Pré-remplir le formulaire devis avec les infos du lead
   switchPage('depannage', null);
@@ -4149,7 +4177,7 @@ function afficherListeAgenda() {
       <!-- Actions -->
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         ${iv.telephone?`<a href="tel:${iv.telephone}" style="background:rgba(59,130,246,0.1);color:#3b82f6;border:1px solid rgba(59,130,246,0.3);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;text-decoration:none;">📞 ${iv.telephone}</a>`:''}
-        ${iv.adresse?`<a href="https://waze.com/ul?q=${adresseEnc}&navigate=yes" target="_blank" style="background:#1da46222;color:#1da462;border:1px solid #1da46244;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;text-decoration:none;">🔵 Waze</a>`:''}
+        ${iv.adresse?`<a href="https://waze.com/ul?q=${adresseEnc}&navigate=yes" target="_blank" style="background:#1da46222;color:#1da462;border:1px solid #1da46244;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;text-decoration:none;">🔵 Waze</a>`:''}        <button onclick="partagerLeadWhatsApp('${(iv.client||'').replace(/'/g,"\'")}','${(iv.adresse||'').replace(/'/g,"\'")}','${iv.type_intervention||''}','${iv.date_intervention||''}','${iv.heure||''}','${(iv.telephone||'').replace(/'/g,"\'")}')" style="background:#25D36622;color:#25D366;border:1px solid #25D36644;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;">📲 WhatsApp</button>
         ${iv.telephone?`<button onclick="smsDepartClient('${iv.telephone}','${(nom).replace(/'/g,"\'")}','${(iv.adresse||'').replace(/'/g,"\'")}' )" style="background:linear-gradient(135deg,#E8B84B,#C9962A);color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;">🚗 Je pars</button>`:''}
         <button onclick="changerStatutIntervention('${iv.id}','terminé')" style="background:rgba(16,185,129,0.1);color:#10b981;border:1px solid rgba(16,185,129,0.3);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;">✅ Terminé</button>
         ${(iv.statut||'').toLowerCase()==='lead'?`<button onclick="creerDevisFromLead('${iv.id}','${(iv.client||'').replace(/'/g,"\'")}','${(iv.adresse||'').replace(/'/g,"\'")}','${(iv.telephone||'').replace(/'/g,"\'")}','${(iv.email||'').replace(/'/g,"\'")}','${iv.type_intervention||''}')" style="background:linear-gradient(135deg,#1B2A4A,#243660);color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;">📋 Créer devis</button>`:''}
