@@ -4036,6 +4036,47 @@ async function chargerDashboard() {
 // ═══════════════════════════════════════════════════
 let agendaInterventions = [];
 
+
+// ═══════════════════════════════════════════════════
+// CRÉER DEVIS DEPUIS UN LEAD AGENDA
+// ═══════════════════════════════════════════════════
+function creerDevisFromLead(id, nom, adresse, tel, email, typeIntervention) {
+  // Pré-remplir le formulaire devis avec les infos du lead
+  switchPage('depannage', null);
+
+  setTimeout(() => {
+    // Champ client
+    const champClient = document.getElementById('d-client');
+    if (champClient) { champClient.value = nom; champClient.dispatchEvent(new Event('input')); }
+
+    // Champ adresse
+    const champAdresse = document.getElementById('d-adresse');
+    if (champAdresse) { champAdresse.value = adresse; }
+
+    // Champ téléphone
+    const champTel = document.getElementById('d-tel');
+    if (champTel) champTel.value = tel;
+
+    // Champ email (vide pour que Diahe le demande au client)
+    const champEmail = document.getElementById('d-email');
+    if (champEmail) champEmail.value = email || '';
+
+    // Objet des travaux depuis le type d'intervention
+    const champObjet = document.getElementById('d-objet');
+    if (champObjet && typeIntervention) champObjet.value = typeIntervention;
+
+    showToast('✅ Infos du lead pré-remplies — ajoutez les prestations', '📋');
+
+    // Focus sur le champ email si vide (seule info manquante)
+    setTimeout(() => {
+      if (champEmail && !champEmail.value) {
+        champEmail.focus();
+        champEmail.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 300);
+  }, 400);
+}
+
 async function chargerAgenda() {
   const liste = document.getElementById('agenda-liste');
   if (liste) liste.innerHTML = '<div class="panier-empty">Chargement...</div>';
@@ -4111,6 +4152,7 @@ function afficherListeAgenda() {
         ${iv.adresse?`<a href="https://waze.com/ul?q=${adresseEnc}&navigate=yes" target="_blank" style="background:#1da46222;color:#1da462;border:1px solid #1da46244;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;text-decoration:none;">🔵 Waze</a>`:''}
         ${iv.telephone?`<button onclick="smsDepartClient('${iv.telephone}','${(nom).replace(/'/g,"\'")}','${(iv.adresse||'').replace(/'/g,"\'")}' )" style="background:linear-gradient(135deg,#E8B84B,#C9962A);color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;">🚗 Je pars</button>`:''}
         <button onclick="changerStatutIntervention('${iv.id}','terminé')" style="background:rgba(16,185,129,0.1);color:#10b981;border:1px solid rgba(16,185,129,0.3);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;">✅ Terminé</button>
+        ${(iv.statut||'').toLowerCase()==='lead'?`<button onclick="creerDevisFromLead('${iv.id}','${(iv.client||'').replace(/'/g,"\'")}','${(iv.adresse||'').replace(/'/g,"\'")}','${(iv.telephone||'').replace(/'/g,"\'")}','${(iv.email||'').replace(/'/g,"\'")}','${iv.type_intervention||''}')" style="background:linear-gradient(135deg,#1B2A4A,#243660);color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;">📋 Créer devis</button>`:''}
         <button onclick="supprimerIntervention('${iv.id}')" style="background:rgba(239,68,68,0.08);color:#ef4444;border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;">🗑️</button>
       </div>
     </div>`;
