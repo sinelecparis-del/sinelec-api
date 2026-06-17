@@ -4052,14 +4052,23 @@ function partagerLeadWhatsApp(nom, adresse, type, date, heure, tel) {
   }
   const heureStr = heure ? ` à ${heure}` : '';
 
+  // Liens navigation + contact
+  const telNum = tel ? tel.replace(/^0/,'').replace(/\s/g,'') : null;
+  const adresseEnc = adresse ? encodeURIComponent(adresse) : null;
+
   const msg = [
     '⚡ *Mission SINELEC*',
     '',
     `👤 Client : ${nom || 'Non renseigné'}`,
-    `📍 Adresse : ${adresse || 'Non renseignée'}`,
+    adresse ? `📍 *${adresse}*` : '📍 Adresse : Non renseignée',
+    adresseEnc ? `🗺 Google Maps : https://maps.google.com/?q=${adresseEnc}` : null,
+    adresseEnc ? `🔵 Waze : https://waze.com/ul?q=${adresseEnc}&navigate=yes` : null,
+    '',
     type ? `🔧 Intervention : ${type}` : null,
     (dateStr || heureStr) ? `📅 Date : ${dateStr}${heureStr}` : null,
-    tel ? `📞 Tel client : ${tel}` : null,
+    '',
+    tel ? `📞 Appel : tel:+33${telNum}` : null,
+    tel ? `💬 WhatsApp : https://wa.me/33${telNum}` : null,
     '',
     '_Envoyé depuis SINELEC OS_'
   ].filter(l => l !== null).join('\n');
