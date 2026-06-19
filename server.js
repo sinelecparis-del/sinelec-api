@@ -262,9 +262,17 @@ function extractPrenom(clientStr) {
 
 async function envoyerEmail(to, subject, htmlContent, attachment = null) {
   if (CONFIG.dev.skip_email) { console.log('Email skippé:', to); return { skipped: true }; }
+
+  // Validation email AVANT l'appel Brevo — évite l'erreur "invalid_request" peu claire
+  const emailClean = String(to || '').trim();
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailClean || !emailRegex.test(emailClean)) {
+    throw new Error(`EMAIL_INVALIDE: "${to}" n'est pas une adresse email valide. Vérifiez le champ email du client.`);
+  }
+
   const payload = {
     sender: { name: CONFIG.email.sender_name, email: CONFIG.email.sender_email },
-    to: [{ email: to }], subject, htmlContent, trackOpens: 0, trackClicks: 0,
+    to: [{ email: emailClean }], subject, htmlContent, trackOpens: 0, trackClicks: 0,
   };
   if (attachment) payload.attachment = [{ content: attachment.content, name: attachment.name }];
   const res = await fetch('https://api.brevo.com/v3/smtp/email', {
@@ -272,7 +280,11 @@ async function envoyerEmail(to, subject, htmlContent, attachment = null) {
     headers: { 'accept': 'application/json', 'api-key': BREVO_API_KEY, 'content-type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) { const err = await res.text(); throw new Error('Brevo: ' + err); }
+  if (!res.ok) {
+    const err = await res.text();
+    console.error('❌ Brevo email error:', err, '| to:', emailClean, '| subject:', subject);
+    throw new Error('Brevo: ' + err);
+  }
   return await res.json();
 }
 
