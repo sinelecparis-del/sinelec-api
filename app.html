@@ -8736,8 +8736,9 @@ async function generer(type) {
   const emailVal = document.getElementById(`${prefix}-email`)?.value.trim();
   const telVal   = document.getElementById(`${prefix}-tel`)?.value.trim();
 
-  if (!emailVal) {
-    showToast('📧 Email obligatoire — sans email le client ne peut pas recevoir son devis', '❌');
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailVal || !emailRegex.test(emailVal)) {
+    showToast(!emailVal ? '📧 Email obligatoire — sans email le client ne peut pas recevoir son devis' : '✉️ Format email invalide — vérifiez l\'adresse saisie', '❌');
     const emailEl = document.getElementById(`${prefix}-email`);
     if (emailEl) {
       emailEl.style.border = '2px solid #ef4444';
@@ -8757,6 +8758,7 @@ async function generer(type) {
     }
     return;
   }
+
 
   // ── BUG 2 CORRIGÉ : lire les textareas DOM juste avant d'envoyer
   document.querySelectorAll(`#${prefix}-panier-items textarea[data-idx]`).forEach(ta => {
