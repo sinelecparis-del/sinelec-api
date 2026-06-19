@@ -871,10 +871,20 @@ app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
             headers: { 'Authorization': req.headers['authorization'] || '' }
           });
           if (pdfRes.ok) {
-            const buf = await pdfRes.arrayBuffer();
-            pdf_b64 = Buffer.from(buf).toString('base64');
+            const buf = Buffer.from(await pdfRes.arrayBuffer());
+            // Validation : un vrai PDF commence par "%PDF" et fait au moins quelques Ko
+            const isValidPdf = buf.length > 500 && buf.subarray(0, 4).toString('ascii') === '%PDF';
+            if (isValidPdf) {
+              pdf_b64 = buf.toString('base64');
+              console.log(`✅ PDF valide récupéré pour ${num} (${buf.length} bytes)`);
+            } else {
+              console.error(`❌ PDF invalide pour ${num} — taille:${buf.length} début:"${buf.subarray(0,20).toString('utf8').replace(/\n/g,' ')}" — envoi SANS pièce jointe (lien de signature reste disponible)`);
+            }
+          } else {
+            const errBody = await pdfRes.text().catch(()=>'');
+            console.error(`❌ /api/pdf/${num} a retourné ${pdfRes.status} — envoi SANS pièce jointe. Détail: ${errBody.substring(0,200)}`);
           }
-        } catch(e) { console.error('PDF fetch:', e.message); }
+        } catch(e) { console.error('PDF fetch exception:', e.message, '— envoi SANS pièce jointe'); }
       }
     }
 
@@ -906,7 +916,18 @@ app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
     const htmlWithPixel = htmlEmail + `<img src="${appUrl}/api/track/open/${num}" width="1" height="1" style="display:none">`;
 
     const attachment = pdf_b64 ? { content: pdf_b64, name: `${num}.pdf` } : null;
-    const emailRes = await envoyerEmail(email, sujet || `Document ${num} - SINELEC`, htmlWithPixel, attachment);
+    let emailRes;
+    try {
+      emailRes = await envoyerEmail(email, sujet || `Document ${num} - SINELEC`, htmlWithPixel, attachment);
+    } catch (emailErr) {
+      if (attachment) {
+        // Fallback : si l'envoi échoue AVEC pièce jointe, on retente SANS — le client garde le lien de signature
+        console.error(`⚠️ Échec envoi avec pièce jointe pour ${num} (${emailErr.message}) — nouvelle tentative SANS pièce jointe`);
+        emailRes = await envoyerEmail(email, sujet || `Document ${num} - SINELEC`, htmlWithPixel, null);
+      } else {
+        throw emailErr;
+      }
+    }
 
     // CC si fourni
     if (cc) { try { await envoyerEmail(cc, sujet || `Document ${num}`, htmlWithPixel, attachment); } catch(e) {} }
