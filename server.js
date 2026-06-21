@@ -1862,7 +1862,8 @@ if is_signe:
         except Exception as e:
             import sys; print('SIG_ERR:'+str(e),file=sys.stderr)
     if not sig_img_ok:
-        sig_left_items.append(Table([[p('[ Signature non disponible ]',8,color=GRIS_SOFT)]],colWidths=[8*cm]))
+        diag_msg='[ Signature non disponible \u2014 donn\u00e9es manquantes (longueur:'+str(len(sig_data_b64) if sig_data_b64 else 0)+') ]'
+        sig_left_items.append(Table([[p(diag_msg,7,color=GRIS_SOFT)]],colWidths=[8*cm]))
     sig_right_items=[p('Signature SINELEC',8,'Helvetica-Bold',MARINE),p('Diahe',8,color=GRIS_SOFT),p('SINELEC Paris \u26a1',7,color=OR)]
     sig_tbl=Table([[sig_left_items,sig_right_items]],colWidths=[9.2*cm,9*cm])
     sig_tbl.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f8fafc')),('BOX',(0,0),(-1,-1),1,colors.HexColor('#e2e8f0')),('LINEAFTER',(0,0),(0,-1),1,colors.HexColor('#e2e8f0')),('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10)]))
