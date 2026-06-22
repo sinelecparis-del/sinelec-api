@@ -854,6 +854,83 @@ doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
 // ═══════════════════════════════════════════════════
 // API: ENVOYER EMAIL
 // ═══════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════
+// API: IMPORT DEVIS EXTERNE (généré hors app)
+// ═══════════════════════════════════════════════════
+app.post('/api/import-devis', authMiddleware, async (req, res) => {
+  try {
+    const {
+      client, email, telephone, adresse, description,
+      prestations, total_ht, type = 'devis',
+      statut = 'envoye', date_doc, num_custom
+    } = req.body;
+
+    if (!client) return res.status(400).json({ error: 'Nom client obligatoire' });
+    if (!prestations || !prestations.length) return res.status(400).json({ error: 'Prestations obligatoires' });
+
+    // Générer un numéro ou utiliser le numéro custom fourni
+    let num;
+    if (num_custom) {
+      num = num_custom;
+    } else {
+      const compteur = await incrementerCompteur(type);
+      const d = date_doc ? new Date(date_doc) : new Date();
+      const annee = d.getFullYear();
+      const mois = String(d.getMonth() + 1).padStart(2, '0');
+      num = type === 'devis'
+        ? `OS-${annee}${mois}-${String(compteur).padStart(3, '0')}`
+        : `${annee}${mois}-${String(compteur).padStart(3, '0')}`;
+    }
+
+    const totalCalc = total_ht || prestations.reduce((s, p) => s + ((p.prix || p.prixUnit || 0) * (p.quantite || p.qte || 1)), 0);
+    const dateDoc = date_doc ? new Date(date_doc).toISOString() : new Date().toISOString();
+
+    // Normaliser les prestations au format attendu
+    const prestationsNorm = prestations.map(p => ({
+      nom: p.nom || p.designation || p.name || 'Prestation',
+      prix: p.prix || p.prixUnit || p.price || 0,
+      quantite: p.quantite || p.qte || p.quantity || 1,
+      details: p.details || p.description || ''
+    }));
+
+    const payload = {
+      num, type, client,
+      email: email || null,
+      telephone: telephone || null,
+      adresse: adresse || null,
+      prestations: prestationsNorm,
+      total_ht: totalCalc,
+      statut,
+      date_envoi: dateDoc,
+      source: 'import_externe',
+      description: description || null
+    };
+
+    const { error } = await supabase.from('historique').upsert(payload, { onConflict: 'num' });
+    if (error) throw new Error('Supabase: ' + error.message);
+
+    // Créer/mettre à jour la fiche client si email ou tél
+    if (client && (email || telephone)) {
+      try {
+        const { data: existing } = await supabase.from('clients').select('id').eq('nom', client).single();
+        if (existing) {
+          await supabase.from('clients').update({ email, telephone, adresse, updated_at: new Date().toISOString() }).eq('id', existing.id);
+        } else {
+          await supabase.from('clients').insert({ nom: client, email, telephone, adresse, created_at: new Date().toISOString() });
+        }
+      } catch(e) { console.warn('Fiche client import:', e.message); }
+    }
+
+    console.log(`✅ Devis importé: ${num} — ${client} — ${totalCalc}€`);
+    res.json({ success: true, num, total_ht: totalCalc });
+
+  } catch(e) {
+    console.error('❌ import-devis error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
   try {
     const { num } = req.params;
