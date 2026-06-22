@@ -2481,7 +2481,41 @@ table.histo-table tr:hover td { background:#fafbff; }
     </div>
   </div>
 </div></div>
-<div id="page-params" class="page"><div class="content"><div class="section"><div class="section-title">⚙️ Grille tarifaire</div><div id="params-grid"></div><button onclick="sauvegarderPrix()" class="btn-gen" style="margin-top:16px;">💾 Sauvegarder</button></div></div></div>
+<div id="page-params" class="page"><div class="content">
+
+  <!-- Import devis externe -->
+  <div class="section">
+    <div class="section-title">📥 Importer un devis externe</div>
+    <p style="font-size:12.5px;color:var(--text-3);margin-bottom:12px;line-height:1.6;">
+      Colle ici le JSON d'un devis créé hors de l'app (ex: devis établi avec Claude).<br>
+      Il sera ajouté à ton historique avec le rendu SINELEC OS complet.
+    </p>
+
+    <div style="margin-bottom:10px;">
+      <label style="font-size:11px;font-weight:800;color:var(--text-2);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:6px;">Format attendu :</label>
+      <pre style="background:#1B2A4A;color:#E8B84B;font-size:10px;padding:10px;border-radius:10px;overflow-x:auto;line-height:1.6;">{
+  "client": "Mme Dupont",
+  "email": "client@gmail.com",
+  "telephone": "0612345678",
+  "adresse": "12 rue de Paris, 92100 Boulogne",
+  "description": "Rénovation électrique maison",
+  "prestations": [
+    { "nom": "Prise standard", "prix": 115, "quantite": 8 },
+    { "nom": "Disjoncteur 16A", "prix": 150, "quantite": 6 }
+  ]
+}</pre>
+    </div>
+
+    <textarea id="import-json-input" placeholder="Colle ton JSON ici..." style="width:100%;min-height:140px;padding:12px;border:1.5px solid var(--border);border-radius:10px;background:var(--bg);font-size:12px;font-family:monospace;resize:vertical;color:var(--text);"></textarea>
+
+    <div id="import-json-error" style="display:none;color:#dc2626;font-size:12px;margin-top:6px;padding:8px 12px;background:#fef2f2;border-radius:8px;"></div>
+    <div id="import-json-success" style="display:none;color:#16a34a;font-size:12px;margin-top:6px;padding:8px 12px;background:#f0fdf4;border-radius:8px;"></div>
+
+    <button onclick="importerDevisExterne()" class="btn-gen" style="margin-top:12px;width:100%;">📥 Importer dans l'historique</button>
+  </div>
+
+  <div class="section"><div class="section-title">⚙️ Grille tarifaire</div><div id="params-grid"></div><button onclick="sauvegarderPrix()" class="btn-gen" style="margin-top:16px;">💾 Sauvegarder</button></div>
+</div></div>
 
 </div><!-- fin main-content -->
 
@@ -5376,6 +5410,58 @@ async function lancerCampagneAvis(nb) {
   }
 }
 
+
+// ═══════════════════════════════════════════════════
+// IMPORT DEVIS EXTERNE
+// ═══════════════════════════════════════════════════
+async function importerDevisExterne() {
+  const textarea = document.getElementById('import-json-input');
+  const errEl = document.getElementById('import-json-error');
+  const okEl = document.getElementById('import-json-success');
+  if (!textarea) return;
+
+  errEl.style.display = 'none';
+  okEl.style.display = 'none';
+
+  const raw = textarea.value.trim();
+  if (!raw) {
+    errEl.textContent = '⚠️ Aucun contenu à importer — colle ton JSON d\'abord.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch(e) {
+    errEl.textContent = '❌ JSON invalide — vérifie la syntaxe (virgules, guillemets...). Erreur : ' + e.message;
+    errEl.style.display = 'block';
+    return;
+  }
+
+  if (!data.client) { errEl.textContent = '❌ Champ "client" obligatoire manquant.'; errEl.style.display = 'block'; return; }
+  if (!data.prestations || !data.prestations.length) { errEl.textContent = '❌ Champ "prestations" obligatoire manquant ou vide.'; errEl.style.display = 'block'; return; }
+
+  try {
+    const res = await fetch('/api/import-devis', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('sinelec_token') || '') },
+      body: JSON.stringify(data)
+    });
+    const result = await res.json();
+    if (!result.success) throw new Error(result.error || 'Erreur inconnue');
+
+    okEl.innerHTML = `✅ <b>Devis importé avec succès !</b><br>Numéro : <b>${result.num}</b> · Montant : <b>${Math.round(result.total_ht).toLocaleString('fr-FR')} €</b><br>Retrouve-le dans l'onglet Historique.`;
+    okEl.style.display = 'block';
+    textarea.value = '';
+    showToast('✅ Devis importé — ' + result.num, '📥');
+
+  } catch(e) {
+    errEl.textContent = '❌ Erreur lors de l\'import : ' + e.message;
+    errEl.style.display = 'block';
+  }
+}
+
 async function genererReponseAvis() {
   const texte = document.getElementById('avis-texte')?.value.trim();
   const intervention = document.getElementById('avis-intervention')?.value.trim();
@@ -7436,7 +7522,7 @@ function setBrouillons(liste) {
 function capturerEtatDevis() {
   const val = id => document.getElementById(id)?.value?.trim() || '';
   const panier = panierD.map(p => ({...p})); // copie profonde
-  const total = panier.reduce((s,p) => s + p.prixUnit * p.qte, 0);
+  const total = panier.filter(p => !p._section).reduce((s,p) => s + (p.prixUnit||0) * (p.qte||1), 0);
   const clientNom = [val('d-civilite'), val('d-prenom'), val('d-client')].filter(Boolean).join(' ')
     || val('d-societe') || 'Sans nom';
   return {
@@ -8538,7 +8624,7 @@ function modifierPrix(prefix, idx, valeur) {
   const subtotalEl = document.getElementById(`${prefix}-subtotal-${idx}`);
   if (subtotalEl) subtotalEl.textContent = `${(newPrix * panier[idx].qte).toFixed(0)} €`;
   // Recalculer les totaux sans re-rendre tout le DOM
-  const total = panier.reduce((s, p) => s + p.prixUnit * p.qte, 0);
+  const total = panier.filter(p => !p._section).reduce((s, p) => s + (p.prixUnit||0) * (p.qte||1), 0);
   const totalEl = document.getElementById(`${prefix}-total`);
   if (totalEl) totalEl.textContent = `${total.toFixed(2)} €`;
   rafraichirTotaux(prefix, total);
@@ -8656,7 +8742,7 @@ async function genererEtTelecharger(type) {
       if (!isNaN(idx) && panier[idx]) panier[idx].desc = ta.value;
     });
 
-    const prestations = panier.map(p => ({ nom: p.designation, prix: p.prixUnit, quantite: p.qte, desc: p.desc || '' }));
+    const prestations = panier.filter(p => !p._section).map(p => ({ nom: p.designation, prix: p.prixUnit||0, quantite: p.qte||1, desc: p.desc || '' }));
 
     // Générer SANS email — pas d'envoi
     const res = await fetch('/api/generer', {
@@ -8835,13 +8921,13 @@ async function generer(type) {
   btn.textContent = '⏳ Génération...';
 
   // ── BUG 1 CORRIGÉ : calculer la remise et l'injecter comme ligne dans les prestations
-  const totalBrut = panier.reduce((s, p) => s + p.prixUnit * p.qte, 0);
+  const totalBrut = panier.filter(p => !p._section).reduce((s, p) => s + (p.prixUnit||0) * (p.qte||1), 0);
   const remiseMontant = getRemise(prefix, totalBrut);
 
-  const prestationsAEnvoyer = panier.map(item => ({
+  const prestationsAEnvoyer = panier.filter(item => !item._section).map(item => ({
     nom: item.designation,
-    prix: item.prixUnit,
-    quantite: item.qte,
+    prix: item.prixUnit||0,
+    quantite: item.qte||1,
     desc: item.desc || ''
   }));
 
