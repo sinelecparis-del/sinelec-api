@@ -1546,79 +1546,84 @@ async function verifierCheckoutSumUp(checkoutId) {
   } catch(e) { console.error('❌ SumUp verif exception:', e.message); return null; }
 }
 
-async function marquerPayeInterne(num, mode_paiement) {
+async function traiterPaiementRecu(num, mode_paiement) {
   try {
-    const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
-    const token = genererToken();
-    const r = await fetch(`${appUrl}/api/marquer-paye`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({ num, mode_paiement: mode_paiement || 'sumup' })
-    });
-    return r.ok;
-  } catch(e) { console.error('❌ marquerPayeInterne:', e.message); return false; }
-}
-
-app.post('/api/marquer-paye', async (req, res) => {
-  try {
-    const { num, mode_paiement } = req.body;
     const now = new Date().toISOString();
+    // 1. Mettre à jour le statut en base directement (pas de fetch vers soi-même)
     const { error } = await supabase.from('historique').update({
-      statut: 'paye', mode_paiement: mode_paiement || 'terminal',
-      date_paiement: now
+      statut: 'paye', mode_paiement: mode_paiement || 'sumup', date_paiement: now
     }).eq('num', num);
     if (error) throw error;
 
-    // Générer PDF acquitté et envoyer au client
+    // 2. Chaîne automatique : facture acquittée + SMS avis
     setImmediate(async () => {
       try {
         const { data: doc } = await supabase.from('historique').select('*').eq('num', num).single();
-        if (doc && doc.email) {
-          // Récupérer le PDF régénéré avec tampon PAYÉ
-          const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
-          const token = genererToken();
-          const pdfRes = await fetch(`${appUrl}/api/pdf/${num}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-          let pdf_b64 = null;
+        if (!doc) return;
+        const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+        const token = genererToken();
+
+        // PDF acquitté
+        let pdf_b64 = null;
+        try {
+          const pdfRes = await fetch(`${appUrl}/api/pdf/${num}`, { headers: { 'Authorization': `Bearer ${token}` } });
           if (pdfRes.ok) {
-            const buf = await pdfRes.arrayBuffer();
-            pdf_b64 = Buffer.from(buf).toString('base64');
+            const buf = Buffer.from(await pdfRes.arrayBuffer());
+            if (buf.length > 500 && buf.subarray(0,4).toString('ascii') === '%PDF') {
+              pdf_b64 = buf.toString('base64');
+            }
           }
-          const html = `<div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;">
-            <div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:24px;text-align:center;border-radius:12px 12px 0 0;">
-              <div style="font-size:36px;">💰</div>
-              <h2 style="color:#E8B84B;margin:8px 0 0;">Facture acquittée</h2>
-            </div>
-            <div style="padding:24px;border:1px solid #e8e8e8;border-top:none;border-radius:0 0 12px 12px;">
-              <p>Bonjour <strong>${extractPrenom(doc.client)}</strong>,</p>
-              <p>Votre règlement pour la facture <strong>${num}</strong> a bien été enregistré.</p>
-              <p>Retrouvez ci-joint votre facture acquittée.</p>
-              <p style="font-size:12px;color:#888;">Merci pour votre confiance ! ⭐ <a href="https://g.page/r/CSw-MABnFUAYEAE/review">Laisser un avis Google</a></p>
-            </div>
-          </div>`;
-          await envoyerEmail(doc.email, `Facture acquittée ${num} — SINELEC Paris`, html, pdf_b64 ? { content: pdf_b64, name: `${num}_acquittee.pdf` } : null);
-          console.log(`✅ Facture acquittée envoyée: ${num} → ${doc.email}`);
+        } catch(e) { console.error('PDF acquitté error:', e.message); }
+
+        // Email facture acquittée
+        if (doc.email) {
+          try {
+            const html = `<div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;">
+              <div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:24px;text-align:center;border-radius:12px 12px 0 0;">
+                <div style="font-size:36px;">💰</div>
+                <h2 style="color:#E8B84B;margin:8px 0 0;">Facture acquittée</h2>
+              </div>
+              <div style="padding:24px;border:1px solid #e8e8e8;border-top:none;border-radius:0 0 12px 12px;">
+                <p>Bonjour <strong>${extractPrenom(doc.client)}</strong>,</p>
+                <p>Votre règlement pour la facture <strong>${num}</strong> a bien été enregistré. Merci pour votre confiance !</p>
+                <p>Retrouvez ci-joint votre facture acquittée.</p>
+                <p style="font-size:12px;color:#888;">⭐ <a href="https://g.page/r/CSw-MABnFUAYEAE/review">Laisser un avis Google</a></p>
+              </div>
+            </div>`;
+            await envoyerEmail(doc.email, `Facture acquittée ${num} — SINELEC Paris`, html, pdf_b64 ? { content: pdf_b64, name: `${num}_acquittee.pdf` } : null);
+            console.log(`✅ Facture acquittée envoyée: ${num} → ${doc.email}`);
+          } catch(e) { console.error('Email acquitté error:', e.message); }
         }
 
-        // ── SMS avis Google automatique (si téléphone et pas encore envoyé) ──
-        if (doc && doc.telephone && !doc.sms_avis_envoye) {
+        // SMS avis Google
+        if (doc.telephone && !doc.sms_avis_envoye) {
           try {
             const prenom = extractPrenom(doc.client || '');
-            const smsAvis = `Bonjour ${prenom}, merci pour votre confiance ! ⚡ Un petit avis Google nous aiderait beaucoup : https://g.page/r/CSw-MABnFUAYEAE/review — Diahe, SINELEC Paris`;
+            const smsAvis = `Bonjour ${prenom}, votre règlement SINELEC a bien été enregistré ✅ Si vous avez 30 secondes, un avis Google nous aiderait énormément 👉 https://g.page/r/CSw-MABnFUAYEAE/review — L'équipe SINELEC Paris ⚡`;
             await envoyerSMS(doc.telephone, smsAvis);
-            await supabase.from('historique').update({
-              sms_avis_envoye: true,
-              sms_avis_date: new Date().toISOString(),
-              sms_avis_statut: 'envoye_auto'
-            }).eq('num', num);
-            console.log(`✅ SMS avis Google auto envoyé: ${num} → ${doc.telephone}`);
-          } catch(e) { console.error('SMS avis auto error:', e.message); }
+            await supabase.from('historique').update({ sms_avis_envoye: true, sms_avis_date: new Date().toISOString(), sms_avis_statut: 'envoye_auto' }).eq('num', num);
+            console.log(`✅ SMS avis auto: ${num} → ${doc.telephone}`);
+          } catch(e) { console.error('SMS avis error:', e.message); }
         }
-
-      } catch(e) { console.error('Facture acquittée email error:', e.message); }
+      } catch(e) { console.error('traiterPaiementRecu chain error:', e.message); }
     });
 
+    return true;
+  } catch(e) { console.error('❌ traiterPaiementRecu:', e.message); return false; }
+}
+
+// Alias pour compatibilité
+async function marquerPayeInterne(num, mode_paiement) {
+  return traiterPaiementRecu(num, mode_paiement);
+}
+
+app.post('/api/marquer-paye', authMiddleware, async (req, res) => {
+  try {
+    const { num, mode_paiement } = req.body;
+    if (!num) return res.status(400).json({ error: 'Numéro manquant' });
+    // Utilise traiterPaiementRecu qui gère toute la chaîne (statut + PDF acquitté + SMS avis)
+    const ok = await traiterPaiementRecu(num, mode_paiement || 'terminal');
+    if (!ok) return res.status(500).json({ error: 'Erreur traitement paiement' });
     res.json({ success: true });
   } catch(error) { res.status(500).json({ error: error.message }); }
 });
@@ -3053,7 +3058,7 @@ app.post('/api/sumup/lien/:num', async (req, res) => {
     const lien = `${appUrl}/paiement-confirme/${num}?montant=${total.toFixed(2)}`;
     if (envoi === 'sms' || envoi === 'les2') {
       if (doc.telephone) {
-        const msg = `Bonjour ${extractPrenom(doc.client)}, votre facture SINELEC ${num} de ${total.toFixed(0)}€ est disponible. Réglez en ligne : ${lien} — SINELEC ⚡`;
+        const msg = `Bonjour ${extractPrenom(doc.client)}, votre règlement SINELEC de ${total.toFixed(0)}€ est en attente. Payez en 1 clic 👉 ${lien} — L'équipe SINELEC Paris ⚡`;
         await envoyerSMS(doc.telephone, msg);
       }
     }
