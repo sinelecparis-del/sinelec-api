@@ -1556,13 +1556,19 @@ table.histo-table tr:hover td { background:#fafbff; }
         <div class="obat-kpi-sub" id="acc-nb-att-fact">—</div>
         <div class="obat-kpi-tooltip">→ Factures en attente de paiement</div>
       </div>
-      <div class="obat-kpi k4" onclick="filtrerHistoriqueEtNaviguer('devis','attente',null)" style="position:relative;">
-        <div class="obat-kpi-icon">📋</div>
-        <div class="obat-kpi-lbl">Devis en attente</div>
-        <div class="obat-kpi-val" id="acc-devis-attente">—</div>
-        <div class="obat-kpi-trend" id="acc-devis-relance" style="color:#f59e0b;">—</div>
-        <div class="obat-kpi-sub" id="acc-total-devis">—</div>
-        <div class="obat-kpi-tooltip">→ Devis en attente de signature</div>
+      <div class="obat-kpi k4" style="position:relative;cursor:default;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <div>
+            <div class="obat-kpi-lbl">Devis en attente</div>
+            <div class="obat-kpi-val" id="acc-devis-attente" style="margin-top:2px;">—</div>
+          </div>
+          <div class="obat-kpi-icon" style="margin:0;">📋</div>
+        </div>
+        <div id="acc-devis-urgents" style="display:flex;flex-direction:column;gap:5px;"></div>
+        <button onclick="filtrerHistoriqueEtNaviguer('devis','attente',null)" id="acc-devis-voir-tous"
+          style="display:none;width:100%;padding:8px;border:1px solid rgba(255,255,255,0.15);border-radius:10px;background:transparent;color:rgba(255,255,255,0.6);font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:7px;">
+          Voir tous les devis en attente →
+        </button>
       </div>
     </div>
 
@@ -3902,10 +3908,22 @@ async function envoyerDepuisPreview() {
     if (data.success) {
       showToast(`✉️ Envoyé à ${emailFinal} !`, '✅');
       shootConfetti();
-      // Vider le panier maintenant que l'envoi est confirmé
+      // Vider le panier + réinitialiser tous les champs du formulaire
       const prefixActuel = previewNumActuel?.startsWith('OS-') ? 'd' : 'f';
       if (prefixActuel === 'd') { panierD = []; renderPanier('d'); }
       else { panierF = []; renderPanier('f'); }
+      // Reset des champs texte
+      const champsClear = ['client','email','tel','adresse','description','objet','ville','prenom'];
+      champsClear.forEach(c => {
+        const el = document.getElementById(`${prefixActuel}-${c}`);
+        if (el) el.value = '';
+      });
+      // Reset autocomplete suggestions
+      const sugg = document.getElementById(`${prefixActuel}-suggestions`);
+      if (sugg) sugg.innerHTML = '';
+      // Reset remise
+      const remiseEl = document.getElementById(`${prefixActuel}-remise`);
+      if (remiseEl) remiseEl.value = '0';
       fermerPreview();
     } else {
       showToast('❌ ' + (data.error || 'Erreur envoi'), '⚠️');
@@ -6290,7 +6308,8 @@ async function chargerAccueil() {
     set('acc-retard',        reste > 0 ? `${factEnAttente.length} facture${factEnAttente.length>1?'s':''} en attente` : '\u2713 0 \u20ac en retard');
     set('acc-nb-att-fact',   `${factEnAttente.length} facture${factEnAttente.length>1?'s':''} en attente`);
     set('acc-devis-attente', devisEnAttente.length + ' devis');
-    // Badge sidebar Devis — réutilise la même valeur, pas de nouvel appel API
+
+    // Badge sidebar Devis
     const badgeDevis = document.getElementById('badge-devis');
     if (badgeDevis) {
       if (devisEnAttente.length > 0) {
@@ -6299,6 +6318,41 @@ async function chargerAccueil() {
       } else {
         badgeDevis.style.display = 'none';
       }
+    }
+
+    // Liste devis urgents dans le KPI — triés par urgence (J+21 > J+14 > J+7 > récents)
+    const urgentsEl = document.getElementById('acc-devis-urgents');
+    const voirTousBtn = document.getElementById('acc-devis-voir-tous');
+    if (urgentsEl && devisEnAttente.length > 0) {
+      const etapeScore = d => d.sms_relance_j21 ? 3 : d.sms_relance_j14 ? 2 : d.sms_relance_j7 ? 1 : 0;
+      const sorted = [...devisEnAttente].sort((a, b) => etapeScore(b) - etapeScore(a));
+      const top = sorted.slice(0, 4);
+
+      const etapeInfo = (d) => {
+        if (d.sms_relance_j21) return { label: 'J+21', bg: 'rgba(248,113,113,0.15)', color: '#f87171', border: 'rgba(248,113,113,0.3)', meta: '3 relances envoyées' };
+        if (d.sms_relance_j14) return { label: 'J+14', bg: 'rgba(251,146,60,0.15)', color: '#fb923c', border: 'rgba(251,146,60,0.3)', meta: 'J+21 dans 7 jours' };
+        if (d.sms_relance_j7)  return { label: 'J+7',  bg: 'rgba(251,191,36,0.15)', color: '#fbbf24', border: 'rgba(251,191,36,0.3)', meta: 'J+14 dans 7 jours' };
+        return { label: 'Récent', bg: 'rgba(148,163,184,0.12)', color: '#94a3b8', border: 'rgba(148,163,184,0.2)', meta: 'Relance J+7 à venir' };
+      };
+
+      urgentsEl.innerHTML = top.map(d => {
+        const e = etapeInfo(d);
+        const montant = Math.round(parseFloat(d.total_ht || 0)).toLocaleString('fr-FR');
+        const client = (d.client || '—').substring(0, 20);
+        return `<div onclick="allerSurDoc('${d.num}')" style="background:rgba(255,255,255,0.06);border-radius:10px;padding:8px 10px;display:flex;align-items:center;gap:9px;cursor:pointer;">
+          <div style="width:30px;height:30px;border-radius:8px;background:${e.bg};border:1px solid ${e.border};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:${e.color};flex-shrink:0;text-align:center;line-height:1.2;">${e.label}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:12px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${client}</div>
+            <div style="font-size:10px;color:rgba(255,255,255,0.45);margin-top:1px;">${e.meta}</div>
+          </div>
+          <div style="font-family:monospace;font-size:11.5px;color:#C9962A;font-weight:700;flex-shrink:0;">${montant} €</div>
+        </div>`;
+      }).join('');
+
+      if (voirTousBtn) voirTousBtn.style.display = devisEnAttente.length > 4 ? 'block' : 'none';
+    } else if (urgentsEl) {
+      urgentsEl.innerHTML = '<div style="text-align:center;font-size:11px;color:rgba(255,255,255,0.4);padding:8px;">✅ Aucun devis en attente</div>';
+      if (voirTousBtn) voirTousBtn.style.display = 'none';
     }
     set('acc-devis-relance', devisRelances.length > 0 ? `\u26a0 ${devisRelances.length} sans r\u00e9ponse +48h` : '\u2705 Tous r\u00e9cents');
     set('acc-total-devis',   `${devis.length} devis au total`);
