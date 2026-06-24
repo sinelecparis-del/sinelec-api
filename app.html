@@ -8181,8 +8181,10 @@ function _getItemsOfSection(sectionIdx) {
 }
 
 function _formatPrix(prixUnit, qte) {
-  const total = prixUnit * qte;
-  if (prixUnit === 0 || total === 0) return { label: 'OFFERT', color: '#16a34a', val: 0 };
+  const p = parseFloat(prixUnit) || 0;
+  const q = parseInt(qte) || 1;
+  const total = p * q;
+  if (p === 0 || total === 0) return { label: 'OFFERT', color: '#16a34a', val: 0 };
   return { label: `${total.toFixed(0)} €`, color: 'var(--accent)', val: total };
 }
 
@@ -8234,7 +8236,7 @@ function renderPanierSections() {
       itemNumInSect++;
       const subNum = sectNum > 0 ? `${sectNum}.${itemNumInSect}` : `${itemNumInSect}`;
       const prix = _formatPrix(p.prixUnit, p.qte);
-      totalGlobal += prix.val;
+      totalGlobal += (isNaN(prix.val) ? 0 : prix.val);
       itemCount++;
       html += `<div class="pan-section-item">
         <div style="display:flex;align-items:flex-start;gap:8px;padding:8px 10px;">
@@ -8782,6 +8784,7 @@ function renderPanier(prefix) {
 }
 
 function rafraichirTotaux(prefix, total) {
+  total = parseFloat(total) || 0;
   const remise       = getRemise(prefix, total);
   const netApayer    = total - remise;
   const acompte40    = netApayer * 0.4;
