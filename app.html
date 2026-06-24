@@ -1755,26 +1755,19 @@ table.histo-table tr:hover td { background:#fafbff; }
       <button class="histo-filter-btn" onclick="filtrerHistoriqueStatut('paye')">💰 Payées</button>
       <button class="histo-filter-btn" onclick="filtrerHistoriqueStatut('attente')">⏳ En attente</button>
       <input type="text" class="histo-search" placeholder="🔍 Rechercher..." oninput="rechercherHistorique(this.value)">
+      <select onchange="histoSortOrder=this.value;histoPage=1;renderTableauHistorique()" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:#fff;font-size:12px;font-weight:700;color:var(--text);font-family:inherit;cursor:pointer;">
+        <option value="date_desc">↓ Date</option>
+        <option value="date_asc">↑ Date</option>
+        <option value="montant_desc">↓ Montant</option>
+        <option value="montant_asc">↑ Montant</option>
+        <option value="client_asc">A→Z Client</option>
+      </select>
     </div>
 
-    <!-- Tableau -->
-    <table class="histo-table">
-      <thead>
-        <tr>
-          <th>Numéro</th>
-          <th>Type</th>
-          <th>Statut</th>
-          <th>Client / Chantier</th>
-          <th>Date</th>
-          <th>Intervention</th>
-          <th style="text-align:right;">Montant HT</th>
-          <th style="text-align:right;">Actions</th>
-        </tr>
-      </thead>
-      <tbody id="histo-table-body">
-        <tr><td colspan="8" style="text-align:center;padding:40px;color:#999;">Chargement...</td></tr>
-      </tbody>
-    </table>
+    <!-- Cards -->
+    <div id="histo-table-body" style="padding-bottom:16px;">
+      <div style="text-align:center;padding:40px;color:#999;">Chargement...</div>
+    </div>
 
     <!-- Pagination -->
     <div class="histo-pagination">
@@ -2466,7 +2459,50 @@ table.histo-table tr:hover td { background:#fafbff; }
     <div class="status" id="rap-status"></div>
   </div>
 </div></div>
-<div id="page-clients" class="page"><div class="content" style="max-width:900px;"><div class="section"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><div class="section-title" style="margin-bottom:0;">👥 Clients</div><input type="text" id="clients-search" placeholder="🔍 Rechercher..." oninput="filtrerClients(this.value)" style="padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:rgba(255,255,255,0.7);font-size:13px;width:200px;"></div><div id="clients-list">Chargement...</div></div></div></div>
+<div id="page-clients" class="page">
+<div class="content" style="max-width:900px;padding:0;">
+
+  <!-- Stats globales -->
+  <div id="cli-stats-bar" style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#E8E2D9;margin-bottom:0;">
+    <div style="background:#1B2A4A;padding:12px 14px;text-align:center;">
+      <div style="font-family:'Georgia',serif;font-size:22px;color:#C9962A;" id="cli-stat-total">—</div>
+      <div style="font-size:9px;color:rgba(255,255,255,0.6);margin-top:2px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Clients</div>
+    </div>
+    <div style="background:#1B2A4A;padding:12px 14px;text-align:center;border-left:1px solid rgba(255,255,255,0.08);">
+      <div style="font-family:'Georgia',serif;font-size:22px;color:#C9962A;" id="cli-stat-ca">—</div>
+      <div style="font-size:9px;color:rgba(255,255,255,0.6);margin-top:2px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">CA total</div>
+    </div>
+    <div style="background:#1B2A4A;padding:12px 14px;text-align:center;border-left:1px solid rgba(255,255,255,0.08);">
+      <div style="font-family:'Georgia',serif;font-size:22px;color:#C9962A;" id="cli-stat-reguliers">—</div>
+      <div style="font-size:9px;color:rgba(255,255,255,0.6);margin-top:2px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Réguliers</div>
+    </div>
+  </div>
+
+  <!-- Recherche + tri -->
+  <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:#fff;border-bottom:1px solid #E8E2D9;">
+    <input type="text" id="clients-search" placeholder="🔍 Nom, téléphone, adresse..."
+      oninput="filtrerClients(this.value)"
+      style="flex:1;border:1px solid #E8E2D9;border-radius:8px;padding:8px 10px;font-size:12.5px;background:#F5F2EE;font-family:inherit;outline:none;">
+    <select id="cli-sort" onchange="trierClients(this.value)"
+      style="border:1px solid #E8E2D9;border-radius:8px;padding:8px 10px;font-size:11.5px;background:#F5F2EE;font-family:inherit;outline:none;font-weight:700;color:#666;">
+      <option value="ca_desc">↓ CA</option>
+      <option value="az">A→Z</option>
+      <option value="recent">Récents</option>
+      <option value="nb_inter">Nb inter.</option>
+    </select>
+  </div>
+
+  <!-- Filtres -->
+  <div style="padding:10px 14px;display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid #E8E2D9;background:#fff;">
+    <button onclick="filtrerClientsTag('tous',this)" class="cli-filter-chip active" style="background:#1B2A4A;color:#C9962A;border:none;border-radius:20px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">Tous</button>
+    <button onclick="filtrerClientsTag('regulier',this)" class="cli-filter-chip" style="background:#F5F2EE;border:none;border-radius:20px;padding:5px 12px;font-size:11px;font-weight:700;color:#666;cursor:pointer;font-family:inherit;">⭐ Réguliers</button>
+    <button onclick="filtrerClientsTag('nouveau',this)" class="cli-filter-chip" style="background:#F5F2EE;border:none;border-radius:20px;padding:5px 12px;font-size:11px;font-weight:700;color:#666;cursor:pointer;font-family:inherit;">🆕 Nouveaux</button>
+    <button onclick="filtrerClientsTag('sans_avis',this)" class="cli-filter-chip" style="background:#F5F2EE;border:none;border-radius:20px;padding:5px 12px;font-size:11px;font-weight:700;color:#666;cursor:pointer;font-family:inherit;">📱 Sans avis</button>
+  </div>
+
+  <div id="clients-list" style="padding-bottom:20px;">Chargement...</div>
+</div>
+</div>
 <div id="page-sante" class="page"><div class="content"><div class="section"><div style="display:flex;justify-content:space-between;align-items:center;"><div class="section-title" style="margin-bottom:0;">🏥 Santé Système</div><button onclick="verifierSante()" class="btn-small">🔄 Vérifier</button></div><div id="sante-global" style="background:rgba(255,255,255,0.5);border-radius:14px;padding:20px;margin:16px 0;text-align:center;"><div id="sante-global-icon" style="font-size:40px;">⏳</div><div id="sante-global-text" style="font-size:15px;font-weight:700;margin-top:8px;">Chargement...</div></div><div id="sante-services" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;"></div>
 <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">
   <button onclick="recupererSumupMerchantCode()" class="btn-small">🔑 Récupérer mon code marchand SumUp</button>
@@ -4386,35 +4422,82 @@ async function chargerClients() {
   } catch(e) { container.innerHTML = `<div style="color:var(--error);text-align:center;padding:40px;">❌ ${e.message}</div>`; }
 }
 
+let _cliSortMode = 'ca_desc';
+let _cliFilterTag = 'tous';
+
+function trierClients(mode) {
+  _cliSortMode = mode;
+  filtrerClients(document.getElementById('clients-search')?.value || '');
+}
+
+function filtrerClientsTag(tag, btn) {
+  _cliFilterTag = tag;
+  document.querySelectorAll('.cli-filter-chip').forEach(b => {
+    b.style.background = '#F5F2EE'; b.style.color = '#666';
+  });
+  if (btn) { btn.style.background = '#1B2A4A'; btn.style.color = '#C9962A'; }
+  filtrerClients(document.getElementById('clients-search')?.value || '');
+}
+
 function renderListeClients(liste) {
   const container = document.getElementById('clients-list');
   if (!container) return;
-  if (!liste.length) { container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-3);">Aucun client</div>'; return; }
-  container.innerHTML = liste.map(c => {
+
+  // Stats globales
+  const totalCa = liste.reduce((s, c) => s + (c._ca || 0), 0);
+  const reguliers = liste.filter(c => (c._interventions?.length || 0) >= 2).length;
+  const statTotal = document.getElementById('cli-stat-total');
+  const statCa = document.getElementById('cli-stat-ca');
+  const statReg = document.getElementById('cli-stat-reguliers');
+  if (statTotal) statTotal.textContent = liste.length;
+  if (statCa) statCa.textContent = Math.round(totalCa).toLocaleString('fr-FR') + '€';
+  if (statReg) statReg.textContent = reguliers;
+
+  // Filtrer par tag
+  let filtered = [...liste];
+  if (_cliFilterTag === 'regulier') filtered = filtered.filter(c => (c._interventions?.length || 0) >= 2);
+  else if (_cliFilterTag === 'nouveau') filtered = filtered.filter(c => (c._interventions?.length || 0) < 2);
+  else if (_cliFilterTag === 'sans_avis') filtered = filtered.filter(c => !c.sms_avis_envoye && !c.sms_avis_campagne_envoye);
+
+  // Trier
+  filtered.sort((a, b) => {
+    if (_cliSortMode === 'ca_desc') return (b._ca || 0) - (a._ca || 0);
+    if (_cliSortMode === 'az') return (a.nom || '').localeCompare(b.nom || '');
+    if (_cliSortMode === 'recent') return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+    if (_cliSortMode === 'nb_inter') return (b._interventions?.length || 0) - (a._interventions?.length || 0);
+    return 0;
+  });
+
+  if (!filtered.length) { container.innerHTML = '<div style="text-align:center;padding:40px;color:#999;">Aucun client trouvé</div>'; return; }
+
+  container.innerHTML = filtered.map(c => {
     const nom = c.nom || '—';
     const tel = c.telephone || '';
     const email = c.email || '';
     const adresse = c.adresse || '';
     const adresseEnc = encodeURIComponent(adresse);
-    const ca = (c._ca || c.ca_total || 0).toFixed(0);
+    const ca = Math.round(c._ca || c.ca_total || 0);
     const nbInter = c._interventions?.length || c.nb_interventions || 0;
+    const initiales = nom.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+    const isRegulier = nbInter >= 2;
+    const isNouveau = nbInter < 2;
     return `
-    <div style="background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:16px;margin-bottom:10px;overflow:hidden;transition:all 0.2s;">
-      <!-- Header cliquable pour ouvrir/fermer -->
-      <div onclick="toggleFicheClient('fiche-${c.id||nom.replace(/\s/g,'')}',this)" style="padding:14px 16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;">
+    <div style="background:#fff;border-bottom:1px solid #F5F2EE;overflow:hidden;">
+      <!-- Header card -->
+      <div onclick="toggleFicheClient('fiche-${c.id||nom.replace(/\s/g,'')}',this)"
+        style="padding:12px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:background .15s;"
+        onmouseover="this.style.background='#FAFAF8'" onmouseout="this.style.background='#fff'">
+        <div style="width:38px;height:38px;border-radius:12px;background:linear-gradient(135deg,#1B2A4A,#243660);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:#C9962A;flex-shrink:0;">${initiales}</div>
         <div style="flex:1;min-width:0;">
-          <div style="font-size:15px;font-weight:800;color:var(--text);">${nom}</div>
-          <div style="font-size:12px;color:var(--text-3);margin-top:2px;">
-            ${tel ? `📞 ${tel}` : ''}
-            ${email ? `&nbsp;·&nbsp;${email}` : ''}
-          </div>
+          <div style="font-size:13px;font-weight:800;color:#1B2A4A;">${nom}</div>
+          <div style="font-size:10.5px;color:#999;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${tel ? `📞 ${tel}` : ''}${email ? ` · ${email}` : ''}</div>
         </div>
-        <div style="text-align:right;margin-left:12px;">
-          <div style="font-size:16px;font-weight:900;color:var(--accent);">${ca} €</div>
-          <div style="font-size:11px;color:var(--text-3);">${nbInter} inter.</div>
-          ${nbInter >= 2 ? '<div style="font-size:9px;background:#F0FDF4;color:#16a34a;font-weight:700;padding:2px 6px;border-radius:8px;margin-top:3px">⭐ Régulier</div>' : ''}
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="font-family:monospace;font-size:12.5px;font-weight:700;color:#C9962A;">${ca.toLocaleString('fr-FR')} €</div>
+          <div style="font-size:10px;color:#999;margin-top:1px;">${nbInter} inter.</div>
+          ${isRegulier ? '<div style="display:inline-block;font-size:9px;font-weight:800;padding:2px 6px;border-radius:6px;margin-top:2px;background:#F0FDF4;color:#16a34a;">⭐ Régulier</div>' : '<div style="display:inline-block;font-size:9px;font-weight:800;padding:2px 6px;border-radius:6px;margin-top:2px;background:#EEF2FF;color:#3b82f6;">🆕 Nouveau</div>'}
         </div>
-        <span style="font-size:18px;color:var(--text-3);margin-left:10px;transition:transform 0.2s;" id="arrow-${c.id||nom.replace(/\s/g,'')}">▾</span>
+        <span style="font-size:16px;color:#ccc;margin-left:6px;" id="arrow-${c.id||nom.replace(/\s/g,'')}">▾</span>
       </div>
 
       <!-- Fiche détaillée -->
@@ -6725,14 +6808,14 @@ function renderTableauHistorique() {
     btnsEl.innerHTML += `<div class="histo-page-btn" onclick="histoChangePage(${histoPage+1})">›</div>`;
   }
 
-  // Tableau
+  // Cards
   if (!pageData.length) {
-    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:40px;color:#999;font-size:14px;">Aucun document trouvé</td></tr>`;
+    tbody.innerHTML = `<div style="text-align:center;padding:40px;color:#999;font-size:14px;">Aucun document trouvé</div>`;
     return;
   }
 
 
-  tbody.innerHTML = pageData.map(item => {
+  const cards = pageData.map(item => {
     const statut = (item.statut||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
     const type = item.type || (item.num?.startsWith('OS-') ? 'devis' : 'facture');
     const isObat = item.source === 'obat';
@@ -6823,23 +6906,50 @@ function renderTableauHistorique() {
     window._histoItemMap[item.num] = item;
     const rowMobileClick = `onclick="if(window.innerWidth<=768){const it=window._histoItemMap['${item.num}'];if(it)ouvrirActionSheet(it);}"`;
 
-    return `<tr ${rowMobileClick}>
-      <td class="ht-num">${item.num}</td>
-      <td>${typeBadge}</td>
-      <td>
-        ${statutBadge}
-        ${emailBadge ? `<div style="margin-top:4px;">${emailBadge}</div>` : ''}
-      </td>
-      <td>
-        <div class="ht-client">${item.client||'—'}</div>
-        <div class="ht-desc">${prestNom.substring(0,40)}${prestNom.length>40?'...':''}</div>
-      </td>
-      <td class="ht-date">${date}</td>
-      <td class="ht-date">${dateInterv}</td>
-      <td class="ht-montant" style="color:${estPaye?'#16a34a':'#1a1a2e'}">${parseInt(montant).toLocaleString('fr-FR')} €</td>
-      <td class="ht-actions">${actions}</td>
-    </tr>`;
-  }).join('');
+    // Icône selon type/source
+    const docIcon = isObat ? '📦' : type === 'devis' ? '📋' : '💶';
+    const iconBg   = isObat ? '#FEF9EC' : type === 'devis' ? '#EEF2FF' : '#F0FDF4';
+
+    // Badge statut compact
+    let badgeStyle, badgeLabel;
+    if (estPaye)        { badgeStyle = 'background:#d1fae5;color:#065f46'; badgeLabel = 'PAYÉ'; }
+    else if (estSigne)  { badgeStyle = 'background:#dcfce7;color:#15803d'; badgeLabel = 'SIGNÉ'; }
+    else if (estAnnule) { badgeStyle = 'background:#f3f4f6;color:#6b7280'; badgeLabel = 'ANNULÉ'; }
+    else if (statut==='expire') { badgeStyle = 'background:#f3f4f6;color:#9ca3af'; badgeLabel = 'EXPIRÉ'; }
+    else if (estAlerte) { badgeStyle = 'background:#fef2f2;color:#dc2626'; badgeLabel = '+48H'; }
+    else                { badgeStyle = 'background:#fef3c7;color:#d97706'; badgeLabel = 'ATTENTE'; }
+
+    return `<div ${rowMobileClick} onclick="if(window.innerWidth>768){const it=window._histoItemMap['${item.num}'];if(it)ouvrirPreviewAvecActions(it.num,null,it.email,it.type,it.telephone);}"
+      style="background:#fff;border-bottom:1px solid #F5F2EE;padding:11px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:background .15s;"
+      onmouseover="this.style.background='#FAFAF8'" onmouseout="this.style.background='#fff'">
+      <div style="width:36px;height:36px;border-radius:10px;background:${iconBg};display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">${docIcon}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:800;color:#1B2A4A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.client||'—'}</div>
+        <div style="font-size:10.5px;color:#999;margin-top:1px;">${item.num} · ${date}${emailBadge ? ' · <span style="color:#16a34a;font-weight:700;">👁️ Lu</span>' : ''}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;">
+        <div style="font-family:monospace;font-size:13px;font-weight:700;color:${estPaye?'#16a34a':'#1B2A4A'};">${parseInt(montant).toLocaleString('fr-FR')} €</div>
+        <div style="display:inline-block;font-size:9px;font-weight:800;padding:2px 7px;border-radius:6px;margin-top:3px;${badgeStyle}">${badgeLabel}</div>
+      </div>
+      <div class="ht-actions" onclick="event.stopPropagation()">${actions}</div>
+    </div>`;
+  });
+
+  // Grouper par mois
+  const moisFr = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const grouped = {};
+  const groupOrder = [];
+  pageData.forEach((item, idx) => {
+    const d = new Date(item.created_at || item.date);
+    const key = `${moisFr[d.getMonth()]} ${d.getFullYear()}`;
+    if (!grouped[key]) { grouped[key] = []; groupOrder.push(key); }
+    grouped[key].push(cards[idx]);
+  });
+
+  tbody.innerHTML = groupOrder.map(mois => `
+    <div style="padding:7px 14px 3px;font-size:10px;font-weight:800;color:#C9962A;text-transform:uppercase;letter-spacing:1px;background:#F5F2EE;">${mois}</div>
+    ${grouped[mois].join('')}
+  `).join('');
 }
 
 function histoChangePage(p) {
