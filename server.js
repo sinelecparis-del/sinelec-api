@@ -2498,7 +2498,7 @@ app.post('/api/chat', async (req, res) => {
   try {
     const { message } = req.body;
     const response = await anthropic.messages.create({
-      model: 'claude-opus-4-5',
+      model: 'claude-sonnet-4-6',
       max_tokens: 1500,
       system: `Tu es l'assistant SINELEC, expert électricien Paris. Aide à préparer des devis détaillés.`,
       messages: [{ role: 'user', content: message }]
@@ -2867,7 +2867,7 @@ Réponds UNIQUEMENT en JSON valide, sans markdown :
 }`;
 
     const response = await anthropic.messages.create({
-      model: 'claude-opus-4-5',
+      model: 'claude-sonnet-4-6',
       max_tokens: 1500,
       messages: [{
         role: 'user',
@@ -2961,7 +2961,7 @@ Garde uniquement les travaux électriques pertinents (max 5-6 recommandations).`
     }
 
     const response = await anthropic.messages.create({
-      model: 'claude-opus-4-5',
+      model: 'claude-sonnet-4-6',
       max_tokens: 2000,
       messages: [{ role: 'user', content: messageContent }]
     });
