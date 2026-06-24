@@ -6925,7 +6925,10 @@ function renderTableauHistorique() {
       <div style="width:36px;height:36px;border-radius:10px;background:${iconBg};display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">${docIcon}</div>
       <div style="flex:1;min-width:0;">
         <div style="font-size:13px;font-weight:800;color:#1B2A4A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.client||'—'}</div>
-        <div style="font-size:10.5px;color:#999;margin-top:1px;">${item.num} · ${date}${emailBadge ? ' · <span style="color:#16a34a;font-weight:700;">👁️ Lu</span>' : ''}</div>
+        <div style="font-size:10.5px;color:#999;margin-top:1px;display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
+          <span>${item.num} · ${date}</span>
+          ${item.email_ouvert ? `<span style="background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;border-radius:10px;padding:1px 6px;font-size:9px;font-weight:800;">👁️ Lu${item.nb_ouvertures > 1 ? ' ×'+item.nb_ouvertures : ''}</span>` : (item.email ? '<span style="background:#f3f4f6;color:#9ca3af;border-radius:10px;padding:1px 6px;font-size:9px;font-weight:700;">📧 Non lu</span>' : '')}
+        </div>
       </div>
       <div style="text-align:right;flex-shrink:0;">
         <div style="font-family:monospace;font-size:13px;font-weight:700;color:${estPaye?'#16a34a':'#1B2A4A'};">${parseInt(montant).toLocaleString('fr-FR')} €</div>
