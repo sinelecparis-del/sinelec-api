@@ -1395,11 +1395,74 @@ table.histo-table tr:hover td { background:#fafbff; }
   </div>
 </div>
 
+<!-- ════ INTERFACE STANDARDISTE ════ -->
+<div id="standardiste-app" style="display:none;flex-direction:column;height:100vh;width:100%;max-width:600px;margin:0 auto;background:#F2EDE6;position:fixed;top:0;left:0;right:0;z-index:9999;">
+  <div style="background:#1B2A4A;padding:14px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0;">
+    <div style="width:30px;height:30px;background:linear-gradient(135deg,#C9962A,#E8B84B);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;">⚡</div>
+    <div style="font-size:13px;font-weight:800;color:#fff;flex:1;">SINELEC — Standard</div>
+    <div style="background:rgba(201,150,42,0.2);color:#E8B84B;font-size:10px;font-weight:800;padding:3px 8px;border-radius:8px;">📞 Standardiste</div>
+    <button onclick="deconnexionStandardiste()" style="background:none;border:none;color:rgba(255,255,255,0.5);font-size:11px;cursor:pointer;padding:4px 8px;">Déco</button>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px;background:#E8E2D9;padding:4px;flex-shrink:0;">
+    <button onclick="switchStdTab('lead',this)" id="std-tab-lead" style="padding:9px 4px;border-radius:9px;background:#fff;color:#1B2A4A;border:none;font-family:inherit;font-size:11px;font-weight:800;cursor:pointer;">📞 Lead</button>
+    <button onclick="switchStdTab('devis',this)" id="std-tab-devis" style="padding:9px 4px;border-radius:9px;background:transparent;color:#999;border:none;font-family:inherit;font-size:11px;font-weight:800;cursor:pointer;">📋 Devis</button>
+    <button onclick="switchStdTab('grille',this)" id="std-tab-grille" style="padding:9px 4px;border-radius:9px;background:transparent;color:#999;border:none;font-family:inherit;font-size:11px;font-weight:800;cursor:pointer;">💰 Tarifs</button>
+  </div>
+  <div style="flex:1;overflow-y:auto;">
+    <div id="std-page-lead" style="padding:16px;">
+      <div style="font-size:12px;font-weight:800;color:#1B2A4A;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">Enregistrer un appel</div>
+      <div style="margin-bottom:10px;"><label style="font-size:11px;font-weight:700;color:#666;display:block;margin-bottom:4px;">Nom du client</label><input id="std-client" placeholder="M. Dupont Jean" style="width:100%;padding:11px 12px;border:1.5px solid #E8E2D9;border-radius:10px;background:#fff;font-family:inherit;font-size:13px;color:#1B2A4A;outline:none;"></div>
+      <div style="margin-bottom:10px;"><label style="font-size:11px;font-weight:700;color:#666;display:block;margin-bottom:4px;">Téléphone</label><input id="std-tel" placeholder="06 12 34 56 78" type="tel" style="width:100%;padding:11px 12px;border:1.5px solid #E8E2D9;border-radius:10px;background:#fff;font-family:inherit;font-size:13px;color:#1B2A4A;outline:none;"></div>
+      <div style="margin-bottom:10px;"><label style="font-size:11px;font-weight:700;color:#666;display:block;margin-bottom:4px;">Adresse</label><input id="std-adresse" placeholder="12 rue de Paris, 94200 Ivry" style="width:100%;padding:11px 12px;border:1.5px solid #E8E2D9;border-radius:10px;background:#fff;font-family:inherit;font-size:13px;color:#1B2A4A;outline:none;"></div>
+      <div style="margin-bottom:10px;"><label style="font-size:11px;font-weight:700;color:#666;display:block;margin-bottom:4px;">Type d'intervention</label>
+        <select id="std-type" style="width:100%;padding:11px 12px;border:1.5px solid #E8E2D9;border-radius:10px;background:#fff;font-family:inherit;font-size:13px;color:#1B2A4A;outline:none;">
+          <option>⚡ Panne électrique générale</option><option>🔌 Tableau électrique</option><option>💡 Problème éclairage</option><option>🔧 Prise / Interrupteur</option><option>🌡️ Chauffage électrique</option><option>🏠 Mise en conformité</option><option>📋 Devis travaux</option><option>🔍 Diagnostic</option>
+        </select>
+      </div>
+      <div style="margin-bottom:10px;"><label style="font-size:11px;font-weight:700;color:#666;display:block;margin-bottom:4px;">Urgence</label>
+        <div style="display:flex;gap:6px;">
+          <button onclick="setUrgenceStd('normal',this)" class="std-urgence-btn" data-urgence="normal" style="flex:1;padding:8px;border-radius:10px;border:1.5px solid #16a34a;background:#f0fdf4;color:#16a34a;font-family:inherit;font-size:11px;font-weight:800;cursor:pointer;">✅ Normal</button>
+          <button onclick="setUrgenceStd('urgent',this)" class="std-urgence-btn" data-urgence="urgent" style="flex:1;padding:8px;border-radius:10px;border:1.5px solid #E8E2D9;background:#fff;color:#999;font-family:inherit;font-size:11px;font-weight:800;cursor:pointer;">🟠 Urgent</button>
+          <button onclick="setUrgenceStd('tres_urgent',this)" class="std-urgence-btn" data-urgence="tres_urgent" style="flex:1;padding:8px;border-radius:10px;border:1.5px solid #E8E2D9;background:#fff;color:#999;font-family:inherit;font-size:11px;font-weight:800;cursor:pointer;">🔴 Très urgent</button>
+        </div>
+      </div>
+      <div style="margin-bottom:14px;"><label style="font-size:11px;font-weight:700;color:#666;display:block;margin-bottom:4px;">Note (optionnel)</label><textarea id="std-note" placeholder="Infos complémentaires..." style="width:100%;padding:11px 12px;border:1.5px solid #E8E2D9;border-radius:10px;background:#fff;font-family:inherit;font-size:13px;color:#1B2A4A;outline:none;height:70px;resize:none;"></textarea></div>
+      <button onclick="envoyerLeadStdWhatsApp()" style="width:100%;padding:14px;border:none;border-radius:12px;background:linear-gradient(135deg,#25D366,#128C7E);color:#fff;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer;margin-bottom:16px;">📲 Envoyer le lead par WhatsApp</button>
+      <div style="font-size:12px;font-weight:800;color:#1B2A4A;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Leads du jour</div>
+      <div id="std-leads-list"><div style="text-align:center;padding:20px;color:#999;font-size:12px;">Aucun lead aujourd'hui</div></div>
+    </div>
+    <div id="std-page-devis" style="display:none;padding:16px;">
+      <div style="font-size:12px;font-weight:800;color:#1B2A4A;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">Créer un devis ou facture</div>
+      <div style="background:#fff;border-radius:12px;padding:20px;text-align:center;color:#666;font-size:13px;line-height:1.8;">
+        <div style="font-size:32px;margin-bottom:10px;">📋</div>
+        <div style="font-weight:700;color:#1B2A4A;margin-bottom:6px;">Formulaire devis complet</div>
+        <div style="font-size:12px;color:#999;margin-bottom:14px;">Accès à toute la grille tarifaire SINELEC</div>
+        <button onclick="ouvrirFormulaireDevisStd()" style="width:100%;padding:13px;border:none;border-radius:10px;background:#1B2A4A;color:#C9962A;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer;">⚡ Créer un devis</button>
+      </div>
+      <div style="margin-top:10px;background:#fff;border-radius:12px;padding:20px;text-align:center;">
+        <div style="font-size:32px;margin-bottom:10px;">💶</div>
+        <div style="font-weight:700;color:#1B2A4A;margin-bottom:6px;">Créer une facture</div>
+        <button onclick="ouvrirFormulaireFactureStd()" style="width:100%;padding:13px;border:none;border-radius:10px;background:#1B2A4A;color:#C9962A;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer;">💶 Créer une facture</button>
+      </div>
+    </div>
+    <div id="std-page-grille" style="display:none;padding:16px;">
+      <div style="font-size:12px;font-weight:800;color:#1B2A4A;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Tarifs SINELEC <span style="font-size:9px;background:#F0FDF4;color:#16a34a;padding:2px 6px;border-radius:6px;font-weight:700;">Lecture seule</span></div>
+      <input id="std-grille-search" oninput="rechercherGrilleStd(this.value)" placeholder="🔍 Rechercher une prestation..." style="width:100%;padding:10px 12px;border:1.5px solid #E8E2D9;border-radius:10px;background:#fff;font-family:inherit;font-size:12.5px;margin-bottom:12px;outline:none;">
+      <div id="std-grille-list"></div>
+      <div style="margin-top:12px;padding:10px 12px;background:#FEF3C7;border-radius:10px;font-size:11px;color:#92400E;line-height:1.6;"><b>⚠️ Rappel :</b> Ces tarifs sont indicatifs. Le technicien établit le devis définitif sur place. Le déplacement peut être offert si intervention > 200€.</div>
+    </div>
+  </div>
+</div>
+
+<div id="main-app-std-wrapper" style="display:contents;">
 <!-- ════════════ SIDEBAR DESKTOP ════════════ -->
 <div class="sidebar">
   <div class="sidebar-logo">
     <div class="sidebar-logo-icon">⚡</div>
     <div class="sidebar-logo-text"><h1>SINELEC</h1><span>Paris & IDF</span></div>
+  </div>
+  <div id="std-back-btn" style="display:none;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.08);">
+    <button onclick="retourStandardiste()" style="width:100%;padding:10px;border:none;border-radius:10px;background:rgba(201,150,42,0.15);color:#E8B84B;font-family:inherit;font-size:12px;font-weight:800;cursor:pointer;">← Retour Standard</button>
   </div>
   <div class="sidebar-nav">
 
@@ -2985,7 +3048,18 @@ async function seConnecter() {
   try {
     const res = await _originalFetch('/api/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ password: pwd }) });
     const data = await res.json();
-    if (data.success && data.token) { saveToken(data.token); masquerLogin(); initialiserApp(); }
+    if (data.success && data.token) {
+      saveToken(data.token);
+      localStorage.setItem('sinelec_role', data.role || 'admin');
+      masquerLogin();
+      if (data.role === 'standardiste') {
+        document.getElementById('main-app').style.display = 'none';
+        document.getElementById('standardiste-app').style.display = 'flex';
+        chargerStandardiste();
+      } else {
+        initialiserApp();
+      }
+    }
     else { errEl.style.display = 'block'; document.getElementById('login-password').value = ''; document.getElementById('login-password').focus(); }
   } catch(e) { errEl.textContent = '❌ Erreur réseau'; errEl.style.display = 'block'; }
   btn.disabled = false; btn.textContent = '🔐 Connexion';
@@ -3007,6 +3081,14 @@ async function verifierAuth() {
 }
 
 function initialiserApp() {
+  const role = localStorage.getItem('sinelec_role') || 'admin';
+  if (role === 'standardiste') {
+    masquerLogin();
+    document.getElementById('main-app').style.display = 'none';
+    document.getElementById('standardiste-app').style.display = 'flex';
+    chargerStandardiste();
+    return;
+  }
   masquerLogin();
   // Réinitialiser les filtres APRÈS que les variables let soient déclarées
   setTimeout(() => {
@@ -4134,6 +4216,166 @@ async function chargerDashboard() {
 // ═══════════════════════════════════════════════════
 let agendaInterventions = [];
 
+
+
+// ═══════════════════════════════════════════════════
+// INTERFACE STANDARDISTE
+// ═══════════════════════════════════════════════════
+let _stdUrgence = 'normal';
+let _stdLeadsDuJour = [];
+
+function deconnexionStandardiste() {
+  localStorage.removeItem('sinelec_token');
+  localStorage.removeItem('sinelec_role');
+  document.getElementById('standardiste-app').style.display = 'none';
+  afficherLogin();
+}
+
+function switchStdTab(tab, btn) {
+  ['lead','devis','grille'].forEach(t => {
+    document.getElementById('std-page-' + t).style.display = 'none';
+    const b = document.getElementById('std-tab-' + t);
+    if (b) { b.style.background = 'transparent'; b.style.color = '#999'; }
+  });
+  document.getElementById('std-page-' + tab).style.display = 'block';
+  if (btn) { btn.style.background = '#fff'; btn.style.color = '#1B2A4A'; }
+  if (tab === 'grille') renderGrilleStd('');
+}
+
+function setUrgenceStd(val, btn) {
+  _stdUrgence = val;
+  document.querySelectorAll('.std-urgence-btn').forEach(b => {
+    b.style.background = '#fff'; b.style.color = '#999'; b.style.borderColor = '#E8E2D9';
+  });
+  const styles = { normal: ['#f0fdf4','#16a34a'], urgent: ['#fffbeb','#d97706'], tres_urgent: ['#fef2f2','#dc2626'] };
+  const [bg, color] = styles[val] || ['#f0fdf4','#16a34a'];
+  btn.style.background = bg; btn.style.color = color; btn.style.borderColor = color;
+}
+
+function chargerStandardiste() {
+  renderLeadsDuJourStd();
+}
+
+function renderLeadsDuJourStd() {
+  const el = document.getElementById('std-leads-list');
+  if (!el) return;
+  if (!_stdLeadsDuJour.length) {
+    el.innerHTML = '<div style="text-align:center;padding:20px;color:#999;font-size:12px;">Aucun lead aujourd\'hui</div>';
+    return;
+  }
+  const urgColors = { normal: '#16a34a', urgent: '#d97706', tres_urgent: '#dc2626' };
+  const urgLabels = { normal: '✅ Normal', urgent: '🟠 Urgent', tres_urgent: '🔴 Très urgent' };
+  el.innerHTML = _stdLeadsDuJour.map((l, i) => `
+    <div style="background:#fff;border-radius:12px;padding:12px 14px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,0.04);">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:800;color:#1B2A4A;">${l.client}</div>
+          <div style="font-size:11px;color:#999;margin-top:2px;">${l.type} · ${l.heure}</div>
+          <div style="font-size:10px;font-weight:700;color:${urgColors[l.urgence]||'#16a34a'};margin-top:2px;">${urgLabels[l.urgence]||'✅ Normal'}</div>
+        </div>
+        <button onclick="renvoyerLeadStdWhatsApp(${i})" style="background:#25D36615;border:1px solid #25D36640;color:#25D366;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;">📲 Renvoyer</button>
+      </div>
+    </div>`).join('');
+}
+
+function envoyerLeadStdWhatsApp() {
+  const client  = document.getElementById('std-client')?.value.trim();
+  const tel     = document.getElementById('std-tel')?.value.trim();
+  const adresse = document.getElementById('std-adresse')?.value.trim();
+  const type    = document.getElementById('std-type')?.value;
+  const note    = document.getElementById('std-note')?.value.trim();
+
+  if (!client) { alert('Nom du client obligatoire'); return; }
+  if (!tel)    { alert('Téléphone obligatoire'); return; }
+
+  const urgLabels = { normal: '✅ Normal', urgent: '🟠 URGENT', tres_urgent: '🔴 TRÈS URGENT' };
+  const urgLabel = urgLabels[_stdUrgence] || '✅ Normal';
+  const heure = new Date().toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
+
+  const msg = [
+    '⚡ *Nouveau lead SINELEC*',
+    '',
+    `👤 Client : ${client}`,
+    tel ? `📞 ${tel}` : null,
+    adresse ? `📍 ${adresse}` : null,
+    '',
+    `🔧 ${type}`,
+    `⏰ Heure appel : ${heure}`,
+    `${urgLabel}`,
+    note ? `📝 Note : ${note}` : null,
+  ].filter(l => l !== null).join('\n');
+
+  const url = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+  window.open(url, '_blank');
+
+  // Enregistrer dans la liste du jour
+  _stdLeadsDuJour.unshift({ client, tel, adresse, type, urgence: _stdUrgence, heure, note, msg });
+  renderLeadsDuJourStd();
+
+  // Reset form
+  ['std-client','std-tel','std-adresse','std-note'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  setUrgenceStd('normal', document.querySelector('.std-urgence-btn[data-urgence="normal"]'));
+
+  // Enregistrer en agenda Supabase aussi
+  fetch('/api/agenda', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('sinelec_token') || '') },
+    body: JSON.stringify({ client, telephone: tel, adresse, type_intervention: type, statut: 'lead', notes: note })
+  }).catch(() => {});
+}
+
+function renvoyerLeadStdWhatsApp(idx) {
+  const l = _stdLeadsDuJour[idx];
+  if (!l) return;
+  window.open(`https://wa.me/?text=${encodeURIComponent(l.msg)}`, '_blank');
+}
+
+function retourStandardiste() {
+  document.getElementById('std-back-btn').style.display = 'none';
+  document.getElementById('main-app-std-wrapper').style.display = 'none';
+  document.getElementById('standardiste-app').style.display = 'flex';
+}
+
+function ouvrirFormulaireDevisStd() {
+  document.getElementById('standardiste-app').style.display = 'none';
+  document.getElementById('main-app-std-wrapper').style.display = 'contents';
+  document.getElementById('std-back-btn').style.display = 'block';
+  switchPage('depannage', null);
+}
+
+function ouvrirFormulaireFactureStd() {
+  document.getElementById('standardiste-app').style.display = 'none';
+  document.getElementById('main-app-std-wrapper').style.display = 'contents';
+  document.getElementById('std-back-btn').style.display = 'block';
+  switchPage('facture', null);
+}
+
+function renderGrilleStd(search) {
+  const el = document.getElementById('std-grille-list');
+  if (!el || typeof GRILLE === 'undefined') return;
+  const s = (search || '').toLowerCase();
+  let html = '';
+  Object.entries(GRILLE).forEach(([cat, items]) => {
+    const filtres = Object.entries(items).filter(([nom]) => !s || nom.toLowerCase().includes(s));
+    if (!filtres.length) return;
+    html += `<div style="font-size:10px;font-weight:800;color:#C9962A;text-transform:uppercase;letter-spacing:.5px;padding:8px 0 4px;">${cat}</div>`;
+    html += `<div style="background:#fff;border-radius:10px;overflow:hidden;margin-bottom:8px;">`;
+    filtres.forEach(([nom, data]) => {
+      html += `<div style="padding:10px 14px;border-bottom:1px solid #F5F2EE;display:flex;align-items:center;justify-content:space-between;">
+        <div style="font-size:12px;font-weight:700;color:#1B2A4A;flex:1;padding-right:10px;">${nom}</div>
+        <div style="font-family:monospace;font-size:13px;font-weight:700;color:#C9962A;flex-shrink:0;">${data.f} €</div>
+      </div>`;
+    });
+    html += `</div>`;
+  });
+  el.innerHTML = html || '<div style="text-align:center;padding:20px;color:#999;">Aucun résultat</div>';
+}
+
+function rechercherGrilleStd(val) {
+  renderGrilleStd(val);
+}
 
 // ═══════════════════════════════════════════════════
 // CRÉER DEVIS DEPUIS UN LEAD AGENDA
