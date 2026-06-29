@@ -73,15 +73,25 @@ app.use(express.static(__dirname));
 // AUTH
 // ═══════════════════════════════════════════════════
 
-const APP_PASSWORD = process.env.APP_PASSWORD || 'sinelec2026';
+const APP_PASSWORD      = process.env.APP_PASSWORD      || 'sinelec2026';
+const STANDARD_PASSWORD = process.env.STANDARD_PASSWORD || 'standard2026';
 const JWT_SECRET   = process.env.JWT_SECRET   || crypto.randomBytes(32).toString('hex');
 const TOKEN_EXPIRY = 7 * 24 * 60 * 60 * 1000;
 
-function genererToken() {
-  const payload = JSON.stringify({ ts: Date.now(), exp: Date.now() + TOKEN_EXPIRY });
+function genererToken(role = 'admin') {
+  const payload = JSON.stringify({ ts: Date.now(), exp: Date.now() + TOKEN_EXPIRY, role });
   const b64 = Buffer.from(payload).toString('base64');
   const sig = crypto.createHmac('sha256', JWT_SECRET).update(b64).digest('hex');
   return `${b64}.${sig}`;
+}
+
+function getRoleFromToken(token) {
+  if (!token) return null;
+  try {
+    const [b64] = token.split('.');
+    const { role } = JSON.parse(Buffer.from(b64, 'base64').toString());
+    return role || 'admin';
+  } catch(e) { return null; }
 }
 
 function verifierToken(token) {
@@ -106,10 +116,16 @@ function authMiddleware(req, res, next) {
 app.use(authMiddleware);
 
 app.post('/api/login', (req, res) => {
-  const inputPwd = String(req.body.password || '').trim();
-  const validPwd = String(APP_PASSWORD).trim();
-  if (inputPwd !== validPwd) return res.status(401).json({ error: 'Mot de passe incorrect' });
-  res.json({ success: true, token: genererToken(), expiresIn: TOKEN_EXPIRY });
+  const inputPwd  = String(req.body.password || '').trim();
+  const adminPwd  = String(APP_PASSWORD).trim();
+  const stdPwd    = String(STANDARD_PASSWORD).trim();
+  if (inputPwd === adminPwd) {
+    return res.json({ success: true, token: genererToken('admin'), role: 'admin', expiresIn: TOKEN_EXPIRY });
+  }
+  if (inputPwd === stdPwd) {
+    return res.json({ success: true, token: genererToken('standardiste'), role: 'standardiste', expiresIn: TOKEN_EXPIRY });
+  }
+  return res.status(401).json({ error: 'Mot de passe incorrect' });
 });
 
 app.get('/api/auth/check', (req, res) => {
@@ -489,7 +505,9 @@ app.post('/api/generer', async (req, res) => {
         },
         _items: itemsData
       };
-      fs.writeFileSync(detailsPath, JSON.stringify(jsonPayload));
+      const roleGenerateur = getRoleFromToken(req.headers['authorization']?.replace('Bearer ', ''));
+    jsonPayload._meta.standardiste = (roleGenerateur === 'standardiste');
+    fs.writeFileSync(detailsPath, JSON.stringify(jsonPayload));
 
       const py = `# -*- coding: utf-8 -*-
 import json, base64, io, sys
@@ -1008,6 +1026,21 @@ app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
 
     // CC si fourni
     if (cc) { try { await envoyerEmail(cc, sujet || `Document ${num}`, htmlWithPixel, attachment); } catch(e) {} }
+
+    // Copie silencieuse à Diahe si créé par la standardiste
+    const tokenHeader = req.headers['authorization']?.replace('Bearer ', '');
+    const roleCreateur = getRoleFromToken(tokenHeader);
+    if (roleCreateur === 'standardiste') {
+      try {
+        await envoyerEmail(
+          CONFIG.email.sender_email,
+          `[STANDARDISTE] ${sujet || `Document ${num}`}`,
+          htmlWithPixel,
+          attachment
+        );
+        console.log(`📋 Copie silencieuse envoyée à Diahe — document standardiste: ${num}`);
+      } catch(e) { console.error('Copie silencieuse error:', e.message); }
+    }
 
     // SMS si demandé
     if (sms && telephone) {
@@ -1946,7 +1979,8 @@ if is_signe:
     if not sig_img_ok:
         diag_msg='[ Signature non disponible \u2014 donn\u00e9es manquantes (longueur:'+str(len(sig_data_b64) if sig_data_b64 else 0)+') ]'
         sig_left_items.append(Table([[p(diag_msg,7,color=GRIS_SOFT)]],colWidths=[8*cm]))
-    sig_right_items=[p('Signature SINELEC',8,'Helvetica-Bold',MARINE),p('Diahe',8,color=GRIS_SOFT),p('SINELEC Paris \u26a1',7,color=OR)]
+    is_standardiste=bool(meta.get('standardiste',False))
+sig_right_items=[p('Signature SINELEC',8,'Helvetica-Bold',MARINE)] + ([] if is_standardiste else [p('Diahe',8,color=GRIS_SOFT)]) + [p('SINELEC Paris \u26a1',7,color=OR)]
     sig_tbl=Table([[sig_left_items,sig_right_items]],colWidths=[9.2*cm,9*cm])
     sig_tbl.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f8fafc')),('BOX',(0,0),(-1,-1),1,colors.HexColor('#e2e8f0')),('LINEAFTER',(0,0),(0,-1),1,colors.HexColor('#e2e8f0')),('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10)]))
     story.append(sig_tbl)
