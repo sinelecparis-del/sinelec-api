@@ -105,6 +105,15 @@ function verifierToken(token) {
   } catch(e) { return false; }
 }
 
+function blockStandardiste(req, res, next) {
+  const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
+  const role = getRoleFromToken(token);
+  if (role === 'standardiste') {
+    return res.status(403).json({ error: 'Accès non autorisé pour ce rôle', code: 'FORBIDDEN_ROLE' });
+  }
+  next();
+}
+
 function authMiddleware(req, res, next) {
   const publicRoutes = ['/', '/health', '/api/login', '/signer/', '/paiement-confirme/', '/paiement-retour/', '/api/signature', '/api/otp-signature', '/api/verifier-otp', '/api/track/click/', '/api/track/open/', '/api/auth/check', '/api/test-pdf', '/api/test'];
   if (publicRoutes.some(r => req.path.startsWith(r))) return next();
@@ -1470,7 +1479,7 @@ function setStep(n){
 // ═══════════════════════════════════════════════════
 // API: CA COMPLET (historique + obat)
 // ═══════════════════════════════════════════════════
-app.get('/api/ca-complet', async (req, res) => {
+app.get('/api/ca-complet', blockStandardiste, async (req, res) => {
   try {
     // Données app
     const { data: app_docs, error: err1 } = await supabase.from('historique').select('*').order('created_at', { ascending: false });
@@ -1494,7 +1503,7 @@ app.get('/api/ca-complet', async (req, res) => {
   } catch(error) { res.status(500).json({ error: error.message }); }
 });
 
-app.get('/api/historique', async (req, res) => {
+app.get('/api/historique', blockStandardiste, async (req, res) => {
   try {
     const { type, statut } = req.query;
     let query = supabase.from('historique').select('*').order('created_at', { ascending: false });
@@ -2412,7 +2421,7 @@ app.get('/api/clients/:id/fiche', authMiddleware, async (req, res) => {
   }
 });
 
-app.get('/api/clients', async (req, res) => {
+app.get('/api/clients', blockStandardiste, async (req, res) => {
   try {
     const { data, error } = await supabase.from('clients').select('*').order('nom', { ascending: true });
     if (error) throw error;
