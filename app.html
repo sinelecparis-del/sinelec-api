@@ -3154,7 +3154,7 @@ function shootConfetti() {
 // ═══════════════════════════════════════════════════
 // NAVIGATION
 // ═══════════════════════════════════════════════════
-const PAGES_AUTORISEES_STANDARDISTE = ['depannage', 'facture'];
+const PAGES_AUTORISEES_STANDARDISTE = ['devis', 'facture', 'depannage', 'agenda'];
 
 function switchPage(page, el) {
   const roleActuel = localStorage.getItem('sinelec_role') || 'admin';
@@ -4354,13 +4354,13 @@ function _appliquerRestrictionsStandardiste() {
   // Masque tous les sidebar-items SAUF Dépannage et Facture
   document.querySelectorAll('.sidebar-item').forEach(item => {
     const onclickAttr = item.getAttribute('onclick') || '';
-    const estAutorise = onclickAttr.includes("'depannage'") || onclickAttr.includes("'facture'");
+    const estAutorise = onclickAttr.includes("'devis'") || onclickAttr.includes("'facture'") || onclickAttr.includes("'depannage'") || onclickAttr.includes("'agenda'");
     item.style.display = estAutorise ? '' : 'none';
   });
   // Masque les mobile-tabs restreints
   document.querySelectorAll('.mobile-tab').forEach(item => {
     const onclickAttr = item.getAttribute('onclick') || '';
-    const estAutorise = onclickAttr.includes("'depannage'") || onclickAttr.includes("'facture'");
+    const estAutorise = onclickAttr.includes("'devis'") || onclickAttr.includes("'facture'") || onclickAttr.includes("'depannage'") || onclickAttr.includes("'agenda'");
     item.style.display = estAutorise ? '' : 'none';
   });
 }
@@ -4370,7 +4370,7 @@ function ouvrirFormulaireDevisStd() {
   document.getElementById('main-app-std-wrapper').style.display = 'contents';
   document.getElementById('std-back-btn').style.display = 'block';
   _appliquerRestrictionsStandardiste();
-  switchPage('depannage', null);
+  switchPage('devis', null);
 }
 
 function ouvrirFormulaireFactureStd() {
