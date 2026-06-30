@@ -3154,7 +3154,14 @@ function shootConfetti() {
 // ═══════════════════════════════════════════════════
 // NAVIGATION
 // ═══════════════════════════════════════════════════
+const PAGES_AUTORISEES_STANDARDISTE = ['depannage', 'facture'];
+
 function switchPage(page, el) {
+  const roleActuel = localStorage.getItem('sinelec_role') || 'admin';
+  if (roleActuel === 'standardiste' && !PAGES_AUTORISEES_STANDARDISTE.includes(page)) {
+    showToast('🔒 Accès non autorisé pour ce rôle', '⛔');
+    return;
+  }
   document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
   document.querySelectorAll('.mobile-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -4335,13 +4342,32 @@ function renvoyerLeadStdWhatsApp(idx) {
 function retourStandardiste() {
   document.getElementById('std-back-btn').style.display = 'none';
   document.getElementById('main-app-std-wrapper').style.display = 'none';
+  // Réaffiche tous les sidebar-items (au cas où l'admin se connecte après)
+  document.querySelectorAll('.sidebar-item').forEach(item => item.style.display = '');
+  document.querySelectorAll('.mobile-tab').forEach(item => item.style.display = '');
   document.getElementById('standardiste-app').style.display = 'flex';
+}
+
+function _appliquerRestrictionsStandardiste() {
+  // Masque tous les sidebar-items SAUF Dépannage et Facture
+  document.querySelectorAll('.sidebar-item').forEach(item => {
+    const onclickAttr = item.getAttribute('onclick') || '';
+    const estAutorise = onclickAttr.includes("'depannage'") || onclickAttr.includes("'facture'");
+    item.style.display = estAutorise ? '' : 'none';
+  });
+  // Masque les mobile-tabs restreints
+  document.querySelectorAll('.mobile-tab').forEach(item => {
+    const onclickAttr = item.getAttribute('onclick') || '';
+    const estAutorise = onclickAttr.includes("'depannage'") || onclickAttr.includes("'facture'");
+    item.style.display = estAutorise ? '' : 'none';
+  });
 }
 
 function ouvrirFormulaireDevisStd() {
   document.getElementById('standardiste-app').style.display = 'none';
   document.getElementById('main-app-std-wrapper').style.display = 'contents';
   document.getElementById('std-back-btn').style.display = 'block';
+  _appliquerRestrictionsStandardiste();
   switchPage('depannage', null);
 }
 
@@ -4349,6 +4375,7 @@ function ouvrirFormulaireFactureStd() {
   document.getElementById('standardiste-app').style.display = 'none';
   document.getElementById('main-app-std-wrapper').style.display = 'contents';
   document.getElementById('std-back-btn').style.display = 'block';
+  _appliquerRestrictionsStandardiste();
   switchPage('facture', null);
 }
 
