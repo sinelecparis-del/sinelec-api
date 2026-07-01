@@ -2684,7 +2684,7 @@ Travaux réalisés (résumé court) : "${chantier}"${client ? `\nClient : ${clie
 
 app.post('/api/rapport', authMiddleware, async (req, res) => {
   try {
-    const { client, adresse, chantier, description, email, telephone, photo_avant, photo_apres } = req.body;
+    const { client, adresse, chantier, description, email, telephone, photo_avant, photo_apres, type_logement, num_facture, nature_panne } = req.body;
     const compteur = await incrementerCompteur('rapport');
     const annee = new Date().getFullYear();
     const mois = String(new Date().getMonth() + 1).padStart(2, '0');
@@ -2698,8 +2698,301 @@ app.post('/api/rapport', authMiddleware, async (req, res) => {
     });
     if (rapportErr) console.log('Rapport insert (non bloquant):', rapportErr.message);
 
-    // Envoyer email si fourni
-    if (email) {
+    // Générer PDF rapport
+    const detailsPath = path.join('/tmp', `_rap_${num}.json`);
+    const pyPath     = path.join('/tmp', `_rap_${num}.py`);
+    const pdfPath    = path.join('/tmp', `_rap_${num}.pdf`);
+
+    const descFull = description || chantier || '';
+    // Parser les travaux (lignes commençant par un numéro ou tiret)
+    const travaux = descFull.split('\n').filter(l => l.trim()).map((l, i) => ({
+      num: i + 1,
+      texte: l.replace(/^[\d]+[.)\-\s]+/, '').trim()
+    }));
+
+    fs.writeFileSync(detailsPath, JSON.stringify({
+      num, client, adresse, telephone, email,
+      dateStr, type_logement: type_logement || '',
+      num_facture: num_facture || '',
+      nature_panne: nature_panne || '',
+      travaux,
+      desc_full: descFull,
+      photo_avant: photo_avant || null,
+      photo_apres: photo_apres || null
+    }));
+
+    const py = `# -*- coding: utf-8 -*-
+import sys, json, base64, io
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.units import cm
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.enums import TA_LEFT, TA_JUSTIFY, TA_CENTER
+import reportlab.pdfgen.canvas as pdfcanvas
+
+W, H = A4
+MARINE = colors.HexColor('#1B2A4A')
+OR     = colors.HexColor('#C9962A')
+OR_L   = colors.HexColor('#E8B84B')
+BLANC  = colors.white
+GRIS   = colors.HexColor('#64748b')
+GRIS_L = colors.HexColor('#f8fafc')
+VERT   = colors.HexColor('#16a34a')
+
+with open(sys.argv[1], encoding='utf-8') as f:
+    d = json.load(f)
+
+num          = d.get('num','')
+client       = d.get('client','')
+adresse      = d.get('adresse','')
+telephone    = d.get('telephone','')
+date_str     = d.get('dateStr','')
+type_logement= d.get('type_logement','')
+num_facture  = d.get('num_facture','')
+nature_panne = d.get('nature_panne','')
+travaux      = d.get('travaux',[])
+desc_full    = d.get('desc_full','')
+photo_avant  = d.get('photo_avant')
+photo_apres  = d.get('photo_apres')
+
+def p(txt, sz=10, font='Helvetica', color=None, align=TA_LEFT, leading=None):
+    color = color or MARINE
+    return Paragraph(str(txt), ParagraphStyle(name='s', fontSize=sz, fontName=font,
+        textColor=color, alignment=align, leading=leading or sz*1.4, spaceAfter=0, spaceBefore=0))
+
+class SC(pdfcanvas.Canvas):
+    def __init__(self, fn, **kw):
+        pdfcanvas.Canvas.__init__(self, fn, **kw)
+        self.saveState(); self._bg(); self.restoreState()
+    def showPage(self): self._footer(); pdfcanvas.Canvas.showPage(self)
+    def save(self): self._footer(); pdfcanvas.Canvas.save(self)
+    def _bg(self):
+        self.saveState()
+        self.setFillColor(colors.HexColor('#FDFCF9')); self.rect(0,0,W,H,fill=1,stroke=0)
+        self.setFillColor(MARINE); self.rect(0,0,0.55*cm,H,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0.55*cm,0,0.06*cm,H,fill=1,stroke=0)
+        self.restoreState()
+    def _footer(self):
+        self.saveState()
+        self.setFillColor(MARINE); self.rect(0,0,W,0.9*cm,fill=1,stroke=0)
+        self.setFont('Helvetica',7); self.setFillColor(BLANC)
+        self.drawCentredString(W/2, 0.32*cm,
+            'SINELEC EI  ·  128 Rue La Boetie, 75008 Paris  ·  07 87 38 86 22  ·  SIRET : 91015824500019  ·  Garantie decennale ORUS')
+        self.restoreState()
+
+doc = SimpleDocTemplate(sys.argv[2], pagesize=A4,
+    leftMargin=1.5*cm, rightMargin=1.1*cm, topMargin=0.9*cm, bottomMargin=1.3*cm)
+story = []
+CW = W - 1.5*cm - 1.1*cm
+
+# HEADER
+try:
+    logo_b = base64.b64decode(open('/app/logo_b64.txt').read().strip())
+    logo_img = RLImage(io.BytesIO(logo_b), width=2.8*cm, height=1.9*cm)
+except:
+    logo_img = p('⚡ SINELEC', 18, 'Helvetica-Bold', BLANC)
+
+hdr = Table([[
+    logo_img,
+    [
+        p('RAPPORT D\'INTERVENTION', 13, 'Helvetica-Bold', BLANC),
+        p('Document officiel · Usage assurance & sinistre', 8, 'Helvetica', OR_L),
+        p(f'N° {num}  ·  Date : {date_str}', 8, 'Helvetica', colors.HexColor('#94a3b8')),
+    ]
+]], colWidths=[3.6*cm, CW - 3.6*cm])
+hdr.setStyle(TableStyle([
+    ('BACKGROUND',(0,0),(-1,-1),MARINE),
+    ('LEFTPADDING',(0,0),(0,-1),10),('LEFTPADDING',(1,0),(1,-1),14),
+    ('RIGHTPADDING',(0,0),(-1,-1),12),
+    ('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),
+    ('VALIGN',(0,0),(-1,-1),'MIDDLE'),
+    ('LINEBEFORE',(1,0),(1,-1),2,OR),
+]))
+story.append(hdr)
+story.append(Spacer(1,0.2*cm))
+
+def section_title(txt):
+    t = Table([[p(txt, 8, 'Helvetica-Bold', OR)]], colWidths=[CW])
+    t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),
+        ('LEFTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5)]))
+    return t
+
+def field_row(label, val, w=CW/2 - 0.1*cm):
+    return Table([[
+        p(f'<b>{label}</b>', 8, 'Helvetica-Bold', GRIS),
+        p(val or '—', 11, 'Helvetica', MARINE)
+    ]], colWidths=[3*cm, w - 3*cm])
+
+HALF = CW / 2
+
+# 1. IDENTIFICATION
+story.append(section_title('1. IDENTIFICATION DU CHANTIER'))
+story.append(Spacer(1,0.05*cm))
+ident = Table([[
+    [field_row('Client', client, HALF),
+     Spacer(1,0.03*cm),
+     field_row('Téléphone', telephone, HALF)],
+    [field_row('Adresse', adresse, HALF),
+     Spacer(1,0.03*cm),
+     field_row('Type logement', type_logement, HALF)],
+    [field_row('Date', date_str, HALF),
+     Spacer(1,0.03*cm),
+     field_row('N° Facture', num_facture, HALF)],
+]], colWidths=[HALF, HALF])
+ident.setStyle(TableStyle([
+    ('BACKGROUND',(0,0),(-1,-1),GRIS_L),
+    ('LEFTPADDING',(0,0),(-1,-1),8),('RIGHTPADDING',(0,0),(-1,-1),8),
+    ('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),
+    ('LINEBELOW',(0,0),(-1,-2),0.4,colors.HexColor('#e2e8f0')),
+    ('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0')),
+]))
+story.append(ident)
+story.append(Spacer(1,0.18*cm))
+
+# 2. NATURE DE LA PANNE
+if nature_panne:
+    story.append(section_title('2. NATURE DE LA PANNE CONSTATÉE'))
+    story.append(Spacer(1,0.05*cm))
+    panne_tbl = Table([[p(nature_panne, 11, 'Helvetica', MARINE, align=TA_JUSTIFY, leading=16)]],
+        colWidths=[CW])
+    panne_tbl.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GRIS_L),
+        ('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0')),
+        ('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),
+        ('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10)]))
+    story.append(panne_tbl)
+    story.append(Spacer(1,0.18*cm))
+    num_section = 3
+else:
+    num_section = 2
+
+# 3. TRAVAUX RÉALISÉS
+story.append(section_title(f'{num_section}. TRAVAUX RÉALISÉS'))
+story.append(Spacer(1,0.05*cm))
+if travaux:
+    rows = []
+    for i, t in enumerate(travaux):
+        bg = GRIS_L if i % 2 == 0 else BLANC
+        row = Table([[
+            Table([[p(str(t['num']), 9, 'Helvetica-Bold', OR)]], colWidths=[0.7*cm],
+                style=[('BACKGROUND',(0,0),(-1,-1),MARINE),('ALIGN',(0,0),(-1,-1),'CENTER'),
+                ('VALIGN',(0,0),(-1,-1),'MIDDLE'),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4)]),
+            p(t['texte'], 10.5, 'Helvetica', MARINE, align=TA_JUSTIFY, leading=15)
+        ]], colWidths=[0.9*cm, CW - 0.9*cm])
+        row.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),bg),
+            ('LINEBELOW',(0,0),(-1,-1),0.3,colors.HexColor('#e2e8f0')),
+            ('LEFTPADDING',(1,0),(1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),8),
+            ('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7),
+            ('VALIGN',(0,0),(-1,-1),'TOP'),
+            ('LEFTPADDING',(0,0),(0,-1),0),('RIGHTPADDING',(0,0),(0,-1),0),
+        ]))
+        rows.append(row)
+        rows.append(Spacer(1,0.01*cm))
+    for r in rows: story.append(r)
+else:
+    tbl = Table([[p(desc_full or 'Voir description', 10.5, 'Helvetica', MARINE, align=TA_JUSTIFY)]],
+        colWidths=[CW])
+    tbl.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GRIS_L),
+        ('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),
+        ('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10)]))
+    story.append(tbl)
+story.append(Spacer(1,0.18*cm))
+
+# 4. PHOTOS
+if photo_avant or photo_apres:
+    story.append(section_title(f'{num_section+1}. PHOTOS D\'INTERVENTION'))
+    story.append(Spacer(1,0.08*cm))
+    photo_cols = []
+    PHOTO_W = (CW - 0.4*cm) / 2
+    for label, b64data in [('📷 Avant intervention', photo_avant), ('📷 Après intervention', photo_apres)]:
+        if b64data:
+            try:
+                raw = b64data.split(',')[-1]
+                img_bytes = base64.b64decode(raw)
+                img = RLImage(io.BytesIO(img_bytes), width=PHOTO_W, height=PHOTO_W * 0.7)
+                cell = [p(label, 8, 'Helvetica-Bold', GRIS), Spacer(1,0.05*cm), img]
+            except:
+                cell = [p(label, 8, 'Helvetica-Bold', GRIS), p('Photo non disponible', 9, color=GRIS)]
+        else:
+            cell = [p(label, 8, 'Helvetica-Bold', GRIS), p('Aucune photo', 9, color=GRIS)]
+        photo_cols.append(cell)
+    if len(photo_cols) == 2:
+        pt = Table([[photo_cols[0], photo_cols[1]]], colWidths=[PHOTO_W, PHOTO_W])
+    else:
+        pt = Table([[photo_cols[0]]], colWidths=[PHOTO_W])
+    pt.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GRIS_L),
+        ('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0')),
+        ('LINEBETWEEN',(0,0),(0,-1),0.4,colors.HexColor('#e2e8f0')),
+        ('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),
+        ('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),
+        ('VALIGN',(0,0),(-1,-1),'TOP'),
+    ]))
+    story.append(pt)
+    story.append(Spacer(1,0.18*cm))
+    num_section += 1
+
+# CONFORMITÉ
+story.append(section_title(f'{num_section+1}. ATTESTATION DE CONFORMITÉ'))
+story.append(Spacer(1,0.08*cm))
+conf = Table([[
+    p('✅', 16, 'Helvetica', VERT),
+    p("À l'issue de l'intervention, <b>l'installation électrique est déclarée conforme à la norme NF C 15-100</b> en vigueur. Les protections différentielles 30mA sont fonctionnelles, la mise à la terre est vérifiée et opérationnelle. L'installation est sécurisée pour une utilisation normale du logement.", 10, 'Helvetica', colors.HexColor('#166534'), align=TA_JUSTIFY, leading=15)
+]], colWidths=[1*cm, CW - 1*cm])
+conf.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f0fdf4')),
+    ('BOX',(0,0),(-1,-1),1.5,VERT),
+    ('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),
+    ('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),
+    ('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
+story.append(conf)
+story.append(Spacer(1,0.18*cm))
+
+# BLOC SINELEC
+bloc = Table([[
+    [p(f'Fait à Paris, le {date_str}', 9, color=GRIS),
+     Spacer(1,0.06*cm),
+     p('<b>SINELEC EI</b>', 11, 'Helvetica-Bold', MARINE),
+     p('Électricien certifié — SIRET 91015824500019', 9, color=GRIS)],
+    [p('<b>SINELEC</b>', 16, 'Helvetica-Bold', MARINE, align=4),
+     Spacer(1,0.06*cm),
+     p('Garantie décennale ORUS Assurances<br/>RC Professionnelle : Oui<br/>128 Rue La Boétie, 75008 Paris', 9, color=GRIS, align=4),
+     Spacer(1,0.06*cm),
+     Table([[p('✓ Document certifié SINELEC', 8, 'Helvetica-Bold', VERT)]], colWidths=[6*cm],
+        style=[('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f0fdf4')),('BOX',(0,0),(-1,-1),1,VERT),
+               ('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4),
+               ('LEFTPADDING',(0,0),(-1,-1),8),('ALIGN',(0,0),(-1,-1),'CENTER')])]
+]], colWidths=[HALF, HALF])
+bloc.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GRIS_L),
+    ('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),
+    ('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),
+    ('VALIGN',(0,0),(-1,-1),'TOP'),
+    ('LINEBETWEEN',(0,0),(0,-1),0.4,colors.HexColor('#e2e8f0')),
+    ('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0'))]))
+story.append(bloc)
+
+doc.build(story, canvasmaker=lambda fn, **kw: SC(fn, **kw))
+`;
+
+    fs.writeFileSync(pyPath, py, 'utf8');
+    let pdf_b64 = null;
+    try {
+      execSync(`python3 "${pyPath}" "${detailsPath}" "${pdfPath}"`, { timeout: 40000, stdio: ['pipe','pipe','pipe'] });
+      if (fs.existsSync(pdfPath)) {
+        const buf = fs.readFileSync(pdfPath);
+        if (buf.length > 500 && buf.subarray(0,4).toString('ascii') === '%PDF') {
+          pdf_b64 = buf.toString('base64');
+          console.log(`✅ Rapport PDF généré: ${num} (${buf.length} bytes)`);
+        }
+      }
+    } catch(pyErr) {
+      const msg = pyErr.stderr?.toString() || pyErr.message;
+      console.error('❌ Rapport PDF error:', msg.substring(0,300));
+    }
+    // Nettoyage
+    try { fs.unlinkSync(pyPath); fs.unlinkSync(detailsPath); if(fs.existsSync(pdfPath)) fs.unlinkSync(pdfPath); } catch(e) {}
+
+    // Mode preview (pas d'envoi email) ou envoi direct
+    const modeEnvoi = req.body.envoyer === true;
+    if (modeEnvoi && email) {
       const html = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;">
         <div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:24px;text-align:center;border-radius:12px 12px 0 0;">
           <h2 style="color:#E8B84B;">Rapport d'intervention SINELEC</h2>
@@ -2707,15 +3000,16 @@ app.post('/api/rapport', authMiddleware, async (req, res) => {
         <div style="padding:24px;border:1px solid #e8e8e8;border-top:none;border-radius:0 0 12px 12px;">
           <p>Bonjour,</p>
           <p>Veuillez trouver ci-joint le rapport d'intervention n° <strong>${num}</strong> du ${dateStr}.</p>
-          <p><strong>Travaux réalisés :</strong></p>
-          <p style="white-space:pre-wrap;color:#555;">${description || chantier}</p>
+          <p>Ce document peut être transmis à votre assurance pour déclarer un sinistre.</p>
           <p style="font-size:12px;color:#888;margin-top:16px;">📞 07 87 38 86 22 | sinelec.paris@gmail.com</p>
         </div>
       </div>`;
-      await envoyerEmail(email, `Rapport d'intervention ${num} - SINELEC Paris`, html);
+      const attachment = pdf_b64 ? { content: pdf_b64, name: `${num}.pdf` } : null;
+      await envoyerEmail(email, `Rapport d'intervention ${num} - SINELEC Paris`, html, attachment);
+      console.log(`✅ Rapport envoyé: ${num} → ${email}`);
     }
 
-    res.json({ success: true, num });
+    res.json({ success: true, num, pdf_b64, envoye: modeEnvoi && !!email });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
