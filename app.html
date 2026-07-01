@@ -1454,6 +1454,66 @@ table.histo-table tr:hover td { background:#fafbff; }
   </div>
 </div>
 
+<!-- ════ INTERFACE SOUS-TRAITANT ════ -->
+<div id="soustraitant-app" style="display:none;flex-direction:column;height:100vh;width:100%;max-width:600px;margin:0 auto;background:#F2EDE6;position:fixed;top:0;left:0;right:0;z-index:9999;">
+  <div style="background:#1B2A4A;padding:14px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0;">
+    <div style="width:30px;height:30px;background:linear-gradient(135deg,#C9962A,#E8B84B);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;">⚡</div>
+    <div style="font-size:13px;font-weight:800;color:#fff;flex:1;">SINELEC — Mission</div>
+    <div style="background:rgba(201,150,42,0.2);color:#E8B84B;font-size:10px;font-weight:800;padding:3px 8px;border-radius:8px;">🔧 Sous-traitant</div>
+    <button onclick="deconnexionSousTraitant()" style="background:none;border:none;color:rgba(255,255,255,0.5);font-size:11px;cursor:pointer;padding:4px 8px;">Déco</button>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:3px;background:#E8E2D9;padding:4px;flex-shrink:0;">
+    <button onclick="switchStTab('inter',this)" id="st-tab-inter" style="padding:9px 4px;border-radius:9px;background:#fff;color:#1B2A4A;border:none;font-family:inherit;font-size:10px;font-weight:800;cursor:pointer;">📅 Mes inter.</button>
+    <button onclick="switchStTab('devis',this)" id="st-tab-devis" style="padding:9px 4px;border-radius:9px;background:transparent;color:#999;border:none;font-family:inherit;font-size:10px;font-weight:800;cursor:pointer;">📋 Devis</button>
+    <button onclick="switchStTab('facture',this)" id="st-tab-facture" style="padding:9px 4px;border-radius:9px;background:transparent;color:#999;border:none;font-family:inherit;font-size:10px;font-weight:800;cursor:pointer;">💶 Facture</button>
+    <button onclick="switchStTab('tarifs',this)" id="st-tab-tarifs" style="padding:9px 4px;border-radius:9px;background:transparent;color:#999;border:none;font-family:inherit;font-size:10px;font-weight:800;cursor:pointer;">💰 Tarifs</button>
+  </div>
+
+  <div style="flex:1;overflow-y:auto;">
+
+    <!-- TAB MES INTERVENTIONS -->
+    <div id="st-page-inter" style="padding:0;">
+      <div style="background:linear-gradient(135deg,#1B2A4A,#243660);margin:16px;border-radius:14px;padding:16px;text-align:center;">
+        <div style="width:50px;height:50px;border-radius:14px;background:rgba(201,150,42,0.2);display:flex;align-items:center;justify-content:center;font-size:20px;color:#C9962A;margin:0 auto 10px;font-weight:800;" id="st-avatar">—</div>
+        <div style="font-size:14px;font-weight:800;color:#fff;" id="st-nom">—</div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-top:2px;">Sous-traitant SINELEC · Île-de-France</div>
+      </div>
+      <div style="font-size:12px;font-weight:800;color:#1B2A4A;text-transform:uppercase;letter-spacing:.5px;margin:16px 16px 10px;">Mes interventions du jour</div>
+      <div id="st-inter-list" style="padding:0 16px 16px;"><div style="text-align:center;padding:20px;color:#999;font-size:12px;">Chargement...</div></div>
+    </div>
+
+    <!-- TAB DEVIS -->
+    <div id="st-page-devis" style="display:none;padding:16px;">
+      <div style="font-size:12px;font-weight:800;color:#1B2A4A;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">Créer un devis</div>
+      <div style="background:#fff;border-radius:12px;padding:20px;text-align:center;">
+        <div style="font-size:32px;margin-bottom:10px;">📋</div>
+        <div style="font-weight:700;color:#1B2A4A;margin-bottom:6px;">Formulaire devis complet</div>
+        <div style="font-size:12px;color:#999;margin-bottom:14px;">Accès à toute la grille tarifaire SINELEC</div>
+        <button onclick="ouvrirFormulaireDevisSt()" style="width:100%;padding:13px;border:none;border-radius:10px;background:#1B2A4A;color:#C9962A;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer;">⚡ Créer un devis</button>
+      </div>
+    </div>
+
+    <!-- TAB FACTURE -->
+    <div id="st-page-facture" style="display:none;padding:16px;">
+      <div style="font-size:12px;font-weight:800;color:#1B2A4A;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">Créer une facture</div>
+      <div style="background:#fff;border-radius:12px;padding:20px;text-align:center;">
+        <div style="font-size:32px;margin-bottom:10px;">💶</div>
+        <div style="font-weight:700;color:#1B2A4A;margin-bottom:6px;">Formulaire facture complet</div>
+        <button onclick="ouvrirFormulaireFactureSt()" style="width:100%;padding:13px;border:none;border-radius:10px;background:#1B2A4A;color:#C9962A;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer;">💶 Créer une facture</button>
+      </div>
+    </div>
+
+    <!-- TAB TARIFS -->
+    <div id="st-page-tarifs" style="display:none;padding:16px;">
+      <div style="font-size:12px;font-weight:800;color:#1B2A4A;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Tarifs SINELEC <span style="font-size:9px;background:#F0FDF4;color:#16a34a;padding:2px 6px;border-radius:6px;font-weight:700;">Lecture seule</span></div>
+      <input id="st-grille-search" oninput="rechercherGrilleSt(this.value)" placeholder="🔍 Rechercher une prestation..." style="width:100%;padding:10px 12px;border:1.5px solid #E8E2D9;border-radius:10px;background:#fff;font-family:inherit;font-size:12.5px;margin-bottom:12px;outline:none;">
+      <div id="st-grille-list"></div>
+    </div>
+
+  </div>
+</div>
+
 <div id="main-app-std-wrapper" style="display:contents;">
 <!-- ════════════ SIDEBAR DESKTOP ════════════ -->
 <div class="sidebar">
@@ -1463,6 +1523,9 @@ table.histo-table tr:hover td { background:#fafbff; }
   </div>
   <div id="std-back-btn" style="display:none;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.08);">
     <button onclick="retourStandardiste()" style="width:100%;padding:10px;border:none;border-radius:10px;background:rgba(201,150,42,0.15);color:#E8B84B;font-family:inherit;font-size:12px;font-weight:800;cursor:pointer;">← Retour Standard</button>
+  </div>
+  <div id="st-back-btn" style="display:none;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.08);">
+    <button onclick="retourSousTraitant()" style="width:100%;padding:10px;border:none;border-radius:10px;background:rgba(201,150,42,0.15);color:#E8B84B;font-family:inherit;font-size:12px;font-weight:800;cursor:pointer;">← Retour Mission</button>
   </div>
   <div class="sidebar-nav">
 
@@ -2472,6 +2535,24 @@ table.histo-table tr:hover td { background:#fafbff; }
       </div>
     </div>
 
+    <!-- Infos complémentaires -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+      <div>
+        <div style="font-size:11px;font-weight:700;color:rgba(0,0,0,0.4);text-transform:uppercase;margin-bottom:4px;">Type de logement</div>
+        <input id="rap-type-logement" type="text" placeholder="Ex: Appartement 3ème étage" style="width:100%;padding:10px 12px;border:1.5px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;background:#f9f9f9;outline:none;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='rgba(0,0,0,0.1)'">
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:rgba(0,0,0,0.4);text-transform:uppercase;margin-bottom:4px;">N° Devis / Facture</div>
+        <input id="rap-num-facture" type="text" placeholder="Ex: FA-202606-051" style="width:100%;padding:10px 12px;border:1.5px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;background:#f9f9f9;outline:none;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='rgba(0,0,0,0.1)'">
+      </div>
+    </div>
+
+    <!-- Nature de la panne -->
+    <div style="margin-bottom:12px;">
+      <div style="font-size:11px;font-weight:700;color:rgba(0,0,0,0.4);text-transform:uppercase;margin-bottom:4px;">Nature de la panne constatée</div>
+      <textarea id="rap-nature-panne" rows="2" placeholder="Ex: Disjoncteur différentiel 30mA défaillant, fuite de courant sur circuit cuisine..." style="width:100%;padding:10px 12px;border:1.5px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;background:#f9f9f9;outline:none;resize:vertical;font-family:inherit;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='rgba(0,0,0,0.1)'"></textarea>
+    </div>
+
     <!-- Chantier court pour l'IA -->
     <div style="margin-bottom:12px;">
       <div style="font-size:11px;font-weight:700;color:rgba(0,0,0,0.4);text-transform:uppercase;margin-bottom:4px;">Travaux réalisés (court — l'IA développe)</div>
@@ -2501,7 +2582,7 @@ table.histo-table tr:hover td { background:#fafbff; }
             <div style="font-size:12px;color:rgba(0,0,0,0.4);font-weight:600;">Appuyer pour ajouter</div>
           </div>
         </label>
-        <input type="file" id="rap-photo-avant" accept="image/*" capture="environment" style="display:none;" onchange="previewPhoto('avant', this)">
+        <input type="file" id="rap-photo-avant" accept="image/*" style="display:none;" onchange="previewPhoto('avant', this)">
       </div>
       <!-- Photo APRÈS -->
       <div>
@@ -2513,12 +2594,14 @@ table.histo-table tr:hover td { background:#fafbff; }
             <div style="font-size:12px;color:rgba(0,0,0,0.4);font-weight:600;">Appuyer pour ajouter</div>
           </div>
         </label>
-        <input type="file" id="rap-photo-apres" accept="image/*" capture="environment" style="display:none;" onchange="previewPhoto('apres', this)">
+        <input type="file" id="rap-photo-apres" accept="image/*" style="display:none;" onchange="previewPhoto('apres', this)">
       </div>
     </div>
 
-    <!-- Bouton générer rapport PDF -->
-    <button onclick="genererRapport()" class="btn-gen">📄 Générer le rapport PDF</button>
+    <!-- Boutons -->
+    <button onclick="previewRapport()" id="rap-btn-preview" class="btn-gen">👁️ Prévisualiser le rapport</button>
+    <button onclick="envoyerRapport()" id="rap-btn-envoyer" class="btn-gen" style="display:none;background:linear-gradient(135deg,#16a34a,#15803d);">📤 Envoyer au client</button>
+    <button onclick="resetRapport()" id="rap-btn-reset" style="display:none;width:100%;padding:12px;border:1.5px solid rgba(0,0,0,0.1);border-radius:12px;background:transparent;color:rgba(0,0,0,0.5);font-size:13px;font-weight:700;cursor:pointer;margin-top:6px;font-family:inherit;">✏️ Modifier et regénérer</button>
     <div class="status" id="rap-status"></div>
   </div>
 </div></div>
@@ -3051,11 +3134,16 @@ async function seConnecter() {
     if (data.success && data.token) {
       saveToken(data.token);
       localStorage.setItem('sinelec_role', data.role || 'admin');
+      if (data.nom) localStorage.setItem('sinelec_nom_role', data.nom);
       masquerLogin();
       if (data.role === 'standardiste') {
         document.getElementById('main-app').style.display = 'none';
         document.getElementById('standardiste-app').style.display = 'flex';
         chargerStandardiste();
+      } else if (data.role === 'soustraitant') {
+        document.getElementById('main-app').style.display = 'none';
+        document.getElementById('soustraitant-app').style.display = 'flex';
+        chargerSousTraitant();
       } else {
         initialiserApp();
       }
@@ -3087,6 +3175,13 @@ function initialiserApp() {
     document.getElementById('main-app').style.display = 'none';
     document.getElementById('standardiste-app').style.display = 'flex';
     chargerStandardiste();
+    return;
+  }
+  if (role === 'soustraitant') {
+    masquerLogin();
+    document.getElementById('main-app').style.display = 'none';
+    document.getElementById('soustraitant-app').style.display = 'flex';
+    chargerSousTraitant();
     return;
   }
   masquerLogin();
@@ -3155,10 +3250,15 @@ function shootConfetti() {
 // NAVIGATION
 // ═══════════════════════════════════════════════════
 const PAGES_AUTORISEES_STANDARDISTE = ['devis', 'facture', 'depannage', 'agenda'];
+const PAGES_AUTORISEES_SOUSTRAITANT = ['devis', 'facture'];
 
 function switchPage(page, el) {
   const roleActuel = localStorage.getItem('sinelec_role') || 'admin';
   if (roleActuel === 'standardiste' && !PAGES_AUTORISEES_STANDARDISTE.includes(page)) {
+    showToast('🔒 Accès non autorisé pour ce rôle', '⛔');
+    return;
+  }
+  if (roleActuel === 'soustraitant' && !PAGES_AUTORISEES_SOUSTRAITANT.includes(page)) {
     showToast('🔒 Accès non autorisé pour ce rôle', '⛔');
     return;
   }
@@ -3192,7 +3292,7 @@ let menuPlusOpen = false;
 function switchPageMenu() {
   if (menuPlusOpen) return;
   const roleMenu = localStorage.getItem('sinelec_role') || 'admin';
-  if (roleMenu === 'standardiste') return; // Pas de menu "+" pour la standardiste
+  if (roleMenu === 'standardiste' || roleMenu === 'soustraitant') return; // Pas de menu "+" pour les rôles restreints
   menuPlusOpen = true;
   const menu = document.createElement('div');
   menu.style.cssText = 'position:fixed;bottom:70px;right:10px;background:var(--glass);backdrop-filter:blur(24px);border:1px solid var(--border);border-radius:16px;padding:12px;z-index:999;box-shadow:0 8px 32px rgba(26,20,16,0.15);';
@@ -4227,6 +4327,132 @@ let agendaInterventions = [];
 
 
 
+
+// ═══════════════════════════════════════════════════
+// INTERFACE SOUS-TRAITANT
+// ═══════════════════════════════════════════════════
+function deconnexionSousTraitant() {
+  localStorage.removeItem('sinelec_token');
+  localStorage.removeItem('sinelec_role');
+  localStorage.removeItem('sinelec_nom_role');
+  document.getElementById('soustraitant-app').style.display = 'none';
+  afficherLogin();
+}
+
+function switchStTab(tab, btn) {
+  ['inter','devis','facture','tarifs'].forEach(t => {
+    document.getElementById('st-page-' + t).style.display = 'none';
+    const b = document.getElementById('st-tab-' + t);
+    if (b) { b.style.background = 'transparent'; b.style.color = '#999'; }
+  });
+  document.getElementById('st-page-' + tab).style.display = 'block';
+  if (btn) { btn.style.background = '#fff'; btn.style.color = '#1B2A4A'; }
+  if (tab === 'tarifs') renderGrilleSt('');
+}
+
+async function chargerSousTraitant() {
+  const nom = localStorage.getItem('sinelec_nom_role') || 'Sous-traitant';
+  const nomEl = document.getElementById('st-nom');
+  const avatarEl = document.getElementById('st-avatar');
+  if (nomEl) nomEl.textContent = nom;
+  if (avatarEl) avatarEl.textContent = nom.split(' ').map(w => w[0]).join('').substring(0,2).toUpperCase();
+
+  await chargerMesInterventions();
+}
+
+async function chargerMesInterventions() {
+  const el = document.getElementById('st-inter-list');
+  if (!el) return;
+  try {
+    const res = await fetch('/api/agenda', {
+      headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('sinelec_token') || '') }
+    });
+    const data = await res.json();
+    const todayStr = new Date().toISOString().slice(0,10);
+    const todayIvs = (data || []).filter(iv => (iv.date_intervention||'').slice(0,10) === todayStr);
+
+    if (!todayIvs.length) {
+      el.innerHTML = '<div style="text-align:center;padding:30px;color:#999;font-size:13px;">Aucune intervention assignée aujourd\'hui</div>';
+      return;
+    }
+
+    el.innerHTML = todayIvs.map(iv => {
+      const heure = iv.heure ? iv.heure.slice(0,5) : '—';
+      const client = iv.client || iv.nom || 'Client';
+      const adresse = iv.adresse || '';
+      const adresseEnc = encodeURIComponent(adresse);
+      const tel = iv.telephone || '';
+      const statut = (iv.statut||'').toLowerCase();
+      const isDone = statut === 'termine' || statut === 'terminé';
+      return `
+      <div style="background:#fff;border-radius:12px;padding:13px 14px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,0.04);${isDone?'opacity:0.6;':''}">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <div style="background:#FBF7EC;border-radius:8px;padding:4px 9px;font-family:monospace;font-size:11px;font-weight:800;color:#C9962A;">${heure}</div>
+          <div style="font-size:9px;font-weight:800;padding:2px 8px;border-radius:6px;${isDone?'background:#F0FDF4;color:#16a34a;':'background:#FEF3C7;color:#d97706;'}">${isDone?'✅ Terminé':'À faire'}</div>
+        </div>
+        <div style="font-size:13px;font-weight:800;color:#1B2A4A;">${client}</div>
+        <div style="font-size:11px;color:#999;margin-top:2px;">📍 ${adresse || 'Adresse non renseignée'}</div>
+        ${!isDone ? `<div style="display:flex;gap:6px;margin-top:8px;">
+          ${adresse ? `<a href="https://maps.google.com/?q=${adresseEnc}" target="_blank" style="flex:1;padding:7px;border-radius:8px;background:#EEF2FF;color:#3b82f6;font-size:10.5px;font-weight:800;text-align:center;text-decoration:none;">🗺 Maps</a>` : ''}
+          ${tel ? `<a href="tel:${tel}" style="flex:1;padding:7px;border-radius:8px;background:#F0FDF4;color:#16a34a;font-size:10.5px;font-weight:800;text-align:center;text-decoration:none;">📞 Appel</a>` : ''}
+          <button onclick="ouvrirFormulaireDevisSt()" style="flex:1;padding:7px;border-radius:8px;border:none;background:#1B2A4A;color:#C9962A;font-size:10.5px;font-weight:800;cursor:pointer;font-family:inherit;">📋 Devis</button>
+        </div>` : ''}
+      </div>`;
+    }).join('');
+  } catch(e) {
+    el.innerHTML = '<div style="text-align:center;padding:20px;color:#dc2626;font-size:12px;">Erreur de chargement</div>';
+  }
+}
+
+function retourSousTraitant() {
+  document.getElementById('st-back-btn').style.display = 'none';
+  document.getElementById('main-app-std-wrapper').style.display = 'none';
+  document.querySelectorAll('.sidebar-item').forEach(item => item.style.display = '');
+  document.querySelectorAll('.mobile-tab').forEach(item => item.style.display = '');
+  document.getElementById('soustraitant-app').style.display = 'flex';
+}
+
+function ouvrirFormulaireDevisSt() {
+  document.getElementById('soustraitant-app').style.display = 'none';
+  document.getElementById('main-app-std-wrapper').style.display = 'contents';
+  document.getElementById('st-back-btn').style.display = 'block';
+  _appliquerRestrictionsStandardiste();
+  switchPage('devis', null);
+}
+
+function ouvrirFormulaireFactureSt() {
+  document.getElementById('soustraitant-app').style.display = 'none';
+  document.getElementById('main-app-std-wrapper').style.display = 'contents';
+  document.getElementById('st-back-btn').style.display = 'block';
+  _appliquerRestrictionsStandardiste();
+  switchPage('facture', null);
+}
+
+function renderGrilleSt(search) {
+  const el = document.getElementById('st-grille-list');
+  if (!el || typeof GRILLE === 'undefined') return;
+  const s = (search || '').toLowerCase();
+  let html = '';
+  Object.entries(GRILLE).forEach(([cat, items]) => {
+    const filtres = Object.entries(items).filter(([nom]) => !s || nom.toLowerCase().includes(s));
+    if (!filtres.length) return;
+    html += `<div style="font-size:10px;font-weight:800;color:#C9962A;text-transform:uppercase;letter-spacing:.5px;padding:8px 0 4px;">${cat}</div>`;
+    html += `<div style="background:#fff;border-radius:10px;overflow:hidden;margin-bottom:8px;">`;
+    filtres.forEach(([nom, data]) => {
+      html += `<div style="padding:10px 14px;border-bottom:1px solid #F5F2EE;display:flex;align-items:center;justify-content:space-between;">
+        <div style="font-size:12px;font-weight:700;color:#1B2A4A;flex:1;padding-right:10px;">${nom}</div>
+        <div style="font-family:monospace;font-size:13px;font-weight:700;color:#C9962A;flex-shrink:0;">${data.f} €</div>
+      </div>`;
+    });
+    html += `</div>`;
+  });
+  el.innerHTML = html || '<div style="text-align:center;padding:20px;color:#999;">Aucun résultat</div>';
+}
+
+function rechercherGrilleSt(val) {
+  renderGrilleSt(val);
+}
+
 // ═══════════════════════════════════════════════════
 // INTERFACE STANDARDISTE
 // ═══════════════════════════════════════════════════
@@ -4554,6 +4780,7 @@ function afficherListeAgenda() {
         ${iv.telephone?`<button onclick="smsDepartClient('${iv.telephone}','${(nom).replace(/'/g,"\'")}','${(iv.adresse||'').replace(/'/g,"\'")}' )" style="background:linear-gradient(135deg,#E8B84B,#C9962A);color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;">🚗 Je pars</button>`:''}
         <button onclick="changerStatutIntervention('${iv.id}','terminé')" style="background:rgba(16,185,129,0.1);color:#10b981;border:1px solid rgba(16,185,129,0.3);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;">✅ Terminé</button>
         ${(iv.statut||'').toLowerCase()==='lead'?`<button onclick="creerDevisFromLead('${iv.id}','${(iv.client||'').replace(/'/g,"\'")}','${(iv.adresse||'').replace(/'/g,"\'")}','${(iv.telephone||'').replace(/'/g,"\'")}','${(iv.email||'').replace(/'/g,"\'")}','${iv.type_intervention||''}')" style="background:linear-gradient(135deg,#1B2A4A,#243660);color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;">📋 Créer devis</button>`:''}
+        <button onclick="assignerSousTraitant('${iv.id}','${(iv.assigne_a||'')}')" style="background:${iv.assigne_a==='soustraitant'?'rgba(201,150,42,0.15);color:#C9962A;border:1px solid rgba(201,150,42,0.3)':'rgba(100,116,139,0.08);color:#64748b;border:1px solid rgba(100,116,139,0.2)'};border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;" title="Assigner au sous-traitant">${iv.assigne_a==='soustraitant'?'🔧 Assigné':'🔧 Assigner'}</button>
         <button onclick="supprimerIntervention('${iv.id}')" style="background:rgba(239,68,68,0.08);color:#ef4444;border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;">🗑️</button>
       </div>
     </div>`;
@@ -4641,6 +4868,23 @@ async function changerStatutIntervention(id, statut) {
     }
     chargerAgenda();
   } catch(e) { showToast('❌ Erreur', '⚠️'); }
+}
+
+async function assignerSousTraitant(id, statutActuel) {
+  const dejaAssigne = statutActuel === 'soustraitant';
+  const action = dejaAssigne ? null : 'soustraitant'; // null = désassigner
+  try {
+    const res = await fetch(`/api/agenda/${id}/assigner`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('sinelec_token') || '') },
+      body: JSON.stringify({ assigne_a: action })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(dejaAssigne ? '✅ Intervention désassignée' : '🔧 Assignée au sous-traitant', dejaAssigne ? '↩️' : '✅');
+      chargerAgenda();
+    }
+  } catch(e) { showToast('Erreur: ' + e.message, '❌'); }
 }
 
 async function supprimerIntervention(id) {
@@ -6225,52 +6469,130 @@ async function genererDescriptionIA() {
   }
 }
 
-async function genererRapport() {
-  const client      = document.getElementById('rap-client')?.value.trim();
-  const adresse     = document.getElementById('rap-adresse')?.value.trim();
-  const chantier    = document.getElementById('rap-chantier')?.value.trim();
-  const description = document.getElementById('rap-description')?.value.trim();
+let _rapportPayloadCache = null;
+let _rapportNumCache = null;
 
-  if (!client || !chantier) { showToast('⚠️ Client et travaux requis !', '❌'); return; }
-  const rapEmail = document.getElementById('rap-email')?.value.trim();
-  if (!rapEmail) {
-    const go = confirm('⚠️ Email client manquant !\n\nSans email, le rapport ne sera pas envoyé au client.\n\nContinuer quand même ?');
-    if (!go) return;
-  }
+function _getRapportPayload(envoyer = false) {
+  return {
+    client:        document.getElementById('rap-client')?.value.trim() || '',
+    adresse:       document.getElementById('rap-adresse')?.value.trim() || '',
+    chantier:      document.getElementById('rap-chantier')?.value.trim() || '',
+    description:   document.getElementById('rap-description')?.value.trim() || '',
+    email:         document.getElementById('rap-email')?.value.trim() || '',
+    telephone:     document.getElementById('rap-tel')?.value.trim() || '',
+    type_logement: document.getElementById('rap-type-logement')?.value.trim() || '',
+    num_facture:   document.getElementById('rap-num-facture')?.value.trim() || '',
+    nature_panne:  document.getElementById('rap-nature-panne')?.value.trim() || '',
+    photo_avant:   rapportPhotoAvant || null,
+    photo_apres:   rapportPhotoApres || null,
+    envoyer
+  };
+}
 
-  const btn = document.querySelector('#page-rapport .btn-gen');
+async function previewRapport() {
+  const payload = _getRapportPayload(false);
+  if (!payload.client || !payload.chantier) { showToast('⚠️ Client et travaux requis !', '❌'); return; }
+
+  const btnPreview = document.getElementById('rap-btn-preview');
   const status = document.getElementById('rap-status');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Génération...'; }
-  if (status) status.textContent = '';
+  if (btnPreview) { btnPreview.disabled = true; btnPreview.textContent = '⏳ Génération...'; }
+  if (status) status.innerHTML = '';
 
   try {
     const res = await fetch('/api/rapport', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        client, adresse, chantier,
-        description: description || chantier,
-        email: document.getElementById('rap-email')?.value.trim() || '',
-        telephone: document.getElementById('rap-tel')?.value.trim() || '',
-        photo_avant: rapportPhotoAvant || null,
-        photo_apres: rapportPhotoApres || null
-      })
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('sinelec_token') || '') },
+      body: JSON.stringify(payload)
     });
     const data = await res.json();
     if (data.success) {
-      showToast(`🎉 Rapport ${data.num} généré !`, '📋');
-      shootConfetti();
-      if (status) status.innerHTML = `<div style="color:#16a34a;font-weight:700;text-align:center;padding:10px;">✅ Rapport ${data.num} créé avec succès !</div>`;
-      // Reset
-      rapportPhotoAvant = null; rapportPhotoApres = null;
+      _rapportNumCache = data.num;
+      _rapportPayloadCache = payload;
+
+      if (data.pdf_b64 && status) {
+        const byteArr = Uint8Array.from(atob(data.pdf_b64), c => c.charCodeAt(0));
+        const blob = new Blob([byteArr], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        status.innerHTML = `
+          <div style="background:#FEF3C7;border:1.5px solid #f59e0b;border-radius:12px;padding:12px 14px;margin-bottom:10px;font-size:12.5px;color:#92400E;font-weight:700;">
+            👁️ Prévisualisation — vérifie le rapport avant d'envoyer
+          </div>
+          <iframe src="${url}" style="width:100%;height:520px;border-radius:12px;border:1.5px solid rgba(0,0,0,0.1);margin-bottom:8px;" title="Rapport PDF"></iframe>
+          <a href="${url}" download="${data.num}.pdf" style="display:block;text-align:center;padding:10px;background:#f1f5f9;color:#1B2A4A;border-radius:10px;font-weight:800;text-decoration:none;margin-bottom:6px;">⬇️ Télécharger pour vérifier</a>`;
+      }
+
+      // Afficher boutons Envoyer + Modifier
+      if (btnPreview) { btnPreview.style.display = 'none'; btnPreview.disabled = false; btnPreview.textContent = '👁️ Prévisualiser le rapport'; }
+      document.getElementById('rap-btn-envoyer').style.display = 'block';
+      document.getElementById('rap-btn-reset').style.display = 'block';
+      showToast('👁️ Vérifie le rapport avant d\'envoyer', '📋');
     } else {
       showToast('❌ ' + (data.error || 'Erreur'), '⚠️');
+      if (btnPreview) { btnPreview.disabled = false; btnPreview.textContent = '👁️ Prévisualiser le rapport'; }
     }
   } catch(e) {
     showToast('❌ ' + e.message, '⚠️');
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '📄 Générer le rapport PDF'; }
+    const b = document.getElementById('rap-btn-preview');
+    if (b) { b.disabled = false; b.textContent = '👁️ Prévisualiser le rapport'; }
   }
+}
+
+async function envoyerRapport() {
+  if (!_rapportPayloadCache) { showToast('⚠️ Génère d\'abord la prévisualisation', '❌'); return; }
+  const rapEmail = _rapportPayloadCache.email;
+  if (!rapEmail) {
+    const go = confirm('⚠️ Email client manquant !\n\nContinuer quand même ?');
+    if (!go) return;
+  }
+  const btn = document.getElementById('rap-btn-envoyer');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Envoi...'; }
+  try {
+    const res = await fetch('/api/rapport', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('sinelec_token') || '') },
+      body: JSON.stringify({ ..._rapportPayloadCache, envoyer: true })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(`✅ Rapport envoyé à ${rapEmail || 'client'} !`, '📤');
+      shootConfetti();
+      const status = document.getElementById('rap-status');
+      if (status) {
+        const banner = document.createElement('div');
+        banner.style.cssText = 'background:#f0fdf4;border:1.5px solid #16a34a;border-radius:12px;padding:12px 14px;margin-bottom:10px;font-size:13px;color:#166534;font-weight:700;text-align:center;';
+        banner.textContent = `✅ Rapport ${data.num} envoyé par email à ${rapEmail}`;
+        status.insertBefore(banner, status.firstChild);
+      }
+      document.getElementById('rap-btn-envoyer').style.display = 'none';
+      document.getElementById('rap-btn-reset').textContent = '🔄 Nouveau rapport';
+      _rapportPayloadCache = null;
+    } else {
+      showToast('❌ ' + (data.error || 'Erreur envoi'), '⚠️');
+      if (btn) { btn.disabled = false; btn.textContent = '📤 Envoyer au client'; }
+    }
+  } catch(e) {
+    showToast('❌ ' + e.message, '⚠️');
+    if (btn) { btn.disabled = false; btn.textContent = '📤 Envoyer au client'; }
+  }
+}
+
+function resetRapport() {
+  _rapportPayloadCache = null;
+  _rapportNumCache = null;
+  rapportPhotoAvant = null; rapportPhotoApres = null;
+  ['rap-client','rap-adresse','rap-email','rap-tel','rap-type-logement','rap-num-facture','rap-chantier','rap-description','rap-nature-panne'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  ['prev-avant','prev-apres'].forEach(id => { const el=document.getElementById(id); if(el) el.style.display='none'; });
+  ['lbl-avant','lbl-apres'].forEach(id => { const el=document.getElementById(id); if(el) el.style.display=''; });
+  const status = document.getElementById('rap-status');
+  if (status) status.innerHTML = '';
+  const btnP = document.getElementById('rap-btn-preview');
+  if (btnP) { btnP.style.display='block'; btnP.disabled=false; btnP.textContent='👁️ Prévisualiser le rapport'; }
+  const btnE = document.getElementById('rap-btn-envoyer');
+  if (btnE) btnE.style.display='none';
+  const btnR = document.getElementById('rap-btn-reset');
+  if (btnR) { btnR.style.display='none'; btnR.textContent='✏️ Modifier et regénérer'; }
 }
 
 // ═══════════════════════════════════════════════════
