@@ -2692,10 +2692,11 @@ app.post('/api/rapport', authMiddleware, async (req, res) => {
     const dateStr = new Date().toLocaleDateString('fr-FR');
 
     // Enregistrer en BDD
-    await supabase.from('rapports').insert({
+    const { error: rapportErr } = await supabase.from('rapports').insert({
       num, client, adresse, description: description || chantier,
       email, telephone, date_intervention: new Date().toISOString()
-    }).catch(e => console.log('Rapport insert (non bloquant):', e.message));
+    });
+    if (rapportErr) console.log('Rapport insert (non bloquant):', rapportErr.message);
 
     // Envoyer email si fourni
     if (email) {
@@ -3077,7 +3078,7 @@ async function verifierSante() {
     services.pdf_python = { status: 'ok' };
   } catch(e) { services.pdf_python = { status: 'error' }; }
   const allOk = Object.values(services).every(s => s.status === 'ok');
-  await supabase.from('logs_system').insert({ type: 'sante', message: 'Health check', data: services, success: allOk }).catch(() => {});
+  try { await supabase.from('logs_system').insert({ type: 'sante', message: 'Health check', data: services, success: allOk }); } catch(e) {}
   return { global: allOk ? 'ok' : 'degraded', services };
 }
 
