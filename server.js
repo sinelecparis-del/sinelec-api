@@ -73,8 +73,10 @@ app.use(express.static(__dirname));
 // AUTH
 // ═══════════════════════════════════════════════════
 
-const APP_PASSWORD      = process.env.APP_PASSWORD      || 'sinelec2026';
-const STANDARD_PASSWORD = process.env.STANDARD_PASSWORD || 'standard2026';
+const APP_PASSWORD       = process.env.APP_PASSWORD       || 'sinelec2026';
+const STANDARD_PASSWORD  = process.env.STANDARD_PASSWORD  || 'standard2026';
+const SOUSTRAITANT_PASSWORD = process.env.SOUSTRAITANT_PASSWORD || 'mehdi2026';
+const SOUSTRAITANT_NOM      = process.env.SOUSTRAITANT_NOM      || 'Mehdi Traore';
 const JWT_SECRET   = process.env.JWT_SECRET   || crypto.randomBytes(32).toString('hex');
 const TOKEN_EXPIRY = 7 * 24 * 60 * 60 * 1000;
 
@@ -108,7 +110,7 @@ function verifierToken(token) {
 function blockStandardiste(req, res, next) {
   const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
   const role = getRoleFromToken(token);
-  if (role === 'standardiste') {
+  if (role === 'standardiste' || role === 'soustraitant') {
     return res.status(403).json({ error: 'Accès non autorisé pour ce rôle', code: 'FORBIDDEN_ROLE' });
   }
   next();
@@ -128,11 +130,15 @@ app.post('/api/login', (req, res) => {
   const inputPwd  = String(req.body.password || '').trim();
   const adminPwd  = String(APP_PASSWORD).trim();
   const stdPwd    = String(STANDARD_PASSWORD).trim();
+  const subPwd    = String(SOUSTRAITANT_PASSWORD).trim();
   if (inputPwd === adminPwd) {
     return res.json({ success: true, token: genererToken('admin'), role: 'admin', expiresIn: TOKEN_EXPIRY });
   }
   if (inputPwd === stdPwd) {
     return res.json({ success: true, token: genererToken('standardiste'), role: 'standardiste', expiresIn: TOKEN_EXPIRY });
+  }
+  if (inputPwd === subPwd) {
+    return res.json({ success: true, token: genererToken('soustraitant'), role: 'soustraitant', nom: SOUSTRAITANT_NOM, expiresIn: TOKEN_EXPIRY });
   }
   return res.status(401).json({ error: 'Mot de passe incorrect' });
 });
@@ -515,7 +521,10 @@ app.post('/api/generer', async (req, res) => {
         _items: itemsData
       };
       const roleGenerateur = getRoleFromToken(req.headers['authorization']?.replace('Bearer ', ''));
-    jsonPayload._meta.standardiste = (roleGenerateur === 'standardiste');
+    jsonPayload._meta.standardiste = (roleGenerateur === 'standardiste' || roleGenerateur === 'soustraitant');
+    if (roleGenerateur === 'soustraitant') {
+      jsonPayload._meta.intervenant = SOUSTRAITANT_NOM;
+    }
     fs.writeFileSync(detailsPath, JSON.stringify(jsonPayload));
 
       const py = `# -*- coding: utf-8 -*-
@@ -1039,7 +1048,7 @@ app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
     // Copie silencieuse à Diahe si créé par la standardiste
     const tokenHeader = req.headers['authorization']?.replace('Bearer ', '');
     const roleCreateur = getRoleFromToken(tokenHeader);
-    if (roleCreateur === 'standardiste') {
+    if (roleCreateur === 'standardiste' || roleCreateur === 'soustraitant') {
       try {
         await envoyerEmail(
           CONFIG.email.sender_email,
@@ -1989,7 +1998,7 @@ if is_signe:
         diag_msg='[ Signature non disponible \u2014 donn\u00e9es manquantes (longueur:'+str(len(sig_data_b64) if sig_data_b64 else 0)+') ]'
         sig_left_items.append(Table([[p(diag_msg,7,color=GRIS_SOFT)]],colWidths=[8*cm]))
     is_standardiste=bool(meta.get('standardiste',False))
-sig_right_items=[p('Signature SINELEC',8,'Helvetica-Bold',MARINE)] + ([] if is_standardiste else [p('Diahe',8,color=GRIS_SOFT)]) + [p('SINELEC Paris \u26a1',7,color=OR)]
+    sig_right_items=[p('Signature SINELEC',8,'Helvetica-Bold',MARINE)] + ([] if is_standardiste else [p('Diahe',8,color=GRIS_SOFT)]) + [p('SINELEC Paris \u26a1',7,color=OR)]
     sig_tbl=Table([[sig_left_items,sig_right_items]],colWidths=[9.2*cm,9*cm])
     sig_tbl.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f8fafc')),('BOX',(0,0),(-1,-1),1,colors.HexColor('#e2e8f0')),('LINEAFTER',(0,0),(0,-1),1,colors.HexColor('#e2e8f0')),('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10)]))
     story.append(sig_tbl)
@@ -2277,7 +2286,17 @@ doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
 // ═══════════════════════════════════════════════════
 app.get('/api/agenda', async (req, res) => {
   try {
-    const { data, error } = await supabase.from('agenda').select('*').order('date_intervention', { ascending: true });
+    const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
+    const role = getRoleFromToken(token);
+
+    let query = supabase.from('agenda').select('*').order('date_intervention', { ascending: true });
+
+    // Sous-traitant : ne voit que ses propres interventions assignées
+    if (role === 'soustraitant') {
+      query = query.eq('assigne_a', 'soustraitant');
+    }
+
+    const { data, error } = await query;
     if (error) throw error;
     res.json(data || []);
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -2289,6 +2308,16 @@ app.post('/api/agenda', async (req, res) => {
     const { data, error } = await supabase.from('agenda').insert(body).select().single();
     if (error) throw error;
     res.json({ success: true, data });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/agenda/:id/assigner', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { assigne_a } = req.body; // 'soustraitant' ou null pour désassigner
+    const { error } = await supabase.from('agenda').update({ assigne_a: assigne_a || null }).eq('id', id);
+    if (error) throw error;
+    res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
