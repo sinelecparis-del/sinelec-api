@@ -73,6 +73,13 @@ app.use(express.static(__dirname));
 // AUTH
 // ═══════════════════════════════════════════════════
 
+// Cache PDF rapports (30 min)
+const _pdfCache = new Map();
+function cachePdf(num, buf) {
+  _pdfCache.set(num, { buf, ts: Date.now() });
+  setTimeout(() => _pdfCache.delete(num), 30 * 60 * 1000);
+}
+
 const APP_PASSWORD       = process.env.APP_PASSWORD       || 'sinelec2026';
 const STANDARD_PASSWORD  = process.env.STANDARD_PASSWORD  || 'standard2026';
 const SOUSTRAITANT_PASSWORD = process.env.SOUSTRAITANT_PASSWORD || 'mehdi2026';
@@ -2980,6 +2987,7 @@ doc.build(story, canvasmaker=lambda fn, **kw: SC(fn, **kw))
         const buf = fs.readFileSync(pdfPath);
         if (buf.length > 500 && buf.subarray(0,4).toString('ascii') === '%PDF') {
           pdf_b64 = buf.toString('base64');
+          cachePdf(num, buf); // Stocker pour accès direct via URL
           console.log(`✅ Rapport PDF généré: ${num} (${buf.length} bytes)`);
         }
       }
@@ -3009,8 +3017,19 @@ doc.build(story, canvasmaker=lambda fn, **kw: SC(fn, **kw))
       console.log(`✅ Rapport envoyé: ${num} → ${email}`);
     }
 
-    res.json({ success: true, num, pdf_b64, envoye: modeEnvoi && !!email });
+    const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+    const pdf_url = pdf_b64 ? `${appUrl}/api/rapport/pdf/${num}` : null;
+    res.json({ success: true, num, pdf_b64, pdf_url, envoye: modeEnvoi && !!email });
   } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Route pour servir le PDF rapport directement (sans blob JS)
+app.get('/api/rapport/pdf/:num', (req, res) => {
+  const entry = _pdfCache.get(req.params.num);
+  if (!entry) return res.status(404).json({ error: 'PDF expiré ou non trouvé' });
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="${req.params.num}.pdf"`);
+  res.send(entry.buf);
 });
 
 // ═══════════════════════════════════════════════════
