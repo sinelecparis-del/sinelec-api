@@ -6510,24 +6510,22 @@ async function previewRapport() {
       _rapportPayloadCache = payload;
 
       if (status) {
-        if (data.pdf_url) {
-          const url = data.pdf_url;
-          status.innerHTML = `
-            <div style="background:#FEF3C7;border:1.5px solid #f59e0b;border-radius:12px;padding:14px;margin-bottom:10px;text-align:center;">
-              <div style="font-size:28px;margin-bottom:6px;">📋</div>
-              <div style="font-size:13px;font-weight:800;color:#92400E;margin-bottom:4px;">Rapport ${data.num} prêt !</div>
-              <div style="font-size:11.5px;color:#92400E;margin-bottom:12px;">Vérifie avant d'envoyer au client</div>
-              <a href="${url}" target="_blank" style="display:block;padding:13px;background:#1B2A4A;color:#C9962A;border-radius:10px;font-weight:800;text-decoration:none;margin-bottom:8px;font-size:14px;">👁️ Ouvrir le PDF</a>
-              <a href="${url}" download="${data.num}.pdf" style="display:block;padding:10px;background:#f1f5f9;color:#1B2A4A;border-radius:10px;font-weight:800;text-decoration:none;font-size:12px;">⬇️ Télécharger</a>
-            </div>`;
-        } else {
-          status.innerHTML = `
-            <div style="background:#FEE2E2;border:1.5px solid #dc2626;border-radius:12px;padding:14px;margin-bottom:10px;text-align:center;">
+        const url = data.pdf_url;
+        status.innerHTML = url
+          ? `<div style="background:#FEF3C7;border:1.5px solid #f59e0b;border-radius:12px;padding:16px;margin-bottom:10px;text-align:center;">
+              <div style="font-size:32px;margin-bottom:8px;">📋</div>
+              <div style="font-size:14px;font-weight:800;color:#92400E;margin-bottom:4px;">Rapport ${data.num} prêt !</div>
+              <div style="font-size:12px;color:#92400E;margin-bottom:14px;">Ouvre le PDF pour vérifier avant d'envoyer</div>
+              <a href="${url}" target="_blank" style="display:block;padding:14px;background:#1B2A4A;color:#C9962A;border-radius:12px;font-weight:800;text-decoration:none;margin-bottom:8px;font-size:14px;letter-spacing:.3px;">👁️ Ouvrir le PDF</a>
+              <a href="${url}" target="_blank" download="${data.num}.pdf" style="display:block;padding:11px;background:#f1f5f9;color:#1B2A4A;border-radius:12px;font-weight:800;text-decoration:none;font-size:13px;">⬇️ Télécharger le PDF</a>
+            </div>`
+          : `<div style="background:#FEE2E2;border:1.5px solid #dc2626;border-radius:12px;padding:14px;margin-bottom:10px;text-align:center;">
               <div style="font-size:28px;margin-bottom:6px;">⚠️</div>
               <div style="font-size:13px;font-weight:800;color:#991B1B;margin-bottom:4px;">PDF non généré — N° ${data.num}</div>
-              <div style="font-size:11px;color:#991B1B;">Consulte les logs Railway pour le détail de l'erreur</div>
+              <div style="font-size:11px;color:#991B1B;">Consulte les logs Railway</div>
             </div>`;
-        }
+        // Auto-scroll vers le résultat
+        setTimeout(() => status.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
       }
 
       // Afficher boutons Envoyer + Modifier
@@ -6547,8 +6545,8 @@ async function previewRapport() {
 }
 
 async function envoyerRapport() {
-  if (!_rapportPayloadCache) { showToast('⚠️ Génère d\'abord la prévisualisation', '❌'); return; }
-  const rapEmail = _rapportPayloadCache.email;
+  if (!_rapportNumCache) { showToast('⚠️ Génère d\'abord la prévisualisation', '❌'); return; }
+  const rapEmail = _rapportPayloadCache?.email || '';
   if (!rapEmail) {
     const go = confirm('⚠️ Email client manquant !\n\nContinuer quand même ?');
     if (!go) return;
@@ -6556,10 +6554,15 @@ async function envoyerRapport() {
   const btn = document.getElementById('rap-btn-envoyer');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Envoi...'; }
   try {
-    const res = await fetch('/api/rapport', {
+    // Utilise la route légère — le PDF est déjà en cache serveur, pas besoin de renvoyer les photos
+    const res = await fetch(`/api/rapport/envoyer/${_rapportNumCache}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('sinelec_token') || '') },
-      body: JSON.stringify({ ..._rapportPayloadCache, envoyer: true })
+      body: JSON.stringify({ 
+        email: rapEmail, 
+        client: _rapportPayloadCache?.client || '',
+        payload: _rapportPayloadCache  // Pour régénérer si cache expiré
+      })
     });
     const data = await res.json();
     if (data.success) {
