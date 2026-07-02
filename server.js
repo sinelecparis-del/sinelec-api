@@ -2701,7 +2701,7 @@ app.post('/api/rapport', authMiddleware, async (req, res) => {
     // Enregistrer en BDD
     const { error: rapportErr } = await supabase.from('rapports').insert({
       num, client, adresse, description: description || chantier,
-      email, telephone, date_intervention: new Date().toISOString()
+      email, telephone
     });
     if (rapportErr) console.log('Rapport insert (non bloquant):', rapportErr.message);
 
@@ -2803,7 +2803,7 @@ except:
 hdr = Table([[
     logo_img,
     [
-        p('RAPPORT D\'INTERVENTION', 13, 'Helvetica-Bold', BLANC),
+        p("RAPPORT D'INTERVENTION", 13, 'Helvetica-Bold', BLANC),
         p('Document officiel · Usage assurance & sinistre', 8, 'Helvetica', OR_L),
         p(f'N° {num}  ·  Date : {date_str}', 8, 'Helvetica', colors.HexColor('#94a3b8')),
     ]
