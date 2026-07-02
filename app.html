@@ -7529,12 +7529,14 @@ function renderTableauHistorique() {
     const rowMobileClick = `onclick="if(window.innerWidth<=768){const it=window._histoItemMap['${item.num}'];if(it)ouvrirActionSheet(it);}"`;
 
     // Icône selon type/source
-    const docIcon = isObat ? '📦' : type === 'devis' ? '📋' : '💶';
-    const iconBg   = isObat ? '#FEF9EC' : type === 'devis' ? '#EEF2FF' : '#F0FDF4';
+    const isRapport = item.source === 'rapport' || type === 'rapport';
+    const docIcon = isObat ? '📦' : isRapport ? '📸' : type === 'devis' ? '📋' : '💶';
+    const iconBg   = isObat ? '#FEF9EC' : isRapport ? '#FDF4FF' : type === 'devis' ? '#EEF2FF' : '#F0FDF4';
 
     // Badge statut compact
     let badgeStyle, badgeLabel;
-    if (estPaye)        { badgeStyle = 'background:#d1fae5;color:#065f46'; badgeLabel = 'PAYÉ'; }
+    if (isRapport)      { badgeStyle = 'background:#fdf4ff;color:#7c3aed'; badgeLabel = 'RAPPORT'; }
+    else if (estPaye)   { badgeStyle = 'background:#d1fae5;color:#065f46'; badgeLabel = 'PAYÉ'; }
     else if (estSigne)  { badgeStyle = 'background:#dcfce7;color:#15803d'; badgeLabel = 'SIGNÉ'; }
     else if (estAnnule) { badgeStyle = 'background:#f3f4f6;color:#6b7280'; badgeLabel = 'ANNULÉ'; }
     else if (statut==='expire') { badgeStyle = 'background:#f3f4f6;color:#9ca3af'; badgeLabel = 'EXPIRÉ'; }
