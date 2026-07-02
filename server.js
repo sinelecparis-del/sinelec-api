@@ -1522,12 +1522,40 @@ app.get('/api/ca-complet', blockStandardiste, async (req, res) => {
 app.get('/api/historique', blockStandardiste, async (req, res) => {
   try {
     const { type, statut } = req.query;
+
+    // Charger devis/factures depuis historique
     let query = supabase.from('historique').select('*').order('created_at', { ascending: false });
-    if (type) query = query.eq('type', type);
+    if (type && type !== 'rapport') query = query.eq('type', type);
     if (statut) query = query.eq('statut', statut);
-    const { data, error } = await query;
+    const { data: docs, error } = await query;
     if (error) throw error;
-    res.json(data || []);
+
+    // Fusionner avec les rapports si pas de filtre type spécifique
+    let result = docs || [];
+    if (!type || type === 'rapport') {
+      const { data: rapports } = await supabase.from('rapports')
+        .select('*').order('created_at', { ascending: false });
+      const rapportsFormatted = (rapports || []).map(r => ({
+        num: r.num,
+        type: 'rapport',
+        client: r.client,
+        adresse: r.adresse,
+        email: r.email,
+        telephone: r.telephone,
+        statut: 'envoye',
+        total_ht: 0,
+        created_at: r.created_at,
+        source: 'rapport'
+      }));
+      if (type === 'rapport') {
+        result = rapportsFormatted;
+      } else {
+        result = [...result, ...rapportsFormatted]
+          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      }
+    }
+
+    res.json(result);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
