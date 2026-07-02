@@ -2710,18 +2710,45 @@ app.post('/api/rapport', authMiddleware, async (req, res) => {
     const pyPath     = path.join('/tmp', `_rap_${num}.py`);
     const pdfPath    = path.join('/tmp', `_rap_${num}.pdf`);
 
-    const descFull = description || chantier || '';
-    // Parser les travaux (lignes commençant par un numéro ou tiret)
-    const travaux = descFull.split('\n').filter(l => l.trim()).map((l, i) => ({
-      num: i + 1,
-      texte: l.replace(/^[\d]+[.)\-\s]+/, '').trim()
-    }));
+    const statut_install = req.body.statut_install || 'ok';
+    const descRaw = description || chantier || '';
+    // Nettoyer le markdown et extraire les travaux proprement
+    const cleanMarkdown = (txt) => txt
+      .replace(/^#{1,6}\s+/gm, '')           // Retire ## headers
+      .replace(/\*\*([^*]+)\*\*/g, '$1')   // Retire **bold**
+      .replace(/\*([^*]+)\*/g, '$1')          // Retire *italic*
+      .replace(/^\d+\s+/gm, '')               // Retire les numéros en début de ligne (1 2 3...)
+      .replace(/Rapport d\'Intervention[^\n]*/gi, '') // Retire le titre si copié dedans
+      .replace(/Client :\s*[^\n]*/g, '')
+      .replace(/Adresse :\s*[^\n]*/g, '')
+      .replace(/Description des travaux[^\n]*/g, '')
+      .replace(/Actions réalisées :[^\n]*/g, '')
+      .replace(/Matériels utilisés :/g, 'Matériels utilisés :')
+      .replace(/Conformité :/g, 'Conformité :')
+      .replace(/Recommandations :/g, 'Recommandations :')
+      .trim();
+
+    const descFull = cleanMarkdown(descRaw);
+
+    // Parser les travaux — chaque ligne non vide = une entrée
+    const travaux = descFull.split('\n')
+      .map(l => l.trim())
+      .filter(l => l.length > 3) // Ignore les lignes trop courtes
+      .map((l, i) => ({
+        num: i + 1,
+        texte: l
+          .replace(/^[-•●▸\-]+\s*/, '')     // Retire les puces
+          .replace(/^\d+[.)\-]\s*/, '')      // Retire les numéros 1. 1) 1-
+          .trim()
+      }))
+      .filter(t => t.texte.length > 3);
 
     fs.writeFileSync(detailsPath, JSON.stringify({
       num, client, adresse, telephone, email,
       dateStr, type_logement: type_logement || '',
       num_facture: num_facture || '',
       nature_panne: nature_panne || '',
+      statut_install,
       travaux,
       desc_full: descFull,
       photo_avant: photo_avant || null,
@@ -2750,18 +2777,19 @@ VERT   = colors.HexColor('#16a34a')
 with open(sys.argv[1], encoding='utf-8') as f:
     d = json.load(f)
 
-num          = d.get('num','')
-client       = d.get('client','')
-adresse      = d.get('adresse','')
-telephone    = d.get('telephone','')
-date_str     = d.get('dateStr','')
-type_logement= d.get('type_logement','')
-num_facture  = d.get('num_facture','')
-nature_panne = d.get('nature_panne','')
-travaux      = d.get('travaux',[])
-desc_full    = d.get('desc_full','')
-photo_avant  = d.get('photo_avant')
-photo_apres  = d.get('photo_apres')
+num           = d.get('num','')
+client        = d.get('client','')
+adresse       = d.get('adresse','')
+telephone     = d.get('telephone','')
+date_str      = d.get('dateStr','')
+type_logement = d.get('type_logement','')
+num_facture   = d.get('num_facture','')
+nature_panne  = d.get('nature_panne','')
+statut_install= d.get('statut_install','ok')
+travaux       = d.get('travaux',[])
+desc_full     = d.get('desc_full','')
+photo_avant   = d.get('photo_avant')
+photo_apres   = d.get('photo_apres')
 
 def p(txt, sz=10, font='Helvetica', color=None, align=TA_LEFT, leading=None):
     color = color or MARINE
@@ -2805,24 +2833,58 @@ hdr = Table([[
     [
         p("RAPPORT D'INTERVENTION", 13, 'Helvetica-Bold', BLANC),
         p('Document officiel · Usage assurance & sinistre', 8, 'Helvetica', OR_L),
-        p(f'N° {num}  ·  Date : {date_str}', 8, 'Helvetica', colors.HexColor('#94a3b8')),
+    ],
+    [
+        p(f'N° {num}', 10, 'Helvetica-Bold', OR),
+        p(date_str, 8, 'Helvetica', colors.HexColor('#94a3b8')),
     ]
-]], colWidths=[3.6*cm, CW - 3.6*cm])
+]], colWidths=[3.6*cm, CW - 3.6*cm - 3.5*cm, 3.5*cm])
 hdr.setStyle(TableStyle([
     ('BACKGROUND',(0,0),(-1,-1),MARINE),
     ('LEFTPADDING',(0,0),(0,-1),10),('LEFTPADDING',(1,0),(1,-1),14),
-    ('RIGHTPADDING',(0,0),(-1,-1),12),
-    ('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),
+    ('RIGHTPADDING',(0,0),(-1,-1),14),
+    ('TOPPADDING',(0,0),(-1,-1),12),('BOTTOMPADDING',(0,0),(-1,-1),12),
     ('VALIGN',(0,0),(-1,-1),'MIDDLE'),
     ('LINEBEFORE',(1,0),(1,-1),2,OR),
+    ('ALIGN',(2,0),(2,-1),'RIGHT'),
 ]))
 story.append(hdr)
-story.append(Spacer(1,0.2*cm))
 
-def section_title(txt):
-    t = Table([[p(txt, 8, 'Helvetica-Bold', OR)]], colWidths=[CW])
-    t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),
-        ('LEFTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5)]))
+# Bande statut dynamique
+VERT_D  = colors.HexColor('#15803d')
+ORANGE_B= colors.HexColor('#f59e0b')
+if statut_install == 'ok':
+    band_bg  = VERT_D
+    band_l   = p('<b>✓  INSTALLATION VÉRIFIÉE ET SÉCURISÉE</b>', 9, 'Helvetica-Bold', BLANC)
+    band_r   = p('NF C 15-100  ·  Garantie décennale ORUS', 8, 'Helvetica', colors.HexColor('#bbf7d0'), align=4)
+else:
+    band_bg  = ORANGE_B
+    band_l   = p('<b>⚠  INTERVENTION PARTIELLE — TRAVAUX COMPLÉMENTAIRES RECOMMANDÉS</b>', 9, 'Helvetica-Bold', colors.HexColor('#1c0a00'))
+    band_r   = p("Client informé · Devis complémentaire proposé et refusé", 8, 'Helvetica', colors.HexColor('#1c0a00'), align=4)
+
+band = Table([[band_l, band_r]], colWidths=[CW*0.62, CW*0.38])
+band.setStyle(TableStyle([
+    ('BACKGROUND',(0,0),(-1,-1),band_bg),
+    ('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),
+    ('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7),
+    ('VALIGN',(0,0),(-1,-1),'MIDDLE'),
+]))
+story.append(band)
+story.append(Spacer(1,0.12*cm))
+
+def section_title(num_sec, txt):
+    num_cell = Table([[p(str(num_sec), 9, 'Helvetica-Bold', MARINE)]], colWidths=[0.7*cm],
+        style=[('BACKGROUND',(0,0),(-1,-1),OR),('ALIGN',(0,0),(-1,-1),'CENTER'),
+        ('VALIGN',(0,0),(-1,-1),'MIDDLE'),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4),
+        ('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)])
+    line = Table([['']], colWidths=[CW - 0.9*cm - 0.1*cm],
+        style=[('LINEBELOW',(0,0),(-1,-1),0.8,colors.HexColor('#e2e8f0')),
+        ('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0)])
+    t = Table([[num_cell, p(f'  {txt}', 10, 'Helvetica-Bold', MARINE), line]],
+        colWidths=[0.9*cm, 5*cm, CW - 0.9*cm - 5*cm])
+    t.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'MIDDLE'),
+        ('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0),
+        ('LEFTPADDING',(1,0),(1,-1),6),('RIGHTPADDING',(0,0),(-1,-1),0)]))
     return t
 
 def field_row(label, val, w=CW/2 - 0.1*cm):
@@ -2834,7 +2896,7 @@ def field_row(label, val, w=CW/2 - 0.1*cm):
 HALF = CW / 2
 
 # 1. IDENTIFICATION
-story.append(section_title("1. IDENTIFICATION DU CHANTIER"))
+story.append(section_title(1, "IDENTIFICATION DU CHANTIER"))
 story.append(Spacer(1,0.05*cm))
 ident = Table([[
     [field_row('Client', client, HALF),
@@ -2859,7 +2921,7 @@ story.append(Spacer(1,0.18*cm))
 
 # 2. NATURE DE LA PANNE
 if nature_panne:
-    story.append(section_title("2. NATURE DE LA PANNE CONSTATÉE"))
+    story.append(section_title(2, "NATURE DE LA PANNE CONSTATÉE"))
     story.append(Spacer(1,0.05*cm))
     panne_tbl = Table([[p(nature_panne, 11, 'Helvetica', MARINE, align=TA_JUSTIFY, leading=16)]],
         colWidths=[CW])
@@ -2877,15 +2939,27 @@ else:
 story.append(section_title(f"{num_section}. TRAVAUX RÉALISÉS"))
 story.append(Spacer(1,0.05*cm))
 if travaux:
+    # Séparer les étapes des sections spéciales
+    SECTION_PREFIXES = ['Matériels utilisés', 'Conformité', 'Recommandations', 'Matériel utilisé', 'Conclusion']
+    etapes = []
+    extras = []
+    for t in travaux:
+        txt = t['texte']
+        is_extra = any(txt.startswith(pref) for pref in SECTION_PREFIXES)
+        if is_extra:
+            extras.append(txt)
+        else:
+            etapes.append(txt)
+
+    # Rendu des étapes numérotées
     rows = []
-    for i, t in enumerate(travaux):
+    for i, texte in enumerate(etapes):
         bg = GRIS_L if i % 2 == 0 else BLANC
-        row = Table([[
-            Table([[p(str(t['num']), 9, 'Helvetica-Bold', OR)]], colWidths=[0.7*cm],
-                style=[('BACKGROUND',(0,0),(-1,-1),MARINE),('ALIGN',(0,0),(-1,-1),'CENTER'),
-                ('VALIGN',(0,0),(-1,-1),'MIDDLE'),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4)]),
-            p(t['texte'], 10.5, 'Helvetica', MARINE, align=TA_JUSTIFY, leading=15)
-        ]], colWidths=[0.9*cm, CW - 0.9*cm])
+        num_cell = Table([[p(str(i+1), 9, 'Helvetica-Bold', OR)]], colWidths=[0.7*cm],
+            style=[('BACKGROUND',(0,0),(-1,-1),MARINE),('ALIGN',(0,0),(-1,-1),'CENTER'),
+            ('VALIGN',(0,0),(-1,-1),'MIDDLE'),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5)])
+        row = Table([[num_cell, p(texte, 10.5, 'Helvetica', MARINE, align=TA_JUSTIFY, leading=15)]],
+            colWidths=[0.9*cm, CW - 0.9*cm])
         row.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),bg),
             ('LINEBELOW',(0,0),(-1,-1),0.3,colors.HexColor('#e2e8f0')),
             ('LEFTPADDING',(1,0),(1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),8),
@@ -2894,8 +2968,25 @@ if travaux:
             ('LEFTPADDING',(0,0),(0,-1),0),('RIGHTPADDING',(0,0),(0,-1),0),
         ]))
         rows.append(row)
-        rows.append(Spacer(1,0.01*cm))
     for r in rows: story.append(r)
+
+    # Rendu des sections extras (matériels, conformité, recommandations)
+    if extras:
+        story.append(Spacer(1,0.1*cm))
+        for extra in extras:
+            parts = extra.split(':', 1)
+            label = parts[0].strip() if len(parts) > 1 else 'Note'
+            val   = parts[1].strip() if len(parts) > 1 else extra
+            ex_tbl = Table([[
+                p(f'<b>{label} :</b>', 9, 'Helvetica-Bold', GRIS),
+                p(val, 10, 'Helvetica', MARINE, align=TA_JUSTIFY, leading=14)
+            ]], colWidths=[3.5*cm, CW - 3.5*cm])
+            ex_tbl.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f8fafc')),
+                ('LINEBELOW',(0,0),(-1,-1),0.4,colors.HexColor('#e2e8f0')),
+                ('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),
+                ('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7),
+                ('VALIGN',(0,0),(-1,-1),'TOP')]))
+            story.append(ex_tbl)
 else:
     tbl = Table([[p(desc_full or 'Voir description', 10.5, 'Helvetica', MARINE, align=TA_JUSTIFY)]],
         colWidths=[CW])
