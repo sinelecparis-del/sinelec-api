@@ -2834,7 +2834,7 @@ def field_row(label, val, w=CW/2 - 0.1*cm):
 HALF = CW / 2
 
 # 1. IDENTIFICATION
-story.append(section_title('1. IDENTIFICATION DU CHANTIER'))
+story.append(section_title("1. IDENTIFICATION DU CHANTIER"))
 story.append(Spacer(1,0.05*cm))
 ident = Table([[
     [field_row('Client', client, HALF),
@@ -2859,7 +2859,7 @@ story.append(Spacer(1,0.18*cm))
 
 # 2. NATURE DE LA PANNE
 if nature_panne:
-    story.append(section_title('2. NATURE DE LA PANNE CONSTATÉE'))
+    story.append(section_title("2. NATURE DE LA PANNE CONSTATÉE"))
     story.append(Spacer(1,0.05*cm))
     panne_tbl = Table([[p(nature_panne, 11, 'Helvetica', MARINE, align=TA_JUSTIFY, leading=16)]],
         colWidths=[CW])
@@ -2874,7 +2874,7 @@ else:
     num_section = 2
 
 # 3. TRAVAUX RÉALISÉS
-story.append(section_title(f'{num_section}. TRAVAUX RÉALISÉS'))
+story.append(section_title(f"{num_section}. TRAVAUX RÉALISÉS"))
 story.append(Spacer(1,0.05*cm))
 if travaux:
     rows = []
@@ -2907,7 +2907,7 @@ story.append(Spacer(1,0.18*cm))
 
 # 4. PHOTOS
 if photo_avant or photo_apres:
-    story.append(section_title(f'{num_section+1}. PHOTOS D\'INTERVENTION'))
+    story.append(section_title(f"{num_section+1}. PHOTOS D'INTERVENTION"))
     story.append(Spacer(1,0.08*cm))
     photo_cols = []
     PHOTO_W = (CW - 0.4*cm) / 2
@@ -2939,7 +2939,7 @@ if photo_avant or photo_apres:
     num_section += 1
 
 # CONFORMITÉ
-story.append(section_title(f'{num_section+1}. ATTESTATION DE CONFORMITÉ'))
+story.append(section_title(f"{num_section+1}. ATTESTATION DE CONFORMITÉ"))
 story.append(Spacer(1,0.08*cm))
 conf = Table([[
     p('✅', 16, 'Helvetica', VERT),
