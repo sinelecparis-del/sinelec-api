@@ -2923,29 +2923,70 @@ def field_row(label, val, w=CW/2 - 0.1*cm):
 
 HALF = CW / 2
 
-# 1. IDENTIFICATION
-story.append(section_title(1, "IDENTIFICATION DU CHANTIER"))
-story.append(Spacer(1,0.05*cm))
-ident = Table([[
-    [field_row('Client', client, HALF),
-     Spacer(1,0.03*cm),
-     field_row('Téléphone', telephone, HALF)],
-    [field_row('Adresse', adresse, HALF),
-     Spacer(1,0.03*cm),
-     field_row('Type logement', type_logement, HALF)],
-    [field_row('Date', date_str, HALF),
-     Spacer(1,0.03*cm),
-     field_row('N° Facture', num_facture, HALF)],
-]], colWidths=[HALF, HALF])
-ident.setStyle(TableStyle([
-    ('BACKGROUND',(0,0),(-1,-1),GRIS_L),
-    ('LEFTPADDING',(0,0),(-1,-1),8),('RIGHTPADDING',(0,0),(-1,-1),8),
-    ('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),
-    ('LINEBELOW',(0,0),(-1,-2),0.4,colors.HexColor('#e2e8f0')),
-    ('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0')),
-]))
-story.append(ident)
-story.append(Spacer(1,0.18*cm))
+# ── BLOC CLIENT PRO — 2 colonnes avec headers marine ──
+def make_client_block():
+    HALF_C = CW / 2
+
+    def col_header(icon, txt):
+        return Table([[p(f'{icon}  {txt}', 9, 'Helvetica-Bold', OR)]],
+            colWidths=[HALF_C - 0.1*cm],
+            style=[('BACKGROUND',(0,0),(-1,-1),MARINE),
+                   ('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),8),
+                   ('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7)])
+
+    def client_field(label, val, is_mono=False, bg=BLANC):
+        v = p(val or '—', 12, 'Helvetica-Bold' if not is_mono else 'Helvetica', OR if is_mono else MARINE)
+        l = p(label, 8, 'Helvetica', GRIS)
+        cell = Table([[l],[v]], colWidths=[HALF_C - 0.1*cm])
+        cell.setStyle(TableStyle([
+            ('BACKGROUND',(0,0),(-1,-1),bg),
+            ('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),8),
+            ('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7),
+            ('LINEBELOW',(0,0),(-1,-1),0.4,colors.HexColor('#f1f5f9')),
+        ]))
+        return cell
+
+    col_left = [
+        col_header('👤', 'Informations client'),
+        client_field('Nom complet', client, bg=GRIS_L),
+        client_field('Adresse', adresse, bg=BLANC),
+        client_field('Téléphone', telephone, bg=GRIS_L),
+        client_field('Email', email or '—', bg=BLANC),
+    ]
+    col_right = [
+        col_header('🔧', 'Détails intervention'),
+        client_field("Date d'intervention", date_str, bg=GRIS_L),
+        client_field('Type de logement', type_logement or '—', bg=BLANC),
+        client_field('N° Facture associé', num_facture or '—', is_mono=True, bg=GRIS_L),
+        client_field('N° Rapport', num, is_mono=True, bg=BLANC),
+    ]
+
+    divider = Table([['']], colWidths=[0.06*cm],
+        style=[('BACKGROUND',(0,0),(-1,-1),MARINE),
+               ('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0)])
+
+    rows_left  = [item for item in col_left]
+    rows_right = [item for item in col_right]
+
+    # Assembler les 2 colonnes côte à côte
+    n = max(len(rows_left), len(rows_right))
+    tbl_data = []
+    for i in range(n):
+        l = rows_left[i]  if i < len(rows_left)  else ''
+        r = rows_right[i] if i < len(rows_right) else ''
+        tbl_data.append([l, divider, r])
+
+    tbl = Table(tbl_data, colWidths=[HALF_C - 0.03*cm, 0.06*cm, HALF_C - 0.03*cm])
+    tbl.setStyle(TableStyle([
+        ('BOX',(0,0),(-1,-1),1.5,MARINE),
+        ('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0),
+        ('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),
+        ('VALIGN',(0,0),(-1,-1),'TOP'),
+    ]))
+    return tbl
+
+story.append(make_client_block())
+story.append(Spacer(1,0.2*cm))
 
 # 2. NATURE DE LA PANNE
 if nature_panne:
