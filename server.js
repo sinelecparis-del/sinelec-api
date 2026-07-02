@@ -3023,6 +3023,40 @@ doc.build(story, canvasmaker=lambda fn, **kw: SC(fn, **kw))
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// Route pour envoyer le PDF rapport déjà généré (sans re-générer)
+app.post('/api/rapport/envoyer/:num', authMiddleware, async (req, res) => {
+  try {
+    const { num } = req.params;
+    const { email, client } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email manquant' });
+
+    const entry = _pdfCache.get(num);
+    if (!entry) return res.status(404).json({ error: 'PDF expiré — régénère d\'abord le rapport' });
+
+    const dateStr = new Date().toLocaleDateString('fr-FR');
+    const html = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;">
+      <div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:24px;text-align:center;border-radius:12px 12px 0 0;">
+        <h2 style="color:#E8B84B;margin:0;">Rapport d'intervention SINELEC</h2>
+      </div>
+      <div style="padding:24px;border:1px solid #e8e8e8;border-top:none;border-radius:0 0 12px 12px;">
+        <p>Bonjour${client ? ` <strong>${client}</strong>` : ''},</p>
+        <p>Veuillez trouver ci-joint votre rapport d'intervention n° <strong>${num}</strong> du ${dateStr}.</p>
+        <p>Ce document peut être transmis à votre assurance pour déclarer un sinistre.</p>
+        <p style="font-size:12px;color:#888;margin-top:16px;">📞 07 87 38 86 22 | sinelec.paris@gmail.com</p>
+      </div>
+    </div>`;
+
+    const attachment = { content: entry.buf.toString('base64'), name: `${num}.pdf` };
+    await envoyerEmail(email, `Rapport d'intervention ${num} - SINELEC Paris`, html, attachment);
+
+    console.log(`✅ Rapport envoyé: ${num} → ${email}`);
+    res.json({ success: true, num, email });
+  } catch(e) {
+    console.error('❌ rapport/envoyer:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Route pour servir le PDF rapport directement (sans blob JS)
 app.get('/api/rapport/pdf/:num', (req, res) => {
   const entry = _pdfCache.get(req.params.num);
