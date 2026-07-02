@@ -2964,7 +2964,7 @@ else:
     num_section = 2
 
 # 3. TRAVAUX RÉALISÉS
-story.append(section_title(f"{num_section}. TRAVAUX RÉALISÉS"))
+story.append(section_title(num_section, "TRAVAUX RÉALISÉS"))
 story.append(Spacer(1,0.05*cm))
 if travaux:
     # Séparer les étapes des sections spéciales
@@ -3026,7 +3026,7 @@ story.append(Spacer(1,0.18*cm))
 
 # 4. PHOTOS
 if photo_avant or photo_apres:
-    story.append(section_title(f"{num_section+1}. PHOTOS D'INTERVENTION"))
+    story.append(section_title(num_section+1, "PHOTOS D'INTERVENTION"))
     story.append(Spacer(1,0.08*cm))
     photo_cols = []
     PHOTO_W = (CW - 0.4*cm) / 2
@@ -3058,7 +3058,7 @@ if photo_avant or photo_apres:
     num_section += 1
 
 # CONFORMITÉ
-story.append(section_title(f"{num_section+1}. ATTESTATION DE CONFORMITÉ"))
+story.append(section_title(num_section+1, "ATTESTATION DE CONFORMITÉ"))
 story.append(Spacer(1,0.08*cm))
 conf = Table([[
     p('✅', 16, 'Helvetica', VERT),
