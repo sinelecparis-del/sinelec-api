@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════
 // SINELEC OS v2.0 - BACKEND COMPLET - VERSION PROPRE
 // ═══════════════════════════════════════════════════════════════
-
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const cron = require('node-cron');
@@ -3176,6 +3176,20 @@ app.get('/api/rdv/confirmer', async (req, res) => {
 // ═══════════════════════════════════════════════════
 // DÉMARRAGE
 // ═══════════════════════════════════════════════════
+
+
+// OAUTH MCP
+app.get('/oauth/authorize',(req,res)=>{const{redirect_uri,state}=req.query;res.redirect(redirect_uri+'?code=sinelec_code&state='+(state||''));});
+app.post('/oauth/token',(req,res)=>{res.json({access_token:'sinelec_token_2026',token_type:'bearer',expires_in:86400});});
+app.get('/mcp',(req,res)=>{res.json({protocolVersion:'2024-11-05',capabilities:{tools:{}},serverInfo:{name:'sinelec-os',version:'2.0'}});});
+app.post('/mcp',async(req,res)=>{const{method,params,id}=req.body;res.setHeader('Content-Type','application/json');try{if(method==='initialize')return res.json({jsonrpc:'2.0',id,result:{protocolVersion:'2024-11-05',capabilities:{tools:{}},serverInfo:{name:'sinelec-os'}}});if(method==='tools/list')return res.json({jsonrpc:'2.0',id,result:{tools:[{name:'get_historique',description:'Historique devis/factures',inputSchema:{type:'object',properties:{type:{type:'string'},limite:{type:'number'}}}},{name:'get_clients',description:'Recherche clients',inputSchema:{type:'object',properties:{recherche:{type:'string'}}}},{name:'get_dashboard',description:'CA mois/annee',inputSchema:{type:'object',properties:{}}}]}});if(method==='tools/call'){const{name,arguments:args}=params;let result;if(name==='get_historique'){const{data}=await supabase.from('historique').select('*').order('created_at',{ascending:false}).limit(args.limite||20);result={documents:data||[],total:(data||[]).length};}else if(name==='get_clients'){let q=supabase.from('clients').select('*').order('updated_at',{ascending:false});if(args.recherche)q=q.or('nom.ilike.%'+args.recherche+'%,telephone.ilike.%'+args.recherche+'%');const{data}=await q.limit(20);result={clients:data||[]};}else if(name==='get_dashboard'){const{data:f}=await supabase.from('historique').select('*').eq('type','facture');const now=new Date();const mk=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');const fm=(f||[]).filter(x=>x.created_at&&x.created_at.startsWith(mk));const fa=(f||[]).filter(x=>x.created_at&&x.created_at.startsWith(''+now.getFullYear()));result={ca_mois:Math.round(fm.reduce((s,x)=>s+parseFloat(x.totalht||0),0)),ca_annee:Math.round(fa.reduce((s,x)=>s+parseFloat(x.totalht||0),0)),nb_factures_mois:fm.length};}return res.json({jsonrpc:'2.0',id,result:{content:[{type:'text',text:JSON.stringify(result,null,2)}]}});}if(method==='ping')return res.json({jsonrpc:'2.0',id,result:{}});res.json({jsonrpc:'2.0',id,error:{code:-32601,message:'Methode inconnue'}});}catch(e){res.json({jsonrpc:'2.0',id,error:{code:-32603,message:e.message}});}});
+
+
+// OAUTH MCP
+app.get('/oauth/authorize',(req,res)=>{const{redirect_uri,state}=req.query;res.redirect(redirect_uri+'?code=sinelec_code&state='+(state||''));});
+app.post('/oauth/token',(req,res)=>{res.json({access_token:'sinelec_token_2026',token_type:'bearer',expires_in:86400});});
+app.get('/mcp',(req,res)=>{res.json({protocolVersion:'2024-11-05',capabilities:{tools:{}},serverInfo:{name:'sinelec-os',version:'2.0'}});});
+app.post('/mcp',async(req,res)=>{const{method,params,id}=req.body;res.setHeader('Content-Type','application/json');try{if(method==='initialize')return res.json({jsonrpc:'2.0',id,result:{protocolVersion:'2024-11-05',capabilities:{tools:{}},serverInfo:{name:'sinelec-os'}}});if(method==='tools/list')return res.json({jsonrpc:'2.0',id,result:{tools:[{name:'get_historique',description:'Historique devis/factures',inputSchema:{type:'object',properties:{type:{type:'string'},limite:{type:'number'}}}},{name:'get_clients',description:'Recherche clients',inputSchema:{type:'object',properties:{recherche:{type:'string'}}}},{name:'get_dashboard',description:'CA mois/annee',inputSchema:{type:'object',properties:{}}}]}});if(method==='tools/call'){const{name,arguments:args}=params;let result;if(name==='get_historique'){const{data}=await supabase.from('historique').select('*').order('created_at',{ascending:false}).limit(args.limite||20);result={documents:data||[],total:(data||[]).length};}else if(name==='get_clients'){let q=supabase.from('clients').select('*').order('updated_at',{ascending:false});if(args.recherche)q=q.or('nom.ilike.%'+args.recherche+'%,telephone.ilike.%'+args.recherche+'%');const{data}=await q.limit(20);result={clients:data||[]};}else if(name==='get_dashboard'){const{data:f}=await supabase.from('historique').select('*').eq('type','facture');const now=new Date();const mk=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');const fm=(f||[]).filter(x=>x.created_at&&x.created_at.startsWith(mk));const fa=(f||[]).filter(x=>x.created_at&&x.created_at.startsWith(''+now.getFullYear()));result={ca_mois:Math.round(fm.reduce((s,x)=>s+parseFloat(x.totalht||0),0)),ca_annee:Math.round(fa.reduce((s,x)=>s+parseFloat(x.totalht||0),0)),nb_factures_mois:fm.length};}return res.json({jsonrpc:'2.0',id,result:{content:[{type:'text',text:JSON.stringify(result,null,2)}]}});}if(method==='ping')return res.json({jsonrpc:'2.0',id,result:{}});res.json({jsonrpc:'2.0',id,error:{code:-32601,message:'Methode inconnue'}});}catch(e){res.json({jsonrpc:'2.0',id,error:{code:-32603,message:e.message}});}});
 
 const server = app.listen(PORT, () => {
   console.log(`⚡ SINELEC OS v${CONFIG.meta.version} — Port ${PORT}`);
