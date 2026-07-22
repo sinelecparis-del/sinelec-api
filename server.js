@@ -3181,6 +3181,10 @@ app.get('/api/rdv/confirmer', async (req, res) => {
 
 app.get('/.well-known/oauth-protected-resource',(req,res)=>{res.json({resource:'https://sinelec-api-production.up.railway.app/mcp',authorization_servers:[],scopes_supported:[],bearer_methods_supported:[]});});
 
+
+// AUTH MCP
+app.use('/mcp',(req,res,next)=>{const key=req.headers['x-api-key'];if(key!=='sinelec2026'){return res.status(401).json({error:'Non autorise'});}next();});
+
 // OAUTH MCP
 app.get('/oauth/authorize',(req,res)=>{const{redirect_uri,state}=req.query;res.redirect(redirect_uri+'?code=sinelec_code&state='+(state||''));});
 app.post('/oauth/token',(req,res)=>{res.json({access_token:'sinelec_token_2026',token_type:'bearer',expires_in:86400});});
