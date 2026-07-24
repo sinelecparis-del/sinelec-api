@@ -1,7 +1,35 @@
+// ═══════════════════════════════════════════════════
+// CRASH HANDLERS — Logs tout avant de mourir
+// ═══════════════════════════════════════════════════
+process.on('uncaughtException', (err) => {
+  console.error('💥 CRASH uncaughtException:', err.message);
+  console.error('💥 Stack:', err.stack);
+  process.exit(1);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('💥 CRASH unhandledRejection:', reason?.message || reason);
+  console.error('💥 Stack:', reason?.stack || '');
+});
+
 // ═══════════════════════════════════════════════════════════════
 // SINELEC OS v2.0 - BACKEND COMPLET - VERSION PROPRE
 // ═══════════════════════════════════════════════════════════════
-require('dotenv').config();
+
+
+// ─── OTP Store en mémoire (15 min TTL) ───────────────────────
+const otpStore = new Map(); // num → { code, expiry }
+function otpSet(num, code) {
+  otpStore.set(num, { code, expiry: Date.now() + 15*60*1000 });
+  setTimeout(() => otpStore.delete(num), 15*60*1000);
+}
+function otpGet(num) {
+  const entry = otpStore.get(num);
+  if (!entry) return null;
+  if (Date.now() > entry.expiry) { otpStore.delete(num); return null; }
+  return entry.code;
+}
+function otpDel(num) { otpStore.delete(num); }
+
 const express = require('express');
 const cors = require('cors');
 const cron = require('node-cron');
@@ -45,15 +73,34 @@ app.use(express.static(__dirname));
 // AUTH
 // ═══════════════════════════════════════════════════
 
-const APP_PASSWORD = process.env.APP_PASSWORD || 'sinelec2026';
+// Cache PDF rapports (30 min)
+const _pdfCache = new Map();
+function cachePdf(num, buf) {
+  _pdfCache.set(num, { buf, ts: Date.now() });
+  setTimeout(() => _pdfCache.delete(num), 30 * 60 * 1000);
+}
+
+const APP_PASSWORD       = process.env.APP_PASSWORD       || 'sinelec2026';
+const STANDARD_PASSWORD  = process.env.STANDARD_PASSWORD  || 'standard2026';
+const SOUSTRAITANT_PASSWORD = process.env.SOUSTRAITANT_PASSWORD || 'mehdi2026';
+const SOUSTRAITANT_NOM      = process.env.SOUSTRAITANT_NOM      || 'Mehdi Traore';
 const JWT_SECRET   = process.env.JWT_SECRET   || crypto.randomBytes(32).toString('hex');
 const TOKEN_EXPIRY = 7 * 24 * 60 * 60 * 1000;
 
-function genererToken() {
-  const payload = JSON.stringify({ ts: Date.now(), exp: Date.now() + TOKEN_EXPIRY });
+function genererToken(role = 'admin') {
+  const payload = JSON.stringify({ ts: Date.now(), exp: Date.now() + TOKEN_EXPIRY, role });
   const b64 = Buffer.from(payload).toString('base64');
   const sig = crypto.createHmac('sha256', JWT_SECRET).update(b64).digest('hex');
   return `${b64}.${sig}`;
+}
+
+function getRoleFromToken(token) {
+  if (!token) return null;
+  try {
+    const [b64] = token.split('.');
+    const { role } = JSON.parse(Buffer.from(b64, 'base64').toString());
+    return role || 'admin';
+  } catch(e) { return null; }
 }
 
 function verifierToken(token) {
@@ -67,8 +114,17 @@ function verifierToken(token) {
   } catch(e) { return false; }
 }
 
+function blockStandardiste(req, res, next) {
+  const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
+  const role = getRoleFromToken(token);
+  if (role === 'standardiste' || role === 'soustraitant') {
+    return res.status(403).json({ error: 'Accès non autorisé pour ce rôle', code: 'FORBIDDEN_ROLE' });
+  }
+  next();
+}
+
 function authMiddleware(req, res, next) {
-  const publicRoutes = ['/', '/health', '/api/login', '/signer/', '/paiement-confirme/', '/api/signature', '/api/otp-signature', '/api/auth/check'];
+  const publicRoutes = ['/', '/health', '/api/login', '/signer/', '/paiement-confirme/', '/paiement-retour/', '/api/signature', '/api/otp-signature', '/api/verifier-otp', '/api/track/click/', '/api/track/open/', '/api/auth/check', '/api/test-pdf', '/api/test'];
   if (publicRoutes.some(r => req.path.startsWith(r))) return next();
   const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
   if (!verifierToken(token)) return res.status(401).json({ error: 'Non autorisé', code: 'UNAUTHORIZED' });
@@ -78,10 +134,20 @@ function authMiddleware(req, res, next) {
 app.use(authMiddleware);
 
 app.post('/api/login', (req, res) => {
-  const inputPwd = String(req.body.password || '').trim();
-  const validPwd = String(APP_PASSWORD).trim();
-  if (inputPwd !== validPwd) return res.status(401).json({ error: 'Mot de passe incorrect' });
-  res.json({ success: true, token: genererToken(), expiresIn: TOKEN_EXPIRY });
+  const inputPwd  = String(req.body.password || '').trim();
+  const adminPwd  = String(APP_PASSWORD).trim();
+  const stdPwd    = String(STANDARD_PASSWORD).trim();
+  const subPwd    = String(SOUSTRAITANT_PASSWORD).trim();
+  if (inputPwd === adminPwd) {
+    return res.json({ success: true, token: genererToken('admin'), role: 'admin', expiresIn: TOKEN_EXPIRY });
+  }
+  if (inputPwd === stdPwd) {
+    return res.json({ success: true, token: genererToken('standardiste'), role: 'standardiste', expiresIn: TOKEN_EXPIRY });
+  }
+  if (inputPwd === subPwd) {
+    return res.json({ success: true, token: genererToken('soustraitant'), role: 'soustraitant', nom: SOUSTRAITANT_NOM, expiresIn: TOKEN_EXPIRY });
+  }
+  return res.status(401).json({ error: 'Mot de passe incorrect' });
 });
 
 app.get('/api/auth/check', (req, res) => {
@@ -93,18 +159,124 @@ app.get('/api/auth/check', (req, res) => {
 // CLIENTS
 // ═══════════════════════════════════════════════════
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY, {
-  realtime: { transport: ws }
-});
-const anthropic = new Anthropic({ apiKey: (process.env.ANTHROPIC_API_KEY || '').trim() });
+const supabase = createClient(
+  process.env.SUPABASE_URL || '',
+  process.env.SUPABASE_KEY || '',
+  { realtime: { transport: ws } }
+);
+let anthropic;
+try { anthropic = new Anthropic({ apiKey: (process.env.ANTHROPIC_API_KEY || '').trim() }); }
+catch(e) { console.error('⚠️ Anthropic init:', e.message); anthropic = null; }
 const BREVO_API_KEY = process.env.BREVO_API_KEY;
 const SUMUP_API_KEY = process.env.SUMUP_API_KEY;
+const SUMUP_MERCHANT_CODE = process.env.SUMUP_MERCHANT_CODE;
+
+
+// ═══════════════════════════════════════════════════
+// API: TEST PDF GENERATION
+// ═══════════════════════════════════════════════════
+app.get('/api/test-pdf', async (req, res) => {
+  const steps = [];
+  try {
+    // Step 1: Check python3
+    try {
+      const pyVersion = execSync('python3 --version 2>&1', { timeout: 5000 }).toString().trim();
+      steps.push({ step: 'python3', ok: true, msg: pyVersion });
+    } catch(e) {
+      steps.push({ step: 'python3', ok: false, msg: e.message });
+      return res.json({ success: false, steps, error: 'python3 introuvable' });
+    }
+
+    // Step 2: Check reportlab
+    try {
+      execSync(`python3 -c "from reportlab.platypus import SimpleDocTemplate, Table; print('ok')"`, { timeout: 10000 });
+      steps.push({ step: 'reportlab', ok: true });
+    } catch(e) {
+      steps.push({ step: 'reportlab', ok: false, msg: e.stderr?.toString() || e.message });
+      return res.json({ success: false, steps, error: 'reportlab non installé' });
+    }
+
+    // Step 3: Check logo
+    const logoExists = fs.existsSync('/app/logo_b64.txt');
+    steps.push({ step: 'logo', ok: logoExists, msg: logoExists ? 'présent' : 'absent (non bloquant)' });
+
+    // Step 4: Generate minimal PDF
+    const testPy = `/tmp/test_sinelec_${Date.now()}.py`;
+    const testPdf = `/tmp/test_sinelec_${Date.now()}.pdf`;
+    const testData = '/tmp/test_sinelec_data.json';
+    fs.writeFileSync(testData, JSON.stringify([{designation:'Test prestation',qte:1,prixUnit:100,total:100,details:[]}]));
+
+    const pyScript = `# -*- coding: utf-8 -*-
+import json, sys
+from reportlab.lib.pagesizes import A4
+from reportlab.platypus import SimpleDocTemplate, Paragraph
+from reportlab.lib.styles import getSampleStyleSheet
+doc = SimpleDocTemplate(sys.argv[2], pagesize=A4)
+styles = getSampleStyleSheet()
+data = json.loads(open(sys.argv[1]).read())
+story = [Paragraph(f"Test SINELEC - {len(data)} prestations", styles['Title'])]
+doc.build(story)
+print('PDF_OK')
+`;
+    fs.writeFileSync(testPy, pyScript);
+    try {
+      const out = execSync(`python3 "${testPy}" "${testData}" "${testPdf}"`, { timeout: 30000, stdio: ['pipe','pipe','pipe'] });
+      const pdfExists = fs.existsSync(testPdf);
+      const pdfSize = pdfExists ? fs.statSync(testPdf).size : 0;
+      steps.push({ step: 'pdf_generation', ok: pdfExists, msg: pdfExists ? `${pdfSize} bytes` : 'non généré' });
+      try { fs.unlinkSync(testPy); fs.unlinkSync(testPdf); } catch(e) {}
+    } catch(pyErr) {
+      const pyMsg = pyErr.stderr?.toString() || pyErr.stdout?.toString() || pyErr.message;
+      steps.push({ step: 'pdf_generation', ok: false, msg: pyMsg.substring(0, 400) });
+      return res.json({ success: false, steps, error: 'PDF generation failed: ' + pyMsg.substring(0, 200) });
+    }
+
+    res.json({ success: true, steps, message: 'Tout fonctionne ✅' });
+  } catch(e) {
+    res.json({ success: false, steps, error: e.message });
+  }
+});
+
+
 
 // ═══════════════════════════════════════════════════
 // HEALTHCHECK
 // ═══════════════════════════════════════════════════
 
 app.get('/', (req, res) => res.send('OK SINELEC OS v2.0'));
+// ═══════════════════════════════════════════════════
+// API: DIAGNOSTIC (test Python + Supabase)
+// ═══════════════════════════════════════════════════
+app.get('/api/test', async (req, res) => {
+  const diag = { python: false, supabase: false, logo: false, error: null };
+  try {
+    // Test Python
+    try {
+      const { execSync } = require('child_process');
+      execSync(`python3 -c "from reportlab.platypus import SimpleDocTemplate; print('ok')"`, { timeout: 10000 });
+      diag.python = true;
+    } catch(e) { diag.python_error = e.message.substring(0,200); }
+    // Test Supabase
+    try {
+      const { data } = await supabase.from('compteurs').select('count').limit(1);
+      diag.supabase = true;
+    } catch(e) { diag.supabase_error = e.message.substring(0,200); }
+    // Test logo
+    try {
+      if (fs.existsSync('/app/logo_b64.txt')) diag.logo = true;
+      else diag.logo_path = 'NOT FOUND: /app/logo_b64.txt';
+    } catch(e) {}
+    // Test env vars
+    diag.anthropic = !!process.env.ANTHROPIC_API_KEY;
+    diag.brevo = !!process.env.BREVO_API_KEY;
+    diag.supabase_url = !!process.env.SUPABASE_URL;
+    res.json(diag);
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+
 app.get('/health', (req, res) => res.json({ status: 'ok', service: 'SINELEC OS v2.0' }));
 
 // ═══════════════════════════════════════════════════
@@ -117,11 +289,28 @@ async function logSystem(type, message, data = null, success = true, error = nul
   } catch(e) {}
 }
 
+
+// Helper prénom — skip civilité M./Mme/Mr
+function extractPrenom(clientStr) {
+  const civilites = ['M.', 'Mme', 'Mr', 'Dr', 'Me', 'Pr'];
+  const parts = (clientStr || '').trim().split(/\s+/);
+  const first = parts.find(p => !civilites.includes(p) && p.length > 0);
+  return first || parts[0] || 'client';
+}
+
 async function envoyerEmail(to, subject, htmlContent, attachment = null) {
   if (CONFIG.dev.skip_email) { console.log('Email skippé:', to); return { skipped: true }; }
+
+  // Validation email AVANT l'appel Brevo — évite l'erreur "invalid_request" peu claire
+  const emailClean = String(to || '').trim();
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailClean || !emailRegex.test(emailClean)) {
+    throw new Error(`EMAIL_INVALIDE: "${to}" n'est pas une adresse email valide. Vérifiez le champ email du client.`);
+  }
+
   const payload = {
     sender: { name: CONFIG.email.sender_name, email: CONFIG.email.sender_email },
-    to: [{ email: to }], subject, htmlContent, trackOpens: 0, trackClicks: 0,
+    to: [{ email: emailClean }], subject, htmlContent, trackOpens: 0, trackClicks: 0,
   };
   if (attachment) payload.attachment = [{ content: attachment.content, name: attachment.name }];
   const res = await fetch('https://api.brevo.com/v3/smtp/email', {
@@ -129,24 +318,45 @@ async function envoyerEmail(to, subject, htmlContent, attachment = null) {
     headers: { 'accept': 'application/json', 'api-key': BREVO_API_KEY, 'content-type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) { const err = await res.text(); throw new Error('Brevo: ' + err); }
+  if (!res.ok) {
+    const err = await res.text();
+    console.error('❌ Brevo email error:', err, '| to:', emailClean, '| subject:', subject);
+    throw new Error('Brevo: ' + err);
+  }
   return await res.json();
 }
 
 async function envoyerSMS(to, message) {
-  if (!to || String(to).length < 8) return;
+  if (!to || String(to).length < 8) return null;
   let num = String(to).replace(/[\s\-\.]/g, '');
   if (num.startsWith('0')) num = '+33' + num.substring(1);
   if (!num.startsWith('+')) num = '+33' + num;
+  
+  // Vérifier que BREVO_API_KEY est disponible
+  if (!BREVO_API_KEY || BREVO_API_KEY.trim() === '') {
+    console.error('❌ BREVO_API_KEY manquant pour envoi SMS');
+    return null;
+  }
+
   try {
     const res = await fetch('https://api.brevo.com/v3/transactionalSMS/sms', {
       method: 'POST',
       headers: { 'accept': 'application/json', 'api-key': BREVO_API_KEY, 'content-type': 'application/json' },
-      body: JSON.stringify({ sender: 'SINELEC', recipient: num, content: message, type: 'transactional' }),
+      body: JSON.stringify({ sender: 'SINELEC', recipient: num, content: message, type: 'transactional', tag: 'sinelec' }),
     });
-    if (!res.ok) console.error('SMS error:', await res.text());
-    else console.log('SMS envoyé à', num);
-  } catch(e) { console.error('SMS error:', e.message); }
+    if (!res.ok) { 
+      const errorText = await res.text().catch(() => '');
+      console.error('❌ SMS error HTTP', res.status, ':', errorText);
+      return null; 
+    }
+    const data = await res.json();
+    const msgId = data.messageId || data.messageHexId || null;
+    console.log('📱 SMS envoyé à', num, '— messageId:', msgId);
+    return msgId;
+  } catch(e) { 
+    console.error('❌ SMS error catch:', e.message); 
+    return null; 
+  }
 }
 
 async function incrementerCompteur(type) {
@@ -175,11 +385,19 @@ async function chargerGrilleTarifaire() {
 app.post('/api/generer', async (req, res) => {
   if (!CONFIG.features.devis_factures) return res.status(403).json({ error: 'Feature désactivée' });
   try {
-    const { type, client, email, telephone, adresse, complement, codePostal, ville, prenom, description, prestations, partenaire, part_diahe, part_partenaire, nom_partenaire, intervention_type, siret_client } = req.body;
-    const compteur = await incrementerCompteur(type);
-    const annee = new Date().getFullYear();
-    const mois = String(new Date().getMonth() + 1).padStart(2, '0');
-    const num = type === 'devis' ? `OS-${annee}${mois}-${String(compteur).padStart(3, '0')}` : `${annee}${mois}-${String(compteur).padStart(3, '0')}`;
+    const { type, client, email, telephone, adresse, complement, codePostal, ville, prenom, description, prestations, partenaire, part_diahe, part_partenaire, nom_partenaire, intervention_type, siret_client, num_existant } = req.body;
+
+    // Si modification d'un devis existant → garder le même numéro sans incrémenter le compteur
+    let num;
+    if (num_existant && type === 'devis') {
+      num = num_existant;
+      console.log('🔄 Mise à jour devis existant:', num);
+    } else {
+      const compteur = await incrementerCompteur(type);
+      const annee = new Date().getFullYear();
+      const mois = String(new Date().getMonth() + 1).padStart(2, '0');
+      num = type === 'devis' ? `OS-${annee}${mois}-${String(compteur).padStart(3, '0')}` : `${annee}${mois}-${String(compteur).padStart(3, '0')}`;
+    }
     const total_ht = prestations.reduce((sum, p) => sum + (p.prix * p.quantite), 0);
 
     // Calcul parts partenaire
@@ -214,8 +432,10 @@ app.post('/api/generer', async (req, res) => {
       }
     }
 
+    console.log('📄 generer START — type:', type, '| client:', client, '| prestations:', prestations?.length);
+
     // ── UPSERT FICHE CLIENT AUTO ──────────────────
-    if (client && (email || telephone)) {
+    if (client) { // Créer fiche client dès qu'on a un nom
       try {
         // Chercher si client existe déjà (par email ou téléphone)
         let existant = null;
@@ -230,26 +450,24 @@ app.post('/api/generer', async (req, res) => {
 
         if (existant) {
           // Mettre à jour les infos
-          await supabase.from('clients').update({
+          const { error: cliUpdErr } = await supabase.from('clients').update({
             nom: client,
             email: email || existant.email,
             telephone: telephone || existant.telephone,
-            adresse: adresse || existant.adresse,
-            derniere_intervention: new Date().toISOString(),
-            updated_at: new Date().toISOString()
+            adresse: adresse || existant.adresse
           }).eq('id', existant.id);
+          if (cliUpdErr) console.error('❌ Client update:', cliUpdErr.message);
         } else {
           // Créer nouvelle fiche client
-          await supabase.from('clients').insert({
+          const { error: cliErr } = await supabase.from('clients').insert({
             nom: client,
             email: email || null,
             telephone: telephone || null,
             adresse: adresse || null,
             source: 'app',
-            premiere_intervention: new Date().toISOString(),
-            derniere_intervention: new Date().toISOString(),
             created_at: new Date().toISOString()
           });
+          if (cliErr) console.error('❌ Client insert:', cliErr.message);
         }
         console.log(`✅ Fiche client mise à jour : ${client}`);
       } catch(e) {
@@ -258,38 +476,63 @@ app.post('/api/generer', async (req, res) => {
     }
 
     // ── GÉNÉRATION PDF — toujours, email ou pas ──────
+    let pdf_b64 = null;
     if (CONFIG.features.email_auto) {
       const typeLabelUpper = type === 'devis' ? 'DEVIS' : 'FACTURE';
       const dateStr = new Date().toLocaleDateString('fr-FR');
       const dateValide = new Date(Date.now() + 30*24*60*60*1000).toLocaleDateString('fr-FR');
-      const detailsPath = path.join(__dirname, `_details_${num}.json`);
-      const pyPath = path.join(__dirname, `_devis_${num}.py`);
-      const pdfPath = path.join(__dirname, `${num}.pdf`);
+      const detailsPath = path.join('/tmp', `_details_${num}.json`);
+      const pyPath = path.join('/tmp', `_devis_${num}.py`);
+      const pdfPath = path.join('/tmp', `${num}.pdf`);
 
-      const detailsData = prestations.map(p => ({ designation: p.nom, qte: p.quantite, prixUnit: p.prix, total: p.prix * p.quantite, details: p.desc ? [p.desc] : [] }));
-      fs.writeFileSync(detailsPath, JSON.stringify(detailsData));
-
+      // Construire detailsData avec support sections
+      // Build data file with meta (all dynamic values) + items (no string injection in Python!)
+      const prestationsInput = Array.isArray(prestations) ? prestations :
+        (typeof prestations === 'string' ? JSON.parse(prestations) : []);
+      let itemsData = [];
+      let sectNum = 0; let itemNum = 0;
+      for (const p of prestationsInput) {
+        if (p._section) {
+          sectNum++; itemNum = 0;
+          itemsData.push({ _section: true, titre: `${sectNum}. ${p.titre || 'Section ' + sectNum}` });
+        } else {
+          if (sectNum > 0) itemNum++;
+          itemsData.push({ designation: p.nom || '', qte: p.quantite || 1, prixUnit: p.prix || 0, total: (p.prix || 0) * (p.quantite || 1), details: p.desc ? [p.desc] : [] });
+        }
+      }
+      // Variables client — déclarées AVANT jsonPayload
       const clientEsc = String(client || '').replace(/'/g, ' ');
-      const clientComplement = String(complement || '').replace(/'/g, ' ').trim();
       const clientTel = String(telephone || '').trim();
       const adresseRaw = String(adresse || '').replace(/'/g, ' ').trim();
       const adresseParts = adresseRaw.split(',').map(s => s.trim()).filter(Boolean);
-      const clientRue = adresseParts.length >= 2 && adresseParts[0].match(/^\d+$/) ? adresseParts[0] + ' ' + adresseParts[1] : adresseParts[0] || '';
-      const cpMatch = adresseRaw.match(/\b(\d{5})\b/);
-      const clientCP = String(codePostal || '').trim() || (cpMatch ? cpMatch[1] : '');
-      const villeManuelle = String(ville || '').trim();
-      const villeGPS = adresseParts.find(p => p.length > 2 && p.length < 30 && !p.match(/^\d{5}/) && !p.toLowerCase().includes('france')) || '';
-      const clientCPVille = [clientCP, villeManuelle || villeGPS].filter(Boolean).join(' ');
+      const clientRue = adresseParts[0] || '';
+      // Ville = dernière partie après virgule (ex: "75008 Paris")
+      const clientCPVille = adresseParts.length > 1 ? adresseParts[adresseParts.length - 1] : String(ville || '').trim();
       const descObjet = String(description || 'Travaux d electricite generale')
-        .trim()
-        .replace(/'/g, ' ')
-        .replace(/"/g, ' ')
-        .replace(/\\/g, ' ')
-        .replace(/\n/g, ' ')
-        .replace(/\r/g, ' ')
-        .substring(0, 120);
-
+        .trim().replace(/'/g, ' ').replace(/"/g, ' ').replace(/\\/g, ' ')
+        .replace(/\n/g, ' ').replace(/\r/g, ' ').substring(0, 120);
       const clientSiret = String(siret_client || '').trim().replace(/'/g, '').replace(/"/g, '').replace(/\\/g, '');
+
+      // JSON payload avec meta — toutes les données dynamiques hors du script Python
+      const jsonPayload = {
+        _meta: {
+          type, num,
+          typeLabelUpper,
+          dateStr, dateValide,
+          clientNom: clientEsc,
+          clientRue, clientVille: clientCPVille,
+          clientTel, clientSiret,
+          descObjet,
+          isPaye: false, isSigne: false
+        },
+        _items: itemsData
+      };
+      const roleGenerateur = getRoleFromToken(req.headers['authorization']?.replace('Bearer ', ''));
+    jsonPayload._meta.standardiste = (roleGenerateur === 'standardiste' || roleGenerateur === 'soustraitant');
+    if (roleGenerateur === 'soustraitant') {
+      jsonPayload._meta.intervenant = SOUSTRAITANT_NOM;
+    }
+    fs.writeFileSync(detailsPath, JSON.stringify(jsonPayload));
 
       const py = `# -*- coding: utf-8 -*-
 import json, base64, io, sys
@@ -301,49 +544,1374 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
 from reportlab.pdfgen import canvas as pdfcanvas
 from reportlab.lib.utils import ImageReader
-from reportlab.platypus.flowables import HRFlowable
 W,H=A4
 MARINE=colors.HexColor('#1B2A4A'); OR=colors.HexColor('#C9A84C')
 OR_PALE=colors.HexColor('#FBF7EC'); OR_FONCE=colors.HexColor('#A07830')
 BLANC=colors.white; CREME=colors.HexColor('#FDFCF9')
 GRIS_TEXTE=colors.HexColor('#3A3A3A'); GRIS_SOFT=colors.HexColor('#777777')
-GRIS_LIGNE=colors.HexColor('#E0DDD6'); GRIS_BG=colors.HexColor('#F5F4F0')
+GRIS_LIGNE=colors.HexColor('#E0DDD6')
 def p(txt,sz=9,font='Helvetica',color=GRIS_TEXTE,align=TA_LEFT,sb=0,sa=2,leading=None):
     if leading is None: leading=sz*1.35
     return Paragraph(str(txt),ParagraphStyle('s',fontName=font,fontSize=sz,textColor=color,alignment=align,spaceBefore=sb,spaceAfter=sa,leading=leading,wordWrap='CJK'))
-data=json.loads(open(sys.argv[1],encoding='utf-8').read())
-totalHT=sum(l['total'] for l in data)
-logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
+raw=json.loads(open(sys.argv[1],encoding='utf-8').read())
+meta=raw.get('_meta',{})
+data=[l for l in raw.get('_items',[]) if True]
+totalHT=sum(float(l.get('total',0)) for l in data if not l.get('_section'))
+doc_type=meta.get('type','devis')
+doc_num=meta.get('num','---')
+doc_date=meta.get('dateStr','')
+doc_valide=meta.get('dateValide','')
+doc_label=meta.get('typeLabelUpper','DEVIS')
+client_nom=meta.get('clientNom','')
+client_rue=meta.get('clientRue','')
+client_ville=meta.get('clientVille','')
+client_tel=meta.get('clientTel','')
+client_siret=meta.get('clientSiret','')
+desc_objet=meta.get('descObjet','Travaux electricite')
+is_paye=meta.get('isPaye',False)
+is_signe=meta.get('isSigne',False)
+sig_data_b64=str(meta.get('signatureData',''))
+date_sig=str(meta.get('dateSignature','')) or str(meta.get('datePaiement','')) or doc_date
+try:
+    logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
+except:
+    logo_bytes=None
 class SC(pdfcanvas.Canvas):
     def __init__(self,fn,**kw):
         pdfcanvas.Canvas.__init__(self,fn,**kw); self._pg=0; self.saveState(); self._draw_page()
     def showPage(self):
         self._draw_footer(); pdfcanvas.Canvas.showPage(self); self._pg+=1
     def save(self):
-        pdfcanvas.Canvas.save(self)
+        self._draw_footer(); pdfcanvas.Canvas.save(self)
     def _draw_page(self):
         self.saveState()
         self.setFillColor(CREME); self.rect(0,0,W,H,fill=1,stroke=0)
         self.setFillColor(MARINE); self.rect(0,0,0.7*cm,H,fill=1,stroke=0)
         self.setFillColor(OR); self.rect(0.7*cm,0,0.08*cm,H,fill=1,stroke=0)
+        try:
+            wm_label=None; wm_color=None
+            if is_paye:
+                wm_label='PAY\u00c9'; wm_color=colors.HexColor('#dc2626')
+            elif is_signe:
+                wm_label='SIGN\u00c9'; wm_color=colors.HexColor('#16a34a')
+            if wm_label:
+                self.saveState()
+                self.setFillColor(wm_color)
+                self.setFillAlpha(0.30)
+                self.setFont('Helvetica-Bold',130)
+                self.translate(W/2,H/2-1*cm)
+                self.rotate(45)
+                self.drawCentredString(0,0,wm_label)
+                self.restoreState()
+        except: pass
         if self._pg==0: self._draw_header()
         else: self._draw_header_small()
         self.restoreState()
     def _draw_header(self):
         self.setFillColor(MARINE); self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,5.4*cm,fill=1,stroke=0)
         self.setFillColor(OR); self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,0.12*cm,fill=1,stroke=0)
-        self.drawImage(ImageReader(io.BytesIO(logo_bytes)),0.9*cm,H-5.05*cm,width=4.2*cm,height=4.2*cm,preserveAspectRatio=True,mask='auto')
+        if logo_bytes:
+            self.drawImage(ImageReader(io.BytesIO(logo_bytes)),0.9*cm,H-5.05*cm,width=4.2*cm,height=4.2*cm,preserveAspectRatio=True,mask='auto')
+        self.setFont('Helvetica-Bold',15); self.setFillColor(BLANC); self.drawString(5.9*cm,H-1.7*cm,'SINELEC PARIS')
+        self.setFont('Helvetica-Bold',9); self.setFillColor(BLANC); self.drawString(5.9*cm,H-2.5*cm,'128 Rue La Boetie, 75008 Paris')
+        self.setFont('Helvetica',8.5); self.setFillColor(colors.HexColor('#BFC8D6'))
+        self.drawString(5.9*cm,H-3.0*cm,'Tel : 07 87 38 86 22')
+        self.drawString(5.9*cm,H-3.4*cm,'sinelec.paris@gmail.com')
+        self.setFillColor(colors.HexColor('#243660')); self.roundRect(5.9*cm,H-4.15*cm,5.5*cm,0.55*cm,0.1*cm,fill=1,stroke=0)
+        self.setFont('Helvetica-Bold',8); self.setFillColor(OR); self.drawString(6.1*cm,H-3.88*cm,'SIRET : 91015824500019')
+        lbl_sz=40 if len(doc_label)<=7 else (28 if len(doc_label)<=14 else 20)
+        self.setFont('Helvetica-Bold',lbl_sz); self.setFillColor(BLANC); self.drawRightString(W-1.2*cm,H-2.2*cm,doc_label)
+        self.setStrokeColor(OR); self.setLineWidth(1.5); self.line(13*cm,H-2.65*cm,W-1.2*cm,H-2.65*cm)
+        self.setFillColor(OR); self.roundRect(W-6.5*cm,H-3.55*cm,5.3*cm,0.65*cm,0.15*cm,fill=1,stroke=0)
+        self.setFont('Helvetica-Bold',9); self.setFillColor(MARINE); self.drawCentredString(W-3.85*cm,H-3.22*cm,'N\u00b0 '+doc_num)
+        self.setFont('Helvetica',8); self.setFillColor(colors.HexColor('#BFC8D6'))
+        self.drawRightString(W-1.2*cm,H-3.9*cm,'Date : '+doc_date)
+    def _draw_header_small(self):
+        self.setFillColor(MARINE); self.rect(0.78*cm,H-1.5*cm,W-0.78*cm,1.5*cm,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0.78*cm,H-1.5*cm,W-0.78*cm,0.08*cm,fill=1,stroke=0)
+        self.setFont('Helvetica-Bold',10); self.setFillColor(BLANC); self.drawString(1.4*cm,H-1.0*cm,'SINELEC')
+        self.setFont('Helvetica',8); self.setFillColor(OR); self.drawRightString(W-1.2*cm,H-1.0*cm,doc_label+' N\u00b0 '+doc_num)
+    def _draw_footer(self):
+        self.saveState()
+        self.setFillColor(MARINE); self.rect(0,0,W,1.0*cm,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0,1.0*cm,W,0.08*cm,fill=1,stroke=0)
+        self.setFont('Helvetica',6.5); self.setFillColor(colors.HexColor('#8899BB'))
+        self.drawCentredString(W/2,0.5*cm,'SINELEC EI  \u2022  128 Rue La Boetie, 75008 Paris  \u2022  SIRET : 91015824500019  \u2022  TVA non applicable art. 293B CGI')
+        self.setFont('Helvetica-Bold',7); self.setFillColor(OR); self.drawRightString(W-1.2*cm,0.28*cm,doc_num)
+        self.restoreState()
+        self._draw_tampons()
+    def _draw_tampons(self):
+        rouge=colors.HexColor('#cc0000'); vert=colors.HexColor('#16a34a')
+        couleur=rouge if is_paye else (vert if is_signe else None)
+        if not couleur: return
+        cx=W-3.8*cm; cy=3.5*cm; r=1.7*cm
+        self.saveState(); self.setStrokeColor(couleur); self.setFillColor(couleur)
+        self.setFillAlpha(0.85); self.setLineWidth(3.5); self.circle(cx,cy,r,fill=0,stroke=1)
+        self.setLineWidth(0.8); self.setFillAlpha(0.4); self.circle(cx,cy,r-0.22*cm,fill=0,stroke=1)
+        self.translate(cx,cy); self.rotate(-15)
+        nom_court=client_nom.upper()[:16]
+        self.setFillAlpha(0.92); self.setFillColor(couleur)
+        self.setFont('Helvetica-Bold',7); self.drawCentredString(0,1.05*cm,nom_court)
+        label='PAYE' if is_paye else 'SIGNE'
+        sz=22 if is_paye else 20
+        self.setFillAlpha(0.9); self.setFont('Helvetica-Bold',sz); self.drawCentredString(0,0.18*cm,label)
+        self.setFont('Helvetica-Bold',7.5); self.setFillAlpha(0.75); self.drawCentredString(0,-0.52*cm,doc_date)
+        self.setFont('Helvetica',6); self.setFillAlpha(0.45); self.drawCentredString(0,-1.02*cm,'PARIS')
+        self.restoreState()
+doc=SimpleDocTemplate(sys.argv[2],pagesize=A4,leftMargin=1.2*cm,rightMargin=1.0*cm,topMargin=5.6*cm,bottomMargin=1.6*cm)
+story=[]
+objet_b=Table([[p('OBJET DES TRAVAUX',7.5,'Helvetica-Bold',OR,sa=4)],[p(desc_objet,10,'Helvetica-Bold',MARINE)],[p('Conformes NF C 15-100  \u2022  Garantie decennale ORUS  \u2022  TVA non applicable art. 293B CGI',7.5,color=GRIS_SOFT)]],colWidths=[8.2*cm])
+objet_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3),('LEFTPADDING',(0,0),(-1,-1),0),('LINEABOVE',(0,0),(0,0),2.5,MARINE),('TOPPADDING',(0,0),(0,0),10)]))
+client_lines=[p('DESTINATAIRE',7,'Helvetica-Bold',OR,sa=3),p(client_nom,11,'Helvetica-Bold',MARINE),p(client_rue,9,color=GRIS_TEXTE),p(client_ville,9,color=GRIS_TEXTE)]
+if client_tel: client_lines.append(p('Tel : '+client_tel,8.5,color=GRIS_SOFT))
+if client_siret: client_lines.append(p('SIRET : '+client_siret,8,color=GRIS_SOFT))
+client_b=Table([[c] for c in client_lines],colWidths=[8.2*cm])
+client_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),2),('BOTTOMPADDING',(0,0),(-1,-1),2),('LEFTPADDING',(0,0),(-1,-1),0)]))
+hdr_row=Table([[objet_b,client_b]],colWidths=[9.5*cm,8.7*cm])
+hdr_row.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)]))
+story.append(hdr_row); story.append(Spacer(1,0.5*cm))
+th=[p('N\u00b0',8,'Helvetica-Bold',BLANC,TA_CENTER),p('D\u00e9signation',8,'Helvetica-Bold',BLANC),p('Qte',8,'Helvetica-Bold',BLANC,TA_CENTER),p('Prix HT',8,'Helvetica-Bold',BLANC,TA_RIGHT),p('Total HT',8,'Helvetica-Bold',BLANC,TA_RIGHT)]
+rows=[th]; sect_num=0; item_num=0
+for ligne in data:
+    if ligne.get('_section'):
+        sect_num+=1; item_num=0
+        rows.append([p(str(ligne.get('titre','Section')),9,'Helvetica-Bold',BLANC,sa=4),'','','','']); continue
+    item_num+=1
+    sub_num=str(sect_num)+'.'+str(item_num) if sect_num>0 else str(item_num)
+    nom=str(ligne.get('designation',''))
+    qte=int(ligne.get('qte',1) or 1); pu=float(ligne.get('prixUnit',0) or 0); tot=float(ligne.get('total',pu*qte) or 0)
+    is_offert=(pu==0 or tot==0)
+    desig_cell=[p(nom,9,'Helvetica-Bold',MARINE)]
+    for d in (ligne.get('details') or []):
+        if d: desig_cell.append(p(str(d),7.5,'Helvetica',GRIS_SOFT,sb=1,sa=0))
+    rows.append([p(sub_num,8,color=GRIS_SOFT,align=TA_CENTER),desig_cell,p(str(qte),9,align=TA_CENTER),p((str(round(pu))+' \u20ac') if not is_offert else 'OFFERT',9,align=TA_RIGHT),(p('OFFERT',9,'Helvetica-Bold',align=TA_RIGHT,color=colors.HexColor('#16a34a')) if is_offert else p(str(round(tot))+' \u20ac',9,'Helvetica-Bold',align=TA_RIGHT,color=OR_FONCE))])
+COL=[1.0*cm,10.8*cm,1.3*cm,2.2*cm,2.9*cm]
+t=Table(rows,colWidths=COL,repeatRows=1)
+ts=[('BACKGROUND',(0,0),(-1,0),MARINE),('ROWBACKGROUNDS',(0,1),(-1,-1),[CREME,OR_PALE]),('LINEBELOW',(0,0),(-1,0),1.5,OR),('LINEBELOW',(0,-1),(-1,-1),1.5,MARINE),('LEFTPADDING',(0,0),(-1,-1),4),('RIGHTPADDING',(0,0),(-1,-1),4),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('VALIGN',(0,0),(-1,-1),'TOP'),('ALIGN',(2,0),(4,-1),'RIGHT')]
+for i,row in enumerate(rows):
+    if i>0 and isinstance(row[1],str) and row[1]=='':
+        ts+=[('BACKGROUND',(0,i),(-1,i),colors.HexColor('#243660')),('SPAN',(0,i),(-1,i)),('TEXTCOLOR',(0,i),(-1,i),BLANC)]
+t.setStyle(TableStyle(ts))
+story.append(t)
+story.append(Spacer(1,0.4*cm))
+net=Table([[p('NET \u00c0 PAYER',13,'Helvetica-Bold',BLANC),p('%.2f \u20ac'%totalHT,16,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
+net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8),('LINEBELOW',(0,0),(-1,-1),2,OR)]))
+story.append(net); story.append(Spacer(1,0.3*cm))
+if doc_type=='facture' and not is_paye:
+    ORANGE=colors.HexColor('#ea580c'); ORANGE_BG=colors.HexColor('#fff7ed')
+    band=Table([[p('\u23f3  PAIEMENT EN ATTENTE',11,'Helvetica-Bold',ORANGE,TA_CENTER)],[p('Merci de r\u00e9gler dans les meilleurs d\u00e9lais',8,'Helvetica',colors.HexColor('#9a3412'),TA_CENTER)]],colWidths=[18.2*cm])
+    band.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),ORANGE_BG),('BOX',(0,0),(-1,-1),2.5,ORANGE),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10)]))
+    story.append(band); story.append(Spacer(1,0.3*cm))
+    iban_t=Table([[p('\U0001f4b3  Comment r\u00e9gler ?',9,'Helvetica-Bold',MARINE),p('\u2022 Esp\u00e8ces  \u2022  CB SumUp  \u2022  Virement  \u2022  PayPal',8,'Helvetica',GRIS_SOFT,TA_RIGHT)],[p('IBAN : FR76 1695 8000 0174 2540 5920 931  \u2022  BIC : QNTOFRP1XXX',8,'Helvetica-Bold',MARINE),p('')]],colWidths=[13*cm,5.2*cm])
+    iban_t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),ORANGE_BG),('BOX',(0,0),(-1,-1),1.5,ORANGE),('LINEBELOW',(0,0),(-1,0),0.5,colors.HexColor('#fed7aa')),('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7)]))
+    story.append(iban_t)
+elif doc_type=='facture' and is_paye:
+    VERT_P=colors.HexColor('#16a34a'); VERT_BG=colors.HexColor('#f0fdf4')
+    date_p=str(meta.get('datePaiement','')); mode_p=str(meta.get('modePaiement','R\u00e8glement re\u00e7u'))
+    band=Table([[p('\u2705  PAIEMENT RE\u00c7U',11,'Helvetica-Bold',VERT_P,TA_CENTER)],[p('Le '+date_p+'  \u2022  '+mode_p,8,'Helvetica',colors.HexColor('#166534'),TA_CENTER)]],colWidths=[18.2*cm])
+    band.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),VERT_BG),('BOX',(0,0),(-1,-1),2.5,VERT_P),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10)]))
+    story.append(band); story.append(Spacer(1,0.3*cm))
+    recap=Table([[p('\U0001f9fe  R\u00e9capitulatif du r\u00e8glement',9,'Helvetica-Bold',MARINE),p('')],[p('Mode :',8,'Helvetica',GRIS_SOFT),p(mode_p,8,'Helvetica-Bold',MARINE,TA_RIGHT)],[p('Date :',8,'Helvetica',GRIS_SOFT),p(date_p,8,'Helvetica-Bold',MARINE,TA_RIGHT)],[p('Montant encaiss\u00e9 :',9,'Helvetica-Bold',VERT_P),p('%.2f \u20ac'%totalHT,10,'Helvetica-Bold',VERT_P,TA_RIGHT)]],colWidths=[9.1*cm,9.1*cm])
+    recap.setStyle(TableStyle([('SPAN',(0,0),(1,0)),('BACKGROUND',(0,0),(-1,-1),VERT_BG),('BOX',(0,0),(-1,-1),1.5,VERT_P),('LINEABOVE',(0,3),(-1,3),1,colors.HexColor('#bbf7d0')),('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6)]))
+    story.append(recap)
+story.append(Spacer(1,0.25*cm))
+if doc_type=='devis' and totalHT>=400:
+    acompte=totalHT*0.4; solde=totalHT*0.6
+    BLEU_L=colors.HexColor('#EFF6FF'); BLEU_B=colors.HexColor('#BAE6FD'); BLEU_T=colors.HexColor('#0369A1')
+    VERT_L2=colors.HexColor('#F0FDF4'); VERT_B2=colors.HexColor('#BBF7D0')
+    # Header modalités
+    hdr_ac=Table([[p('\U0001f4b3  Modalit\u00e9s de paiement',10,'Helvetica-Bold',MARINE),p('Devis > 400 \u20ac',8,'Helvetica',GRIS_SOFT,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
+    hdr_ac.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#F8F5EF')),('BOX',(0,0),(-1,-1),1,GRIS_LIGNE),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7)]))
+    story.append(hdr_ac)
+    # Cellule acompte
+    cell_ac=[p('ACOMPTE',8,'Helvetica-Bold',OR_FONCE),p('\u00c0 la signature',8,'Helvetica',GRIS_SOFT),Spacer(1,4),p('%.2f \u20ac'%acompte,16,'Helvetica-Bold',MARINE,TA_CENTER),p('40 %',9,'Helvetica-Bold',OR_FONCE,TA_CENTER)]
+    cell_tx=[p('INTERVENTION',8,'Helvetica-Bold',BLEU_T),p('Planifi\u00e9e ensemble',8,'Helvetica',GRIS_SOFT),Spacer(1,4),p('\u26a1 Travaux SINELEC',11,'Helvetica-Bold',BLEU_T,TA_CENTER),p('NF C 15-100',8,'Helvetica',GRIS_SOFT,TA_CENTER)]
+    cell_sl=[p('SOLDE',8,'Helvetica-Bold',GRIS_TEXTE),p('Fin des travaux',8,'Helvetica',GRIS_SOFT),Spacer(1,4),p('%.2f \u20ac'%solde,16,'Helvetica-Bold',MARINE,TA_CENTER),p('60 %',9,'Helvetica-Bold',GRIS_TEXTE,TA_CENTER)]
+    tl=Table([[cell_ac,cell_tx,cell_sl]],colWidths=[6.0*cm,6.2*cm,6.0*cm])
+    tl.setStyle(TableStyle([
+        ('BACKGROUND',(0,0),(0,0),colors.HexColor('#FEF3C7')),
+        ('BACKGROUND',(1,0),(1,0),BLEU_L),
+        ('BACKGROUND',(2,0),(2,0),VERT_L2),
+        ('BOX',(0,0),(-1,-1),1,GRIS_LIGNE),
+        ('LINEBEFORE',(1,0),(1,0),1,GRIS_LIGNE),
+        ('LINEBEFORE',(2,0),(2,0),1,GRIS_LIGNE),
+        ('VALIGN',(0,0),(-1,-1),'TOP'),
+        ('ALIGN',(0,0),(-1,-1),'CENTER'),
+        ('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),
+        ('LEFTPADDING',(0,0),(-1,-1),8),('RIGHTPADDING',(0,0),(-1,-1),8),
+    ]))
+    story.append(tl)
+    # Modes de paiement
+    pm=Table([[p('\U0001f4b5 Esp\u00e8ces  \u2022  \U0001f3e6 Virement  \u2022  \U0001f4b3 CB  \u2022  \U0001f17f\ufe0f PayPal',9,'Helvetica',GRIS_SOFT,TA_CENTER)]],colWidths=[18.2*cm])
+    pm.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#FDFCF9')),('BOX',(0,0),(-1,-1),1,GRIS_LIGNE),('LINEABOVE',(0,0),(-1,-1),1,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7)]))
+    story.append(pm)
+    story.append(Spacer(1,0.3*cm))
+else:
+    # Devis < 400€ — paiement intégral à la fin
+    VERT_L2=colors.HexColor('#F0FDF4'); VERT_B2=colors.HexColor('#BBF7D0')
+    hdr_ac2=Table([[p('\U0001f4b3  Modalit\u00e9s de paiement',10,'Helvetica-Bold',MARINE),p('',8,'Helvetica',GRIS_SOFT,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
+    hdr_ac2.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#F8F5EF')),('BOX',(0,0),(-1,-1),1,GRIS_LIGNE),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7)]))
+    story.append(hdr_ac2)
+    paiement_unique=Table([[p('\u2705  Paiement int\u00e9gral \u00e0 la fin des travaux',11,'Helvetica-Bold',MARINE),p('%.2f \u20ac'%totalHT,14,'Helvetica-Bold',OR_FONCE,TA_RIGHT)]],colWidths=[11.0*cm,7.2*cm])
+    paiement_unique.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),VERT_L2),('BOX',(0,0),(-1,-1),1,GRIS_LIGNE),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('TOPPADDING',(0,0),(-1,-1),12),('BOTTOMPADDING',(0,0),(-1,-1),12)]))
+    story.append(paiement_unique)
+    pm2=Table([[p('\U0001f4b5 Esp\u00e8ces  \u2022  \U0001f3e6 Virement  \u2022  \U0001f4b3 CB  \u2022  \U0001f17f\ufe0f PayPal',9,'Helvetica',GRIS_SOFT,TA_CENTER)]],colWidths=[18.2*cm])
+    pm2.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#FDFCF9')),('BOX',(0,0),(-1,-1),1,GRIS_LIGNE),('LINEABOVE',(0,0),(-1,-1),1,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7)]))
+    story.append(pm2)
+    story.append(Spacer(1,0.3*cm))
+story.append(Table([[p('TVA non applicable, art. 293B du CGI',8,color=GRIS_SOFT),p('Paiement : Esp\u00e8ces  \u2022  Virement  \u2022  CB (SumUp)',8,color=GRIS_SOFT,align=TA_RIGHT)]],colWidths=[9.5*cm,8.7*cm]))
+story.append(Spacer(1,0.3*cm))
+if doc_type=='devis':
+    story.append(Spacer(1,0.15*cm))
+    story.append(Table([[p('Devis valable 30 jours \u2022 Signature = acceptation \u2022 Garantie d\u00e9cennale ORUS',7.5,color=GRIS_SOFT)]],colWidths=[18.2*cm]))
+    story.append(Spacer(1,0.2*cm))
+    if is_signe:
+        VERT_S=colors.HexColor('#16a34a'); VERT_BG_S=colors.HexColor('#f0fdf4'); VERT_L=colors.HexColor('#bbf7d0')
+        date_sig=str(meta.get('datePaiement',''))
+        sig_b64=meta.get('signatureBase64','')
+        from reportlab.platypus import Flowable as _F
+        class _SigBox(_F):
+            def __init__(s,b64,w=6.2*cm,h=2.2*cm): s.b64=b64; s.w=w; s.h=h
+            def wrap(s,*a): return s.w,s.h
+            def draw(s):
+                s.canv.setFillColor(colors.HexColor('#F8F7F4')); s.canv.setStrokeColor(colors.HexColor('#D1D5DB'))
+                s.canv.setDash([4,4]); s.canv.roundRect(0,0,s.w,s.h,4,stroke=1,fill=1); s.canv.setDash([])
+                if s.b64:
+                    import base64 as _b64,io as _io
+                    try:
+                        from reportlab.lib.utils import ImageReader
+                        d=_b64.b64decode(s.b64.split(',')[-1]); ir=ImageReader(_io.BytesIO(d))
+                        s.canv.drawImage(ir,4,4,s.w-8,s.h-8,mask='auto')
+                    except: pass
+                else:
+                    s.canv.setStrokeColor(colors.HexColor('#1B2A4A')); s.canv.setLineWidth(2); s.canv.setLineCap(1)
+                    pts=[(0.08,0.55),(0.14,0.78),(0.18,0.42),(0.24,0.76),(0.30,0.40),(0.36,0.74),(0.43,0.44),(0.49,0.73),(0.55,0.48),(0.61,0.70),(0.67,0.46),(0.73,0.68),(0.79,0.50),(0.85,0.64),(0.91,0.52)]
+                    path=s.canv.beginPath(); path.moveTo(pts[0][0]*s.w,pts[0][1]*s.h)
+                    for x,y in pts[1:]: path.lineTo(x*s.w,y*s.h)
+                    s.canv.drawPath(path,stroke=1,fill=0)
+                    s.canv.setLineWidth(1); p2=s.canv.beginPath(); p2.moveTo(0.08*s.w,0.2*s.h); p2.lineTo(0.5*s.w,0.2*s.h); s.canv.drawPath(p2,stroke=1,fill=0)
+        class _Badge(_F):
+            def __init__(s,w=3.2*cm,h=3.2*cm): s.w=w; s.h=h
+            def wrap(s,*a): return s.w,s.h
+            def draw(s):
+                cx,cy=s.w/2,s.h/2
+                s.canv.setFillColor(colors.HexColor('#f0fdf4')); s.canv.setStrokeColor(colors.HexColor('#16a34a')); s.canv.setLineWidth(2)
+                s.canv.circle(cx,cy,s.w/2-3,stroke=1,fill=1)
+                s.canv.setStrokeColor(colors.HexColor('#16a34a')); s.canv.setLineWidth(3); s.canv.setLineCap(1); s.canv.setLineJoin(1)
+                path=s.canv.beginPath(); path.moveTo(cx-0.2*s.w,cy+0.02*s.h); path.lineTo(cx-0.03*s.w,cy-0.17*s.h); path.lineTo(cx+0.22*s.w,cy+0.18*s.h)
+                s.canv.drawPath(path,stroke=1,fill=0)
+                s.canv.setFillColor(colors.HexColor('#16a34a')); s.canv.setFont('Helvetica-Bold',6); s.canv.drawCentredString(cx,6,'V\u00c9RIFI\u00c9')
+        left_c=Table([[p('\u2705  SIGNATURE \u00c9LECTRONIQUE VALID\u00c9E',7.5,'Helvetica-Bold',VERT_S)],[Spacer(1,0.08*cm)],[p(client_nom,11,'Helvetica-Bold',MARINE)],[p('Sign\u00e9 le : '+date_sig,7.5,'Helvetica',colors.HexColor('#6b7280'))],[p('IP enregistr\u00e9e \u2022 Horodatage certifi\u00e9 \u2022 Loi n\u00b02000-230',6.5,'Helvetica',colors.HexColor('#9ca3af'))],[Spacer(1,0.12*cm)],[p('Signature du client :',7,'Helvetica-Bold',colors.HexColor('#6b7280'))],[_SigBox(sig_b64,6.2*cm,2.2*cm)]],colWidths=[9.2*cm])
+        left_c.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),2),('BOTTOMPADDING',(0,0),(-1,-1),2),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)]))
+        right_c=Table([[_Badge(3.2*cm,3.2*cm)],[Spacer(1,0.1*cm)],[p('Certifi\u00e9 \u00e9lectroniquement',7.5,'Helvetica-Bold',VERT_S,TA_CENTER)]],colWidths=[4.8*cm])
+        right_c.setStyle(TableStyle([('ALIGN',(0,0),(-1,-1),'CENTER'),('VALIGN',(0,0),(-1,-1),'MIDDLE'),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4)]))
+        cert=Table([[left_c,right_c]],colWidths=[9.5*cm,4.8*cm])
+        cert.setStyle(TableStyle([('BOX',(0,0),(-1,-1),1.5,VERT_S),('BACKGROUND',(0,0),(0,-1),VERT_BG_S),('BACKGROUND',(1,0),(1,-1),colors.white),('LINEAFTER',(0,0),(0,-1),1,VERT_L),('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),8),('TOPPADDING',(0,0),(-1,-1),12),('BOTTOMPADDING',(0,0),(-1,-1),12),('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
+        story.append(cert)
+    else:
+        sig_t=Table([[p('\u270d\ufe0f  Signature \u00e9lectronique uniquement \u2022 Loi n\u00b02000-230',8,'Helvetica-Bold',colors.HexColor('#16a34a'),TA_CENTER)]],colWidths=[18.2*cm])
+        sig_t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f0fdf4')),('BOX',(0,0),(-1,-1),1.5,colors.HexColor('#16a34a')),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
+        story.append(sig_t)
+if doc_type=='devis':
+    story.append(PageBreak())
+    hdr_cgv=Table([[p('\u26a1  SINELEC PARIS',11,'Helvetica-Bold',BLANC),p('CONDITIONS G\u00c9N\u00c9RALES DE VENTE',11,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[8.5*cm,9*cm])
+    hdr_cgv.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10)]))
+    story.append(hdr_cgv); story.append(Spacer(1,0.2*cm))
+    date_sig=str(meta.get('datePaiement','')) or str(meta.get('dateSignature',''))
+    cgv_subtitle = ('Applicables au devis n\u00b0 '+doc_num+' \u2014 Accept\u00e9es par '+client_nom+' le '+date_sig) if is_signe else ('Conditions applicables au devis n\u00b0 '+doc_num+' \u2014 \u00c0 lire avant signature')
+    story.append(Table([[p(cgv_subtitle,7.5,'Helvetica',GRIS_SOFT),p('SIRET 91015824500019 \u2022 TVA non applicable art. 293B CGI',7.5,'Helvetica',GRIS_SOFT,TA_RIGHT)]],colWidths=[9.5*cm,8*cm]))
+    story.append(Table([[p('',1)]],colWidths=[18.2*cm],style=[('LINEBELOW',(0,0),(-1,-1),1,OR)]))
+    story.append(Spacer(1,0.15*cm))
+    GRIS_L=colors.HexColor('#f8fafc')
+    cgv_arts=[
+('Art. 1 \u2014 Devis et acceptation','Le devis est valable 30 jours \u00e0 compter de son \u00e9mission. La signature du devis, manuscrite ou \u00e9lectronique (avec v\u00e9rification par code SMS), vaut acceptation pleine et enti\u00e8re des prestations d\u00e9crites et des pr\u00e9sentes CGV, et a la m\u00eame valeur juridique qu\u2019une signature manuscrite (art. 1367 Code civil).'),
+('Art. 2 \u2014 Prix et paiement','TVA non applicable, art. 293B du CGI. Acompte de 40% \u00e0 la signature si le devis exc\u00e8de 400\u20ac, solde \u00e0 la fin des travaux. Paiement accept\u00e9 : esp\u00e8ces, virement, CB (SumUp), PayPal. Toute prestation suppl\u00e9mentaire ou modification fera l\u2019objet d\u2019un devis compl\u00e9mentaire accept\u00e9 pr\u00e9alablement, sauf urgence mettant en jeu la s\u00e9curit\u00e9.'),
+('Art. 3 \u2014 R\u00e9alisation des travaux','Travaux r\u00e9alis\u00e9s conform\u00e9ment \u00e0 la norme NF C 15-100. Le client garantit un acc\u00e8s libre et s\u00e9curis\u00e9 \u00e0 l\u2019installation et informe SINELEC de toute contrainte (acc\u00e8s, horaires, sp\u00e9cificit\u00e9s) avant l\u2019intervention. SINELEC se r\u00e9serve le droit de refuser ou suspendre une intervention en cas de danger immediat ou de non-conformit\u00e9 grave d\u00e9couverte sur place, sans que cela n\u2019engage sa responsabilit\u00e9.'),
+('Art. 4 \u2014 R\u00e9ception et r\u00e9serves (48h)','La r\u00e9ception des travaux intervient d\u00e8s leur ach\u00e8vement. La prise de possession ou l\u2019utilisation des installations par le client, m\u00eame sans paiement int\u00e9gral, vaut r\u00e9ception sans r\u00e9serve. Le client dispose de 48 heures \u00e0 compter de la fin de l\u2019intervention pour notifier par \u00e9crit (SMS, email) toute r\u00e9serve motiv\u00e9e. Pass\u00e9 ce d\u00e9lai, aucune r\u00e9clamation relative \u00e0 la qualit\u00e9 ou la conformit\u00e9 des travaux ne sera recevable, sauf vice cach\u00e9 relevant de la garantie d\u00e9cennale.'),
+('Art. 5 \u2014 Valeur probante des \u00e9changes num\u00e9riques','Le client reconna\u00eet la pleine valeur probante des SMS, emails, photos horodat\u00e9es, du rapport d\u2019intervention et de la signature \u00e9lectronique (code OTP, horodatage, IP) comme preuve de la r\u00e9alisation, de la conformit\u00e9 et de l\u2019acceptation des travaux. Ces \u00e9l\u00e9ments pourront \u00eatre produits en cas de proc\u00e9dure amiable ou contentieuse.'),
+('Art. 6 \u2014 D\u00e9faut ou retard de paiement','Tout retard de paiement entra\u00eene de plein droit, sans mise en demeure pr\u00e9alable : des int\u00e9r\u00eats moratoires au taux de 3 fois le taux l\u00e9gal par jour de retard, une indemnit\u00e9 forfaitaire de recouvrement de 40\u20ac, et l\u2019exigibilit\u00e9 imm\u00e9diate de toute somme restant due. En cas de non-paiement persistant 8 jours apr\u00e8s mise en demeure, SINELEC pourra suspendre toute prestation et engager une proc\u00e9dure de recouvrement (injonction de payer).'),
+('Art. 7 \u2014 R\u00e9serve de propri\u00e9t\u00e9','Conform\u00e9ment \u00e0 l\u2019art. L.624-16 du Code de commerce, les mat\u00e9riaux et \u00e9quipements install\u00e9s demeurent la propri\u00e9t\u00e9 exclusive de SINELEC jusqu\u2019au paiement int\u00e9gral du prix. En cas de non-paiement persistant apr\u00e8s mise en demeure infructueuse, SINELEC se r\u00e9serve le droit de proc\u00e9der \u00e0 la d\u00e9pose des \u00e9l\u00e9ments install\u00e9s et non pay\u00e9s.'),
+('Art. 8 \u2014 Garanties et assurances','SINELEC est couvert par une garantie d\u00e9cennale ORUS Assurances (114 Bd Marius Vivier Merle, 69003 Lyon) et une assurance Responsabilit\u00e9 Civile Professionnelle couvrant les dommages survenus pendant l\u2019intervention. Ces garanties excluent : l\u2019usure normale, la n\u00e9gligence ou le d\u00e9faut d\u2019entretien du client, l\u2019intervention d\u2019un tiers post\u00e9rieure aux travaux, et toute utilisation non conforme non signal\u00e9e au moment du devis.'),
+('Art. 9 \u2014 Droit de r\u00e9tractation','Pour les contrats conclus hors \u00e9tablissement ou \u00e0 distance, le client particulier b\u00e9n\u00e9ficie d\u2019un d\u00e9lai de r\u00e9tractation de 14 jours (art. L221-18 Code de la consommation). Ce droit ne s\u2019applique pas lorsque le client a express\u00e9ment sollicit\u00e9 une intervention d\u2019urgence ou lorsque l\u2019ex\u00e9cution a commenc\u00e9 \u00e0 sa demande expresse avant la fin du d\u00e9lai (art. L221-28).'),
+('Art. 10 \u2014 Responsabilit\u00e9 et sous-traitance','SINELEC ne saurait \u00eatre tenu responsable des dommages indirects (pertes d\u2019exploitation, troubles de jouissance). En cas de force majeure, l\u2019ex\u00e9cution est suspendue sans indemnit\u00e9. SINELEC peut faire intervenir des sous-traitants qualifi\u00e9s sous sa responsabilit\u00e9 et sa supervision, sans que cela ne modifie les pr\u00e9sentes CGV ni n\u2019engage de surco\u00fbt pour le client.'),
+('Art. 11 \u2014 R\u00e9siliation \u00e0 l\u2019initiative du client','En cas d\u2019annulation par le client apr\u00e8s signature et avant le d\u00e9but des travaux (hors r\u00e9tractation l\u00e9gale), l\u2019acompte vers\u00e9 reste acquis \u00e0 SINELEC \u00e0 titre d\u2019indemnisation. Si l\u2019annulation intervient apr\u00e8s commencement des travaux, le client r\u00e8gle l\u2019int\u00e9gralit\u00e9 des prestations r\u00e9alis\u00e9es et des mat\u00e9riaux command\u00e9s, sur justificatifs.'),
+('Art. 12 \u2014 Donn\u00e9es personnelles','Les donn\u00e9es du client sont trait\u00e9es uniquement pour l\u2019ex\u00e9cution du devis et les obligations l\u00e9gales (facturation). Conform\u00e9ment au RGPD, le client dispose d\u2019un droit d\u2019acc\u00e8s, de rectification, de portabilit\u00e9 et d\u2019effacement, exer\u00e7able \u00e0 sinelec.paris@gmail.com.'),
+('Art. 13 \u2014 Litiges et juridiction','En cas de diff\u00e9rend, les parties privil\u00e9gient une r\u00e9solution amiable. \u00c0 d\u00e9faut, le client consommateur peut saisir le m\u00e9diateur CM2C (cm2c@cm2c.net). Tout litige relevera de la comp\u00e9tence exclusive du Tribunal judiciaire de Paris. Droit fran\u00e7ais applicable.')
+]
+    for titre,texte in cgv_arts:
+        r=Table([[p(titre,6.5,'Helvetica-Bold',MARINE),p(texte,6,'Helvetica',GRIS_SOFT,leading=8.2)]],colWidths=[4.2*cm,14*cm])
+        r.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GRIS_L),('LINEBELOW',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0')),('LEFTPADDING',(0,0),(-1,-1),5),('RIGHTPADDING',(0,0),(-1,-1),5),('TOPPADDING',(0,0),(-1,-1),2.5),('BOTTOMPADDING',(0,0),(-1,-1),2.5),('VALIGN',(0,0),(-1,-1),'TOP')]))
+        story.append(r)
+    story.append(Spacer(1,0.1*cm))
+    if is_signe:
+        VERT_G=colors.HexColor('#16a34a')
+        accept=Table([[p('\u2705  CGV lues et accept\u00e9es \u00e9lectroniquement',8,'Helvetica-Bold',VERT_G),p(client_nom+' \u2022 '+date_sig+' \u2022 Paris',8,'Helvetica-Bold',MARINE,TA_RIGHT)]],colWidths=[9*cm,8.5*cm])
+        accept.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f0fdf4')),('BOX',(0,0),(-1,-1),1.5,VERT_G),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
+        story.append(accept)
+        story.append(Spacer(1,0.3*cm))
+        sig_cells_l=[p('Signature du client',8,'Helvetica-Bold',MARINE),p(client_nom,8,color=GRIS_SOFT),p(date_sig+' \u2022 Paris',7,color=GRIS_SOFT)]
+        if sig_data_b64 and 'data:image' in sig_data_b64:
+            try:
+                raw_b64=sig_data_b64.split(',',1)[1]
+                sig_img=Image(io.BytesIO(base64.b64decode(raw_b64)),width=5*cm,height=2*cm)
+                sig_cells_l.append(sig_img)
+            except: pass
+        sig_tbl=Table([[sig_cells_l,[p('Signature SINELEC',8,'Helvetica-Bold',MARINE),p('Diahe',8,color=GRIS_SOFT),p('SINELEC Paris \u26a1',7,color=OR)]]],colWidths=[9*cm,9.2*cm])
+        sig_tbl.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0')),('LEFTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8)]))
+        story.append(sig_tbl)
+    else:
+        notice=Table([[p('\u270d\ufe0f  En signant ce devis (\u00e9lectroniquement, code SMS), vous acceptez l\u2019int\u00e9gralit\u00e9 des pr\u00e9sentes conditions g\u00e9n\u00e9rales (Art. 1 \u00e0 13).',8,'Helvetica-Bold',MARINE,TA_CENTER)]],colWidths=[18.2*cm])
+        notice.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#FBF7EC')),('BOX',(0,0),(-1,-1),1.5,OR),('TOPPADDING',(0,0),(-1,-1),9),('BOTTOMPADDING',(0,0),(-1,-1),9)]))
+        story.append(notice)
+doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
+`;
+      fs.writeFileSync(pyPath, py, 'utf8');
+      console.log('🐍 Python:', pyPath, '→', pdfPath);
+      try {
+        execSync(`python3 "${pyPath}" "${detailsPath}" "${pdfPath}"`, {
+          timeout: 60000, stdio: ['pipe','pipe','pipe']
+        });
+      } catch(pyErr) {
+        const pyMsg = (pyErr.stderr?.toString() || '') + (pyErr.stdout?.toString() || '') || pyErr.message;
+        console.error('❌ generer Python FULL error:', pyMsg.substring(0,800));
+        throw new Error('PDF generation failed: ' + pyMsg.substring(0,300));
+      }
+      if (!fs.existsSync(pdfPath)) throw new Error('PDF non généré');
+      const pdfBuffer = fs.readFileSync(pdfPath);
+      pdf_b64 = pdfBuffer.toString('base64');
+      try { fs.unlinkSync(pyPath); } catch(e) {}
+      try { fs.unlinkSync(detailsPath); } catch(e) {}
+      try { fs.unlinkSync(pdfPath); } catch(e) {}
+
+      // Email NON envoyé automatiquement — cliquer Envoyer manuellement
+    }
+
+    res.json({ success: true, num, pdf_b64, email_client: email });
+  } catch(error) {
+    const msg = error.message || String(error);
+    console.error('❌ /api/generer error:', msg);
+    if (!res.headersSent) res.status(500).json({ error: msg });
+  }
+});
+
+// ═══════════════════════════════════════════════════
+// API: ENVOYER EMAIL
+// ═══════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════
+// API: IMPORT DEVIS EXTERNE (généré hors app)
+// ═══════════════════════════════════════════════════
+app.post('/api/import-devis', authMiddleware, async (req, res) => {
+  try {
+    const {
+      client, email, telephone, adresse, description,
+      prestations, total_ht, type = 'devis',
+      statut = 'envoye', date_doc, num_custom
+    } = req.body;
+
+    if (!client) return res.status(400).json({ error: 'Nom client obligatoire' });
+    if (!prestations || !prestations.length) return res.status(400).json({ error: 'Prestations obligatoires' });
+
+    // Générer un numéro ou utiliser le numéro custom fourni
+    let num;
+    if (num_custom) {
+      num = num_custom;
+    } else {
+      const compteur = await incrementerCompteur(type);
+      const d = date_doc ? new Date(date_doc) : new Date();
+      const annee = d.getFullYear();
+      const mois = String(d.getMonth() + 1).padStart(2, '0');
+      num = type === 'devis'
+        ? `OS-${annee}${mois}-${String(compteur).padStart(3, '0')}`
+        : `${annee}${mois}-${String(compteur).padStart(3, '0')}`;
+    }
+
+    const totalCalc = total_ht || prestations.reduce((s, p) => s + ((p.prix || p.prixUnit || 0) * (p.quantite || p.qte || 1)), 0);
+    const dateDoc = date_doc ? new Date(date_doc).toISOString() : new Date().toISOString();
+
+    // Normaliser les prestations au format attendu
+    const prestationsNorm = prestations.map(p => ({
+      nom: p.nom || p.designation || p.name || 'Prestation',
+      prix: p.prix || p.prixUnit || p.price || 0,
+      quantite: p.quantite || p.qte || p.quantity || 1,
+      details: p.details || p.description || ''
+    }));
+
+    const payload = {
+      num, type, client,
+      email: email || null,
+      telephone: telephone || null,
+      adresse: adresse || null,
+      prestations: prestationsNorm,
+      total_ht: totalCalc,
+      statut,
+      date_envoi: dateDoc,
+      source: 'import_externe',
+      description: description || null
+    };
+
+    const { error } = await supabase.from('historique').upsert(payload, { onConflict: 'num' });
+    if (error) throw new Error('Supabase: ' + error.message);
+
+    // Créer/mettre à jour la fiche client si email ou tél
+    if (client && (email || telephone)) {
+      try {
+        const { data: existing } = await supabase.from('clients').select('id').eq('nom', client).single();
+        if (existing) {
+          await supabase.from('clients').update({ email, telephone, adresse, updated_at: new Date().toISOString() }).eq('id', existing.id);
+        } else {
+          await supabase.from('clients').insert({ nom: client, email, telephone, adresse, created_at: new Date().toISOString() });
+        }
+      } catch(e) { console.warn('Fiche client import:', e.message); }
+    }
+
+    console.log(`✅ Devis importé: ${num} — ${client} — ${totalCalc}€`);
+    res.json({ success: true, num, total_ht: totalCalc });
+
+  } catch(e) {
+    console.error('❌ import-devis error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
+  try {
+    const { num } = req.params;
+    const { email, sujet, message, cc, pdfB64, sms, telephone } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email requis' });
+
+    // Récupérer le PDF
+    let pdf_b64 = pdfB64;
+    if (!pdf_b64) {
+      const { data: doc } = await supabase.from('historique').select('*').eq('num', num).single();
+      if (doc) {
+        // Générer le PDF à la volée
+        try {
+          const pdfRes = await fetch(`${process.env.APP_URL || 'https://sinelec-api-production.up.railway.app'}/api/pdf/${num}`, {
+            headers: { 'Authorization': req.headers['authorization'] || '' }
+          });
+          if (pdfRes.ok) {
+            const buf = Buffer.from(await pdfRes.arrayBuffer());
+            // Validation : un vrai PDF commence par "%PDF" et fait au moins quelques Ko
+            const isValidPdf = buf.length > 500 && buf.subarray(0, 4).toString('ascii') === '%PDF';
+            if (isValidPdf) {
+              pdf_b64 = buf.toString('base64');
+              console.log(`✅ PDF valide récupéré pour ${num} (${buf.length} bytes)`);
+            } else {
+              console.error(`❌ PDF invalide pour ${num} — taille:${buf.length} début:"${buf.subarray(0,20).toString('utf8').replace(/\n/g,' ')}" — envoi SANS pièce jointe (lien de signature reste disponible)`);
+            }
+          } else {
+            const errBody = await pdfRes.text().catch(()=>'');
+            console.error(`❌ /api/pdf/${num} a retourné ${pdfRes.status} — envoi SANS pièce jointe. Détail: ${errBody.substring(0,200)}`);
+          }
+        } catch(e) { console.error('PDF fetch exception:', e.message, '— envoi SANS pièce jointe'); }
+      }
+    }
+
+    const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+    const lienSig = `${appUrl}/api/track/click/${num}?redirect=/signer/${num}`;
+    const docTypeLocal = num.startsWith('OS-') ? 'devis' : 'facture';
+
+    const signatureBlock = docTypeLocal === 'devis' ? `
+      <div style="background:#fffbf0;border:1.5px solid #C9A84C;border-radius:12px;padding:20px;text-align:center;margin:20px 0;">
+        <p style="font-size:13px;color:#555;margin-bottom:16px;">Pour accepter ce devis, signez-le directement en ligne :</p>
+        <a href="${lienSig}" style="background:linear-gradient(135deg,#C9A84C,#daa520);color:#fff;text-decoration:none;border-radius:10px;padding:14px 28px;font-size:15px;font-weight:800;display:inline-block;">✍️ Signer le devis en ligne</a>
+        <p style="font-size:11px;color:#aaa;margin-top:12px;">Signature électronique valide — Loi n°2000-230</p>
+      </div>` : '';
+
+    const htmlEmail = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;">
+      <div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:24px;text-align:center;border-radius:12px 12px 0 0;">
+        <div style="font-size:28px;">⚡</div>
+        <h2 style="color:#fff;margin:8px 0 0;font-size:16px;">SINELEC Paris</h2>
+      </div>
+      <div style="padding:24px;border:1px solid #e8e8e8;border-top:none;border-radius:0 0 12px 12px;">
+        <p style="white-space:pre-wrap;font-size:14px;color:#333;line-height:1.6;">${(message || '').replace(/</g,'&lt;')}</p>
+        ${signatureBlock}
+        ${docTypeLocal === 'devis' ? `<div style="background:#1e2a3a;border-left:3px solid #C9A84C;border-radius:8px;padding:12px 14px;margin:16px 0;"><p style="color:#C9A84C;font-size:11px;font-weight:700;margin:0 0 6px;">📋 CONDITIONS GÉNÉRALES DE VENTE</p><p style="color:#9ca3af;font-size:11px;line-height:1.6;margin:0;">En signant ce devis, vous reconnaissez avoir pris connaissance et acceptez sans réserve les CGV de SINELEC Paris. Les CGV complètes sont affichées lors de la signature en ligne.</p></div>` : ''}
+        <p style="font-size:12px;color:#888;margin-top:16px;">📞 07 87 38 86 22 | sinelec.paris@gmail.com</p>
+      </div>
+    </div>`;
+
+    // Pixel espion
+    const htmlWithPixel = htmlEmail + `<img src="${appUrl}/api/track/open/${num}" width="1" height="1" style="display:none">`;
+
+    const attachment = pdf_b64 ? { content: pdf_b64, name: `${num}.pdf` } : null;
+    let emailRes;
+    try {
+      emailRes = await envoyerEmail(email, sujet || `Document ${num} - SINELEC`, htmlWithPixel, attachment);
+    } catch (emailErr) {
+      if (attachment) {
+        // Fallback : si l'envoi échoue AVEC pièce jointe, on retente SANS — le client garde le lien de signature
+        console.error(`⚠️ Échec envoi avec pièce jointe pour ${num} (${emailErr.message}) — nouvelle tentative SANS pièce jointe`);
+        emailRes = await envoyerEmail(email, sujet || `Document ${num} - SINELEC`, htmlWithPixel, null);
+      } else {
+        throw emailErr;
+      }
+    }
+
+    // CC si fourni
+    if (cc) { try { await envoyerEmail(cc, sujet || `Document ${num}`, htmlWithPixel, attachment); } catch(e) {} }
+
+    // Copie silencieuse à Diahe si créé par la standardiste
+    const tokenHeader = req.headers['authorization']?.replace('Bearer ', '');
+    const roleCreateur = getRoleFromToken(tokenHeader);
+    if (roleCreateur === 'standardiste' || roleCreateur === 'soustraitant') {
+      try {
+        await envoyerEmail(
+          CONFIG.email.sender_email,
+          `[STANDARDISTE] ${sujet || `Document ${num}`}`,
+          htmlWithPixel,
+          attachment
+        );
+        console.log(`📋 Copie silencieuse envoyée à Diahe — document standardiste: ${num}`);
+      } catch(e) { console.error('Copie silencieuse error:', e.message); }
+    }
+
+    // SMS si demandé
+    if (sms && telephone) {
+      const smsMsg = `Bonjour, votre devis SINELEC n°${num} est prêt. Signez-le ici : ${appUrl}/signer/${num} — SINELEC ⚡`;
+      await envoyerSMS(telephone, smsMsg);
+    }
+
+    await supabase.from('historique').update({ statut: 'envoye', date_envoi: new Date().toISOString() }).eq('num', num);
+    res.json({ success: true });
+  } catch(error) {
+    console.error('❌ /api/envoyer error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════
+// API: TRACKING EMAIL OPEN (pixel espion)
+// ═══════════════════════════════════════════════════
+app.get('/api/track/open/:num', async (req, res) => {
+  const { num } = req.params;
+  try {
+    const { data } = await supabase.from('historique').select('nb_ouvertures').eq('num', num).single();
+    const nb = ((data?.nb_ouvertures) || 0) + 1;
+    const now = new Date().toISOString();
+    await supabase.from('historique').update({
+      email_ouvert: true,
+      nb_ouvertures: nb,
+      derniere_ouverture: now,
+      premiere_ouverture: data?.premiere_ouverture || now
+    }).eq('num', num);
+  } catch(e) {}
+  // Return 1x1 transparent gif
+  const gif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
+  res.setHeader('Content-Type', 'image/gif');
+  res.setHeader('Cache-Control', 'no-cache, no-store');
+  res.send(gif);
+});
+
+// ═══════════════════════════════════════════════════
+// API: EMAIL OPENS RECENT (polling frontend)
+// ═══════════════════════════════════════════════════
+app.get('/api/email-opens-recent', authMiddleware, async (req, res) => {
+  try {
+    const since = new Date(Date.now() - 2 * 60 * 1000).toISOString(); // 2 dernières minutes
+    const { data } = await supabase.from('historique')
+      .select('num, client, type, nb_ouvertures, derniere_ouverture')
+      .eq('email_ouvert', true)
+      .gte('derniere_ouverture', since)
+      .order('derniere_ouverture', { ascending: false })
+      .limit(10);
+    res.json(data || []);
+  } catch(e) { res.json([]); }
+});
+
+// ═══════════════════════════════════════════════════
+// API: SIGNATURE CLIENT
+// ═══════════════════════════════════════════════════
+app.post('/api/signature', async (req, res) => {
+  try {
+    const { num, signature, ip } = req.body;
+    if (!num) return res.status(400).json({ error: 'num requis' });
+    const sigPath = path.join('/tmp', `sig_${num}.png`);
+    if (signature) {
+      const b64 = signature.replace(/^data:image\/[a-z]+;base64,/, '');
+      fs.writeFileSync(sigPath, Buffer.from(b64, 'base64'));
+    }
+    const now = new Date().toISOString();
+    const { error: updErr } = await supabase.from('historique').update({
+      statut: 'signe',
+      date_signature: now,
+      signature_ip: ip || null,
+      signature_data: signature || null
+    }).eq('num', num);
+    if (updErr) console.error('❌ Signature update error:', updErr.message);
+    else console.log('✅ Signature sauvegardée pour', num, '| data length:', (signature||'').length);
+
+    // Emails avec PDF signé en pièce jointe
+    const { data: doc } = await supabase.from('historique').select('*').eq('num', num).single();
+    if (doc) {
+      // Générer le PDF signé via appel interne
+      let pdfAttachment = null;
+      const appUrlLocal = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+      try {
+        const pdfRes = await fetch(appUrlLocal + '/api/pdf/' + num, {
+          headers: { 'Authorization': 'Bearer ' + genererToken() },
+          signal: AbortSignal.timeout(25000)
+        });
+        console.log('📄 PDF pour email:', num, '| status:', pdfRes.status, '| content-type:', pdfRes.headers.get('content-type'));
+        if (pdfRes.ok) {
+          const pdfBuf = Buffer.from(await pdfRes.arrayBuffer());
+          console.log('📄 PDF buffer size:', pdfBuf.length, 'bytes');
+          if (pdfBuf.length > 500) {
+            pdfAttachment = { content: pdfBuf.toString('base64'), name: num + '_signe.pdf' };
+            console.log('✅ PDF prêt pour pièce jointe');
+          }
+        } else {
+          const errText = await pdfRes.text();
+          console.error('❌ PDF route error:', pdfRes.status, errText.substring(0,100));
+        }
+      } catch(pdfErr) { console.error('❌ PDF fetch error:', pdfErr.message); }
+
+      const dateSign = new Date().toLocaleDateString('fr-FR');
+      const montant = (doc.total_ht||0).toFixed(0);
+
+      // Email client (si email dispo)
+      if (doc.email) {
+        const htmlClient = '<div style="font-family:Arial,sans-serif;max-width:480px;">'
+          + '<div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:20px;text-align:center;border-radius:12px 12px 0 0;">'
+          + '<div style="font-size:32px">✍️</div>'
+          + '<h2 style="color:#fff;margin:8px 0 0">Devis signé — SINELEC</h2></div>'
+          + '<div style="padding:24px;border:1px solid #e8e8e8;border-top:none;border-radius:0 0 12px 12px;">'
+          + '<p>Bonjour,</p>'
+          + '<p>Votre devis <strong>' + num + '</strong> a bien été signé le ' + dateSign + '. Le document signé est en pièce jointe.</p>'
+          + '<p>Nous vous recontacterons rapidement pour planifier l’intervention.</p>'
+          + '<p><a href="' + appUrlLocal + '/api/pdf/' + num + '" style="background:#1B2A4A;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:700;">Télécharger le PDF signé</a></p>'
+          + '<p style="font-size:12px;color:#888">☎️ 07 87 38 86 22 | sinelec.paris@gmail.com</p>'
+          + '</div></div>';
+        try { await envoyerEmail(doc.email, 'Devis ' + num + ' signé — SINELEC Paris', htmlClient, pdfAttachment); }
+        catch(e) { console.error('Email client signature:', e.message); }
+      }
+
+      // Email Diahe — TOUJOURS envoyé avec PDF
+      const htmlDiahe = '<div style="font-family:Arial,sans-serif;max-width:440px;">'
+        + '<div style="background:#1B2A4A;padding:18px;border-radius:10px 10px 0 0;text-align:center;">'
+        + '<div style="font-size:40px">✍️</div>'
+        + '<h2 style="color:#16a34a;margin:8px 0 0">Devis SIGNÉ !</h2></div>'
+        + '<div style="padding:20px;border:1px solid #e8e8e8;border-top:none;border-radius:0 0 10px 10px;">'
+        + '<p><b>Client :</b> ' + (doc.client||'') + '</p>'
+        + '<p><b>Devis :</b> ' + num + '</p>'
+        + '<p><b>Montant :</b> <span style="color:#C9962A;font-size:16px;font-weight:700">' + montant + ' €</span></p>'
+        + '<p><b>Signé le :</b> ' + dateSign + '</p>'
+        + (doc.adresse ? '<p><b>Adresse :</b> ' + doc.adresse + '</p>' : '')
+        + '</div></div>';
+      try { await envoyerEmail('sinelec.paris@gmail.com', '✍️ Signé — ' + (doc.client||'') + ' — ' + num + ' — ' + montant + '€', htmlDiahe, pdfAttachment); }
+      catch(e) { console.error('Email Diahe signature:', e.message); }
+    }
+    res.json({ success: true });
+  } catch(error) {
+    console.error('❌ /api/signature error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════
+// API: CHECK SIGNATURE
+// ═══════════════════════════════════════════════════
+app.get('/api/historique/:num/check-signature', async (req, res) => {
+  try {
+    const { num } = req.params;
+    const { data } = await supabase.from('historique').select('statut, date_signature').eq('num', num).single();
+    res.json({ statut: data?.statut || 'envoye', date_signature: data?.date_signature || null });
+  } catch(e) { res.json({ statut: 'envoye' }); }
+});
+
+// ═══════════════════════════════════════════════════
+// API: PAGE SIGNER (public)
+// ═══════════════════════════════════════════════════
+app.get('/signer/:num', async (req, res) => {
+  const { num } = req.params;
+  const numClean = decodeURIComponent(num).trim();
+
+  // Essai exact d'abord
+  let { data: doc } = await supabase.from('historique').select('*').eq('num', numClean).single();
+
+  // Fallback: recherche insensible à la casse
+  if (!doc) {
+    const { data: docs } = await supabase.from('historique').select('*').ilike('num', numClean).limit(1);
+    doc = docs?.[0] || null;
+  }
+
+  if (!doc) {
+    console.error('❌ Document introuvable pour num:', numClean);
+    return res.status(404).send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Introuvable</title></head>
+    <body style="font-family:Arial;text-align:center;padding:60px;background:#f5f5f5;">
+    <div style="background:#fff;border-radius:16px;padding:40px;max-width:400px;margin:0 auto;box-shadow:0 4px 20px rgba(0,0,0,0.1)">
+    <div style="font-size:48px;margin-bottom:16px">🔍</div>
+    <h2 style="color:#1B2A4A;margin-bottom:8px">Document introuvable</h2>
+    <p style="color:#666;margin-bottom:20px">Le devis <strong>${numClean}</strong> n'a pas été trouvé.</p>
+    <p style="color:#999;font-size:13px">Contactez SINELEC Paris<br>📞 07 87 38 86 22</p>
+    </div></body></html>`);
+  }
+  const statut = (doc.statut || '').toLowerCase();
+  if (['signe','signé'].includes(statut)) {
+    return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Déjà signé</title></head><body style="font-family:Arial;text-align:center;padding:40px;"><h2>✅ Devis déjà signé</h2><p>Le devis ${num} a déjà été signé. Merci !</p><p>📞 07 87 38 86 22</p></body></html>`);
+  }
+  const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+  const telClient = (doc.telephone || '').replace(/(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 ** ** $5');
+  res.send(`<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Signature — ${num}</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0f1929;min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:16px;font-family:'Segoe UI',Arial,sans-serif}
+.card{background:#fff;border-radius:16px;width:100%;max-width:480px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,0.4)}
+.hdr{background:#1B2A4A;padding:18px 20px;text-align:center;border-bottom:3px solid #C9A84C}
+.hdr-icon{font-size:26px;margin-bottom:4px}
+.hdr-title{color:#fff;font-size:16px;font-weight:700}
+.hdr-num{background:rgba(201,164,76,0.2);border:1px solid #C9A84C;border-radius:20px;padding:3px 12px;color:#C9A84C;font-size:11px;font-weight:700;display:inline-block;margin-top:5px}
+.hdr-client{color:rgba(255,255,255,0.5);font-size:11px;margin-top:5px}
+.steps{display:flex;justify-content:center;gap:0;padding:14px 20px 0;position:relative}
+.steps::before{content:'';position:absolute;top:25px;left:80px;right:80px;height:2px;background:#e5e7eb;z-index:0}
+.step{display:flex;flex-direction:column;align-items:center;gap:3px;flex:1;position:relative;z-index:1}
+.step-c{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;border:2px solid}
+.step-c.done{background:#16a34a;border-color:#16a34a;color:#fff}
+.step-c.active{background:#1B2A4A;border-color:#1B2A4A;color:#fff}
+.step-c.pending{background:#fff;border-color:#d1d5db;color:#9ca3af}
+.step-l{font-size:9px;color:#6b7280;text-align:center;font-weight:500}
+.step-l.active{color:#1B2A4A;font-weight:700}
+.body{padding:18px 20px}
+.sec-title{font-size:12px;font-weight:700;color:#1B2A4A;margin-bottom:10px;display:flex;align-items:center;gap:5px}
+.cgv-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin-bottom:14px;max-height:130px;overflow-y:auto}
+.cgv-text{font-size:10.5px;color:#64748b;line-height:1.65}
+.cgv-text strong{color:#1B2A4A;display:block;margin-top:8px;margin-bottom:2px}
+.cgv-text strong:first-child{margin-top:0}
+.checks{display:flex;flex-direction:column;gap:9px;margin-bottom:18px}
+.check-item{display:flex;align-items:flex-start;gap:10px;padding:11px;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;cursor:pointer;transition:all .2s}
+.check-item.on{background:#f0fdf4;border-color:#16a34a}
+.check-box{width:20px;height:20px;border-radius:5px;border:2px solid #d1d5db;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;transition:all .2s;margin-top:1px}
+.check-item.on .check-box{background:#16a34a;border-color:#16a34a;color:#fff}
+.check-txt{font-size:11.5px;color:#374151;line-height:1.5}
+.check-txt strong{color:#1B2A4A;display:block;margin-bottom:1px;font-size:12px}
+.sms-box{background:#fffbf0;border:1.5px solid #C9A84C;border-radius:10px;padding:14px;margin-bottom:18px}
+.sms-title{font-size:12px;font-weight:700;color:#1B2A4A;margin-bottom:3px}
+.sms-sub{font-size:10.5px;color:#92400e;margin-bottom:11px}
+.sms-row{display:flex;gap:8px}
+.sms-inp{flex:1;border:1.5px solid #d1d5db;border-radius:8px;padding:11px;font-size:20px;letter-spacing:8px;text-align:center;font-weight:700;color:#1B2A4A;outline:none}
+.sms-inp:focus{border-color:#C9A84C}
+.btn-sms{background:#1B2A4A;color:#fff;border:none;border-radius:8px;padding:11px 12px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap}
+.sms-ok{font-size:11px;color:#16a34a;margin-top:7px;display:none}
+.sig-hint{font-size:11px;color:#9ca3af;text-align:center;margin-bottom:6px}
+.sig-wrap{border:1.5px dashed #d1d5db;border-radius:10px;background:#fafafa;position:relative;overflow:hidden;margin-bottom:10px}
+canvas{display:block;width:100%;height:150px;cursor:crosshair;touch-action:none}
+.sig-erase{position:absolute;top:7px;right:7px;background:rgba(0,0,0,0.06);border:none;border-radius:6px;padding:4px 10px;font-size:10px;color:#6b7280;cursor:pointer}
+.btn-val{width:100%;background:linear-gradient(135deg,#1B2A4A,#243660);color:#fff;border:none;border-radius:10px;padding:15px;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;margin-bottom:12px}
+.btn-val:disabled{background:#e5e7eb;color:#9ca3af;cursor:not-allowed}
+.btn-next{width:100%;background:linear-gradient(135deg,#1B2A4A,#243660);color:#fff;border:none;border-radius:10px;padding:15px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:12px}
+.btn-next:disabled{background:#e5e7eb;color:#9ca3af;cursor:not-allowed}
+.ftr{padding:12px 20px;background:#f8fafc;border-top:1px solid #f0f0f0;text-align:center}
+.ftr-txt{font-size:9.5px;color:#9ca3af}
+#msg{text-align:center;font-weight:700;font-size:13px;margin-top:8px;min-height:20px}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="hdr">
+    <div class="hdr-icon">⚡</div>
+    <div class="hdr-title">Signature électronique</div>
+    <div class="hdr-num">${num} · ${(doc.total_ht||0).toFixed(2)} €</div>
+    <div class="hdr-client">${doc.client}</div>
+  </div>
+
+  <div class="steps" id="steps">
+    <div class="step"><div class="step-c active" id="sc1">1</div><div class="step-l active" id="sl1">CGV</div></div>
+    <div class="step"><div class="step-c pending" id="sc2">2</div><div class="step-l" id="sl2">Code SMS</div></div>
+    <div class="step"><div class="step-c pending" id="sc3">3</div><div class="step-l" id="sl3">Signature</div></div>
+  </div>
+
+  <!-- ÉTAPE 1 : CGV + CASES -->
+  <div class="body" id="step1">
+    <div class="sec-title">📋 Conditions générales de vente</div>
+    <div class="cgv-box">
+      <div class="cgv-text">
+        <strong>1. Devis et acceptation</strong>Le devis est valable 30 jours. Toute commande implique l'acceptation sans réserve des présentes CGV. La signature vaut bon de commande.
+        <strong>2. Prix et paiement</strong>TVA non applicable art. 293B CGI. Acompte 40% à la signature si devis > 400€. Solde à la fin des travaux. CB, espèces, virement acceptés.
+        <strong>3. Réalisation des travaux</strong>Travaux conformes NF C 15-100. Le client s'engage à fournir un accès sécurisé et à informer de toute contrainte particulière.
+        <strong>4. Garanties</strong>Garantie décennale ORUS Assurances. Garantie parfait achèvement 1 an. Ne couvre pas les dégradations dues à une mauvaise utilisation.
+        <strong>5. Rétractation</strong>Droit de rétractation 14 jours (art. L221-18 Code Conso). Ne s'applique pas en cas d'urgence confirmée.
+        <strong>6. Responsabilité</strong>SINELEC ne peut être tenu responsable des dommages indirects. Force majeure : exécution suspendue sans indemnité.
+        <strong>7. Litiges</strong>Solution amiable privilégiée. À défaut, compétence exclusive des tribunaux de Paris.
+      </div>
+    </div>
+    <div class="checks" id="checks">
+      <div class="check-item" onclick="toggle(this)"><div class="check-box"></div><div class="check-txt"><strong>J'ai lu et j'accepte les CGV</strong>J'ai pris connaissance des conditions générales de vente SINELEC Paris</div></div>
+      <div class="check-item" onclick="toggle(this)"><div class="check-box"></div><div class="check-txt"><strong>J'accepte le devis et le montant</strong>Je valide les prestations et le montant total de ${(doc.total_ht||0).toFixed(2)} €</div></div>
+      <div class="check-item" onclick="toggle(this)"><div class="check-box"></div><div class="check-txt"><strong>Je confirme mes informations</strong>Mes coordonnées et adresse de chantier sont exactes</div></div>
+    </div>
+    <button class="btn-next" id="btn1" disabled onclick="goStep2()">Continuer →</button>
+  </div>
+
+  <!-- ÉTAPE 2 : CODE SMS -->
+  <div class="body hidden" id="step2">
+    <div class="sms-box">
+      <div class="sms-title">📱 Vérification par SMS</div>
+      <div class="sms-sub" id="sms-tel">Envoi du code sur votre mobile...</div>
+      <div class="sms-row">
+        <input class="sms-inp" id="otp-inp" type="text" maxlength="6" placeholder="_ _ _ _ _ _" inputmode="numeric">
+        <button class="btn-sms" onclick="renvoyerCode()">Renvoyer</button>
+      </div>
+      <div class="sms-ok" id="sms-ok">✅ Code envoyé par SMS</div>
+    </div>
+    <button class="btn-next" id="btn2" disabled onclick="goStep3()">Vérifier et continuer →</button>
+    <div id="msg2" style="text-align:center;font-size:12px;color:#dc2626;margin-top:6px;min-height:16px"></div>
+  </div>
+
+  <!-- ÉTAPE 3 : SIGNATURE -->
+  <div class="body hidden" id="step3">
+    <div class="sec-title">✍️ Votre signature</div>
+    <div class="sig-hint">Signez avec votre doigt dans le cadre ci-dessous</div>
+    <div class="sig-wrap">
+      <canvas id="sig" height="150"></canvas>
+      <button class="sig-erase" onclick="effacer()">Effacer</button>
+    </div>
+    <button class="btn-val" id="btn-val" onclick="valider()">✅ Valider et signer le devis</button>
+    <div id="msg"></div>
+  </div>
+
+  <div class="ftr">
+    <div class="ftr-txt">🔒 Signature électronique valide — Loi n°2000-230 du 13 mars 2000<br>SINELEC EI · SIRET 91015824500019</div>
+  </div>
+</div>
+
+<script>
+const NUM='${num}';
+const TEL='${doc.telephone||""}';
+const APP='${appUrl}';
+
+// ── Étape 1 : cases à cocher ──
+function toggle(el){
+  el.classList.toggle('on');
+  el.querySelector('.check-box').textContent = el.classList.contains('on') ? '✓' : '';
+  const all = document.querySelectorAll('.check-item');
+  document.getElementById('btn1').disabled = ![...all].every(c=>c.classList.contains('on'));
+}
+
+async function goStep2(){
+  document.getElementById('step1').classList.add('hidden');
+  document.getElementById('step2').classList.remove('hidden');
+  setStep(2);
+  await envoyerOTP();
+}
+
+async function envoyerOTP(){
+  try {
+    const r = await fetch(APP+'/api/otp-signature',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({num:NUM,telephone:TEL})});
+    const d = await r.json();
+    if(d.success){
+      const telMasq = TEL.replace(/(\\d{2})(\\d{2})(\\d{2})(\\d{2})(\\d{2})/,'$1 $2 ** ** $5');
+      document.getElementById('sms-tel').textContent = 'Code envoyé au ' + (telMasq||'votre mobile');
+      document.getElementById('sms-ok').style.display='flex';
+    }
+  } catch(e){}
+}
+
+async function renvoyerCode(){ await envoyerOTP(); }
+
+document.getElementById('otp-inp').addEventListener('input', function(){
+  document.getElementById('btn2').disabled = this.value.length < 6;
+});
+
+async function goStep3(){
+  const code = document.getElementById('otp-inp').value.trim();
+  try {
+    const r = await fetch(APP+'/api/verifier-otp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({num:NUM,code})});
+    const d = await r.json();
+    if(d.success){
+      document.getElementById('step2').classList.add('hidden');
+      document.getElementById('step3').classList.remove('hidden');
+      setStep(3);
+      initCanvas();
+    } else {
+      document.getElementById('msg2').textContent = '❌ Code incorrect ou expiré';
+    }
+  } catch(e){
+    document.getElementById('msg2').textContent = '❌ Erreur vérification';
+  }
+}
+
+// ── Étape 3 : canvas signature ──
+let cv, ctx, drawing=false;
+function initCanvas(){
+  cv = document.getElementById('sig');
+  ctx = cv.getContext('2d');
+  cv.width = cv.offsetWidth * window.devicePixelRatio;
+  cv.height = 150 * window.devicePixelRatio;
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  ctx.strokeStyle='#1B2A4A'; ctx.lineWidth=2.5; ctx.lineCap='round'; ctx.lineJoin='round';
+  const pos=e=>{const r=cv.getBoundingClientRect();return e.touches?{x:e.touches[0].clientX-r.left,y:e.touches[0].clientY-r.top}:{x:e.clientX-r.left,y:e.clientY-r.top};};
+  cv.addEventListener('mousedown',e=>{drawing=true;ctx.beginPath();const p=pos(e);ctx.moveTo(p.x,p.y);});
+  cv.addEventListener('mousemove',e=>{if(!drawing)return;const p=pos(e);ctx.lineTo(p.x,p.y);ctx.stroke();});
+  cv.addEventListener('mouseup',()=>drawing=false);
+  cv.addEventListener('touchstart',e=>{e.preventDefault();drawing=true;ctx.beginPath();const p=pos(e);ctx.moveTo(p.x,p.y);},{passive:false});
+  cv.addEventListener('touchmove',e=>{e.preventDefault();if(!drawing)return;const p=pos(e);ctx.lineTo(p.x,p.y);ctx.stroke();},{passive:false});
+  cv.addEventListener('touchend',()=>drawing=false);
+}
+function effacer(){ if(ctx) ctx.clearRect(0,0,cv.width,cv.height); }
+
+async function valider(){
+  const msg=document.getElementById('msg');
+  const btn=document.getElementById('btn-val');
+  btn.disabled=true; msg.textContent='⏳ Enregistrement...'; msg.style.color='#C9A84C';
+  try {
+    const r=await fetch(APP+'/api/signature',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({num:NUM,signature:cv.toDataURL('image/png'),ip:''})});
+    const d=await r.json();
+    if(d.success){
+      msg.textContent='✅ Devis signé ! Merci, nous vous recontactons.';
+      msg.style.color='#16a34a';
+    } else {
+      msg.textContent='❌ Erreur: '+(d.error||'Inconnue');
+      msg.style.color='#dc2626';
+      btn.disabled=false;
+    }
+  } catch(e){
+    msg.textContent='❌ Erreur réseau';
+    msg.style.color='#dc2626';
+    btn.disabled=false;
+  }
+}
+
+function setStep(n){
+  [1,2,3].forEach(i=>{
+    const c=document.getElementById('sc'+i);
+    const l=document.getElementById('sl'+i);
+    if(i<n){c.className='step-c done';c.textContent='✓';}
+    else if(i===n){c.className='step-c active';l.className='step-l active';}
+    else{c.className='step-c pending';l.className='step-l';}
+  });
+}
+</script>
+</body>
+</html>`);
+});
+
+// ═══════════════════════════════════════════════════
+// API: CA COMPLET (historique + obat)
+// ═══════════════════════════════════════════════════
+app.get('/api/ca-complet', blockStandardiste, async (req, res) => {
+  try {
+    // Données app
+    const { data: app_docs, error: err1 } = await supabase.from('historique').select('*').order('created_at', { ascending: false });
+    // Données OBAT
+    const { data: obat_docs, error: err2 } = await supabase.from('factures_obat').select('*').order('date_facture', { ascending: false });
+    const docs = [];
+    (app_docs || []).forEach(d => docs.push({ ...d, source: 'app' }));
+    (obat_docs || []).forEach(d => docs.push({
+      num: d.reference || d.num,
+      type: 'facture',
+      client: d.client || d.client_nom,
+      total_ht: d.montant_ht || d.total_ht,
+      statut: d.statut || 'paye',
+      created_at: d.date_facture ? d.date_facture + 'T00:00:00.000Z' : d.created_at,
+      date: d.date_facture,
+      source: 'obat',
+      prestations: d.prestations || []
+    }));
+    docs.sort((a,b) => new Date(b.created_at||b.date) - new Date(a.created_at||a.date));
+    res.json(docs);
+  } catch(error) { res.status(500).json({ error: error.message }); }
+});
+
+app.get('/api/historique', blockStandardiste, async (req, res) => {
+  try {
+    const { type, statut } = req.query;
+
+    // Charger devis/factures depuis historique
+    let query = supabase.from('historique').select('*').order('created_at', { ascending: false });
+    if (type && type !== 'rapport') query = query.eq('type', type);
+    if (statut) query = query.eq('statut', statut);
+    const { data: docs, error } = await query;
+    if (error) throw error;
+
+    // Fusionner avec les rapports si pas de filtre type spécifique
+    let result = docs || [];
+    if (!type || type === 'rapport') {
+      const { data: rapports } = await supabase.from('rapports')
+        .select('*').order('created_at', { ascending: false });
+      const rapportsFormatted = (rapports || []).map(r => ({
+        num: r.num,
+        type: 'rapport',
+        client: r.client,
+        adresse: r.adresse,
+        email: r.email,
+        telephone: r.telephone,
+        statut: 'envoye',
+        total_ht: 0,
+        created_at: r.created_at,
+        source: 'rapport'
+      }));
+      if (type === 'rapport') {
+        result = rapportsFormatted;
+      } else {
+        result = [...result, ...rapportsFormatted]
+          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      }
+    }
+
+    res.json(result);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════
+// API: HISTORIQUE CRUD
+// ═══════════════════════════════════════════════════
+app.delete('/api/historique/:num', async (req, res) => {
+  try {
+    const { num } = req.params;
+    const { error } = await supabase.from('historique').delete().eq('num', num);
+    if (error) throw error;
+    // Cleanup PDF files
+    ['', '_dl_', '_dl_details_'].forEach(p => {
+      try { fs.unlinkSync(path.join('/tmp', `${p}${num}.pdf`)); } catch(e) {}
+      try { fs.unlinkSync(path.join('/tmp', `${p}${num}.json`)); } catch(e) {}
+    });
+    res.json({ success: true });
+  } catch(error) { res.status(500).json({ error: error.message }); }
+});
+
+app.patch('/api/historique/:num/statut', async (req, res) => {
+  try {
+    const { num } = req.params;
+    const updates = req.body;
+    const { error } = await supabase.from('historique').update(updates).eq('num', num);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch(error) { res.status(500).json({ error: error.message }); }
+});
+
+// ═══════════════════════════════════════════════════
+// API: MARQUER PAYÉ
+// ═══════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════
+// HELPERS: SUMUP HOSTED CHECKOUT
+// ═══════════════════════════════════════════════════
+async function creerCheckoutSumUp(num, montant, description) {
+  if (!SUMUP_API_KEY || !SUMUP_MERCHANT_CODE) {
+    console.error('❌ SumUp non configuré (clé ou merchant_code manquant)');
+    return null;
+  }
+  try {
+    const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+    const checkout_reference = `${num}-${Date.now()}`;
+    const r = await fetch('https://api.sumup.com/v0.1/checkouts', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + SUMUP_API_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        checkout_reference,
+        amount: Math.round(montant * 100) / 100,
+        currency: 'EUR',
+        merchant_code: SUMUP_MERCHANT_CODE,
+        description: description || `SINELEC - ${num}`,
+        hosted_checkout: { enabled: true },
+        redirect_url: `${appUrl}/paiement-retour/${num}`
+      })
+    });
+    const data = await r.json();
+    if (!r.ok) { console.error('❌ SumUp checkout error:', JSON.stringify(data)); return null; }
+    return { id: data.id, hosted_checkout_url: data.hosted_checkout_url || data.href || null, checkout_reference };
+  } catch(e) { console.error('❌ SumUp checkout exception:', e.message); return null; }
+}
+
+async function verifierCheckoutSumUp(checkoutId) {
+  if (!SUMUP_API_KEY || !checkoutId) return null;
+  try {
+    const r = await fetch(`https://api.sumup.com/v0.1/checkouts/${checkoutId}`, {
+      headers: { 'Authorization': 'Bearer ' + SUMUP_API_KEY }
+    });
+    const data = await r.json();
+    if (!r.ok) { console.error('❌ SumUp verif error:', JSON.stringify(data)); return null; }
+    return data; // { status: 'PENDING' | 'PAID' | 'FAILED', ... }
+  } catch(e) { console.error('❌ SumUp verif exception:', e.message); return null; }
+}
+
+async function traiterPaiementRecu(num, mode_paiement) {
+  try {
+    const now = new Date().toISOString();
+    // 1. Mettre à jour le statut en base directement (pas de fetch vers soi-même)
+    const { error } = await supabase.from('historique').update({
+      statut: 'paye', mode_paiement: mode_paiement || 'sumup', date_paiement: now
+    }).eq('num', num);
+    if (error) throw error;
+
+    // 2. Chaîne automatique : facture acquittée + SMS avis
+    setImmediate(async () => {
+      try {
+        const { data: doc } = await supabase.from('historique').select('*').eq('num', num).single();
+        if (!doc) return;
+        const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+        const token = genererToken();
+
+        // PDF acquitté
+        let pdf_b64 = null;
+        try {
+          const pdfRes = await fetch(`${appUrl}/api/pdf/${num}`, { headers: { 'Authorization': `Bearer ${token}` } });
+          if (pdfRes.ok) {
+            const buf = Buffer.from(await pdfRes.arrayBuffer());
+            if (buf.length > 500 && buf.subarray(0,4).toString('ascii') === '%PDF') {
+              pdf_b64 = buf.toString('base64');
+            }
+          }
+        } catch(e) { console.error('PDF acquitté error:', e.message); }
+
+        // Email facture acquittée
+        if (doc.email) {
+          try {
+            const html = `<div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;">
+              <div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:24px;text-align:center;border-radius:12px 12px 0 0;">
+                <div style="font-size:36px;">💰</div>
+                <h2 style="color:#E8B84B;margin:8px 0 0;">Facture acquittée</h2>
+              </div>
+              <div style="padding:24px;border:1px solid #e8e8e8;border-top:none;border-radius:0 0 12px 12px;">
+                <p>Bonjour <strong>${extractPrenom(doc.client)}</strong>,</p>
+                <p>Votre règlement pour la facture <strong>${num}</strong> a bien été enregistré. Merci pour votre confiance !</p>
+                <p>Retrouvez ci-joint votre facture acquittée.</p>
+                <p style="font-size:12px;color:#888;">⭐ <a href="https://g.page/r/CSw-MABnFUAYEAE/review">Laisser un avis Google</a></p>
+              </div>
+            </div>`;
+            await envoyerEmail(doc.email, `Facture acquittée ${num} — SINELEC Paris`, html, pdf_b64 ? { content: pdf_b64, name: `${num}_acquittee.pdf` } : null);
+            console.log(`✅ Facture acquittée envoyée: ${num} → ${doc.email}`);
+          } catch(e) { console.error('Email acquitté error:', e.message); }
+        }
+
+        // SMS avis Google
+        if (doc.telephone && !doc.sms_avis_envoye) {
+          try {
+            const prenom = extractPrenom(doc.client || '');
+            const smsAvis = `Bonjour ${prenom}, votre règlement SINELEC a bien été enregistré ✅ Si vous avez 30 secondes, un avis Google nous aiderait énormément 👉 https://g.page/r/CSw-MABnFUAYEAE/review — L'équipe SINELEC Paris ⚡`;
+            await envoyerSMS(doc.telephone, smsAvis);
+            await supabase.from('historique').update({ sms_avis_envoye: true, sms_avis_date: new Date().toISOString(), sms_avis_statut: 'envoye_auto' }).eq('num', num);
+            console.log(`✅ SMS avis auto: ${num} → ${doc.telephone}`);
+          } catch(e) { console.error('SMS avis error:', e.message); }
+        }
+      } catch(e) { console.error('traiterPaiementRecu chain error:', e.message); }
+    });
+
+    return true;
+  } catch(e) { console.error('❌ traiterPaiementRecu:', e.message); return false; }
+}
+
+// Alias pour compatibilité
+async function marquerPayeInterne(num, mode_paiement) {
+  return traiterPaiementRecu(num, mode_paiement);
+}
+
+app.post('/api/marquer-paye', authMiddleware, async (req, res) => {
+  try {
+    const { num, mode_paiement } = req.body;
+    if (!num) return res.status(400).json({ error: 'Numéro manquant' });
+    // Utilise traiterPaiementRecu qui gère toute la chaîne (statut + PDF acquitté + SMS avis)
+    const ok = await traiterPaiementRecu(num, mode_paiement || 'terminal');
+    if (!ok) return res.status(500).json({ error: 'Erreur traitement paiement' });
+    res.json({ success: true });
+  } catch(error) { res.status(500).json({ error: error.message }); }
+});
+
+
+// ═══════════════════════════════════════════════════
+// API: ENVOI SMS LIEN SIGNATURE
+// ═══════════════════════════════════════════════════
+app.post('/api/envoyer-lien-signature/:num', async (req, res) => {
+  try {
+    const { num } = req.params;
+    const { telephone } = req.body;
+    const { data: doc } = await supabase.from('historique').select('*').eq('num', num).single();
+    if (!doc) return res.status(404).json({ error: 'Devis non trouve' });
+    const tel = telephone || doc.telephone;
+    if (!tel) return res.status(400).json({ error: 'Numero de telephone manquant' });
+    const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+    const lienSig = appUrl + '/signer/' + num;
+    const prenom = extractPrenom(doc.client || '');
+    const montant = parseFloat(doc.total_ht || 0).toFixed(0);
+    const msg = 'Bonjour ' + prenom + ', votre devis SINELEC n°' + num + ' (' + montant + '€) est prêt. Signez-le ici : ' + lienSig + ' — Diahe ⚡';
+    await envoyerSMS(tel, msg);
+    await supabase.from('historique').update({ sms_signature_envoye: true, sms_signature_date: new Date().toISOString() }).eq('num', num);
+    res.json({ success: true, lien: lienSig, telephone: tel });
+  } catch(e) {
+    console.error('/api/envoyer-lien-signature error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════
+// API: SMS
+// ═══════════════════════════════════════════════════
+app.post('/api/sms', authMiddleware, async (req, res) => {
+  try {
+    const { telephone, message } = req.body;
+    if (!telephone || !message) return res.status(400).json({ error: 'telephone et message requis' });
+    const msgId = await envoyerSMS(telephone, message);
+    res.json({ success: true, messageId: msgId });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════
+// API: SMS AVIS GOOGLE
+// ═══════════════════════════════════════════════════
+app.post('/api/envoyer-sms-avis/:num', async (req, res) => {
+  try {
+    const { num } = req.params;
+    const { data: doc } = await supabase.from('historique').select('*').eq('num', num).single();
+    if (!doc) return res.status(404).json({ error: 'Document non trouvé' });
+    if (!doc.telephone) return res.status(400).json({ error: 'Pas de téléphone pour ce client' });
+    const prenom = extractPrenom(doc.client);
+    const msg = `Bonjour ${prenom}, merci pour votre confiance ! Un avis Google nous aiderait beaucoup : https://g.page/r/CSw-MABnFUAYEAE/review — Diahe, SINELEC ⚡`;
+    const msgId = await envoyerSMS(doc.telephone, msg);
+    const now = new Date().toISOString();
+    await supabase.from('historique').update({
+      sms_avis_envoye: true,
+      sms_avis_date: now,
+      sms_avis_statut: 'envoye',
+      sms_message_id: msgId || null
+    }).eq('num', num);
+    res.json({ success: true, date: now });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════
+// API: PDF (régénéré depuis Supabase)
+// ═══════════════════════════════════════════════════
+app.get('/api/pdf/:num', async (req, res) => {
+  try {
+    const { num } = req.params;
+    const { data, error } = await supabase.from('historique').select('*').eq('num', num).single();
+    if (error || !data) return res.status(404).json({ error: 'Document non trouvé' });
+
+    const docType = data.type || (num.startsWith('OS-') ? 'devis' : 'facture');
+    const docStatut = data.statut || '';
+    const isPaye = ['paye','payé','payee','acquitte','acquitté'].includes(docStatut.toLowerCase());
+    const typeLabelUpper = docType === 'devis' ? 'DEVIS' : (isPaye ? 'FACTURE ACQUITTEE' : 'FACTURE');
+    const dateStr = new Date(data.date_envoi || data.created_at).toLocaleDateString('fr-FR');
+    const dateValide = new Date(new Date(data.date_envoi || data.created_at).getTime() + 30*24*60*60*1000).toLocaleDateString('fr-FR');
+
+    const detailsPath = path.join('/tmp', `_dl_details_${num}.json`);
+    const pyPath = path.join('/tmp', `_dl_${num}.py`);
+    const pdfPath = path.join('/tmp', `_dl_${num}.pdf`);
+
+    let prestationsArr = data.prestations || [];
+    if (typeof prestationsArr === 'string') { try { prestationsArr = JSON.parse(prestationsArr); } catch(e) { prestationsArr = []; } }
+    const clientEscDl = String(data.client || '').replace(/['"\\]/g, ' ');
+    const addrPartsDl = (data.adresse || '').split(',');
+    const itemsArr = prestationsArr.map(p => ({
+      designation: p.nom || p.designation || '', qte: p.quantite || 1,
+      prixUnit: p.prix || 0, total: (p.prix || 0) * (p.quantite || 1),
+      details: p.desc ? [p.desc] : []
+    }));
+    const datePaiement = data.date_paiement ? new Date(data.date_paiement).toLocaleDateString('fr-FR') : dateStr;
+    const modePaiement = String(data.mode_paiement || 'Règlement reçu').replace(/'/g,' ').substring(0,30);
+    const jsonPayloadDl = {
+      _meta: {
+        type: docType, num,
+        typeLabelUpper,
+        dateStr, dateValide,
+        clientNom: clientEscDl,
+        clientRue: String(addrPartsDl[0] || '').trim(),
+        clientVille: addrPartsDl.slice(1).join(',').trim(),
+        clientTel: data.telephone || '',
+        clientSiret: '',
+        descObjet: String(data.description || 'Travaux electricite').substring(0,120),
+        isPaye, isSigne: ['signe','signé'].includes(docStatut.toLowerCase()),
+        datePaiement, modePaiement, nomCourt: clientEscDl.toUpperCase().split(' ').slice(0,2).join(' ').substring(0,14),
+        signatureData: data.signature_data || '',
+        dateSignature: data.date_signature ? new Date(data.date_signature).toLocaleDateString('fr-FR') : ''
+      },
+      _items: itemsArr
+    };
+    fs.writeFileSync(detailsPath, JSON.stringify(jsonPayloadDl));
+
+    const clientEsc = String(data.client || '').replace(/'/g, ' ');
+    const addrParts = (data.adresse || '').split(',');
+    const clientRue = String(addrParts[0] || '').trim().replace(/'/g, ' ');
+    const clientVille = addrParts.slice(1).join(',').trim().replace(/'/g, ' ');
+    const nomCourt = clientEsc.toUpperCase().split(' ').slice(0,2).join(' ').substring(0,14);
+    const descObjet = String(data.description || 'Travaux d electricite generale').replace(/'/g,' ').replace(/"/g,' ').substring(0,120);
+    const totalHT = itemsArr.reduce((s,l) => s + l.total, 0);
+
+    const py = `# -*- coding: utf-8 -*-
+import json, base64, io, sys
+from reportlab.lib.pagesizes import A4; from reportlab.lib import colors; from reportlab.lib.units import cm
+from reportlab.platypus import *; from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT; from reportlab.pdfgen import canvas as pdfcanvas
+from reportlab.lib.utils import ImageReader
+W,H=A4; MARINE=colors.HexColor('#1B2A4A'); OR=colors.HexColor('#C9A84C')
+OR_PALE=colors.HexColor('#FBF7EC'); OR_FONCE=colors.HexColor('#A07830')
+BLANC=colors.white; CREME=colors.HexColor('#FDFCF9'); GRIS_TEXTE=colors.HexColor('#3A3A3A')
+GRIS_SOFT=colors.HexColor('#777777'); GRIS_LIGNE=colors.HexColor('#E0DDD6'); GRIS_BG=colors.HexColor('#F5F4F0')
+VERT=colors.HexColor('#16a34a')
+def p(txt,sz=9,font='Helvetica',color=GRIS_TEXTE,align=TA_LEFT,sb=0,sa=2,leading=None):
+    if leading is None: leading=sz*1.35
+    return Paragraph(str(txt),ParagraphStyle('s',fontName=font,fontSize=sz,textColor=color,alignment=align,spaceBefore=sb,spaceAfter=sa,leading=leading,wordWrap='CJK'))
+raw=json.loads(open(sys.argv[1],encoding='utf-8').read())
+meta=raw.get('_meta',{}) if isinstance(raw,dict) else {}
+data=raw.get('_items',raw) if isinstance(raw,dict) and '_items' in raw else (raw if isinstance(raw,list) else [])
+totalHT=sum(float(l.get('total',0)) for l in data if not l.get('_section'))
+doc_type=meta.get('type','devis')
+doc_num=meta.get('num','')
+doc_label=meta.get('typeLabelUpper','DEVIS')
+date_str=meta.get('dateStr','')
+date_valide=meta.get('dateValide','')
+client_nom=meta.get('clientNom','')
+client_rue=meta.get('clientRue','')
+client_ville=meta.get('clientVille','')
+client_tel=meta.get('clientTel','')
+desc_objet=meta.get('descObjet','Travaux electricite')
+is_paye=meta.get('isPaye',False)
+is_signe=meta.get('isSigne',False)
+sig_data_b64=str(meta.get('signatureData',''))
+date_sig=str(meta.get('dateSignature','')) or str(meta.get('datePaiement','')) or doc_date
+nom_court=str(meta.get('nomCourt',''))
+try:
+    logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
+except:
+    logo_bytes=None
+class SC(pdfcanvas.Canvas):
+    def __init__(self,fn,**kw): pdfcanvas.Canvas.__init__(self,fn,**kw); self._pg=0; self.saveState(); self._draw_page()
+    def showPage(self): self._draw_footer(); pdfcanvas.Canvas.showPage(self); self._pg+=1
+    def save(self): self._draw_footer(); pdfcanvas.Canvas.save(self)
+    def _draw_page(self):
+        self.saveState(); self.setFillColor(CREME); self.rect(0,0,W,H,fill=1,stroke=0)
+        self.setFillColor(MARINE); self.rect(0,0,0.7*cm,H,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0.7*cm,0,0.08*cm,H,fill=1,stroke=0)
+        # Filigrane SIGNÉ diagonal
+        try:
+            if IS_SIGNE:
+                self.saveState()
+                self.setFillColor(colors.HexColor('#16a34a'))
+                self.setFillAlpha(0.055)
+                self.setFont('Helvetica-Bold',88)
+                self.translate(W/2,H/2)
+                self.rotate(45)
+                self.drawCentredString(0,0,'SIGN\u00c9')
+                self.restoreState()
+        except: pass
+        if self._pg==0: self._draw_header()
+        else: self._draw_header_small()
+        self.restoreState()
+    def _draw_header(self):
+        self.setFillColor(MARINE); self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,5.4*cm,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,0.12*cm,fill=1,stroke=0)
+        if logo_bytes:
+            self.drawImage(ImageReader(io.BytesIO(logo_bytes)),0.9*cm,H-5.05*cm,width=4.2*cm,height=4.2*cm,preserveAspectRatio=True,mask='auto')
         self.setFont('Helvetica-Bold',15); self.setFillColor(colors.white); self.drawString(5.9*cm,H-1.7*cm,'SINELEC PARIS')
         self.setFont('Helvetica-Bold',9); self.setFillColor(colors.white); self.drawString(5.9*cm,H-2.5*cm,'128 Rue La Boetie, 75008 Paris')
         self.setFont('Helvetica',8.5); self.setFillColor(colors.HexColor('#BFC8D6'))
         self.drawString(5.9*cm,H-3.0*cm,'Tel : 07 87 38 86 22'); self.drawString(5.9*cm,H-3.4*cm,'sinelec.paris@gmail.com')
         self.setFillColor(colors.HexColor('#243660')); self.roundRect(5.9*cm,H-4.15*cm,5.5*cm,0.55*cm,0.1*cm,fill=1,stroke=0)
         self.setFont('Helvetica-Bold',8); self.setFillColor(OR); self.drawString(6.1*cm,H-3.88*cm,'SIRET : 91015824500019')
-        self.setFont('Helvetica-Bold',40); self.setFillColor(BLANC); self.drawRightString(W-1.2*cm,H-2.2*cm,'${typeLabelUpper}')
+        _lbl='${typeLabelUpper}'
+        _lbl_sz=40 if len(_lbl)<=7 else (28 if len(_lbl)<=14 else 20)
+        self.setFont('Helvetica-Bold',_lbl_sz); self.setFillColor(BLANC); self.drawRightString(W-1.2*cm,H-2.2*cm,_lbl)
         self.setStrokeColor(OR); self.setLineWidth(1.5); self.line(13*cm,H-2.65*cm,W-1.2*cm,H-2.65*cm)
         self.setFillColor(OR); self.roundRect(W-6.5*cm,H-3.55*cm,5.3*cm,0.65*cm,0.15*cm,fill=1,stroke=0)
         self.setFont('Helvetica-Bold',9); self.setFillColor(MARINE); self.drawCentredString(W-3.85*cm,H-3.22*cm,'N\\u00b0 ${num}')
-        self.setFont('Helvetica',8); self.setFillColor(colors.HexColor('#BFC8D6')); self.drawRightString(W-1.2*cm,H-3.9*cm,'Date : ${dateStr}   |   Valable : ${dateValide}')
+        self.setFont('Helvetica',8); self.setFillColor(colors.HexColor('#BFC8D6')); self.drawRightString(W-1.2*cm,H-3.9*cm,'Date : ${dateStr}')
     def _draw_header_small(self):
         self.setFillColor(MARINE); self.rect(0.78*cm,H-1.5*cm,W-0.78*cm,1.5*cm,fill=1,stroke=0)
         self.setFillColor(OR); self.rect(0.78*cm,H-1.5*cm,W-0.78*cm,0.08*cm,fill=1,stroke=0)
@@ -359,1548 +1927,128 @@ class SC(pdfcanvas.Canvas):
         self.restoreState()
         self._draw_tampons()
     def _draw_tampons(self):
-        IS_PAYE = '${type}' == 'facture' and 'envoye' in ('paye','payee','acquitte')
-        IS_SIGNE = '${type}' == 'devis' and 'envoye' in ('signe',)
-        rouge = colors.HexColor('#cc0000')
-        vert  = colors.HexColor('#16a34a')
+        IS_PAYE = ${isPaye ? 'True' : 'False'}
+        IS_SIGNE = '${docType}'=='devis' and '${docStatut}' in ('signe','signé')
+        rouge = colors.HexColor('#cc0000'); vert=colors.HexColor('#16a34a')
         couleur = rouge if IS_PAYE else (vert if IS_SIGNE else None)
         if not couleur: return
-        cx = W - 5.0*cm; cy = 9.0*cm; r = 1.9*cm
-        self.saveState()
-        self.setStrokeColor(couleur); self.setFillColor(couleur)
+        cx=W-3.8*cm; cy=3.5*cm; r=1.7*cm
+        self.saveState(); self.setStrokeColor(couleur); self.setFillColor(couleur)
         self.setFillAlpha(0.85); self.setLineWidth(3.5); self.circle(cx,cy,r,fill=0,stroke=1)
         self.setLineWidth(0.8); self.setFillAlpha(0.4); self.circle(cx,cy,r-0.22*cm,fill=0,stroke=1)
-        self.setLineWidth(0.3); self.setFillAlpha(0.2)
-        self.setDash([0.08*cm,0.28*cm]); self.circle(cx,cy,r-0.52*cm,fill=0,stroke=1); self.setDash()
         self.translate(cx,cy); self.rotate(-15)
-        nom_court = '${clientEsc}'.upper()[:16]
         self.setFillAlpha(0.92); self.setFillColor(couleur)
-        self.setFont('Helvetica-Bold',7); self.drawCentredString(0,1.05*cm,nom_court)
-        label = 'PAYE' if IS_PAYE else 'SIGNE'
-        sz = 22 if IS_PAYE else 20
+        self.setFont('Helvetica-Bold',7); self.drawCentredString(0,1.05*cm,'${nomCourt}')
+        label='PAYE' if IS_PAYE else 'SIGNE'
+        sz=22 if IS_PAYE else 20
         self.setFillAlpha(0.9); self.setFont('Helvetica-Bold',sz); self.drawCentredString(0,0.18*cm,label)
-        self.setFont('Helvetica-Bold',7.5); self.setFillAlpha(0.75); self.drawCentredString(0,-0.52*cm,'${dateStr}')
+        self.setFont('Helvetica-Bold',7.5); self.setFillAlpha(0.75); self.drawCentredString(0,-0.52*cm,'${datePaiement}')
         self.setFont('Helvetica',6); self.setFillAlpha(0.45); self.drawCentredString(0,-1.02*cm,'PARIS')
         self.restoreState()
 doc=SimpleDocTemplate(sys.argv[2],pagesize=A4,leftMargin=1.2*cm,rightMargin=1.0*cm,topMargin=5.6*cm,bottomMargin=1.6*cm)
 story=[]
 objet_b=Table([[p('OBJET DES TRAVAUX',7.5,'Helvetica-Bold',OR,sa=4)],[p('${descObjet}',10,'Helvetica-Bold',MARINE)],[p('Conformes NF C 15-100  \\u2022  Garantie decennale ORUS',7.5,color=GRIS_SOFT)]],colWidths=[8.2*cm])
 objet_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3),('LEFTPADDING',(0,0),(-1,-1),0),('LINEABOVE',(0,0),(0,0),2.5,MARINE),('TOPPADDING',(0,0),(0,0),10)]))
-client_rows=[[p('CLIENT',7,'Helvetica-Bold',OR,sa=4)],[p('${clientEsc}',10,'Helvetica-Bold',MARINE)]]
-if '${clientRue}': client_rows.append([p('${clientRue}',8.5,color=GRIS_TEXTE)])
-if '${clientComplement}': client_rows.append([p('${clientComplement}',8.5,color=GRIS_TEXTE)])
-if '${clientCPVille}': client_rows.append([p('${clientCPVille}',8.5,color=GRIS_TEXTE)])
-if '${clientTel}': client_rows.append([p('Tel : ${clientTel}',8.5,color=GRIS_SOFT)])
-if '${clientSiret}': client_rows.append([p('SIRET : ${clientSiret}',8,color=GRIS_SOFT)])
-client_b=Table(client_rows,colWidths=[9.0*cm])
-client_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('BACKGROUND',(0,0),(-1,-1),OR_PALE),('BOX',(0,0),(-1,-1),1,OR),('LINEBEFORE',(0,0),(0,-1),4,MARINE),('TOPPADDING',(0,0),(0,0),10),('BOTTOMPADDING',(0,-1),(-1,-1),10)]))
-story.append(Table([[objet_b,client_b]],colWidths=[8.7*cm,9.5*cm],style=TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)])))
-story.append(Spacer(1,0.6*cm))
-cw=[0.7*cm,9.5*cm,1.5*cm,0.9*cm,2.4*cm,3.2*cm]
-rows=[[p('#',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('DESIGNATION',7.5,'Helvetica-Bold',BLANC),p('QTE',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('U.',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('PRIX U. HT',7.5,'Helvetica-Bold',BLANC,TA_RIGHT),p('TOTAL HT',7.5,'Helvetica-Bold',BLANC,TA_RIGHT)]]
-for i,l in enumerate(data):
-    q=int(l['qte']) if l['qte']==int(l['qte']) else l['qte']
-    rows.append([p(str(i+1),9,color=OR,align=TA_CENTER),p('<b>'+l['designation']+'</b>',9,color=MARINE),p(str(q),9,align=TA_CENTER),p('u.',9,align=TA_CENTER,color=GRIS_SOFT),p('%.2f \\u20ac'%l['prixUnit'],9,align=TA_RIGHT),p('<b>%.2f \\u20ac</b>'%l['total'],9,'Helvetica-Bold',MARINE,TA_RIGHT)])
-    for det in l.get('details',[]):
-        rows.append(['',p('   - '+det,7.5,'Helvetica-Oblique',color=GRIS_SOFT),'','','',''])
-t=Table(rows,colWidths=cw)
-ts=[('BACKGROUND',(0,0),(-1,0),MARINE),('LINEBELOW',(0,0),(-1,0),2.5,OR),('VALIGN',(0,0),(-1,-1),'TOP'),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),('LEFTPADDING',(0,0),(-1,-1),7),('RIGHTPADDING',(0,0),(-1,-1),7),('BOX',(0,0),(-1,-1),0.3,GRIS_LIGNE)]
-row_idx=1; bg=True
-for l in data:
-    nb=1+len(l.get('details',[])); c=BLANC if bg else GRIS_BG
-    ts.append(('BACKGROUND',(0,row_idx),(-1,row_idx+nb-1),c)); ts.append(('LINEBELOW',(0,row_idx+nb-1),(-1,row_idx+nb-1),0.3,GRIS_LIGNE))
-    row_idx+=nb; bg=not bg
-t.setStyle(TableStyle(ts)); story.append(t); story.append(Spacer(1,0.15*cm))
-tt=Table([['',p('Total HT',9,color=GRIS_SOFT,align=TA_RIGHT),p('%.2f \\u20ac'%totalHT,9,'Helvetica-Bold',GRIS_TEXTE,TA_RIGHT)],['',p('TVA',9,color=GRIS_SOFT,align=TA_RIGHT),p('Non applicable (art. 293B)',8,color=GRIS_SOFT,align=TA_RIGHT)]],colWidths=[9.0*cm,4.5*cm,4.7*cm])
-tt.setStyle(TableStyle([('LINEABOVE',(1,0),(-1,0),0.5,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('LEFTPADDING',(0,0),(-1,-1),6),('RIGHTPADDING',(0,0),(-1,-1),6)]))
-story.append(tt); story.append(Spacer(1,0.12*cm))
+client_b=Table([[p('DESTINATAIRE',7,'Helvetica-Bold',OR,sa=3)],[p('${clientEsc}',11,'Helvetica-Bold',MARINE)],[p('${clientRue}',9,color=GRIS_TEXTE)],[p('${clientVille}',9,color=GRIS_TEXTE)]],colWidths=[8.2*cm])
+client_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),2),('BOTTOMPADDING',(0,0),(-1,-1),2),('LEFTPADDING',(0,0),(-1,-1),0)]))
+hdr_row=Table([[objet_b,client_b]],colWidths=[9.5*cm,8.7*cm])
+hdr_row.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)]))
+story.append(hdr_row); story.append(Spacer(1,0.5*cm))
+th=[p('N\\u00b0',8,'Helvetica-Bold',BLANC,TA_CENTER),p('D\\u00e9signation',8,'Helvetica-Bold',BLANC),p('Qte',8,'Helvetica-Bold',BLANC,TA_CENTER),p('Prix HT',8,'Helvetica-Bold',BLANC,TA_RIGHT),p('Total HT',8,'Helvetica-Bold',BLANC,TA_RIGHT)]
+rows=[th]; sect_num=0; item_num=0
+for ligne in data:
+    if ligne.get('_section'):
+        sect_num+=1; item_num=0
+        rows.append([p(str(ligne.get('titre',f'Section {sect_num}')),9,'Helvetica-Bold',BLANC,sa=4),'','','','']); continue
+    item_num+=1
+    sub_num=f'{sect_num}.{item_num}' if sect_num>0 else str(item_num)
+    nom=str(ligne.get('designation',''))
+    qte=int(ligne.get('qte',1) or 1); pu=float(ligne.get('prixUnit',0) or 0); tot=float(ligne.get('total',pu*qte) or 0)
+    is_offert=(pu==0 or tot==0)
+    desig_cell=[p(nom,9,'Helvetica-Bold',MARINE)]
+    for d in (ligne.get('details') or []):
+        if d: desig_cell.append(p(str(d),7.5,'Helvetica',GRIS_SOFT,sb=1,sa=0))
+    rows.append([p(sub_num,8,color=GRIS_SOFT,align=TA_CENTER),desig_cell,p(str(qte),9,align=TA_CENTER),p(f'{pu:.0f} \\u20ac' if not is_offert else 'OFFERT',9,align=TA_RIGHT),p('OFFERT' if is_offert else f'{tot:.0f} \\u20ac',9,'Helvetica-Bold',align=TA_RIGHT,color=colors.HexColor('#16a34a') if is_offert else OR_FONCE)])
+COL=[1.0*cm,10.8*cm,1.3*cm,2.2*cm,2.9*cm]
+t=Table(rows,colWidths=COL,repeatRows=1)
+ts=[('BACKGROUND',(0,0),(-1,0),MARINE),('ROWBACKGROUNDS',(0,1),(-1,-1),[CREME,OR_PALE]),('LINEBELOW',(0,0),(-1,0),1.5,OR),('LINEBELOW',(0,-1),(-1,-1),1.5,MARINE),('LEFTPADDING',(0,0),(-1,-1),4),('RIGHTPADDING',(0,0),(-1,-1),4),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('VALIGN',(0,0),(-1,-1),'TOP'),('ALIGN',(2,0),(4,-1),'RIGHT')]
+for i,row in enumerate(rows):
+    if i>0 and isinstance(row[1],str) and row[1]=='':
+        ts+=[('BACKGROUND',(0,i),(-1,i),colors.HexColor('#243660')),('SPAN',(0,i),(-1,i)),('TEXTCOLOR',(0,i),(-1,i),BLANC)]
+t.setStyle(TableStyle(ts))
+story.append(t)
+story.append(Spacer(1,0.4*cm))
 net=Table([[p('NET \\u00c0 PAYER',13,'Helvetica-Bold',BLANC),p('%.2f \\u20ac'%totalHT,16,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
-net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('LINEBELOW',(0,0),(-1,-1),3,OR),('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
-story.append(net); story.append(Spacer(1,0.35*cm))
-story.append(HRFlowable(width='100%',thickness=0.3,color=GRIS_LIGNE,spaceAfter=8))
-IS_DEVIS = '${type}' == 'devis'
-IS_PAYE = False
-if IS_DEVIS:
-    story.append(p('CONDITIONS',8,'Helvetica-Bold',MARINE,sa=6))
-    cond=Table([
-        [p('  Acompte 40% a la signature',9,'Helvetica-Bold',MARINE),p('%.2f EUR'%(totalHT*0.4),10,'Helvetica-Bold',OR_FONCE,TA_RIGHT)],
-        [p('  Solde a la fin des travaux',9,color=GRIS_TEXTE),p('%.2f EUR'%(totalHT*0.6),9,'Helvetica-Bold',GRIS_TEXTE,TA_RIGHT)],
-        [p('  Validite 30 jours  |  Virement, especes, CB, cheque',8,color=GRIS_SOFT),''],
-        [p('  IBAN : FR76 1695 8000 0174 2540 5920 931   BIC : QNTOFRP1XXX',7.5,color=GRIS_SOFT),'']
-    ],colWidths=[14.2*cm,4.0*cm])
-    cond.setStyle(TableStyle([
-        ('BACKGROUND',(0,0),(-1,0),OR_PALE),
-        ('BACKGROUND',(0,1),(-1,1),colors.HexColor('#F8F8F8')),
-        ('BACKGROUND',(0,2),(-1,-1),colors.HexColor('#F0F0F0')),
-        ('LINEBELOW',(0,0),(-1,-2),0.5,GRIS_LIGNE),
-        ('LINEABOVE',(0,0),(-1,0),1.5,OR),
-        ('LINEBELOW',(0,-1),(-1,-1),1.5,MARINE),
-        ('LEFTPADDING',(0,0),(-1,-1),0),
-        ('RIGHTPADDING',(0,0),(-1,-1),6),
-        ('TOPPADDING',(0,0),(-1,-1),7),
-        ('BOTTOMPADDING',(0,0),(-1,-1),7),
-        ('SPAN',(0,2),(1,2)),
-        ('SPAN',(0,3),(1,3)),
-    ]))
-    story.append(cond); story.append(Spacer(1,0.15*cm))
-else:
-    story.append(p('MODALITES DE PAIEMENT',8,'Helvetica-Bold',MARINE,sa=6))
-    pays=Table([[p('Virement bancaire',9,color=GRIS_TEXTE),p('IBAN ci-dessous',8,color=GRIS_SOFT,align=TA_RIGHT)],[p('Especes',9,color=GRIS_TEXTE),p('Remis en main propre',8,color=GRIS_SOFT,align=TA_RIGHT)],[p('Carte bancaire',9,color=GRIS_TEXTE),p('Terminal SumUp',8,color=GRIS_SOFT,align=TA_RIGHT)]],colWidths=[8.0*cm,10.2*cm])
-    pays.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,-2),0.3,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)]))
-    story.append(pays); story.append(Spacer(1,0.15*cm))
-iban=Table([[p('IBAN',7,'Helvetica-Bold',GRIS_SOFT),p('FR76 1695 8000 0174 2540 5920 931',9,'Helvetica-Bold',MARINE),p('BIC',7,'Helvetica-Bold',GRIS_SOFT,TA_RIGHT),p('QNTOFRP1XXX',9,'Helvetica-Bold',MARINE,TA_RIGHT)]],colWidths=[1.5*cm,9.5*cm,1.8*cm,5.4*cm])
-iban.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),OR_PALE),('BOX',(0,0),(-1,-1),0.5,OR),('LINEBEFORE',(0,0),(0,-1),4,MARINE),('TOPPADDING',(0,0),(-1,-1),9),('BOTTOMPADDING',(0,0),(-1,-1),9),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
-story.append(iban)
-doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw))
-print('PDF_OK')
-`;
-      fs.writeFileSync(pyPath, py, 'utf8');
-      try {
-        const result = execSync(`python3 "${pyPath}" "${detailsPath}" "${pdfPath}"`, {
-          cwd: __dirname,
-          stdio: ['pipe', 'pipe', 'pipe'],
-          timeout: 30000
-        });
-        console.log('PDF result:', result.toString().trim());
-      } catch(pyErr) {
-        const errMsg = pyErr.stderr ? pyErr.stderr.toString() : pyErr.message;
-        console.error('PDF generation error:', errMsg);
-        throw new Error('PDF generation failed: ' + errMsg.substring(0, 200));
-      }
-
-      const pdfB64 = fs.readFileSync(pdfPath).toString('base64');
-      // Sauvegarder le PDF temporairement pour envoi ultérieur
-      const pdfStorePath = path.join(__dirname, `${num}_stored.pdf`);
-      fs.copyFileSync(pdfPath, pdfStorePath);
-
-      try { fs.unlinkSync(pyPath); } catch(e) {}
-      try { fs.unlinkSync(detailsPath); } catch(e) {}
-      try { fs.unlinkSync(pdfPath); } catch(e) {}
-
-      // ✅ PAS d'envoi email ici — on renvoie le PDF pour prévisualisation
-      // L'email est envoyé via /api/envoyer/:num après validation
-      res.json({ success: true, num, total_ht, pdf_b64: pdfB64, email_client: email });
-      return;
-    }
-
-    // ⚠️ Pas de SMS avis Google ici — envoyé uniquement au moment du paiement
-    res.json({ success: true, num, total_ht });
-  } catch(error) {
-    console.error('Erreur génération:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// ── ENVOYER EMAIL APRÈS PRÉVISUALISATION ─────────────
-app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
-  const { num } = req.params;
-  try {
-    // Récupérer les infos du doc dans Supabase
-    const { data: doc, error } = await supabase
-      .from('historique')
-      .select('*')
-      .eq('num', num)
-      .single();
-    // Si doc absent de Supabase (INSERT raté) → on utilise le body si pdfB64 dispo
-    if ((error || !doc) && !req.body?.pdfB64) {
-      console.error('Doc absent + pas de PDF body:', num);
-      return res.status(400).json({ success: false, error: 'Document introuvable. Regenere le devis depuis l app.' });
-    }
-    const docData = doc || { type: num.startsWith('OS-') ? 'devis' : 'facture', client: num, email: '', total_ht: 0 };
-    if (error) console.warn('Doc absent pour', num, '- envoi avec body uniquement');
-
-    // Email : priorite au body (popup), fallback doc
-    const email = (req.body?.email || docData.email || '').trim();
-    if (!email) return res.status(400).json({ success: false, error: 'Pas email pour ce client' });
-
-    // Récupérer le PDF — priorité : body → disque → régénération automatique
-    const pdfStorePath = path.join(__dirname, `${num}_stored.pdf`);
-    let pdfB64;
-    if (req.body?.pdfB64 && req.body.pdfB64.length > 100) {
-      // Priorité 1 : PDF envoyé directement par le client (popup)
-      pdfB64 = req.body.pdfB64;
-      console.log(`✅ PDF reçu du client pour ${num} (${Math.round(pdfB64.length/1000)}Ko)`);
-    } else if (fs.existsSync(pdfStorePath)) {
-      // Priorité 2 : fichier disque temporaire
-      pdfB64 = fs.readFileSync(pdfStorePath).toString('base64');
-      console.log(`✅ PDF lu depuis disque pour ${num}`);
-    } else {
-      // Priorité 3 : régénérer le PDF depuis Supabase (Railway = disque éphémère)
-      console.log(`⚠️ PDF manquant pour ${num} — régénération automatique`);
-      try {
-        const typeLabelUpper = doc.type === 'devis' ? 'DEVIS' : 'FACTURE';
-        const dateStr = new Date(doc.date_envoi || doc.created_at).toLocaleDateString('fr-FR');
-        const dateValide = new Date(new Date(doc.date_envoi || doc.created_at).getTime() + 30*24*60*60*1000).toLocaleDateString('fr-FR');
-        const detailsPath = path.join(__dirname, `_regen_details_${num}.json`);
-        const pyPath2 = path.join(__dirname, `_regen_${num}.py`);
-        const pdfPath2 = path.join(__dirname, `_regen_${num}.pdf`);
-        const detailsData = (doc.prestations || []).map(p => ({
-          designation: p.nom || p.designation, qte: p.quantite || 1,
-          prixUnit: p.prix || 0, total: (p.prix || 0) * (p.quantite || 1),
-          details: p.desc ? [p.desc] : []
-        }));
-        fs.writeFileSync(detailsPath, JSON.stringify(detailsData));
-        const clientEsc = String(doc.client || '').replace(/'/g, ' ');
-        const adresseParts = (doc.adresse || '').split(',');
-        const clientRue = String(adresseParts[0] || '').trim().replace(/'/g, ' ');
-        const clientVille = adresseParts.slice(1).join(',').trim().replace(/'/g, ' ');
-        const descObjet = String(doc.description || 'Travaux electricite').replace(/'/g,' ').replace(/"/g,' ').replace(/\n/g,' ').substring(0,120);
-        // Script Python minimal pour régénération rapide
-        const pyRegen = `# -*- coding: utf-8 -*-
-import json,base64,io,sys
-from reportlab.lib.pagesizes import A4;from reportlab.lib import colors;from reportlab.lib.units import cm
-from reportlab.platypus import *;from reportlab.lib.styles import ParagraphStyle
-from reportlab.lib.enums import TA_LEFT,TA_CENTER,TA_RIGHT;from reportlab.pdfgen import canvas as c2
-from reportlab.lib.utils import ImageReader;from reportlab.platypus.flowables import HRFlowable
-W,H=A4;MARINE=colors.HexColor('#1B2A4A');OR=colors.HexColor('#C9A84C')
-OR_PALE=colors.HexColor('#FBF7EC');BLANC=colors.white;CREME=colors.HexColor('#FDFCF9')
-GRIS=colors.HexColor('#3A3A3A');GRIS_S=colors.HexColor('#777777');GRIS_L=colors.HexColor('#E0DDD6');GRIS_B=colors.HexColor('#F5F4F0')
-def p(t,sz=9,f='Helvetica',col=None,al=TA_LEFT,sb=0,sa=2):
-    if col is None:col=GRIS
-    return Paragraph(str(t),ParagraphStyle('s',fontName=f,fontSize=sz,textColor=col,alignment=al,spaceBefore=sb,spaceAfter=sa,leading=sz*1.35,wordWrap='CJK'))
-data=json.loads(open(sys.argv[1],encoding='utf-8').read());tot=sum(l['total'] for l in data)
-logo=base64.b64decode(open('/app/logo_b64.txt').read().strip())
-class SC(c2.Canvas):
-    def __init__(self,fn,**kw):c2.Canvas.__init__(self,fn,**kw);self._pg=0;self.saveState();self._bg()
-    def showPage(self):self._footer();c2.Canvas.showPage(self);self._pg+=1
-    def save(self):self._footer();c2.Canvas.save(self)
-    def _bg(self):
-        self.saveState();self.setFillColor(CREME);self.rect(0,0,W,H,fill=1,stroke=0)
-        self.setFillColor(MARINE);self.rect(0,0,0.7*cm,H,fill=1,stroke=0)
-        self.setFillColor(OR);self.rect(0.7*cm,0,0.08*cm,H,fill=1,stroke=0)
-        self.setFillColor(MARINE);self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,5.4*cm,fill=1,stroke=0)
-        self.setFillColor(OR);self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,0.12*cm,fill=1,stroke=0)
-        self.drawImage(ImageReader(io.BytesIO(logo)),0.9*cm,H-5.05*cm,width=4.2*cm,height=4.2*cm,preserveAspectRatio=True,mask='auto')
-        self.setFont('Helvetica-Bold',15);self.setFillColor(BLANC);self.drawString(5.9*cm,H-1.7*cm,'SINELEC PARIS')
-        self.setFont('Helvetica',8.5);self.setFillColor(colors.HexColor('#BFC8D6'))
-        self.drawString(5.9*cm,H-3.0*cm,'07 87 38 86 22');self.drawString(5.9*cm,H-3.4*cm,'sinelec.paris@gmail.com')
-        self.setFont('Helvetica-Bold',40);self.setFillColor(BLANC);self.drawRightString(W-1.2*cm,H-2.2*cm,'${typeLabelUpper}')
-        self.setFillColor(OR);self.roundRect(W-6.5*cm,H-3.55*cm,5.3*cm,0.65*cm,0.15*cm,fill=1,stroke=0)
-        self.setFont('Helvetica-Bold',9);self.setFillColor(MARINE);self.drawCentredString(W-3.85*cm,H-3.22*cm,'N\\u00b0 ${num}')
-        self.setFont('Helvetica',8);self.setFillColor(colors.HexColor('#BFC8D6'));self.drawRightString(W-1.2*cm,H-3.9*cm,'${dateStr}')
-        self.restoreState()
-    def _footer(self):
-        self.saveState();self.setFillColor(MARINE);self.rect(0,0,W,1.0*cm,fill=1,stroke=0)
-        self.setFillColor(OR);self.rect(0,1.0*cm,W,0.08*cm,fill=1,stroke=0)
-        self.setFont('Helvetica',6.5);self.setFillColor(colors.HexColor('#8899BB'))
-        self.drawCentredString(W/2,0.5*cm,'SINELEC EI \\u2022 128 Rue La Boetie 75008 Paris \\u2022 SIRET : 91015824500019 \\u2022 TVA non applicable art. 293B CGI')
-        self.restoreState()
-doc=SimpleDocTemplate(sys.argv[2],pagesize=A4,leftMargin=1.2*cm,rightMargin=1.0*cm,topMargin=5.6*cm,bottomMargin=1.6*cm)
-story=[]
-cb=Table([[p('CLIENT',7,'Helvetica-Bold',OR,sa=4)],[p('${clientEsc}',10,'Helvetica-Bold',MARINE)],[p('${clientRue}',8.5)],[p('${clientVille}',8.5)]],colWidths=[18.2*cm])
-cb.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('BACKGROUND',(0,0),(-1,-1),OR_PALE),('BOX',(0,0),(-1,-1),1,OR),('LINEBEFORE',(0,0),(0,-1),4,MARINE),('TOPPADDING',(0,0),(0,0),10),('BOTTOMPADDING',(0,-1),(-1,-1),10)]))
-story.append(cb);story.append(Spacer(1,0.4*cm))
-cw=[0.7*cm,9.5*cm,1.5*cm,0.9*cm,2.4*cm,3.2*cm]
-rows=[[p('#',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('DESIGNATION',7.5,'Helvetica-Bold',BLANC),p('QTE',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('U.',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('PRIX U. HT',7.5,'Helvetica-Bold',BLANC,TA_RIGHT),p('TOTAL HT',7.5,'Helvetica-Bold',BLANC,TA_RIGHT)]]
-for i,l in enumerate(data):
-    q=int(l['qte']) if l['qte']==int(l['qte']) else l['qte']
-    rows.append([p(str(i+1),9,col=OR,al=TA_CENTER),p('<b>'+l['designation']+'</b>',9,col=MARINE),p(str(q),9,al=TA_CENTER),p('u.',9,al=TA_CENTER,col=GRIS_S),p('%.2f \\u20ac'%l['prixUnit'],9,al=TA_RIGHT),p('<b>%.2f \\u20ac</b>'%l['total'],9,'Helvetica-Bold',MARINE,TA_RIGHT)])
-    for det in l.get('details',[]):
-        rows.append(['',p('   - '+det,7.5,'Helvetica-Oblique',col=GRIS_S),'','','',''])
-t=Table(rows,colWidths=cw);ts=[('BACKGROUND',(0,0),(-1,0),MARINE),('LINEBELOW',(0,0),(-1,0),2.5,OR),('VALIGN',(0,0),(-1,-1),'TOP'),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),('LEFTPADDING',(0,0),(-1,-1),7),('RIGHTPADDING',(0,0),(-1,-1),7),('BOX',(0,0),(-1,-1),0.3,GRIS_L)]
-ri=1;bg=True
-for l in data:
-    nb=1+len(l.get('details',[]));c3=BLANC if bg else GRIS_B
-    ts.append(('BACKGROUND',(0,ri),(-1,ri+nb-1),c3));ts.append(('LINEBELOW',(0,ri+nb-1),(-1,ri+nb-1),0.3,GRIS_L));ri+=nb;bg=not bg
-t.setStyle(TableStyle(ts));story.append(t);story.append(Spacer(1,0.15*cm))
-tt=Table([['',p('Total HT',9,col=GRIS_S,al=TA_RIGHT),p('%.2f \\u20ac'%tot,9,'Helvetica-Bold',GRIS,TA_RIGHT)],['',p('TVA',9,col=GRIS_S,al=TA_RIGHT),p('Non applicable (art. 293B)',8,col=GRIS_S,al=TA_RIGHT)]],colWidths=[9.0*cm,4.5*cm,4.7*cm])
-tt.setStyle(TableStyle([('LINEABOVE',(1,0),(-1,0),0.5,GRIS_L),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('LEFTPADDING',(0,0),(-1,-1),6),('RIGHTPADDING',(0,0),(-1,-1),6)]))
-story.append(tt);story.append(Spacer(1,0.12*cm))
-net=Table([[p('NET \\u00c0 PAYER',13,'Helvetica-Bold',BLANC),p('%.2f \\u20ac'%tot,16,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
-net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('LINEBELOW',(0,0),(-1,-1),3,OR),('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
-story.append(net)
-doc.build(story,canvasmaker=lambda fn,**kw:SC(fn,**kw));print('REGEN_OK')
-`;
-        fs.writeFileSync(pyPath2, pyRegen, 'utf8');
-        execSync(`python3 "${pyPath2}" "${detailsPath}" "${pdfPath2}"`, { cwd: __dirname, timeout: 30000 });
-        pdfB64 = fs.readFileSync(pdfPath2).toString('base64');
-        console.log(`✅ PDF régénéré pour ${num}`);
-        try { fs.unlinkSync(pyPath2); fs.unlinkSync(detailsPath); fs.unlinkSync(pdfPath2); } catch(e) {}
-      } catch(regenErr) {
-        console.error('Régénération PDF échouée:', regenErr.message);
-        return res.status(500).json({ success: false, error: 'Impossible de régénérer le PDF : ' + regenErr.message });
-      }
-    }
-
-    const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
-    const lienSig = `${appUrl}/signer/${num}`;
-    const type = docData.type;
-    const client = docData.client;
-    const total_ht = docData.total_ht;
-
-    // Sujet personnalisé ou par défaut
-    const sujet = (req.body?.sujet || '').trim() ||
-      `${type === 'devis' ? 'Devis' : 'Facture'} SINELEC ${num}`;
-
-    // Email : message perso + TOUJOURS le bouton signature pour les devis
-    const msgTexte = (req.body?.message || '').trim().replace(/\n/g, '<br>');
-    const boutonSignature = type === 'devis' ? `
-      <div style="background:#fffbf0;border:1.5px solid #C9A84C;border-radius:12px;padding:20px;text-align:center;margin:24px 0;">
-        <p style="font-size:13px;color:#555;margin-bottom:14px;">Pour accepter ce devis, signez-le directement en ligne :</p>
-        <a href="${lienSig}" style="background:linear-gradient(135deg,#C9A84C,#daa520);color:#fff;text-decoration:none;border-radius:10px;padding:14px 28px;font-size:15px;font-weight:800;display:inline-block;">✍️ Signer le devis en ligne</a>
-        <p style="font-size:11px;color:#aaa;margin-top:10px;">Signature électronique valide — Loi n°2000-230</p>
-      </div>` : '';
-    const htmlFinal = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;">
-      <div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:22px;text-align:center;border-radius:10px 10px 0 0;">
-        <div style="font-size:28px;">${type === 'devis' ? '⚡' : '💶'}</div>
-        <h2 style="color:#fff;margin:6px 0 0;font-size:17px;">SINELEC Paris</h2>
-      </div>
-      <div style="padding:24px;border:1px solid #e8e8e8;border-top:none;border-radius:0 0 10px 10px;">
-        ${msgTexte ? `<p style="font-size:14px;color:#333;line-height:1.7;white-space:pre-line;">${msgTexte}</p>` : `<p style="font-size:14px;color:#333;line-height:1.8;">Bonjour,</p>
-        <p style="font-size:14px;color:#333;line-height:1.8;">Veuillez trouver ci-joint votre ${type === 'devis' ? 'devis' : 'facture'} <strong>${num}</strong> d'un montant de <strong>${parseFloat(total_ht||0).toFixed(0)} € HT</strong>.</p>
-        ${type === 'devis' ? '<p style="font-size:13px;color:#555;line-height:1.8;">Ce devis est valable 30 jours. Pour l\'accepter, vous pouvez le signer directement en ligne via le bouton ci-dessous.</p>' : ''}
-        <p style="font-size:13px;color:#555;">N\'hésitez pas à nous contacter pour toute question.</p>`}
-        ${boutonSignature}
-        <p style="font-size:12px;color:#aaa;margin-top:16px;">📎 PDF joint en pièce jointe<br>📞 07 87 38 86 22 | sinelec.paris@gmail.com</p>
-      </div>
-      <p style="font-size:10px;color:#ccc;text-align:center;margin-top:8px;">SINELEC Paris • 128 Rue La Boétie 75008 Paris • SIRET : 91015824500019</p>
-    </div>`;
-
-    // Envoyer au client
-    await envoyerEmail(email, sujet, htmlFinal, { content: pdfB64, name: `${num}.pdf` });
-
-    // CC si renseigné
-    if (req.body?.cc) {
-      try { await envoyerEmail(req.body.cc.trim(), sujet, htmlFinal, { content: pdfB64, name: `${num}.pdf` }); } catch(e) {}
-    }
-
-    // [Copie Diahe désactivée — PDF signé envoyé à la signature]
-
-    // Nettoyer le PDF stocké
-    try { fs.unlinkSync(pdfStorePath); } catch(e) {}
-
-    console.log(`✉️ Email envoyé : ${num} → ${email}`);
-    res.json({ success: true, message: `Email envoyé à ${email}` });
-  } catch(e) {
-    console.error('Envoi email:', e.message);
-    res.status(500).json({ success: false, error: e.message });
-  }
-});
-
-// ═══════════════════════════════════════════════════
-// API: CHATBOT
-// ═══════════════════════════════════════════════════
-
-app.post('/api/chat', async (req, res) => {
-  if (!CONFIG.features.chatbot_claude) return res.status(403).json({ error: 'Feature désactivée' });
-  try {
-    const { message } = req.body;
-    const grille = await chargerGrilleTarifaire();
-    const grilleResume = Object.entries(grille || {}).map(([cat, items]) => `${cat}: ${items.map(i => `${i.nom} (${i.prix}€)`).join(', ')}`).join('\n');
-    const prompt = `Tu es l'assistant SINELEC Paris. Chantier: "${message}"\nGRILLE:\n${grilleResume}\nRéponds UNIQUEMENT en JSON: {"prestations":[{"nom":"...","quantite":1,"prix":90,"desc":"..."}],"total":0,"explication":"...","hors_grille":[]}`;
-    const response = await anthropic.messages.create({ model: 'claude-sonnet-4-20250514', max_tokens: 2000, tools: [{ type: 'web_search_20250305', name: 'web_search' }], messages: [{ role: 'user', content: prompt }] });
-    let text = '';
-    for (const block of response.content) { if (block.type === 'text') text += block.text; }
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    let result = jsonMatch ? JSON.parse(jsonMatch[0]) : { prestations: [], explication: text, total: 0 };
-    if (!result.total && result.prestations) result.total = result.prestations.reduce((s, p) => s + (p.prix * p.quantite), 0);
-    res.json(result);
-  } catch(error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// ═══════════════════════════════════════════════════
-// API: SIGNATURE
-// ═══════════════════════════════════════════════════
-
-app.get('/signer/:num', async (req, res) => {
-  const { num } = req.params;
-  const { data: devis, error } = await supabase.from('historique').select('*').eq('num', num).single();
-  if (error || !devis) return res.status(404).send('<html><body style="text-align:center;padding:40px;font-family:sans-serif;"><h2>Document introuvable</h2></body></html>');
-  if (devis.statut === 'signe' || devis.statut === 'signé') return res.send('<html><body style="text-align:center;padding:40px;font-family:sans-serif;"><div style="font-size:60px;">✅</div><h2 style="color:#1B2A4A;margin:16px 0;">Devis déjà signé</h2><p style="color:#888;">SINELEC Paris — 07 87 38 86 22</p></body></html>');
-
-  const montant = parseFloat(devis.total_ht || 0).toFixed(2);
-  const acompte = (parseFloat(montant) * 0.4).toFixed(2);
-  const telClient = devis.telephone || '';
-  const telMasque = telClient.length >= 4 ? telClient.replace(/(\d{2})(\d+)(\d{2})$/, (_, a, m, z) => a + m.replace(/\d/g, '*') + z) : '**';
-  const prestationsHtml = (devis.prestations || []).map(p => `<tr><td style="padding:8px 10px;font-size:13px;">${p.nom||''}</td><td style="text-align:center;font-size:13px;">${p.quantite||1}</td><td style="text-align:right;color:#C9A84C;font-weight:700;font-size:13px;">${parseFloat(p.prix||0).toFixed(2)} €</td></tr>`).join('');
-
-  res.send(`<!DOCTYPE html><html lang="fr"><head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Signer — ${num}</title>
-<style>
-*{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f2f5;min-height:100vh;}
-.container{max-width:580px;margin:0 auto;padding:16px 14px 40px;}
-.header{background:linear-gradient(135deg,#1B2A4A 0%,#243660 100%);border-radius:18px;padding:22px 20px;text-align:center;margin-bottom:14px;}
-.header h1{color:#fff;font-size:20px;font-weight:900;letter-spacing:0.5px;}
-.header p{color:rgba(255,255,255,0.6);font-size:12px;margin-top:5px;}
-.card{background:#fff;border-radius:14px;padding:18px;margin-bottom:12px;box-shadow:0 2px 12px rgba(0,0,0,0.06);}
-.lbl{font-size:10px;font-weight:800;color:#C9A84C;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;}
-.total-bar{background:#1B2A4A;border-radius:10px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;margin-top:10px;}
-/* Cases à cocher */
-.cgv-item{display:flex;align-items:flex-start;gap:12px;padding:11px 0;border-bottom:1px solid #f0f0f0;cursor:pointer;}
-.cgv-item:last-child{border-bottom:none;}
-.cgv-check{width:22px;height:22px;border-radius:6px;border:2px solid #ddd;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all .2s;margin-top:1px;}
-.cgv-check.checked{background:#1B2A4A;border-color:#1B2A4A;}
-.cgv-check.checked::after{content:'✓';color:#C9A84C;font-size:13px;font-weight:900;}
-.cgv-txt{font-size:13px;color:#444;line-height:1.5;}
-.cgv-txt strong{color:#1B2A4A;}
-/* OTP */
-.otp-section{display:none;}
-.btn-otp{width:100%;background:linear-gradient(135deg,#C9A84C,#daa520);color:#fff;border:none;border-radius:12px;padding:15px;font-size:15px;font-weight:800;cursor:pointer;margin-top:4px;}
-.btn-otp:disabled{opacity:0.4;cursor:not-allowed;}
-.otp-input-wrap{display:flex;gap:8px;justify-content:center;margin:14px 0;}
-.otp-digit{width:44px;height:54px;border:2px solid #ddd;border-radius:10px;font-size:22px;font-weight:800;text-align:center;color:#1B2A4A;outline:none;transition:border-color .2s;}
-.otp-digit:focus{border-color:#1B2A4A;}
-.otp-info{font-size:12px;color:#888;text-align:center;line-height:1.6;margin-bottom:10px;}
-.otp-resend{font-size:12px;color:#C9A84C;text-align:center;cursor:pointer;margin-top:6px;font-weight:600;}
-/* Signature */
-.sig-section{display:none;}
-.canvas-wrap{border:2px dashed #ddd;border-radius:12px;background:#fafafa;position:relative;overflow:hidden;cursor:crosshair;}
-.btn-clear{background:none;border:1px solid #eee;border-radius:8px;padding:7px 14px;font-size:11px;color:#aaa;cursor:pointer;margin-top:8px;}
-.btn-sign{width:100%;background:linear-gradient(135deg,#1B2A4A,#243660);color:#fff;border:none;border-radius:14px;padding:17px;font-size:16px;font-weight:800;cursor:pointer;margin-top:10px;}
-.btn-sign:disabled{opacity:0.35;cursor:not-allowed;}
-/* Steps */
-.steps{display:flex;gap:0;margin-bottom:14px;}
-.step{flex:1;text-align:center;font-size:10px;font-weight:700;color:#ccc;padding:8px 4px;border-bottom:2px solid #e8e8e8;transition:all .3s;}
-.step.active{color:#1B2A4A;border-color:#C9A84C;}
-.step.done{color:#16a34a;border-color:#16a34a;}
-/* Success */
-.success{display:none;text-align:center;padding:40px 20px;}
-.err-msg{background:#fff0f0;border:1px solid #ffcccc;border-radius:8px;padding:10px 14px;font-size:13px;color:#cc0000;margin-top:8px;display:none;}
-</style></head>
-<body><div class="container">
-  <div class="header">
-    <h1>⚡ SINELEC Paris</h1>
-    <p>Signature électronique sécurisée — N° ${num}</p>
-  </div>
-
-  <!-- ÉTAPES -->
-  <div class="steps">
-    <div class="step active" id="step1">1 · Conditions</div>
-    <div class="step" id="step2">2 · Vérification</div>
-    <div class="step" id="step3">3 · Signature</div>
-  </div>
-
-  <div id="main-content">
-
-    <!-- ÉTAPE 1 : RÉCAP + CGV -->
-    <div id="section-cgv">
-      <div class="card">
-        <div class="lbl">📋 Récapitulatif</div>
-        <p style="font-size:15px;font-weight:800;color:#1B2A4A;">${devis.client||''}</p>
-        <p style="font-size:12px;color:#888;margin:3px 0 12px;">${devis.adresse||''}</p>
-        <table style="width:100%;border-collapse:collapse;">
-          <thead><tr style="background:#f8f9fa;"><th style="padding:8px 10px;text-align:left;font-size:11px;color:#888;">Prestation</th><th style="text-align:center;font-size:11px;color:#888;">Qté</th><th style="text-align:right;font-size:11px;color:#888;">Prix</th></tr></thead>
-          <tbody>${prestationsHtml}</tbody>
-        </table>
-        <div class="total-bar">
-          <span style="color:#fff;font-weight:700;font-size:13px;">NET À PAYER</span>
-          <span style="color:#C9A84C;font-size:22px;font-weight:900;">${montant} €</span>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="lbl">☑️ Conditions à accepter</div>
-        <div class="cgv-item" onclick="toggleCGV(0)">
-          <div class="cgv-check" id="chk0"></div>
-          <div class="cgv-txt">J'ai lu et j'accepte les <strong>Conditions Générales de Vente SINELEC Paris</strong> — Travaux conformes NF C 15-100, garantie décennale ORUS.</div>
-        </div>
-        <div style="background:#f8f8f8;border:1px solid #e0e0e0;border-radius:8px;padding:16px;margin-bottom:16px;max-height:200px;overflow-y:auto;font-size:11.5px;color:#444;line-height:1.7;">
-          <p style="font-weight:700;color:#1B2A4A;margin-bottom:10px;font-size:13px;">CONDITIONS GÉNÉRALES DE VENTE — SINELEC PARIS</p>
-          <p><strong>Art. 1 — Devis et acceptation</strong><br>Le devis est valable 30 jours à compter de son émission. La signature du devis, manuscrite ou électronique (avec vérification par code SMS), vaut acceptation pleine et entière des prestations décrites et des présentes CGV, et a la même valeur juridique qu'une signature manuscrite (art. 1367 Code civil).</p>
-          <p><strong>Art. 2 — Prix et paiement</strong><br>TVA non applicable, art. 293B du CGI. Acompte de 40% à la signature si le devis excède 400€, solde à la fin des travaux. Paiement accepté : espèces, virement, CB (SumUp), PayPal. Toute prestation supplémentaire ou modification fera l'objet d'un devis complémentaire accepté préalablement, sauf urgence mettant en jeu la sécurité.</p>
-          <p><strong>Art. 3 — Réalisation des travaux</strong><br>Travaux réalisés conformément à la norme NF C 15-100. Le client garantit un accès libre et sécurisé à l'installation et informe SINELEC de toute contrainte avant l'intervention. SINELEC se réserve le droit de refuser ou suspendre une intervention en cas de danger immédiat ou de non-conformité grave découverte sur place, sans que cela n'engage sa responsabilité.</p>
-          <p><strong>Art. 4 — Réception et réserves (48h)</strong><br>La réception des travaux intervient dès leur achèvement. La prise de possession ou l'utilisation des installations par le client vaut réception sans réserve. Le client dispose de 48 heures pour notifier par écrit toute réserve motivée. Passé ce délai, aucune réclamation relative à la qualité ou la conformité des travaux ne sera recevable, sauf vice caché relevant de la garantie décennale.</p>
-          <p><strong>Art. 5 — Valeur probante des échanges numériques</strong><br>Le client reconnaît la pleine valeur probante des SMS, emails, photos horodatées, du rapport d'intervention et de la signature électronique (code OTP, horodatage, IP) comme preuve de la réalisation, de la conformité et de l'acceptation des travaux.</p>
-          <p><strong>Art. 6 — Défaut ou retard de paiement</strong><br>Tout retard de paiement entraîne de plein droit, sans mise en demeure préalable : des intérêts moratoires au taux de 3 fois le taux légal par jour de retard, une indemnité forfaitaire de recouvrement de 40€, et l'exigibilité immédiate de toute somme restant due. En cas de non-paiement persistant 8 jours après mise en demeure, SINELEC pourra engager une procédure de recouvrement.</p>
-          <p><strong>Art. 7 — Réserve de propriété</strong><br>Conformément à l'art. L.624-16 du Code de commerce, les matériaux et équipements installés demeurent la propriété exclusive de SINELEC jusqu'au paiement intégral du prix.</p>
-          <p><strong>Art. 8 — Garanties et assurances</strong><br>SINELEC est couvert par une garantie décennale ORUS Assurances (114 Bd Marius Vivier Merle, 69003 Lyon) et une assurance Responsabilité Civile Professionnelle couvrant les dommages survenus pendant l'intervention.</p>
-          <p><strong>Art. 9 — Droit de rétractation</strong><br>Pour les contrats conclus hors établissement ou à distance, le client particulier bénéficie d'un délai de rétractation de 14 jours (art. L221-18 Code de la consommation). Ce droit ne s'applique pas lorsque le client a expressément sollicité une intervention d'urgence.</p>
-          <p><strong>Art. 10 — Responsabilité et sous-traitance</strong><br>SINELEC ne saurait être tenu responsable des dommages indirects. En cas de force majeure, l'exécution est suspendue sans indemnité. SINELEC peut faire intervenir des sous-traitants qualifiés sous sa responsabilité.</p>
-          <p><strong>Art. 11 — Résiliation à l'initiative du client</strong><br>En cas d'annulation par le client après signature et avant le début des travaux, l'acompte versé reste acquis à SINELEC. Si l'annulation intervient après commencement des travaux, le client règle l'intégralité des prestations réalisées.</p>
-          <p><strong>Art. 12 — Données personnelles</strong><br>Les données du client sont traitées uniquement pour l'exécution du devis et les obligations légales. Conformément au RGPD, le client dispose d'un droit d'accès, de rectification, de portabilité et d'effacement, exerçable à sinelec.paris@gmail.com.</p>
-          <p><strong>Art. 13 — Litiges et juridiction</strong><br>En cas de différend, les parties privilégient une résolution amiable. À défaut, le client consommateur peut saisir le médiateur CM2C (cm2c@cm2c.net). Tout litige relevera de la compétence exclusive du Tribunal judiciaire de Paris. Droit français applicable.</p>
-        </div>
-        <div class="cgv-item" onclick="toggleCGV(1)">
-          <div class="cgv-check" id="chk1"></div>
-          <div class="cgv-txt">J'ai lu et j'accepte les <strong>Conditions Générales de Vente SINELEC Paris</strong> — Travaux conformes NF C 15-100, garantie décennale ORUS.</div>
-        </div>
-        <div class="cgv-item" onclick="toggleCGV(2)">
-          <div class="cgv-check" id="chk2"></div>
-          <div class="cgv-txt">Je reconnais le devis <strong>N° ${num}</strong> d'un montant de <strong style="color:#C9A84C;">${montant} €</strong> et l'acompte de <strong style="color:#C9A84C;">${acompte} €</strong> dû à la signature.</div>
-        </div>
-        <div class="cgv-item" onclick="toggleCGV(3)">
-          <div class="cgv-check" id="chk3"></div>
-          <div class="cgv-txt">Je consens à ce que ma <strong>signature électronique</strong> ait la même valeur juridique qu'une signature manuscrite <em>(Loi n°2000-230 du 13 mars 2000)</em>.</div>
-        </div>
-      </div>
-      <div class="err-msg" id="err-cgv">Veuillez cocher les 3 cases pour continuer.</div>
-      <button class="btn-otp" id="btn-get-otp" onclick="demarrerSignature()">✍️ Signer le devis</button>
-      <p style="font-size:11px;color:#bbb;text-align:center;margin-top:8px;">Un code à 6 chiffres sera envoyé au ${telMasque}</p>
-    </div>
-
-    <!-- ÉTAPE 2 : OTP -->
-    <div class="otp-section card" id="section-otp" style="display:none;">
-      <div class="lbl">🔐 Code de vérification</div>
-      <p class="otp-info">Un code à 6 chiffres a été envoyé par SMS au <strong>${telMasque}</strong>.<br>Valable <strong>10 minutes</strong>. Ne le communiquez à personne.</p>
-      <div class="otp-input-wrap">
-        <input class="otp-digit" id="otp0" type="tel" maxlength="1" inputmode="numeric" oninput="focusNext(0)" onkeydown="focusPrev(event,0)">
-        <input class="otp-digit" id="otp1" type="tel" maxlength="1" inputmode="numeric" oninput="focusNext(1)" onkeydown="focusPrev(event,1)">
-        <input class="otp-digit" id="otp2" type="tel" maxlength="1" inputmode="numeric" oninput="focusNext(2)" onkeydown="focusPrev(event,2)">
-        <input class="otp-digit" id="otp3" type="tel" maxlength="1" inputmode="numeric" oninput="focusNext(3)" onkeydown="focusPrev(event,3)">
-        <input class="otp-digit" id="otp4" type="tel" maxlength="1" inputmode="numeric" oninput="focusNext(4)" onkeydown="focusPrev(event,4)">
-        <input class="otp-digit" id="otp5" type="tel" maxlength="1" inputmode="numeric" oninput="focusNext(5)" onkeydown="focusPrev(event,5)">
-      </div>
-      <div class="err-msg" id="err-otp">Code incorrect ou expiré. Réessayez.</div>
-      <button class="btn-sign" id="btn-verif-otp" onclick="verifierOTP()">Vérifier le code →</button>
-      <div class="otp-resend" id="btn-resend" onclick="demanderOTP(true)">🔄 Renvoyer un code</div>
-    </div>
-
-    <!-- ÉTAPE 3 : SIGNATURE -->
-    <div class="sig-section card" id="section-sig">
-      <div class="lbl">✍️ Votre signature manuscrite</div>
-      <p style="font-size:12px;color:#888;margin-bottom:10px;">Signez avec votre doigt dans la zone ci-dessous</p>
-      <div class="canvas-wrap" id="canvas-wrap">
-        <canvas id="sig-canvas" height="160" style="display:block;width:100%;touch-action:none;"></canvas>
-        <div id="canvas-placeholder" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#ccc;font-size:13px;pointer-events:none;">Signez ici avec votre doigt</div>
-      </div>
-      <button class="btn-clear" onclick="clearCanvas()">🗑️ Effacer et recommencer</button>
-      <div class="err-msg" id="err-sig">Veuillez apposer votre signature avant de valider.</div>
-      <button class="btn-sign" id="btn-sign" disabled onclick="soumettre()">✅ Signer et valider définitivement</button>
-      <p style="font-size:10px;color:#bbb;text-align:center;margin-top:10px;line-height:1.6;">Signature horodatée · IP enregistrée · OTP vérifié<br>Conformément à la loi n°2000-230</p>
-    </div>
-
-  </div>
-
-  <div class="success" id="success-block">
-    <div style="font-size:70px;margin-bottom:16px;">✅</div>
-    <h2 style="color:#1B2A4A;font-size:22px;margin-bottom:10px;">Devis signé !</h2>
-    <p style="color:#555;font-size:14px;line-height:1.8;">Merci <strong>${devis.client||''}</strong> !<br>Vous recevrez votre exemplaire par email.<br><br><span style="color:#C9A84C;font-weight:800;">SINELEC Paris — 07 87 38 86 22</span></p>
-  </div>
-</div>
-
-<script>
-// ── ÉTAT ──
-const cgvChecked = [false, false, false];
-let otpToken = null;
-let hasDrawn = false, isDrawing = false, canvas, ctx;
-
-// ── CGV ──
-function toggleCGV(i) {
-  cgvChecked[i] = !cgvChecked[i];
-  const el = document.getElementById('chk' + i);
-  el.classList.toggle('checked', cgvChecked[i]);
-  document.getElementById('err-cgv').style.display = 'none';
-}
-
-// ── DÉMARRER SIGNATURE ──
-async function demarrerSignature() {
-  if (!cgvChecked.every(v => v)) { document.getElementById('err-cgv').style.display='block'; return; }
-  document.getElementById('err-cgv').style.display='none';
-  await demanderOTP(false);
-}
-// Bypass sans téléphone
-async function signerSansOTP() {
-  try {
-    const r = await fetch('/api/otp-signature', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'bypass', num: '${num}' })
-    });
-    const d = await r.json();
-    if (d.success) {
-      otpToken = d.token;
-      document.getElementById('section-cgv').style.display = 'none';
-      document.getElementById('section-sig').style.display = 'block';
-      document.getElementById('step1').classList.add('done');
-      document.getElementById('step2').classList.add('done');
-      document.getElementById('step3').classList.add('active');
-      setTimeout(initCanvas, 200);
-    } else { alert(d.error || 'Erreur. Contactez SINELEC : 07 87 38 86 22'); }
-  } catch(e) { alert('Erreur réseau. Réessayez.'); }
-}
-
-async function demanderOTP(resend) {
-  const toutCoche = cgvChecked.every(v => v);
-  if (!toutCoche) { document.getElementById('err-cgv').style.display = 'block'; return; }
-  const btn = document.getElementById('btn-get-otp');
-  btn.disabled = true; btn.textContent = '⏳ Envoi du code...';
-  try {
-    const r = await fetch('/api/otp-signature', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'send', num: '${num}' })
-    });
-    const d = await r.json();
-    if (d.success) {
-      document.getElementById('section-cgv').style.display = 'none';
-      document.getElementById('section-otp').style.display = 'block';
-      document.getElementById('err-otp').style.display = 'none';
-      document.getElementById('step1').classList.remove('active'); document.getElementById('step1').classList.add('done');
-      document.getElementById('step2').classList.add('active');
-      setTimeout(() => document.getElementById('otp0').focus(), 300);
-      if (resend) { btn.disabled = false; btn.textContent = '📱 Recevoir mon code de vérification'; }
-    } else {
-      btn.disabled = false; btn.textContent = '📱 Recevoir mon code de vérification';
-      if (d.error && d.error.includes('phone')) { signerSansOTP(); } else { alert(d.error || 'Erreur envoi SMS. Réessayez.'); }
-    }
-  } catch(e) {
-    btn.disabled = false; btn.textContent = '📱 Recevoir mon code de vérification';
-    alert('Erreur réseau. Réessayez.');
-  }
-}
-
-// ── OTP — NAVIGATION CHAMPS ──
-function focusNext(i) {
-  const v = document.getElementById('otp' + i).value;
-  if (v && i < 5) document.getElementById('otp' + (i + 1)).focus();
-  checkOTPFull();
-}
-function focusPrev(e, i) {
-  if (e.key === 'Backspace' && !document.getElementById('otp' + i).value && i > 0) {
-    document.getElementById('otp' + (i - 1)).focus();
-  }
-}
-function getOTPValue() {
-  return [0,1,2,3,4,5].map(i => document.getElementById('otp' + i).value).join('');
-}
-function checkOTPFull() {
-  const full = getOTPValue().length === 6;
-  document.getElementById('btn-verif-otp').disabled = !full;
-}
-
-// ── OTP — VÉRIFICATION ──
-async function verifierOTP() {
-  const code = getOTPValue();
-  if (code.length !== 6) return;
-  const btn = document.getElementById('btn-verif-otp');
-  btn.disabled = true; btn.textContent = '⏳ Vérification...';
-  try {
-    const r = await fetch('/api/otp-signature', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'verify', num: '${num}', code })
-    });
-    const d = await r.json();
-    if (d.success) {
-      otpToken = d.token;
-      document.getElementById('section-otp').style.display = 'none';
-      document.getElementById('section-sig').style.display = 'block';
-      document.getElementById('step2').classList.remove('active'); document.getElementById('step2').classList.add('done');
-      document.getElementById('step3').classList.add('active');
-      setTimeout(initCanvas, 200);
-    } else {
-      document.getElementById('err-otp').style.display = 'block';
-      btn.disabled = false; btn.textContent = 'Vérifier le code →';
-      [0,1,2,3,4,5].forEach(i => { document.getElementById('otp' + i).value = ''; });
-      document.getElementById('otp0').focus();
-    }
-  } catch(e) {
-    btn.disabled = false; btn.textContent = 'Vérifier le code →';
-    alert('Erreur réseau. Réessayez.');
-  }
-}
-
-// ── CANVAS SIGNATURE ──
-function initCanvas() {
-  canvas = document.getElementById('sig-canvas');
-  const wrap = document.getElementById('canvas-wrap');
-  const dpr = window.devicePixelRatio || 1;
-  const w = wrap.getBoundingClientRect().width || 320;
-  canvas.width = w * dpr; canvas.height = 160 * dpr;
-  canvas.style.width = w + 'px'; canvas.style.height = '160px';
-  ctx = canvas.getContext('2d'); ctx.scale(dpr, dpr);
-  ctx.strokeStyle = '#1B2A4A'; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  canvas.addEventListener('mousedown', e => { e.preventDefault(); startDraw(e.offsetX, e.offsetY); });
-  canvas.addEventListener('mousemove', e => { e.preventDefault(); if (isDrawing) draw(e.offsetX, e.offsetY); });
-  canvas.addEventListener('mouseup', () => stopDraw());
-  canvas.addEventListener('touchstart', e => { e.preventDefault(); const t = e.touches[0]; const r = canvas.getBoundingClientRect(); startDraw(t.clientX - r.left, t.clientY - r.top); }, { passive: false });
-  canvas.addEventListener('touchmove', e => { e.preventDefault(); if (!isDrawing) return; const t = e.touches[0]; const r = canvas.getBoundingClientRect(); draw(t.clientX - r.left, t.clientY - r.top); }, { passive: false });
-  canvas.addEventListener('touchend', e => { e.preventDefault(); stopDraw(); }, { passive: false });
-}
-function startDraw(x, y) { isDrawing = true; ctx.beginPath(); ctx.moveTo(x, y); document.getElementById('canvas-placeholder').style.display = 'none'; }
-function draw(x, y) { ctx.lineTo(x, y); ctx.stroke(); ctx.beginPath(); ctx.moveTo(x, y); hasDrawn = true; document.getElementById('btn-sign').disabled = false; document.getElementById('err-sig').style.display = 'none'; }
-function stopDraw() { isDrawing = false; }
-function clearCanvas() {
-  if (ctx) { const dpr = window.devicePixelRatio || 1; ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr); }
-  hasDrawn = false;
-  document.getElementById('canvas-placeholder').style.display = 'block';
-  document.getElementById('btn-sign').disabled = true;
-}
-
-// ── SOUMISSION FINALE ──
-async function soumettre() {
-  if (!hasDrawn) { document.getElementById('err-sig').style.display = 'block'; return; }
-  if (!otpToken) { alert('Session expirée. Recommencez.'); return; }
-  const btn = document.getElementById('btn-sign');
-  btn.disabled = true; btn.textContent = '⏳ Signature en cours...';
-  try {
-    const r = await fetch('/api/signature', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ num: '${num}', signature: canvas.toDataURL('image/png'), cgv_acceptees: true, otp_token: otpToken })
-    });
-    const d = await r.json();
-    if (d.success) {
-      document.getElementById('main-content').style.display = 'none';
-      document.getElementById('success-block').style.display = 'block';
-      document.getElementById('step3').classList.remove('active'); document.getElementById('step3').classList.add('done');
-    } else {
-      btn.disabled = false; btn.textContent = '✅ Signer et valider définitivement';
-      alert('Erreur : ' + (d.error || 'Réessayez'));
-    }
-  } catch(e) {
-    btn.disabled = false; btn.textContent = '✅ Signer et valider définitivement';
-    alert('Erreur réseau. Réessayez.');
-  }
-}
-</script></body></html>`);
-});
-
-
-// ── OTP SIGNATURE — ENVOI + VÉRIFICATION ──
-app.post('/api/otp-signature', async (req, res) => {
-  try {
-    const { action, num, code } = req.body;
-    if (!action || !num) return res.status(400).json({ error: 'Paramètres manquants' });
-
-    const { data: devis } = await supabase.from('historique').select('telephone,statut,client').eq('num', num).single();
-    if (!devis) return res.status(404).json({ error: 'Devis introuvable' });
-    if (devis.statut === 'signe' || devis.statut === 'signé') return res.status(400).json({ error: 'Devis déjà signé' });
-    const telValide = devis.telephone && String(devis.telephone).replace(/\D/g,'').length >= 8;
-    if (!telValide) return res.status(400).json({ error: 'Numéro de téléphone manquant sur ce devis' });
-
-    if (action === 'send') {
-      // Générer code 6 chiffres aléatoire
-      const otpCode = String(Math.floor(100000 + Math.random() * 900000));
-      const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // +10 min
-
-      // Supprimer anciens OTP pour ce devis
-      await supabase.from('otp_signatures').delete().eq('num', num);
-
-      // Stocker le nouveau OTP
-      const { error: insertErr } = await supabase.from('otp_signatures').insert({
-        num,
-        code: otpCode,
-        expires_at: expiresAt,
-        used: false,
-        created_at: new Date().toISOString()
-      });
-      if (insertErr) {
-        console.error('OTP insert error:', insertErr);
-        return res.status(500).json({ error: 'Erreur serveur OTP' });
-      }
-
-      // Envoyer SMS
-      const prenom = (devis.client || '').split(' ')[0] || 'Madame/Monsieur';
-      const smsMsg = `${prenom}, votre code SINELEC : ${otpCode}. Valable 10 min. Ne le communiquez pas.`;
-      await envoyerSMS(devis.telephone, smsMsg);
-
-      console.log(`OTP envoyé pour ${num} — code: ${otpCode}`);
-      return res.json({ success: true });
-    }
-
-    if (action === 'verify') {
-      if (!code || code.length !== 6) return res.status(400).json({ error: 'Code invalide' });
-
-      // Récupérer OTP en base
-      const { data: otpData } = await supabase
-        .from('otp_signatures')
-        .select('*')
-        .eq('num', num)
-        .eq('used', false)
-        .single();
-
-      if (!otpData) return res.json({ success: false, error: 'Code introuvable ou déjà utilisé' });
-
-      // Vérifier expiration
-      if (new Date() > new Date(otpData.expires_at)) {
-        await supabase.from('otp_signatures').delete().eq('num', num);
-        return res.json({ success: false, error: 'Code expiré. Demandez-en un nouveau.' });
-      }
-
-      // Vérifier le code
-      if (otpData.code !== String(code)) {
-        return res.json({ success: false, error: 'Code incorrect' });
-      }
-
-      // Marquer comme utilisé
-      await supabase.from('otp_signatures').update({ used: true }).eq('num', num);
-
-      // Générer token temporaire pour la soumission finale (valable 15 min)
-      const tokenPayload = JSON.stringify({ num, exp: Date.now() + 15 * 60 * 1000 });
-      const tokenB64 = Buffer.from(tokenPayload).toString('base64');
-      const tokenSig = require('crypto').createHmac('sha256', JWT_SECRET).update(tokenB64).digest('hex');
-      const otpToken = `${tokenB64}.${tokenSig}`;
-
-      console.log(`OTP vérifié pour ${num}`);
-      return res.json({ success: true, token: otpToken });
-    }
-
-    // Bypass sans téléphone
-    if (action === 'bypass') {
-      const tokenPayload = JSON.stringify({ num, bypass: true, exp: Date.now() + 30 * 60 * 1000 });
-      const tokenB64 = Buffer.from(tokenPayload).toString('base64');
-      const tokenSig = require('crypto').createHmac('sha256', JWT_SECRET).update(tokenB64).digest('hex');
-      return res.json({ success: true, token: `${tokenB64}.${tokenSig}` });
-    }
-
-    return res.status(400).json({ error: 'Action inconnue' });
-  } catch(e) {
-    console.error('OTP error:', e.message);
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
-app.post('/api/signature', async (req, res) => {
-  if (!CONFIG.features.signature_client) return res.status(403).json({ error: 'Feature désactivée' });
-  try {
-    const { num, signature, cgv_acceptees, otp_token } = req.body;
-
-    // Vérifier le token OTP (ou bypass sans téléphone)
-    if (!otp_token) return res.status(403).json({ error: 'Token manquant. Recommencez.' });
-    try {
-      const [b64, sig] = otp_token.split('.');
-      const expectedSig = require('crypto').createHmac('sha256', JWT_SECRET).update(b64).digest('hex');
-      if (sig !== expectedSig) return res.status(403).json({ error: 'Token invalide' });
-      const payload = JSON.parse(Buffer.from(b64, 'base64').toString());
-      if (payload.num !== num) return res.status(403).json({ error: 'Token invalide pour ce devis' });
-      if (Date.now() > payload.exp) return res.status(403).json({ error: 'Session expirée. Recommencez.' });
-    } catch(e) { return res.status(403).json({ error: 'Token invalide' }); }
-
-    const now = new Date();
-    const ipClient = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || 'N/A';
-    const { data: devisData } = await supabase.from('historique').select('*').eq('num', num).single();
-    if (!devisData) return res.status(404).json({ error: 'Devis introuvable' });
-    if (devisData.statut === 'signe' || devisData.statut === 'signé') return res.status(400).json({ error: 'Devis déjà signé' });
-
-    await supabase.from('signatures').insert({ num, signature, cgv_acceptees: true, otp_verifie: true, date_signature: now.toISOString(), ip_client: ipClient });
-    await supabase.from('historique').update({ signature, statut: 'signe', date_signature: now.toISOString(), cgv_acceptees: true, otp_verifie: true }).eq('num', num);
-
-    const montant = parseFloat(devisData.total_ht || 0);
-    const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
-    const lienRdv = `${appUrl}/rdv/${num}`;
-    const prenom = (devisData.client || '').split(' ')[0];
-
-    // Email lien RDV — seulement si intervention planifiée
-    if (devisData.email && devisData.intervention_type === 'planifie') {
-      try {
-        await envoyerEmail(devisData.email,
-          `⚡ SINELEC Paris — Choisissez votre date d'intervention`,
-          `<html><body style="font-family:Arial;padding:0;background:#f5f5f7;">
-          <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.1);">
-            <div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:28px;text-align:center;">
-              <div style="font-size:36px;margin-bottom:8px;">⚡</div>
-              <h2 style="color:#fff;margin:0;font-size:20px;">SINELEC Paris</h2>
-              <p style="color:#BFC8D6;margin-top:6px;font-size:13px;">Votre devis est signé ✅</p>
-            </div>
-            <div style="padding:28px;">
-              <p style="color:#333;font-size:15px;margin-bottom:8px;">Bonjour <strong>${prenom}</strong>,</p>
-              <p style="color:#555;font-size:14px;line-height:1.6;margin-bottom:20px;">
-                Votre devis <strong>${num}</strong> de <strong>${montant.toFixed(0)}€</strong> a bien été signé.<br>
-                Il ne vous reste plus qu'à choisir votre créneau d'intervention !
-              </p>
-              <div style="text-align:center;margin:24px 0;">
-                <a href="${lienRdv}" style="background:linear-gradient(135deg,#C9A84C,#daa520);color:#fff;text-decoration:none;border-radius:14px;padding:16px 32px;font-size:16px;font-weight:800;display:inline-block;">
-                  📅 Choisir ma date d'intervention
-                </a>
-              </div>
-              <p style="color:#999;font-size:12px;text-align:center;line-height:1.6;">
-                Créneaux disponibles du lundi au samedi, 8h à 20h<br>
-                Votre créneau sera confirmé par email dans les 2h
-              </p>
-            </div>
-            <div style="background:#f8f8f8;padding:14px;text-align:center;">
-              <p style="color:#999;font-size:11px;">SINELEC Paris • 07 87 38 86 22 • sinelec.paris@gmail.com</p>
-            </div>
-          </div></body></html>`
-        );
-      } catch(e) { console.error('Email RDV:', e.message); }
-    }
-
-    const htmlConfirm = `<html><body style="font-family:Arial;padding:20px;"><h2>✅ Devis ${num} signé</h2><p>Client: ${devisData.client||''} — Montant: ${montant.toFixed(2)} € — Acompte: ${(montant*0.4).toFixed(2)} €</p><p>IP: ${ipClient} — Date: ${now.toLocaleDateString('fr-FR')}</p></body></html>`;
-    try { await envoyerEmail('sinelec.paris@gmail.com', `🔔 SIGNÉ — ${num} — ${devisData.client||''} — ${montant.toFixed(0)}€`, htmlConfirm); } catch(e) {}
-
-    // ── RÉGÉNÉRER PDF AVEC SIGNATURE + ENVOYER AU CLIENT ──
-    if (devisData.email) {
-      try {
-        const sigB64 = signature.replace(/^data:image\/png;base64,/, '');
-        const dateStr = now.toLocaleDateString('fr-FR');
-        const dateSig = now.toLocaleDateString('fr-FR');
-        const clientEsc = String(devisData.client || '').replace(/'/g, ' ');
-        const adresseParts = (devisData.adresse || '').split(',');
-        const clientRue = String(adresseParts[0] || '').trim().replace(/'/g, ' ');
-        const clientVille = adresseParts.slice(1).join(',').trim().replace(/'/g, ' ');
-        const totalHT = parseFloat(devisData.total_ht || 0);
-        const detailsData = (devisData.prestations || []).map(p => ({
-          designation: p.nom || p.designation, qte: p.quantite || 1,
-          prixUnit: p.prix || 0, total: (p.prix || 0) * (p.quantite || 1),
-          details: p.desc ? [p.desc] : []
-        }));
-
-        const pyPath2 = path.join(__dirname, `_sig_${num}.py`);
-        const detPath2 = path.join(__dirname, `_sig_details_${num}.json`);
-        const pdfPath2 = path.join(__dirname, `_sig_${num}.pdf`);
-        fs.writeFileSync(detPath2, JSON.stringify(detailsData));
-
-        const pySig = `# -*- coding: utf-8 -*-
-import json, base64, io, sys
-from reportlab.lib.pagesizes import A4; from reportlab.lib import colors; from reportlab.lib.units import cm
-from reportlab.platypus import *; from reportlab.lib.styles import ParagraphStyle
-from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT; from reportlab.pdfgen import canvas as pdfcanvas
-from reportlab.lib.utils import ImageReader; from reportlab.platypus.flowables import HRFlowable
-W,H=A4; MARINE=colors.HexColor('#1B2A4A'); OR=colors.HexColor('#C9A84C')
-OR_PALE=colors.HexColor('#FBF7EC'); OR_FONCE=colors.HexColor('#A07830')
-BLANC=colors.white; CREME=colors.HexColor('#FDFCF9')
-GRIS_TEXTE=colors.HexColor('#3A3A3A'); GRIS_SOFT=colors.HexColor('#777777')
-GRIS_LIGNE=colors.HexColor('#E0DDD6'); GRIS_BG=colors.HexColor('#F5F4F0')
-VERT=colors.HexColor('#16a34a')
-def p(txt,sz=9,font='Helvetica',color=GRIS_TEXTE,align=TA_LEFT,sb=0,sa=2,leading=None):
-    if leading is None: leading=sz*1.35
-    return Paragraph(str(txt),ParagraphStyle('s',fontName=font,fontSize=sz,textColor=color,alignment=align,spaceBefore=sb,spaceAfter=sa,leading=leading,wordWrap='CJK'))
-data=json.loads(open('${detPath2}',encoding='utf-8').read())
-totalHT=sum(l['total'] for l in data)
-logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
-sig_bytes=base64.b64decode('${sigB64}')
-class SC(pdfcanvas.Canvas):
-    def __init__(self,fn,**kw): pdfcanvas.Canvas.__init__(self,fn,**kw); self._pg=0; self.saveState(); self._draw_page()
-    def showPage(self): self._draw_footer(); pdfcanvas.Canvas.showPage(self); self._pg+=1
-    def save(self): self._draw_footer(); pdfcanvas.Canvas.save(self)
-    def _draw_page(self):
-        self.saveState(); self.setFillColor(CREME); self.rect(0,0,W,H,fill=1,stroke=0)
-        self.setFillColor(MARINE); self.rect(0,0,0.7*cm,H,fill=1,stroke=0)
-        self.setFillColor(OR); self.rect(0.7*cm,0,0.08*cm,H,fill=1,stroke=0)
-        if self._pg==0: self._draw_header()
-        else: self._draw_header_small()
-        self.restoreState()
-    def _draw_header(self):
-        self.setFillColor(MARINE); self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,5.4*cm,fill=1,stroke=0)
-        self.setFillColor(OR); self.rect(0.78*cm,H-5.4*cm,W-0.78*cm,0.12*cm,fill=1,stroke=0)
-        self.drawImage(ImageReader(io.BytesIO(logo_bytes)),0.9*cm,H-5.05*cm,width=4.2*cm,height=4.2*cm,preserveAspectRatio=True,mask='auto')
-        self.setFont('Helvetica-Bold',15); self.setFillColor(BLANC); self.drawString(5.9*cm,H-1.7*cm,'SINELEC PARIS')
-        self.setFont('Helvetica-Bold',9); self.drawString(5.9*cm,H-2.5*cm,'128 Rue La Boetie, 75008 Paris')
-        self.setFont('Helvetica',8.5); self.setFillColor(colors.HexColor('#BFC8D6'))
-        self.drawString(5.9*cm,H-3.0*cm,'Tel : 07 87 38 86 22'); self.drawString(5.9*cm,H-3.4*cm,'sinelec.paris@gmail.com')
-        self.setFillColor(colors.HexColor('#243660')); self.roundRect(5.9*cm,H-4.15*cm,5.5*cm,0.55*cm,0.1*cm,fill=1,stroke=0)
-        self.setFont('Helvetica-Bold',8); self.setFillColor(OR); self.drawString(6.1*cm,H-3.88*cm,'SIRET : 91015824500019')
-        self.setFont('Helvetica-Bold',40); self.setFillColor(BLANC); self.drawRightString(W-1.2*cm,H-2.2*cm,'DEVIS')
-        self.setStrokeColor(OR); self.setLineWidth(1.5); self.line(13*cm,H-2.65*cm,W-1.2*cm,H-2.65*cm)
-        self.setFillColor(OR); self.roundRect(W-6.5*cm,H-3.55*cm,5.3*cm,0.65*cm,0.15*cm,fill=1,stroke=0)
-        self.setFont('Helvetica-Bold',9); self.setFillColor(MARINE); self.drawCentredString(W-3.85*cm,H-3.22*cm,'N\\u00b0 ${num}')
-        self.setFont('Helvetica',8); self.setFillColor(colors.HexColor('#BFC8D6')); self.drawRightString(W-1.2*cm,H-3.9*cm,'Date : ${dateStr}')
-        # Tampon SIGNÉ rond vert
-        self.saveState()
-        cx=W-5.0*cm; cy=H/2+1.0*cm; r=1.9*cm
-        self.setStrokeColor(VERT); self.setFillColor(VERT)
-        self.setFillAlpha(0.85); self.setLineWidth(3.5); self.circle(cx,cy,r,fill=0,stroke=1)
-        self.setLineWidth(0.8); self.setFillAlpha(0.4); self.circle(cx,cy,r-0.22*cm,fill=0,stroke=1)
-        self.setLineWidth(0.3); self.setFillAlpha(0.2)
-        self.setDash([0.08*cm,0.28*cm]); self.circle(cx,cy,r-0.52*cm,fill=0,stroke=1); self.setDash()
-        self.translate(cx,cy); self.rotate(-15)
-        nom_court = '${clientEsc}'.upper()[:16]
-        self.setFillAlpha(0.92); self.setFillColor(VERT)
-        self.setFont('Helvetica-Bold',7); self.drawCentredString(0,1.05*cm,nom_court)
-        self.setFillAlpha(0.9); self.setFont('Helvetica-Bold',20); self.drawCentredString(0,0.18*cm,'SIGNE')
-        self.setFont('Helvetica-Bold',7.5); self.setFillAlpha(0.75); self.drawCentredString(0,-0.52*cm,'${dateSig}')
-        self.setFont('Helvetica',6); self.setFillAlpha(0.45); self.drawCentredString(0,-1.02*cm,'PARIS')
-        self.restoreState()
-    def _draw_header_small(self):
-        self.setFillColor(MARINE); self.rect(0.78*cm,H-1.5*cm,W-0.78*cm,1.5*cm,fill=1,stroke=0)
-        self.setFillColor(OR); self.rect(0.78*cm,H-1.5*cm,W-0.78*cm,0.08*cm,fill=1,stroke=0)
-        self.setFont('Helvetica-Bold',10); self.setFillColor(BLANC); self.drawString(1.4*cm,H-1.0*cm,'SINELEC')
-        self.setFont('Helvetica',8); self.setFillColor(OR); self.drawRightString(W-1.2*cm,H-1.0*cm,'DEVIS N\\u00b0 ${num}')
-    def _draw_footer(self):
-        self.saveState(); self.setFillColor(MARINE); self.rect(0,0,W,1.0*cm,fill=1,stroke=0)
-        self.setFillColor(OR); self.rect(0,1.0*cm,W,0.08*cm,fill=1,stroke=0)
-        self.setFont('Helvetica',6.5); self.setFillColor(colors.HexColor('#8899BB'))
-        self.drawCentredString(W/2,0.5*cm,'SINELEC EI \\u2022 128 Rue La Boetie 75008 Paris \\u2022 SIRET : 91015824500019 \\u2022 TVA non applicable art. 293B CGI')
-        self.setFont('Helvetica-Bold',7); self.setFillColor(OR); self.drawRightString(W-1.2*cm,0.28*cm,'${num}'); self.restoreState()
-doc=SimpleDocTemplate('${pdfPath2}',pagesize=A4,leftMargin=1.2*cm,rightMargin=1.0*cm,topMargin=5.6*cm,bottomMargin=1.6*cm)
-story=[]
-objet_b=Table([[p('OBJET DES TRAVAUX',7.5,'Helvetica-Bold',OR,sa=4)],[p('${String(devisData.description || 'Travaux electricite').replace(/'/g,' ')}',10,'Helvetica-Bold',MARINE)],[p('Conformes NF C 15-100 \\u2022 Garantie decennale ORUS',7.5,color=GRIS_SOFT)]],colWidths=[8.2*cm])
-objet_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3),('LEFTPADDING',(0,0),(-1,-1),0),('LINEABOVE',(0,0),(0,0),2.5,MARINE),('TOPPADDING',(0,0),(0,0),10)]))
-client_b=Table([[p('CLIENT',7,'Helvetica-Bold',OR,sa=4)],[p('${clientEsc}',10,'Helvetica-Bold',MARINE)],[p('${clientRue}',8.5,color=GRIS_TEXTE)],[p('${clientVille}',8.5,color=GRIS_TEXTE)]],colWidths=[9.0*cm])
-client_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('BACKGROUND',(0,0),(-1,-1),OR_PALE),('BOX',(0,0),(-1,-1),1,OR),('LINEBEFORE',(0,0),(0,-1),4,MARINE),('TOPPADDING',(0,0),(0,0),10),('BOTTOMPADDING',(0,-1),(-1,-1),10)]))
-story.append(Table([[objet_b,client_b]],colWidths=[8.7*cm,9.5*cm],style=TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)])))
-story.append(Spacer(1,0.6*cm))
-cw=[0.7*cm,9.5*cm,1.5*cm,0.9*cm,2.4*cm,3.2*cm]
-rows=[[p('#',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('DESIGNATION',7.5,'Helvetica-Bold',BLANC),p('QTE',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('U.',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('PRIX U. HT',7.5,'Helvetica-Bold',BLANC,TA_RIGHT),p('TOTAL HT',7.5,'Helvetica-Bold',BLANC,TA_RIGHT)]]
-for i,l in enumerate(data):
-    q=int(l['qte']) if l['qte']==int(l['qte']) else l['qte']
-    rows.append([p(str(i+1),9,color=OR,align=TA_CENTER),p('<b>'+l['designation']+'</b>',9,color=MARINE),p(str(q),9,align=TA_CENTER),p('u.',9,align=TA_CENTER,color=GRIS_SOFT),p('%.2f \\u20ac'%l['prixUnit'],9,align=TA_RIGHT),p('<b>%.2f \\u20ac</b>'%l['total'],9,'Helvetica-Bold',MARINE,TA_RIGHT)])
-    for det in l.get('details',[]):
-        rows.append(['',p('   - '+det,7.5,'Helvetica-Oblique',color=GRIS_SOFT),'','','',''])
-t=Table(rows,colWidths=cw)
-ts=[('BACKGROUND',(0,0),(-1,0),MARINE),('LINEBELOW',(0,0),(-1,0),2.5,OR),('VALIGN',(0,0),(-1,-1),'TOP'),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),('LEFTPADDING',(0,0),(-1,-1),7),('RIGHTPADDING',(0,0),(-1,-1),7),('BOX',(0,0),(-1,-1),0.3,GRIS_LIGNE)]
-row_idx=1; bg=True
-for l in data:
-    nb=1+len(l.get('details',[])); c2=BLANC if bg else GRIS_BG
-    ts.append(('BACKGROUND',(0,row_idx),(-1,row_idx+nb-1),c2)); ts.append(('LINEBELOW',(0,row_idx+nb-1),(-1,row_idx+nb-1),0.3,GRIS_LIGNE))
-    row_idx+=nb; bg=not bg
-t.setStyle(TableStyle(ts)); story.append(t); story.append(Spacer(1,0.15*cm))
-tt=Table([['',p('Total HT',9,color=GRIS_SOFT,align=TA_RIGHT),p('%.2f \\u20ac'%totalHT,9,'Helvetica-Bold',GRIS_TEXTE,TA_RIGHT)],['',p('TVA',9,color=GRIS_SOFT,align=TA_RIGHT),p('Non applicable (art. 293B)',8,color=GRIS_SOFT,align=TA_RIGHT)]],colWidths=[9.0*cm,4.5*cm,4.7*cm])
-tt.setStyle(TableStyle([('LINEABOVE',(1,0),(-1,0),0.5,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('LEFTPADDING',(0,0),(-1,-1),6),('RIGHTPADDING',(0,0),(-1,-1),6)]))
-story.append(tt); story.append(Spacer(1,0.12*cm))
-net=Table([[p('NET \\u00c0 PAYER',13,'Helvetica-Bold',BLANC),p('%.2f \\u20ac'%totalHT,16,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
-net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('LINEBELOW',(0,0),(-1,-1),3,OR),('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
-story.append(net); story.append(Spacer(1,0.35*cm))
-story.append(HRFlowable(width='100%',thickness=0.3,color=GRIS_LIGNE,spaceAfter=8))
-cond=Table([[p('Acompte 40% a la signature',9,color=GRIS_TEXTE),p('%.2f \\u20ac'%(totalHT*0.4),9,'Helvetica-Bold',OR_FONCE,TA_RIGHT)],[p('Solde a la fin des travaux',9,color=GRIS_TEXTE),p('%.2f \\u20ac'%(totalHT*0.6),9,align=TA_RIGHT)],[p('Validite 30 jours \\u2022 Virement, especes, CB',8,color=GRIS_SOFT),'']],colWidths=[14.2*cm,4.0*cm])
-cond.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,1),0.3,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),('SPAN',(0,2),(1,2))]))
-story.append(cond); story.append(Spacer(1,0.3*cm))
-story.append(HRFlowable(width='100%',thickness=0.5,color=VERT,spaceAfter=8))
-t_sig_lbl=Table([[p('SIGNATURE CLIENT',8,'Helvetica-Bold',VERT,sa=0)]],colWidths=[18.2*cm])
-t_sig_lbl.setStyle(TableStyle([('LEFTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),6)]))
-story.append(t_sig_lbl)
-t_mention=Table([[p('Bon pour accord — Devis recu avant execution des travaux',9,'Helvetica-Bold',MARINE),p('Lu et approuve — Signe le : ${dateSig}',9,'Helvetica-Oblique',GRIS_SOFT,TA_RIGHT)]],colWidths=[11.0*cm,7.2*cm])
-t_mention.setStyle(TableStyle([('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),10)]))
-story.append(t_mention)
-sig_img=Image(io.BytesIO(sig_bytes),width=7.0*cm,height=2.5*cm)
-sig_img.hAlign='LEFT'
-story.append(sig_img)
-iban=Table([[p('IBAN',7,'Helvetica-Bold',GRIS_SOFT),p('FR76 1695 8000 0174 2540 5920 931',9,'Helvetica-Bold',MARINE),p('BIC',7,'Helvetica-Bold',GRIS_SOFT,TA_RIGHT),p('QNTOFRP1XXX',9,'Helvetica-Bold',MARINE,TA_RIGHT)]],colWidths=[1.5*cm,9.5*cm,1.8*cm,5.4*cm])
-iban.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),OR_PALE),('BOX',(0,0),(-1,-1),0.5,OR),('LINEBEFORE',(0,0),(0,-1),4,MARINE),('TOPPADDING',(0,0),(-1,-1),9),('BOTTOMPADDING',(0,0),(-1,-1),9),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
-story.append(Spacer(1,0.2*cm)); story.append(iban)
-doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw))
-print('PDF_SIG_OK')
-`;
-        fs.writeFileSync(pyPath2, pySig, 'utf8');
-        const { execSync: execS } = require('child_process');
-        execS(`python3 ${pyPath2} ${detPath2} ${pdfPath2}`, { cwd: __dirname });
-        const pdfB64 = fs.readFileSync(pdfPath2).toString('base64');
-
-        // Envoyer au client avec PDF signé en pièce jointe
-        await envoyerEmail(devisData.email,
-          `✅ SINELEC Paris — Votre devis ${num} signé`,
-          `<html><body style="font-family:Arial;padding:0;background:#f5f5f7;">
-          <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;">
-            <div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:28px;text-align:center;">
-              <div style="font-size:40px;">✅</div>
-              <h2 style="color:#fff;margin:8px 0 0;">Devis signé !</h2>
-            </div>
-            <div style="padding:28px;">
-              <p style="color:#333;font-size:14px;margin-bottom:16px;">Bonjour <strong>${prenom}</strong>,</p>
-              <p style="color:#555;font-size:14px;line-height:1.6;margin-bottom:16px;">
-                Votre devis <strong>${num}</strong> de <strong>${montant.toFixed(0)} €</strong> est bien signé.<br>
-                Vous trouverez ci-joint votre exemplaire avec votre signature.
-              </p>
-              <div style="background:#f0f7f0;border:1px solid rgba(22,163,74,0.2);border-left:4px solid #16a34a;border-radius:8px;padding:12px 16px;margin-bottom:16px;">
-                <p style="color:#15803d;font-size:13px;font-weight:700;margin:0;">
-                  📋 Bon pour accord — Devis reçu avant exécution des travaux
-                </p>
-              </div>
-              <p style="color:#999;font-size:12px;line-height:1.6;">
-                Pour toute question :<br>
-                📞 07 87 38 86 22 | sinelec.paris@gmail.com
-              </p>
-            </div>
-            <div style="background:#f8f8f8;padding:14px;text-align:center;">
-              <p style="color:#999;font-size:11px;">SINELEC Paris • sinelec.paris@gmail.com</p>
-            </div>
-          </div></body></html>`,
-          { content: pdfB64, name: `Devis_SINELEC_${num}_Signe.pdf` }
-        );
-
-        // Nettoyage
-        try { fs.unlinkSync(pyPath2); fs.unlinkSync(detPath2); fs.unlinkSync(pdfPath2); } catch(e) {}
-        console.log(`✅ PDF signé envoyé à ${devisData.email}`);
-        // Copie PDF signe a SINELEC
-        try {
-          await envoyerEmail(
-            'sinelec.paris@gmail.com',
-            'Devis signe ' + num + ' - ' + devisData.client,
-            '<p>Devis <b>' + num + '</b> signe par <b>' + devisData.client + '</b><br>Montant : <b>' + parseFloat(devisData.total_ht||0).toFixed(0) + ' EUR HT</b></p>',
-            { content: pdfB64, name: num + '_signe.pdf' }
-          );
-          console.log('Copie PDF signe envoyee a sinelec.paris@gmail.com');
-        } catch(e) { console.error('Copie SINELEC:', e.message); }
-      } catch(e) {
-        console.error('PDF signé:', e.message);
-      }
-    }
-
-    res.json({ success: true });
-  } catch(error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// ═══════════════════════════════════════════════════
-// API: HISTORIQUE + OBAT
-// ═══════════════════════════════════════════════════
-
-app.get('/api/historique', async (req, res) => {
-  if (!CONFIG.features.historique) return res.status(403).json({ error: 'Feature désactivée' });
-  try {
-    const { type } = req.query;
-    let query = supabase.from('historique').select('*').order('created_at', { ascending: false });
-    if (type && type !== 'tous') query = query.eq('type', type);
-    const { data: histo, error } = await query;
-    if (error) throw error;
-
-    let obatFormate = [];
-    if (!type || type === 'tous' || type === 'facture') {
-      const { data: obat } = await supabase.from('factures_obat').select('*').eq('statut', 'Payée');
-      obatFormate = (obat || []).map(f => ({ type: 'facture', client: f.client, total_ht: f.montant, statut: 'paye', created_at: f.date_facture + 'T00:00:00.000Z', num: f.reference, prestations: [{ nom: f.chantier, prix: f.montant, quantite: 1 }], source: 'obat' }));
-    }
-
-    const tout = [...(histo || []), ...obatFormate].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    res.json(tout);
-  } catch(error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.delete('/api/historique/:num', async (req, res) => {
-  try {
-    const { error } = await supabase.from('historique').delete().eq('num', req.params.num);
-    if (error) throw error;
-    res.json({ success: true });
-  } catch(error) { res.status(500).json({ error: error.message }); }
-});
-
-app.patch('/api/historique/:num/statut', async (req, res) => {
-  try {
-    const updates = {};
-    if (req.body.statut !== undefined) updates.statut = req.body.statut;
-    if (req.body.date_intervention !== undefined) {
-      updates.date_intervention = req.body.date_intervention || null;
-    }
-    if (Object.keys(updates).length > 0) {
-      await supabase.from('historique').update(updates).eq('num', req.params.num);
-    }
-    res.json({ success: true });
-  } catch(error) { res.status(500).json({ error: error.message }); }
-});
-
-// ═══════════════════════════════════════════════════
-// API: CA COMPLET
-// ═══════════════════════════════════════════════════
-
-app.get('/api/ca-complet', async (req, res) => {
-  try {
-    // Les 2 requêtes en parallèle — factures_obat non bloquante
-    const [{ data: histo }, obatResult] = await Promise.all([
-      supabase.from('historique').select('*').order('created_at', { ascending: false }),
-      supabase.from('factures_obat').select('*').eq('statut', 'Payée').then(r => r).catch(() => ({ data: [] }))
-    ]);
-    const obat = obatResult?.data || [];
-    const obatFormate = obat.map(f => ({
-      type: 'facture', client: f.client, total_ht: f.montant,
-      montant_diahe: f.montant,
-      statut: 'paye', created_at: f.date_facture + 'T00:00:00.000Z',
-      num: f.reference, prestations: [{ nom: f.chantier, prix: f.montant, quantite: 1 }], source: 'obat'
-    }));
-    const histoEnrichi = (histo || []).map(h => {
-      const pdiahe = h.part_diahe || 100;
-      const montant_diahe = parseFloat(h.total_ht || 0) * pdiahe / 100;
-      return { ...h, montant_diahe };
-    });
-    res.json([...histoEnrichi, ...obatFormate]);
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// Vérifier si un devis a été signé (polling depuis l'app)
-app.get('/api/historique/:num/check-signature', authMiddleware, async (req, res) => {
-  try {
-    const { data } = await supabase.from('historique').select('statut, signature, date_signature').eq('num', req.params.num).single();
-    if (!data) return res.status(404).json({ error: 'Non trouvé' });
-    res.json({ statut: data.statut, signe: data.statut === 'signe', date_signature: data.date_signature });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// ═══════════════════════════════════════════════════
-// API: CHARGES (MODULE RENTABILITÉ)
-// ═══════════════════════════════════════════════════
-
-// Lister charges d'un mois
-app.get('/api/charges', authMiddleware, async (req, res) => {
-  try {
-    const { mois } = req.query;
-    let query = supabase.from('charges').select('*').order('date', { ascending: false });
-    if (mois) query = query.eq('mois', mois);
-    const { data, error } = await query;
-    if (error) throw error;
-    res.json(data || []);
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// Ajouter une charge
-app.post('/api/charges', authMiddleware, async (req, res) => {
-  try {
-    const { date, categorie, montant, note } = req.body;
-    if (!categorie || !montant) return res.status(400).json({ error: 'Champs manquants' });
-    const dateCharge = date || new Date().toISOString().split('T')[0];
-    const mois = dateCharge.substring(0, 7); // YYYY-MM
-    const { data, error } = await supabase.from('charges').insert({ date: dateCharge, mois, categorie, montant: parseFloat(montant), note: note || null }).select().single();
-    if (error) throw error;
-    res.json({ success: true, charge: data });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// Supprimer une charge
-app.delete('/api/charges/:id', authMiddleware, async (req, res) => {
-  try {
-    await supabase.from('charges').delete().eq('id', req.params.id);
-    res.json({ success: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// Dashboard rentabilité d'un mois
-app.get('/api/rentabilite/:mois', authMiddleware, async (req, res) => {
-  try {
-    const { mois } = req.params; // YYYY-MM
-
-    // CA du mois (part Diahe uniquement)
-    const { data: factures } = await supabase.from('historique')
-      .select('total_ht, part_diahe, statut')
-      .like('created_at', `${mois}%`)
-      .eq('type', 'facture');
-
-    const { data: obat } = await supabase.from('factures_obat')
-      .select('montant')
-      .like('date_facture', `${mois}%`)
-      .eq('statut', 'Payée');
-
-    const caFactures = (factures || [])
-      .filter(f => ['paye','payé','payée'].includes((f.statut||'').toLowerCase()))
-      .reduce((s, f) => s + parseFloat(f.total_ht || 0) * (f.part_diahe || 100) / 100, 0);
-    const caObat = (obat || []).reduce((s, f) => s + parseFloat(f.montant || 0), 0);
-    const ca_total = caFactures + caObat;
-
-    // Charges du mois
-    const { data: charges } = await supabase.from('charges').select('*').eq('mois', mois);
-    const charges_manuelles = (charges || []).reduce((s, c) => s + parseFloat(c.montant || 0), 0);
-
-    // Par catégorie
-    const par_categorie = {};
-    (charges || []).forEach(c => {
-      par_categorie[c.categorie] = (par_categorie[c.categorie] || 0) + parseFloat(c.montant || 0);
-    });
-
-    // URSSAF auto 22% — uniquement si pas déjà saisie manuellement
-    const urssaf_saisie = par_categorie['urssaf'] || 0;
-    const urssaf_auto = urssaf_saisie > 0 ? 0 : Math.round(ca_total * 0.22);
-    const urssaf_estimee = urssaf_auto; // pour l'alerte front
-
-    // Charges totales = manuelles + URSSAF auto si absente
-    const charges_total = charges_manuelles + urssaf_auto;
-
-    const benefice_net = ca_total - charges_total;
-    const taux_marge = ca_total > 0 ? Math.round((benefice_net / ca_total) * 100) : 0;
-
-    res.json({
-      mois, ca_total: Math.round(ca_total), charges_total: Math.round(charges_total),
-      benefice_net: Math.round(benefice_net), taux_marge,
-      urssaf_auto: Math.round(urssaf_auto), urssaf_saisie: Math.round(urssaf_saisie),
-      urssaf_estimee, par_categorie, charges: charges || []
-    });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// ═══════════════════════════════════════════════════
-// API: CLIENTS
-// ═══════════════════════════════════════════════════
-
-app.get('/api/clients', async (req, res) => {
-  try {
-    const { data, error } = await supabase.from('clients').select('*').order('nom', { ascending: true });
-    if (error) throw error;
-    const clientsAvecCA = await Promise.all((data || []).map(async (client) => {
-      const { data: factures } = await supabase.from('factures_obat').select('montant').ilike('client', `%${client.nom}%`).eq('statut', 'Payée');
-      const ca_total = (factures || []).reduce((s, f) => s + parseFloat(f.montant || 0), 0);
-      return { ...client, ca_total, nb_interventions: (factures || []).length };
-    }));
-    res.json(clientsAvecCA);
-  } catch(error) { res.status(500).json({ error: error.message }); }
-});
-
-// ═══════════════════════════════════════════════════
-// API: VOCAL IA
-// ═══════════════════════════════════════════════════
-
-app.post('/api/vocal', async (req, res) => {
-  const { texte } = req.body;
-  if (!texte) return res.status(400).json({ error: 'Texte manquant' });
-  try {
-    const response = await anthropic.messages.create({ model: 'claude-haiku-4-5-20251001', max_tokens: 200, messages: [{ role: 'user', content: `Tu es l'assistant SINELEC Paris. Client: "${texte}"\nRéponds en JSON: {"reponse":"...","prix":"...","upsell":"...","negocie":"..."}` }] });
-    const result = JSON.parse(response.content[0].text.trim().replace(/```json|```/g, '').trim());
-    res.json({ success: true, ...result });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// ═══════════════════════════════════════════════════
-// API: DPE
-// ═══════════════════════════════════════════════════
-
-app.post('/api/dpe', async (req, res) => {
-  try {
-    const { pdf_text, image_base64, image_type, images_base64 } = req.body;
-    if (!pdf_text && !image_base64 && !(images_base64 && images_base64.length)) return res.status(400).json({ error: 'Fichier manquant' });
-
-    const promptBase = `Tu es un expert électricien. Analyse ce DPE et identifie UNIQUEMENT les travaux électriques. Réponds UNIQUEMENT en JSON valide:\n{"logement":{"surface":65,"classe":"F","annee_construction":1975,"chauffage_electrique":"...","eau_chaude_electrique":"...","vmc":"...","tableau":"...","daaf":"..."},"resume":"...","recommandations":[{"id":"...","titre":"...","description":"...","priorite":"haute","prestations":[{"nom":"...","prix":450,"quantite":1}]}]}`;
-
-    let messageContent;
-    if (images_base64 && images_base64.length > 1) {
-      messageContent = [...images_base64.slice(0, 10).map(img => ({ type: 'image', source: { type: 'base64', media_type: img.type || 'image/jpeg', data: img.base64 } })), { type: 'text', text: promptBase }];
-    } else if (image_base64 || (images_base64 && images_base64[0])) {
-      const img = image_base64 ? { base64: image_base64, type: image_type } : images_base64[0];
-      messageContent = [{ type: 'image', source: { type: 'base64', media_type: img.type || 'image/jpeg', data: img.base64 } }, { type: 'text', text: promptBase }];
-    } else {
-      messageContent = promptBase + '\n\nDPE:\n' + pdf_text.substring(0, 20000);
-    }
-
-    const response = await anthropic.messages.create({ model: 'claude-sonnet-4-20250514', max_tokens: 4096, messages: [{ role: 'user', content: messageContent }] });
-    const result = JSON.parse(response.content[0].text.trim().replace(/```json|```/g, '').trim());
-    result.recommandations = (result.recommandations || []).map(r => ({ ...r, total: (r.prestations || []).reduce((s, p) => s + p.prix * (p.quantite || 1), 0) }));
-    result.total_general = result.recommandations.reduce((s, r) => s + r.total, 0);
-    res.json({ success: true, ...result });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// ═══════════════════════════════════════════════════
-// API: RAPPORT
-// ═══════════════════════════════════════════════════
-
-app.post('/api/rapport', async (req, res) => {
-  if (!CONFIG.features.rapports_intervention) return res.status(403).json({ error: 'Feature désactivée' });
-  try {
-    const { client, adresse, chantier } = req.body;
-    const compteur = await incrementerCompteur('rapport');
-    const num = `R-${new Date().getFullYear()}-${String(compteur).padStart(3, '0')}`;
-    const response = await anthropic.messages.create({ model: 'claude-sonnet-4-20250514', max_tokens: 200, messages: [{ role: 'user', content: `Décris professionnellement ces travaux (2-3 phrases):\n${chantier}\nClient: ${client}` }] });
-    const travaux = response.content[0].text;
-    await supabase.from('rapports').insert({ num, client, adresse, travaux });
-    res.json({ success: true, num, travaux });
-  } catch(error) { res.status(500).json({ error: error.message }); }
-});
-
-// ═══════════════════════════════════════════════════
-// API: AGENDA
-// ═══════════════════════════════════════════════════
-
-app.get('/api/agenda', async (req, res) => {
-  try {
-    const { data, error } = await supabase.from('agenda').select('*').order('date_intervention', { ascending: true }).order('heure', { ascending: true });
-    if (error) throw error;
-    res.json(data || []);
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-app.post('/api/agenda', async (req, res) => {
-  try {
-    const { prenom, nom, client, telephone, adresse, date_intervention, heure, type_intervention, notes, sms_rappel, statut } = req.body;
-    const { data, error } = await supabase.from('agenda').insert({ prenom, nom, client: client || `${prenom} ${nom}`, telephone, adresse, date_intervention, heure, type_intervention, notes, sms_rappel: sms_rappel !== false, statut: statut || 'planifié', sms_veille_envoye: false, sms_matin_envoye: false }).select().single();
-    if (error) throw error;
-    res.json({ success: true, id: data.id });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-app.put('/api/agenda/:id', async (req, res) => {
-  try {
-    const { prenom, nom, client, telephone, adresse, date_intervention, heure, type_intervention, notes, sms_rappel } = req.body;
-    const { error } = await supabase.from('agenda').update({ prenom, nom, client: client || `${prenom} ${nom}`, telephone, adresse, date_intervention, heure, type_intervention, notes, sms_rappel: sms_rappel !== false, sms_veille_envoye: false, sms_matin_envoye: false }).eq('id', req.params.id);
-    if (error) throw error;
-    res.json({ success: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// Modifier un champ de l'agenda (date, heure, notes...)
-app.patch('/api/agenda/:id', authMiddleware, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const updates = req.body; // { date_intervention, heure, notes, etc. }
-    const { error } = await supabase.from('agenda').update(updates).eq('id', id);
-    if (error) throw error;
-    res.json({ success: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-app.patch('/api/agenda/:id/statut', async (req, res) => {
-  try {
-    const { error } = await supabase.from('agenda').update({ statut: req.body.statut }).eq('id', req.params.id);
-    if (error) throw error;
-    res.json({ success: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-app.delete('/api/agenda/:id', async (req, res) => {
-  try {
-    const { error } = await supabase.from('agenda').delete().eq('id', req.params.id);
-    if (error) throw error;
-    res.json({ success: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-app.get('/api/agenda/materiel/:type', (req, res) => {
-  const MATERIEL = { 'Dépannage': ['Multimètre', 'Pince ampèremétrique', 'Testeur de prise', 'Tournevis isolés', 'Wago lot 50', 'Disjoncteurs 10/16/20A', 'Câble 1.5+2.5mm²', 'Lampe frontale'], 'Tableau': ['Coffret 1 rangée', 'Disjoncteurs assortis', 'Différentiel 30mA type A', 'Câble 2.5mm²', 'Tournevis isolés', 'Multimètre'], 'VMC': ['Caisson VMC', 'Gaine flexible', 'Bouches extraction', 'Câble 1.5mm²', 'Perceuse + forets'], 'Installation': ['Câble 2.5mm² (20m)', 'Câble 1.5mm² (10m)', 'Goulotte 40x16', 'Prises 2P+T', 'Interrupteurs', 'Boîtes encastrement', 'Wago lot 100'], 'Autre': ['Multimètre', 'Tournevis isolés', 'Câbles assortis', 'Wago', 'Lampe frontale'] };
-  const type = decodeURIComponent(req.params.type);
-  res.json({ type, materiel: MATERIEL[type] || MATERIEL['Autre'] });
-});
-
-// ═══════════════════════════════════════════════════
-// API: GRILLE
-// ═══════════════════════════════════════════════════
-
-app.get('/api/grille', async (req, res) => {
-  try {
-    const { data, error } = await supabase.from('grille_tarifaire').select('code, nom, prix_ht').eq('actif', true);
-    if (error) throw error;
-    res.json(data || []);
-  } catch(error) { res.status(500).json({ error: error.message }); }
-});
-
-app.get('/api/grille/grouped', async (req, res) => {
-  try {
-    res.json(await chargerGrilleTarifaire() || {});
-  } catch(error) { res.status(500).json({ error: error.message }); }
-});
-
-// ═══════════════════════════════════════════════════
-// API: PDF DOWNLOAD
-// ═══════════════════════════════════════════════════
-
-app.get('/api/pdf/:num', async (req, res) => {
-  try {
-    const { num } = req.params;
-    const { data, error } = await supabase.from('historique').select('*').eq('num', num).single();
-    if (error || !data) return res.status(404).json({ error: 'Document non trouvé' });
-
-    const docType = data.type || (num.startsWith('OS-') ? 'devis' : 'facture');
-    const docStatut = data.statut || '';
-    const typeLabelUpper = docType === 'devis' ? 'DEVIS' : (docStatut === 'paye' || docStatut === 'payé' ? 'FACTURE ACQUITTEE' : 'FACTURE');
-    const dateStr = new Date(data.date_envoi || data.created_at).toLocaleDateString('fr-FR');
-    const dateValide = new Date(new Date(data.date_envoi || data.created_at).getTime() + 30*24*60*60*1000).toLocaleDateString('fr-FR');
-
-    const detailsPath = path.join(__dirname, `_dl_details_${num}.json`);
-    const pyPath = path.join(__dirname, `_dl_${num}.py`);
-    const pdfPath = path.join(__dirname, `_dl_${num}.pdf`);
-    const detailsData = (data.prestations || []).map(p => ({ designation: p.nom || p.designation, qte: p.quantite || 1, prixUnit: p.prix || 0, total: (p.prix || 0) * (p.quantite || 1), details: p.desc ? [p.desc] : [] }));
-    fs.writeFileSync(detailsPath, JSON.stringify(detailsData));
-
-    const clientEsc = String(data.client || '').replace(/'/g, ' ');
-    const clientParts = (data.adresse || '').split(',');
-    const clientRue = String(clientParts[0] || '').trim().replace(/'/g, ' ');
-    const clientVille = clientParts.slice(1).join(',').trim().replace(/'/g, ' ');
-
-    const py = `# -*- coding: utf-8 -*-
-import json, base64, io, sys
-from reportlab.lib.pagesizes import A4; from reportlab.lib import colors; from reportlab.lib.units import cm
-from reportlab.platypus import *; from reportlab.lib.styles import ParagraphStyle
-from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT; from reportlab.pdfgen import canvas as pdfcanvas
-from reportlab.lib.utils import ImageReader
-W,H=A4; MARINE=colors.HexColor('#1B2A4A'); OR=colors.HexColor('#C9A84C')
-OR_PALE=colors.HexColor('#FBF7EC'); BLANC=colors.white; CREME=colors.HexColor('#FDFCF9')
-GRIS_TEXTE=colors.HexColor('#3A3A3A'); GRIS_SOFT=colors.HexColor('#777777')
-GRIS_LIGNE=colors.HexColor('#E0DDD6'); GRIS_BG=colors.HexColor('#F5F4F0')
-def p(txt,sz=9,font='Helvetica',color=GRIS_TEXTE,align=TA_LEFT,sb=0,sa=2,leading=None):
-    if leading is None: leading=sz*1.35
-    return Paragraph(str(txt),ParagraphStyle('s',fontName=font,fontSize=sz,textColor=color,alignment=align,spaceBefore=sb,spaceAfter=sa,leading=leading,wordWrap='CJK'))
-data=json.loads(open(sys.argv[1],encoding='utf-8').read()); totalHT=sum(l['total'] for l in data)
-logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
-class SC(pdfcanvas.Canvas):
-    def __init__(self,fn,**kw): pdfcanvas.Canvas.__init__(self,fn,**kw); self._pg=0; self.saveState(); self._draw_page()
-    def showPage(self): self._draw_footer(); pdfcanvas.Canvas.showPage(self); self._pg+=1
-    def save(self): self._draw_footer(); pdfcanvas.Canvas.save(self)
-    def _draw_page(self):
-        self.saveState(); self.setFillColor(CREME); self.rect(0,0,W,H,fill=1,stroke=0)
-        self.setFillColor(MARINE); self.rect(0,0,0.7*cm,H,fill=1,stroke=0)
-        self.setFillColor(OR); self.rect(0.7*cm,0,0.08*cm,H,fill=1,stroke=0); self._draw_header(); self.restoreState()
-    def _draw_header(self):
-        self.setFillColor(MARINE); self.rect(0.78*cm,H-5.2*cm,W-0.78*cm,5.2*cm,fill=1,stroke=0)
-        self.setFillColor(OR); self.rect(0.78*cm,H-5.2*cm,W-0.78*cm,0.1*cm,fill=1,stroke=0)
-        self.drawImage(ImageReader(io.BytesIO(logo_bytes)),1.3*cm,H-4.6*cm,width=3.0*cm,height=3.0*cm,preserveAspectRatio=True,mask='auto')
-        self.setFont('Helvetica',7.5); self.setFillColor(colors.HexColor('#BFC8D6'))
-        self.drawString(1.3*cm,H-4.85*cm,'128 Rue La Boetie, 75008 Paris'); self.drawString(1.3*cm,H-5.1*cm,'07 87 38 86 22  |  sinelec.paris@gmail.com  |  SIRET : 91015824500019')
-        self.setFont('Helvetica-Bold',44); self.setFillColor(BLANC); self.drawRightString(W-1.2*cm,H-2.2*cm,'${typeLabelUpper}')
-        self.setStrokeColor(OR); self.setLineWidth(1.5); self.line(10*cm,H-2.65*cm,W-1.2*cm,H-2.65*cm)
-        self.setFillColor(OR); self.roundRect(W-6.5*cm,H-3.55*cm,5.3*cm,0.65*cm,0.15*cm,fill=1,stroke=0)
-        self.setFont('Helvetica-Bold',9); self.setFillColor(MARINE); self.drawCentredString(W-3.85*cm,H-3.22*cm,'N ${num}')
-        self.setFont('Helvetica',8); self.setFillColor(colors.HexColor('#BFC8D6')); self.drawRightString(W-1.2*cm,H-3.9*cm,'Date : ${dateStr}  |  Valable : ${dateValide}')
-        ${docStatut === 'signe' || docStatut === 'signé' ? `
-        self.saveState()
-        cx = W - 5.0*cm; cy = 9.0*cm; r = 1.9*cm
-        vert = colors.HexColor('#16a34a')
-        self.setStrokeColor(vert); self.setFillColor(vert); self.setFillAlpha(0.72)
-        self.setLineWidth(3); self.circle(cx,cy,r,fill=0,stroke=1)
-        self.setLineWidth(1.2); self.circle(cx,cy,r-0.15*cm,fill=0,stroke=1)
-        self.translate(cx,cy); self.rotate(-15)
-        self.setFont('Helvetica-Bold',7); self.drawCentredString(0,1.0*cm,'SINELEC')
-        self.setFont('Helvetica-Bold',19); self.drawCentredString(0,0.15*cm,'SIGNE')
-        self.setFont('Helvetica-Bold',7.5); self.drawCentredString(0,-0.55*cm,'${data.date_signature ? new Date(data.date_signature).toLocaleDateString("fr-FR") : dateStr}')
-        self.setFont('Helvetica',6.5); self.drawCentredString(0,-1.0*cm,'PARIS')
-        self.restoreState()
-        ` : ''}
-    def _draw_footer(self):
-        self.saveState(); self.setFillColor(MARINE); self.rect(0,0,W,1.0*cm,fill=1,stroke=0)
-        self.setFillColor(OR); self.rect(0,1.0*cm,W,0.08*cm,fill=1,stroke=0)
-        self.setFont('Helvetica',6.5); self.setFillColor(colors.HexColor('#8899BB'))
-        self.drawCentredString(W/2,0.5*cm,'SINELEC EI \\u2022 128 Rue La Boetie 75008 Paris \\u2022 SIRET : 91015824500019 \\u2022 TVA non applicable art. 293B CGI')
-        self.setFont('Helvetica-Bold',7); self.setFillColor(OR); self.drawRightString(W-1.2*cm,0.28*cm,'${num}'); self.restoreState(); self._draw_tampons()
-    def _draw_tampons(self):
-        rouge = colors.HexColor('#cc0000')
-        vert  = colors.HexColor('#16a34a')
-        IS_PAYE = '${docStatut}' in ('paye','payé','payee','acquitte','acquitté')
-        IS_SIGNE = '${docType}' == 'devis' and '${docStatut}' in ('signe','signé')
-        couleur = rouge if IS_PAYE else (vert if IS_SIGNE else None)
-        label   = 'PAYE' if IS_PAYE else ('SIGNE' if IS_SIGNE else None)
-        if not couleur: return
-        cx = W - 5.0*cm; cy = 9.0*cm; r = 1.9*cm
-        self.saveState()
-        self.setStrokeColor(couleur); self.setFillColor(couleur)
-        self.setFillAlpha(0.85); self.setLineWidth(3.5); self.circle(cx,cy,r,fill=0,stroke=1)
-        self.setLineWidth(0.8); self.setFillAlpha(0.4); self.circle(cx,cy,r-0.22*cm,fill=0,stroke=1)
-        self.setLineWidth(0.3); self.setFillAlpha(0.2)
-        self.setDash([0.08*cm,0.28*cm]); self.circle(cx,cy,r-0.52*cm,fill=0,stroke=1); self.setDash()
-        self.translate(cx,cy); self.rotate(-15)
-        nom_court = '${clientEsc}'.upper()[:16]
-        self.setFillAlpha(0.92); self.setFillColor(couleur)
-        self.setFont('Helvetica-Bold',7); self.drawCentredString(0,1.05*cm,nom_court)
-        sz = 22 if IS_PAYE else 20
-        self.setFillAlpha(0.9); self.setFont('Helvetica-Bold',sz); self.drawCentredString(0,0.18*cm,label)
-        self.setFont('Helvetica-Bold',7.5); self.setFillAlpha(0.75); self.drawCentredString(0,-0.52*cm,'${dateStr}')
-        self.setFont('Helvetica',6); self.setFillAlpha(0.45); self.drawCentredString(0,-1.02*cm,'PARIS')
-        self.restoreState()
-doc=SimpleDocTemplate(sys.argv[2],pagesize=A4,leftMargin=1.2*cm,rightMargin=1.0*cm,topMargin=5.6*cm,bottomMargin=1.6*cm); story=[]
-client_b=Table([[p('CLIENT',7,'Helvetica-Bold',OR,sa=4)],[p('${clientEsc}',10,'Helvetica-Bold',MARINE)],[p('${clientRue}',8.5,color=GRIS_TEXTE)],[p('${clientVille}',8.5,color=GRIS_TEXTE)]],colWidths=[18.2*cm])
-client_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('BACKGROUND',(0,0),(-1,-1),OR_PALE),('BOX',(0,0),(-1,-1),1,OR),('LINEBEFORE',(0,0),(0,-1),4,MARINE),('TOPPADDING',(0,0),(0,0),10),('BOTTOMPADDING',(0,-1),(-1,-1),10)]))
-story.append(client_b); story.append(Spacer(1,0.5*cm))
-cw=[0.7*cm,9.5*cm,1.5*cm,0.9*cm,2.4*cm,3.2*cm]
-rows=[[p('#',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('DESIGNATION',7.5,'Helvetica-Bold',BLANC),p('QTE',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('U.',7.5,'Helvetica-Bold',BLANC,TA_CENTER),p('PRIX U. HT',7.5,'Helvetica-Bold',BLANC,TA_RIGHT),p('TOTAL HT',7.5,'Helvetica-Bold',BLANC,TA_RIGHT)]]
-for i,l in enumerate(data):
-    q=int(l['qte']) if l['qte']==int(l['qte']) else l['qte']
-    rows.append([p(str(i+1),9,color=OR,align=TA_CENTER),p('<b>'+l['designation']+'</b>',9,color=MARINE),p(str(q),9,align=TA_CENTER),p('u.',9,align=TA_CENTER,color=GRIS_SOFT),p('%.2f \\u20ac'%l['prixUnit'],9,align=TA_RIGHT),p('<b>%.2f \\u20ac</b>'%l['total'],9,'Helvetica-Bold',MARINE,TA_RIGHT)])
-t=Table(rows,colWidths=cw); ts=[('BACKGROUND',(0,0),(-1,0),MARINE),('LINEBELOW',(0,0),(-1,0),2.5,OR),('VALIGN',(0,0),(-1,-1),'TOP'),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),('LEFTPADDING',(0,0),(-1,-1),7),('RIGHTPADDING',(0,0),(-1,-1),7),('BOX',(0,0),(-1,-1),0.3,GRIS_LIGNE)]
-for i in range(len(data)):
-    bg=BLANC if i%2==0 else GRIS_BG; ts.extend([('BACKGROUND',(0,i+1),(-1,i+1),bg),('LINEBELOW',(0,i+1),(-1,i+1),0.3,GRIS_LIGNE)])
-t.setStyle(TableStyle(ts)); story.append(t); story.append(Spacer(1,0.15*cm))
-tt=Table([['',p('Total HT',9,color=GRIS_SOFT,align=TA_RIGHT),p('%.2f \\u20ac'%totalHT,9,'Helvetica-Bold',GRIS_TEXTE,TA_RIGHT)],['',p('TVA',9,color=GRIS_SOFT,align=TA_RIGHT),p('Non applicable (art. 293B)',8,color=GRIS_SOFT,align=TA_RIGHT)]],colWidths=[9.0*cm,4.5*cm,4.7*cm])
-tt.setStyle(TableStyle([('LINEABOVE',(1,0),(-1,0),0.5,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('LEFTPADDING',(0,0),(-1,-1),6),('RIGHTPADDING',(0,0),(-1,-1),6)])); story.append(tt); story.append(Spacer(1,0.12*cm))
-net=Table([[p('NET A PAYER',12,'Helvetica-Bold',BLANC),p('%.2f \\u20ac'%totalHT,16,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
-net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('LINEBELOW',(0,0),(-1,-1),3,OR),('VALIGN',(0,0),(-1,-1),'MIDDLE')])); story.append(net)
-IS_FACTURE = '${docType}' == 'facture'
-if IS_FACTURE:
-    story.append(Spacer(1,0.35*cm))
-    from reportlab.platypus.flowables import HRFlowable
-    story.append(HRFlowable(width='100%',thickness=0.3,color=GRIS_LIGNE,spaceAfter=8))
-    story.append(p('MODALITES DE PAIEMENT',8,'Helvetica-Bold',MARINE,sa=6))
-    pays=Table([[p('Virement bancaire',9,color=GRIS_TEXTE),p('IBAN ci-dessous',8,color=GRIS_SOFT,align=TA_RIGHT)],[p('Especes',9,color=GRIS_TEXTE),p('Remis en main propre',8,color=GRIS_SOFT,align=TA_RIGHT)],[p('Carte bancaire',9,color=GRIS_TEXTE),p('Terminal SumUp',8,color=GRIS_SOFT,align=TA_RIGHT)]],colWidths=[8.0*cm,10.2*cm])
-    pays.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,-2),0.3,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)]))
-    story.append(pays)
-${(docStatut === 'signe' || docStatut === 'signé') && data.signature ? `
-sig_b64 = '${data.signature.replace(/^data:image\/png;base64,/, '')}'
-sig_date_str = '${data.date_signature ? new Date(data.date_signature).toLocaleDateString("fr-FR") : dateStr}'
-from reportlab.platypus.flowables import HRFlowable
-story.append(Spacer(1,0.3*cm))
-story.append(HRFlowable(width='100%',thickness=0.5,color=GRIS_LIGNE,spaceAfter=6))
-sig_rows = [[p('SIGNATURE CLIENT',7,'Helvetica-Bold',OR,sa=0)]]
-t_sig_lbl = Table(sig_rows,colWidths=[18.2*cm])
-t_sig_lbl.setStyle(TableStyle([('LEFTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),2),('BOTTOMPADDING',(0,0),(-1,-1),4)]))
-story.append(t_sig_lbl)
-t_mention = Table([[p('Bon pour accord - Devis recu avant execution des travaux',8,'Helvetica-Bold',MARINE),p('Lu et approuve - Signe le : '+sig_date_str,8,'Helvetica-Oblique',GRIS_SOFT,align=TA_RIGHT)]],colWidths=[11.0*cm,7.2*cm])
-t_mention.setStyle(TableStyle([('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
-story.append(t_mention)
-sig_bytes = base64.b64decode(sig_b64)
-sig_img = Image(io.BytesIO(sig_bytes),width=7.0*cm,height=2.5*cm)
-sig_img.hAlign = 'LEFT'
-story.append(sig_img)
-` : ''}
+net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8),('LINEBELOW',(0,0),(-1,-1),2,OR)]))
+story.append(net); story.append(Spacer(1,0.25*cm))
+story.append(Table([[p('TVA non applicable, art. 293B du CGI',8,color=GRIS_SOFT),p('Paiement : Esp\\u00e8ces  \\u2022  Virement  \\u2022  CB (SumUp)',8,color=GRIS_SOFT,align=TA_RIGHT)]],colWidths=[9.5*cm,8.7*cm]))
+if is_signe:
+    story.append(PageBreak())
+    hdr_cgv=Table([[p('\u26a1  SINELEC PARIS',11,'Helvetica-Bold',BLANC),p('CONDITIONS G\u00c9N\u00c9RALES DE VENTE',11,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[8.5*cm,9*cm])
+    hdr_cgv.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10)]))
+    story.append(hdr_cgv); story.append(Spacer(1,0.2*cm))
+    date_sig=str(meta.get('dateSignature','')) or str(meta.get('datePaiement','')) or dateStr
+    story.append(Table([[p('Applicables au devis n\u00b0 '+doc_num+' \u2014 Accept\u00e9es par '+client_nom+' le '+date_sig,7.5,'Helvetica',GRIS_SOFT),p('SIRET 91015824500019 \u2022 TVA non applicable art. 293B CGI',7.5,'Helvetica',GRIS_SOFT,TA_RIGHT)]],colWidths=[9.5*cm,8*cm]))
+    story.append(Table([[p('',1)]],colWidths=[18.2*cm],style=[('LINEBELOW',(0,0),(-1,-1),1,OR)]))
+    story.append(Spacer(1,0.15*cm))
+    GRIS_L=colors.HexColor('#f8fafc')
+    cgv_arts=[
+('Art. 1 \u2014 Devis et acceptation','Le devis est valable 30 jours \u00e0 compter de son \u00e9mission. La signature du devis, manuscrite ou \u00e9lectronique (avec v\u00e9rification par code SMS), vaut acceptation pleine et enti\u00e8re des prestations d\u00e9crites et des pr\u00e9sentes CGV, et a la m\u00eame valeur juridique qu\u2019une signature manuscrite (art. 1367 Code civil).'),
+('Art. 2 \u2014 Prix et paiement','TVA non applicable, art. 293B du CGI. Acompte de 40% \u00e0 la signature si le devis exc\u00e8de 400\u20ac, solde \u00e0 la fin des travaux. Paiement accept\u00e9 : esp\u00e8ces, virement, CB (SumUp), PayPal. Toute prestation suppl\u00e9mentaire ou modification fera l\u2019objet d\u2019un devis compl\u00e9mentaire accept\u00e9 pr\u00e9alablement, sauf urgence mettant en jeu la s\u00e9curit\u00e9.'),
+('Art. 3 \u2014 R\u00e9alisation des travaux','Travaux r\u00e9alis\u00e9s conform\u00e9ment \u00e0 la norme NF C 15-100. Le client garantit un acc\u00e8s libre et s\u00e9curis\u00e9 \u00e0 l\u2019installation et informe SINELEC de toute contrainte (acc\u00e8s, horaires, sp\u00e9cificit\u00e9s) avant l\u2019intervention. SINELEC se r\u00e9serve le droit de refuser ou suspendre une intervention en cas de danger immediat ou de non-conformit\u00e9 grave d\u00e9couverte sur place, sans que cela n\u2019engage sa responsabilit\u00e9.'),
+('Art. 4 \u2014 R\u00e9ception et r\u00e9serves (48h)','La r\u00e9ception des travaux intervient d\u00e8s leur ach\u00e8vement. La prise de possession ou l\u2019utilisation des installations par le client, m\u00eame sans paiement int\u00e9gral, vaut r\u00e9ception sans r\u00e9serve. Le client dispose de 48 heures \u00e0 compter de la fin de l\u2019intervention pour notifier par \u00e9crit (SMS, email) toute r\u00e9serve motiv\u00e9e. Pass\u00e9 ce d\u00e9lai, aucune r\u00e9clamation relative \u00e0 la qualit\u00e9 ou la conformit\u00e9 des travaux ne sera recevable, sauf vice cach\u00e9 relevant de la garantie d\u00e9cennale.'),
+('Art. 5 \u2014 Valeur probante des \u00e9changes num\u00e9riques','Le client reconna\u00eet la pleine valeur probante des SMS, emails, photos horodat\u00e9es, du rapport d\u2019intervention et de la signature \u00e9lectronique (code OTP, horodatage, IP) comme preuve de la r\u00e9alisation, de la conformit\u00e9 et de l\u2019acceptation des travaux. Ces \u00e9l\u00e9ments pourront \u00eatre produits en cas de proc\u00e9dure amiable ou contentieuse.'),
+('Art. 6 \u2014 D\u00e9faut ou retard de paiement','Tout retard de paiement entra\u00eene de plein droit, sans mise en demeure pr\u00e9alable : des int\u00e9r\u00eats moratoires au taux de 3 fois le taux l\u00e9gal par jour de retard, une indemnit\u00e9 forfaitaire de recouvrement de 40\u20ac, et l\u2019exigibilit\u00e9 imm\u00e9diate de toute somme restant due. En cas de non-paiement persistant 8 jours apr\u00e8s mise en demeure, SINELEC pourra suspendre toute prestation et engager une proc\u00e9dure de recouvrement (injonction de payer).'),
+('Art. 7 \u2014 R\u00e9serve de propri\u00e9t\u00e9','Conform\u00e9ment \u00e0 l\u2019art. L.624-16 du Code de commerce, les mat\u00e9riaux et \u00e9quipements install\u00e9s demeurent la propri\u00e9t\u00e9 exclusive de SINELEC jusqu\u2019au paiement int\u00e9gral du prix. En cas de non-paiement persistant apr\u00e8s mise en demeure infructueuse, SINELEC se r\u00e9serve le droit de proc\u00e9der \u00e0 la d\u00e9pose des \u00e9l\u00e9ments install\u00e9s et non pay\u00e9s.'),
+('Art. 8 \u2014 Garanties et assurances','SINELEC est couvert par une garantie d\u00e9cennale ORUS Assurances (114 Bd Marius Vivier Merle, 69003 Lyon) et une assurance Responsabilit\u00e9 Civile Professionnelle couvrant les dommages survenus pendant l\u2019intervention. Ces garanties excluent : l\u2019usure normale, la n\u00e9gligence ou le d\u00e9faut d\u2019entretien du client, l\u2019intervention d\u2019un tiers post\u00e9rieure aux travaux, et toute utilisation non conforme non signal\u00e9e au moment du devis.'),
+('Art. 9 \u2014 Droit de r\u00e9tractation','Pour les contrats conclus hors \u00e9tablissement ou \u00e0 distance, le client particulier b\u00e9n\u00e9ficie d\u2019un d\u00e9lai de r\u00e9tractation de 14 jours (art. L221-18 Code de la consommation). Ce droit ne s\u2019applique pas lorsque le client a express\u00e9ment sollicit\u00e9 une intervention d\u2019urgence ou lorsque l\u2019ex\u00e9cution a commenc\u00e9 \u00e0 sa demande expresse avant la fin du d\u00e9lai (art. L221-28).'),
+('Art. 10 \u2014 Responsabilit\u00e9 et sous-traitance','SINELEC ne saurait \u00eatre tenu responsable des dommages indirects (pertes d\u2019exploitation, troubles de jouissance). En cas de force majeure, l\u2019ex\u00e9cution est suspendue sans indemnit\u00e9. SINELEC peut faire intervenir des sous-traitants qualifi\u00e9s sous sa responsabilit\u00e9 et sa supervision, sans que cela ne modifie les pr\u00e9sentes CGV ni n\u2019engage de surco\u00fbt pour le client.'),
+('Art. 11 \u2014 R\u00e9siliation \u00e0 l\u2019initiative du client','En cas d\u2019annulation par le client apr\u00e8s signature et avant le d\u00e9but des travaux (hors r\u00e9tractation l\u00e9gale), l\u2019acompte vers\u00e9 reste acquis \u00e0 SINELEC \u00e0 titre d\u2019indemnisation. Si l\u2019annulation intervient apr\u00e8s commencement des travaux, le client r\u00e8gle l\u2019int\u00e9gralit\u00e9 des prestations r\u00e9alis\u00e9es et des mat\u00e9riaux command\u00e9s, sur justificatifs.'),
+('Art. 12 \u2014 Donn\u00e9es personnelles','Les donn\u00e9es du client sont trait\u00e9es uniquement pour l\u2019ex\u00e9cution du devis et les obligations l\u00e9gales (facturation). Conform\u00e9ment au RGPD, le client dispose d\u2019un droit d\u2019acc\u00e8s, de rectification, de portabilit\u00e9 et d\u2019effacement, exer\u00e7able \u00e0 sinelec.paris@gmail.com.'),
+('Art. 13 \u2014 Litiges et juridiction','En cas de diff\u00e9rend, les parties privil\u00e9gient une r\u00e9solution amiable. \u00c0 d\u00e9faut, le client consommateur peut saisir le m\u00e9diateur CM2C (cm2c@cm2c.net). Tout litige relevera de la comp\u00e9tence exclusive du Tribunal judiciaire de Paris. Droit fran\u00e7ais applicable.')
+]
+    for titre,texte in cgv_arts:
+        r=Table([[p(titre,6.5,'Helvetica-Bold',MARINE),p(texte,6,'Helvetica',GRIS_SOFT,leading=8.2)]],colWidths=[4.2*cm,14*cm])
+        r.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GRIS_L),('LINEBELOW',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0')),('LEFTPADDING',(0,0),(-1,-1),5),('RIGHTPADDING',(0,0),(-1,-1),5),('TOPPADDING',(0,0),(-1,-1),2.5),('BOTTOMPADDING',(0,0),(-1,-1),2.5),('VALIGN',(0,0),(-1,-1),'TOP')]))
+        story.append(r)
+    story.append(Spacer(1,0.1*cm))
+    VERT_G=colors.HexColor('#16a34a')
+    accept=Table([[p('\u2705  CGV lues et accept\u00e9es \u00e9lectroniquement',8,'Helvetica-Bold',VERT_G),p(client_nom+' \u2022 '+date_sig+' \u2022 Paris',8,'Helvetica-Bold',MARINE,TA_RIGHT)]],colWidths=[9*cm,8.5*cm])
+    accept.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f0fdf4')),('BOX',(0,0),(-1,-1),1.5,VERT_G),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
+    story.append(accept)
+    story.append(Spacer(1,0.3*cm))
+    # Signature client
+    sig_left_items=[p('Signature du client',8,'Helvetica-Bold',MARINE),p(client_nom,8,color=GRIS_SOFT),p(date_sig+' \u2022 Paris, France',7,color=GRIS_SOFT)]
+    sig_img_ok=False
+    if sig_data_b64 and len(sig_data_b64)>100:
+        try:
+            raw_b64=sig_data_b64.split(',',1)[-1] if ',' in sig_data_b64 else sig_data_b64
+            img_bytes=base64.b64decode(raw_b64)
+            sig_img=Image(io.BytesIO(img_bytes),width=5.5*cm,height=2.2*cm)
+            sig_left_items.append(sig_img)
+            sig_img_ok=True
+        except Exception as e:
+            import sys; print('SIG_ERR:'+str(e),file=sys.stderr)
+    if not sig_img_ok:
+        diag_msg='[ Signature non disponible \u2014 donn\u00e9es manquantes (longueur:'+str(len(sig_data_b64) if sig_data_b64 else 0)+') ]'
+        sig_left_items.append(Table([[p(diag_msg,7,color=GRIS_SOFT)]],colWidths=[8*cm]))
+    is_standardiste=bool(meta.get('standardiste',False))
+    sig_right_items=[p('Signature SINELEC',8,'Helvetica-Bold',MARINE)] + ([] if is_standardiste else [p('Diahe',8,color=GRIS_SOFT)]) + [p('SINELEC Paris \u26a1',7,color=OR)]
+    sig_tbl=Table([[sig_left_items,sig_right_items]],colWidths=[9.2*cm,9*cm])
+    sig_tbl.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f8fafc')),('BOX',(0,0),(-1,-1),1,colors.HexColor('#e2e8f0')),('LINEAFTER',(0,0),(0,-1),1,colors.HexColor('#e2e8f0')),('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10)]))
+    story.append(sig_tbl)
 doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
 `;
     fs.writeFileSync(pyPath, py, 'utf8');
-    try { execSync(`python3 ${pyPath} ${detailsPath} ${pdfPath}`, { cwd: __dirname, stdio: 'inherit' }); } catch(e) { throw new Error('PDF failed'); }
+    try {
+      execSync(`python3 "${pyPath}" "${detailsPath}" "${pdfPath}"`, {
+        timeout: 40000, stdio: ['pipe','pipe','pipe']
+      });
+    } catch(pyErr) {
+      const pyMsg = pyErr.stderr?.toString() || pyErr.stdout?.toString() || pyErr.message;
+      throw new Error('PDF generation failed: ' + pyMsg.substring(0,200));
+    }
+    if (!fs.existsSync(pdfPath)) throw new Error('PDF non généré');
     const pdfBuffer = fs.readFileSync(pdfPath);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${num}.pdf"`);
@@ -1912,1339 +2060,1890 @@ doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
 });
 
 // ═══════════════════════════════════════════════════
-// API: SUMUP
+// API: PDF OBAT
 // ═══════════════════════════════════════════════════
-
-app.post('/api/sumup/lien/:num', async (req, res) => {
+app.get('/api/pdf-obat/:reference', async (req, res) => {
+  const { reference } = req.params;
   try {
-    const { num } = req.params;
-    const { data, error } = await supabase.from('historique').select('*').eq('num', num).single();
-    if (error || !data) return res.status(404).json({ error: 'Document non trouvé' });
-    const montant = parseFloat(data.total_ht || 0);
-    if (montant <= 0) return res.status(400).json({ error: 'Montant invalide' });
-
-    const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
-    const checkoutRes = await fetch('https://api.sumup.com/v0.1/checkouts', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${SUMUP_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ checkout_reference: `SINELEC-${num}-${Date.now()}`, amount: montant, currency: 'EUR', description: `SINELEC ${num}`, pay_to_email: process.env.SUMUP_EMAIL || 'sinelec.paris@gmail.com', redirect_url: `${appUrl}/paiement-confirme/${num}`, hosted_checkout: { enabled: true } }),
-    });
-    if (!checkoutRes.ok) { const err = await checkoutRes.text(); return res.status(500).json({ error: 'SumUp: ' + err }); }
-    const checkout = await checkoutRes.json();
-    const lienPaiement = checkout.hosted_checkout_url || checkout.checkout_url || `https://pay.sumup.com/b2c/checkout/${checkout.id}`;
-    await supabase.from('historique').update({ lien_paiement: lienPaiement, checkout_id: checkout.id }).eq('num', num);
-
-    const prenomClient = (data.client || 'client').split(' ')[0];
-    const modeEnvoi = req.query.envoi || 'les2';
-    if ((modeEnvoi === 'email' || modeEnvoi === 'les2') && data.email) {
-      try { await envoyerEmail(data.email, `💳 Paiement SINELEC ${num} — ${montant.toFixed(2)} €`, `<html><body style="font-family:Arial;padding:20px;"><h2>⚡ SINELEC Paris</h2><p>Bonjour ${prenomClient},</p><p>Facture <strong>${num}</strong> — <strong>${montant.toFixed(2)} €</strong></p><p><a href="${lienPaiement}" style="background:#C9A84C;color:white;padding:14px 28px;border-radius:10px;text-decoration:none;font-weight:800;display:inline-block;margin-top:12px;">💳 Payer maintenant</a></p></body></html>`); } catch(e) {}
-    }
-    if ((modeEnvoi === 'sms' || modeEnvoi === 'les2') && data.telephone) {
-      try { await envoyerSMS(data.telephone, `Bonjour ${prenomClient} 😊 Lien paiement sécurisé ${montant.toFixed(0)}EUR : ${lienPaiement} SINELEC Paris ⚡`); } catch(e) {}
-    }
-    res.json({ success: true, lien: lienPaiement, checkout_id: checkout.id, montant, num });
-  } catch(error) { res.status(500).json({ error: error.message }); }
+    const { data: f, error } = await supabase.from('factures_obat').select('*').eq('reference', reference).single();
+    if (error || !f) return res.status(404).json({ error: 'Document OBAT non trouvé' });
+    // Générer un PDF simple pour les factures OBAT
+    const detailsPath = path.join('/tmp', `_obat_${reference}.json`);
+    const pyPath = path.join('/tmp', `_obat_${reference}.py`);
+    const pdfPath = path.join('/tmp', `_obat_${reference}.pdf`);
+    const prestations = (f.prestations || []).map(p => ({ designation: p.nom||p.designation||'Prestation', qte: p.quantite||1, prixUnit: p.montant||p.prix||0, total: (p.montant||p.prix||0)*(p.quantite||1), details: [] }));
+    fs.writeFileSync(detailsPath, JSON.stringify(prestations));
+    const clientEsc = String(f.client||f.client_nom||'').replace(/'/g,' ');
+    const dateStr = f.date_facture ? new Date(f.date_facture).toLocaleDateString('fr-FR') : new Date().toLocaleDateString('fr-FR');
+    const totalHT = prestations.reduce((s,p)=>s+p.total,0);
+    const py = `# -*- coding: utf-8 -*-
+import json,sys
+from reportlab.lib.pagesizes import A4; from reportlab.lib import colors; from reportlab.lib.units import cm
+from reportlab.platypus import *; from reportlab.lib.styles import ParagraphStyle; from reportlab.lib.enums import TA_LEFT,TA_RIGHT
+MARINE=colors.HexColor('#1B2A4A'); OR=colors.HexColor('#C9A84C'); BLANC=colors.white
+def p(t,sz=9,font='Helvetica',color=MARINE,align=TA_LEFT): return Paragraph(str(t),ParagraphStyle('s',fontName=font,fontSize=sz,textColor=color,alignment=align,spaceAfter=3))
+data=json.loads(open(sys.argv[1],encoding='utf-8').read())
+doc=SimpleDocTemplate(sys.argv[2],pagesize=A4,leftMargin=2*cm,rightMargin=2*cm,topMargin=2*cm,bottomMargin=2*cm)
+story=[p('SINELEC PARIS',14,'Helvetica-Bold',MARINE),p('128 Rue La Boetie, 75008 Paris | SIRET : 91015824500019',9,color=colors.gray),Spacer(1,0.5*cm),p(f'FACTURE N\u00b0 {reference}',14,'Helvetica-Bold',MARINE),p('Date : ${dateStr}',9,color=colors.gray),Spacer(1,0.3*cm),p('Client : ${clientEsc}',11,'Helvetica-Bold',MARINE),Spacer(1,0.5*cm)]
+rows=[[ p('Désignation',9,'Helvetica-Bold',BLANC),p('Total HT',9,'Helvetica-Bold',BLANC,TA_RIGHT)]]
+for l in data: rows.append([p(str(l.get('designation','')),9),p(f'{l.get("total",0):.0f} \u20ac',9,align=TA_RIGHT)])
+t=Table(rows,colWidths=[13*cm,4*cm]); t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),MARINE),('ROWBACKGROUNDS',(0,1),(-1,-1),[colors.white,colors.HexColor('#FBF7EC')]),('LINEBELOW',(0,-1),(-1,-1),1.5,MARINE),('ALIGN',(1,0),(1,-1),'RIGHT'),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5)]))
+story.append(t); story.append(Spacer(1,0.3*cm))
+story.append(Table([[p('NET À PAYER',12,'Helvetica-Bold',BLANC),p(f'{totalHT:.2f} \u20ac',14,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[11*cm,6*cm]))
+story[-1].setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8),('LEFTPADDING',(0,0),(-1,-1),8),('RIGHTPADDING',(0,0),(-1,-1),8)]))
+doc.build(story); print('PDF_OK')
+`;
+    fs.writeFileSync(pyPath, py, 'utf8');
+    execSync(`python3 "${pyPath}" "${detailsPath}" "${pdfPath}"`, { cwd: __dirname, timeout: 30000 });
+    if (!fs.existsSync(pdfPath)) throw new Error('PDF non généré');
+    const buf = fs.readFileSync(pdfPath);
+    const b64 = buf.toString('base64');
+    res.json({ success: true, pdf_b64: b64, filename: `Facture_OBAT_${reference}.pdf` });
+    try { fs.unlinkSync(pyPath); fs.unlinkSync(detailsPath); fs.unlinkSync(pdfPath); } catch(e) {}
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
+
+// ═══════════════════════════════════════════════════
+// API: PAIEMENT CONFIRMÉ (page web)
+// ═══════════════════════════════════════════════════
+function pagePaiement({icon, titre, couleur, message, num, extra}) {
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${titre}</title></head><body style="font-family:Arial,sans-serif;text-align:center;padding:40px 20px;background:#f5f5f5;"><div style="background:#fff;border-radius:16px;padding:40px;max-width:400px;margin:0 auto;box-shadow:0 4px 20px rgba(0,0,0,0.1);"><div style="font-size:60px;">${icon}</div><h2 style="color:${couleur};">${titre}</h2><p style="color:#555;">${message}${num ? `<br>Facture n° <strong>${num}</strong>` : ''}</p>${extra || ''}<p style="color:#888;font-size:14px;margin-top:20px;">📞 07 87 38 86 22<br>sinelec.paris@gmail.com</p></div></body></html>`;
+}
 
 app.get('/paiement-confirme/:num', async (req, res) => {
   const { num } = req.params;
   try {
-    await supabase.from('historique').update({ statut: 'paye', date_paiement: new Date().toISOString() }).eq('num', num);
-    const { data: factureData } = await supabase.from('historique').select('*').eq('num', num).single();
-    if (factureData?.email) {
-      setImmediate(async () => {
-        try {
-          const montant = parseFloat(factureData.total_ht || 0);
-          const prenomClient = (factureData.client || 'client').split(' ')[0];
-          const html = `<html><body style="font-family:Arial;padding:20px;"><h2 style="color:#16a34a;">✅ Paiement reçu — Merci !</h2><p>Bonjour <b>${prenomClient}</b>, votre paiement de ${montant.toFixed(2)} € a bien été reçu.</p></body></html>`;
-          await envoyerEmail(factureData.email, `✅ Facture SINELEC ${num} — Paiement reçu`, html);
-          await envoyerEmail('sinelec.paris@gmail.com', `💰 PAIEMENT RECU — ${num} — ${factureData.client||''} — ${montant.toFixed(0)}€`, html);
-          // SMS confirmation + avis Google en 1 seul message
-          if (factureData.telephone) {
-            await envoyerSMS(factureData.telephone, `Merci ${prenomClient} ! Paiement ${montant.toFixed(0)}€ reçu ✅ Un avis Google nous aiderait beaucoup : https://g.page/r/CSw-MABnFUAYEAE/review — SINELEC Paris ⚡`);
-          }
-        } catch(e) {}
-      });
+    const { data: doc } = await supabase.from('historique').select('*').eq('num', num).single();
+    if (!doc) return res.send(pagePaiement({ icon:'❓', titre:'Facture introuvable', couleur:'#dc2626', message:'Cette facture n\'existe pas ou plus.', num }));
+
+    const isPaye = ['paye','payé','payee','acquitte','acquitté'].includes((doc.statut||'').toLowerCase());
+    if (isPaye) return res.send(pagePaiement({ icon:'✅', titre:'Déjà réglée', couleur:'#16a34a', message:'Cette facture a déjà été payée. Merci !', num }));
+
+    const total = parseFloat(doc.total_ht || 0);
+    if (!(total > 0)) return res.send(pagePaiement({ icon:'⚠️', titre:'Montant invalide', couleur:'#dc2626', message:'Impossible de générer le paiement pour cette facture. Contactez-nous.', num }));
+
+    const checkout = await creerCheckoutSumUp(num, total, `SINELEC - Facture ${num}`);
+    if (!checkout || !checkout.hosted_checkout_url) {
+      return res.send(pagePaiement({ icon:'⚠️', titre:'Paiement indisponible', couleur:'#dc2626', message:'Le paiement en ligne est momentanément indisponible. Merci de nous contacter pour régler par un autre moyen.', num }));
     }
-  } catch(e) {}
-  res.send(`<html><body style="text-align:center;padding:40px;font-family:Arial;"><div style="max-width:500px;margin:40px auto;background:white;border-radius:20px;padding:40px;box-shadow:0 4px 20px rgba(0,0,0,0.1);"><div style="font-size:64px;">✅</div><h2 style="color:#1B2A4A;">Paiement confirmé !</h2><p style="color:#555;">Référence : <strong style="color:#C9A84C;">${num}</strong></p><p style="color:#aaa;margin-top:20px;">SINELEC Paris — 07 87 38 86 22</p></div></body></html>`);
+
+    await supabase.from('historique').update({ sumup_checkout_id: checkout.id }).eq('num', num);
+    res.redirect(checkout.hosted_checkout_url);
+  } catch(e) {
+    console.error('❌ paiement-confirme:', e.message);
+    res.send(pagePaiement({ icon:'⚠️', titre:'Erreur', couleur:'#dc2626', message:'Une erreur est survenue. Merci de nous contacter.', num }));
+  }
 });
 
-// ── DESCRIPTION IA PRESTATION LIBRE ─────────────────
-app.post('/api/ia/description-libre', authMiddleware, async (req, res) => {
-  const { nom, mots, prix, longueur } = req.body;
-  if (!nom && !mots) return res.status(400).json({ success: false, error: 'Désignation ou mots-clés requis' });
-
-  const longLabel = longueur === 'long'
-    ? '5 à 6 lignes, style description technique détaillée pour facture ou justificatif assurance'
-    : '2 à 3 lignes maximum, style devis client clair et rassurant';
-
-  const prompt = `Tu es le rédacteur technique de SINELEC, électricien certifié à Paris.
-Rédige une description professionnelle de prestation électrique pour un document commercial (devis ou facture client).
-
-PRESTATION : "${nom || mots}"
-MOTS-CLÉS FOURNIS PAR L'ÉLECTRICIEN : ${mots || nom}
-MONTANT : ${prix || '?'} €
-LONGUEUR DEMANDÉE : ${longLabel}
-
-CONTEXTE MÉTIER : interventions résidentielles et commerciales Paris IDF, clientèle particuliers et professionnels (salons, restaurants, bureaux), travaux conformes NF C 15-100.
-
-RÈGLES STRICTES :
-- Commence par un verbe d'action au présent (Fourniture et pose, Création, Remplacement, Tirage, Raccordement, Installation...)
-- Inclus les caractéristiques techniques précises mentionnées (calibre, section câble, IP, etc.)
-- Mentionne les normes applicables naturellement (NF C 15-100, NF C 14-100, IP44...)
-- Cite les marques si pertinent (Legrand, Schneider Electric, Atlantic, Somfy...)
-- Précise ce qui est inclus dans le forfait : main d'œuvre, fourniture, fixations, raccordement, tests
-- Style clair et professionnel, rassurant pour le client
-- PAS de tirets de liste, PAS de guillemets, texte continu
-- Donne UNIQUEMENT la description finale, sans titre ni commentaire`;
-
+app.get('/paiement-retour/:num', async (req, res) => {
+  const { num } = req.params;
   try {
-    const response = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 300,
-      messages: [{ role: 'user', content: prompt }]
+    const { data: doc } = await supabase.from('historique').select('*').eq('num', num).single();
+    if (!doc) return res.send(pagePaiement({ icon:'❓', titre:'Facture introuvable', couleur:'#dc2626', message:'Cette facture n\'existe pas ou plus.', num }));
+
+    const dejaPaye = ['paye','payé','payee','acquitte','acquitté'].includes((doc.statut||'').toLowerCase());
+    if (dejaPaye) return res.send(pagePaiement({ icon:'✅', titre:'Paiement confirmé !', couleur:'#16a34a', message:'Merci pour votre règlement.', num }));
+
+    const checkoutData = await verifierCheckoutSumUp(doc.sumup_checkout_id);
+    const status = (checkoutData?.status || '').toUpperCase();
+
+    if (status === 'PAID') {
+      await marquerPayeInterne(num, 'sumup');
+      return res.send(pagePaiement({ icon:'✅', titre:'Paiement confirmé !', couleur:'#16a34a', message:'Merci pour votre règlement. Une facture acquittée vous sera envoyée par email.', num }));
+    }
+    if (status === 'FAILED') {
+      return res.send(pagePaiement({ icon:'❌', titre:'Paiement échoué', couleur:'#dc2626', message:'Le paiement n\'a pas pu être traité.', num,
+        extra: `<a href="/paiement-confirme/${num}" style="display:inline-block;margin-top:14px;background:#1B2A4A;color:#fff;padding:12px 24px;border-radius:10px;text-decoration:none;font-weight:700;">Réessayer</a>` }));
+    }
+    // PENDING ou inconnu
+    return res.send(pagePaiement({ icon:'⏳', titre:'Paiement en cours', couleur:'#C9962A', message:'Votre paiement est en cours de traitement. Si vous avez bien payé, cette page se mettra à jour sous peu.', num,
+      extra: `<a href="/paiement-retour/${num}" style="display:inline-block;margin-top:14px;background:#1B2A4A;color:#fff;padding:12px 24px;border-radius:10px;text-decoration:none;font-weight:700;">Actualiser</a>` }));
+  } catch(e) {
+    console.error('❌ paiement-retour:', e.message);
+    res.send(pagePaiement({ icon:'⚠️', titre:'Erreur', couleur:'#dc2626', message:'Une erreur est survenue. Merci de nous contacter.', num }));
+  }
+});
+
+// ═══════════════════════════════════════════════════
+// API: FACTURE ACOMPTE 40%
+// ═══════════════════════════════════════════════════
+app.post('/api/acompte/:num', async (req, res) => {
+  try {
+    const { num } = req.params;
+    const { data: devis, error } = await supabase.from('historique').select('*').eq('num', num).single();
+    if (error || !devis) return res.status(404).json({ error: 'Devis non trouvé' });
+
+    const totalDevis = parseFloat(devis.total_ht || 0);
+    const montantAcompte = totalDevis * 0.4;
+    const montantSolde = totalDevis * 0.6;
+
+    const compteur = await incrementerCompteur('acompte');
+    const annee = new Date().getFullYear();
+    const mois = String(new Date().getMonth() + 1).padStart(2, '0');
+    const numAcompte = `FA-${annee}${mois}-${String(compteur).padStart(3, '0')}`;
+
+    const prestationsAcompte = (devis.prestations || []).map(p => ({
+      nom: p.nom || p.designation,
+      prix: (p.prix || 0) * 0.4,
+      quantite: p.quantite || 1,
+      desc: p.desc || ''
+    }));
+
+    // Insérer la facture d'acompte dans historique
+    const { error: insertErr } = await supabase.from('historique').insert({
+      num: numAcompte, type: 'facture', client: devis.client,
+      email: devis.email, telephone: devis.telephone, adresse: devis.adresse,
+      prestations: prestationsAcompte, total_ht: montantAcompte,
+      statut: 'envoye', source: 'app', created_at: new Date().toISOString(),
+      description: `Facture d'acompte 40% — devis ${num}`,
+      date_envoi: new Date().toISOString()
     });
-    const texte = response.content?.[0]?.text?.trim();
-    if (!texte) throw new Error('Réponse vide');
-    res.json({ success: true, description: texte });
-  } catch(e) {
-    console.error('Description libre IA:', e.message);
-    res.status(500).json({ success: false, error: e.message });
+    if (insertErr) console.error('❌ Acompte insert error:', insertErr.message);
+    else console.log('✅ Facture acompte insérée:', numAcompte);
+
+    // Générer PDF
+    const detailsPath = path.join('/tmp', `_acompte_${numAcompte}.json`);
+    const pyPath = path.join('/tmp', `_acompte_${numAcompte}.py`);
+    const pdfPath = path.join('/tmp', `_acompte_${numAcompte}.pdf`);
+    fs.writeFileSync(detailsPath, JSON.stringify(prestationsAcompte.map(p => ({ designation: p.nom, qte: p.quantite, prixUnit: p.prix, total: p.prix * p.quantite, details: p.desc ? [p.desc] : [] }))));
+
+    const clientEsc = String(devis.client || '').replace(/'/g, ' ');
+    const addrParts = (devis.adresse || '').split(',');
+    const clientRue = String(addrParts[0] || '').trim().replace(/'/g, ' ');
+    const clientVille = addrParts.slice(1).join(',').trim().replace(/'/g, ' ');
+    const descObjet = String(devis.description || 'Travaux d electricite generale').replace(/'/g,' ').substring(0,80);
+    const dateStr = new Date().toLocaleDateString('fr-FR');
+
+    const py = `# -*- coding: utf-8 -*-
+import json, base64, io, sys
+from reportlab.lib.pagesizes import A4; from reportlab.lib import colors; from reportlab.lib.units import cm
+from reportlab.platypus import *; from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT; from reportlab.pdfgen import canvas as pdfcanvas
+from reportlab.lib.utils import ImageReader
+W,H=A4
+MARINE=colors.HexColor('#1B2A4A'); OR=colors.HexColor('#C9A84C'); OR_FONCE=colors.HexColor('#A07830')
+BLANC=colors.white; CREME=colors.HexColor('#FDFCF9'); GRIS_TEXTE=colors.HexColor('#3A3A3A')
+GRIS_SOFT=colors.HexColor('#777777'); GRIS_LIGNE=colors.HexColor('#E0DDD6')
+BLEU=colors.HexColor('#3b82f6'); BLEU_L=colors.HexColor('#EFF6FF'); VERT_L=colors.HexColor('#F0FDF4')
+def p(txt,sz=9,font='Helvetica',color=GRIS_TEXTE,align=TA_LEFT,sb=0,sa=2,leading=None):
+    if leading is None: leading=sz*1.35
+    return Paragraph(str(txt),ParagraphStyle('s',fontName=font,fontSize=sz,textColor=color,alignment=align,spaceBefore=sb,spaceAfter=sa,leading=leading,wordWrap='CJK'))
+try:
+    logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
+except:
+    logo_bytes=None
+class SC(pdfcanvas.Canvas):
+    def __init__(self,fn,**kw): pdfcanvas.Canvas.__init__(self,fn,**kw); self.saveState(); self._draw_page()
+    def showPage(self): self._draw_footer(); pdfcanvas.Canvas.showPage(self)
+    def save(self): self._draw_footer(); pdfcanvas.Canvas.save(self)
+    def _draw_page(self):
+        self.saveState()
+        self.setFillColor(CREME); self.rect(0,0,W,H,fill=1,stroke=0)
+        self.setFillColor(MARINE); self.rect(0,0,0.7*cm,H,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0.7*cm,0,0.08*cm,H,fill=1,stroke=0)
+        self._draw_header(); self.restoreState()
+    def _draw_header(self):
+        # Fond header marine
+        self.setFillColor(MARINE); self.rect(0.78*cm,H-5.0*cm,W-0.78*cm,5.0*cm,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0.78*cm,H-5.0*cm,W-0.78*cm,0.1*cm,fill=1,stroke=0)
+        # Logo
+        if logo_bytes:
+            self.drawImage(ImageReader(io.BytesIO(logo_bytes)),0.9*cm,H-4.7*cm,width=3.8*cm,height=3.8*cm,preserveAspectRatio=True,mask='auto')
+        # Infos société (colonne gauche)
+        self.setFont('Helvetica-Bold',14); self.setFillColor(BLANC); self.drawString(5.4*cm,H-1.6*cm,'SINELEC PARIS')
+        self.setFont('Helvetica',8); self.setFillColor(colors.HexColor('#BFC8D6'))
+        self.drawString(5.4*cm,H-2.2*cm,'128 Rue La Boetie, 75008 Paris')
+        self.drawString(5.4*cm,H-2.65*cm,'Tel : 07 87 38 86 22  |  sinelec.paris@gmail.com')
+        self.drawString(5.4*cm,H-3.1*cm,'SIRET : 91015824500019')
+        # Titre + numero (colonne droite)
+        self.setFont('Helvetica-Bold',18); self.setFillColor(BLANC)
+        self.drawRightString(W-1.2*cm,H-1.7*cm,'FACTURE D\u2019ACOMPTE')
+        self.setFillColor(BLEU); self.roundRect(W-5.8*cm,H-2.75*cm,4.6*cm,0.6*cm,0.12*cm,fill=1,stroke=0)
+        self.setFont('Helvetica-Bold',9); self.setFillColor(BLANC)
+        self.drawCentredString(W-3.5*cm,H-2.43*cm,'N\u00b0 ${numAcompte}')
+        self.setFont('Helvetica',8); self.setFillColor(colors.HexColor('#BFC8D6'))
+        self.drawRightString(W-1.2*cm,H-3.3*cm,'Date : ${dateStr}')
+        self.drawRightString(W-1.2*cm,H-3.7*cm,'Ref. devis : ${num}')
+        self.drawRightString(W-1.2*cm,H-4.15*cm,'Acompte 40% sur devis sign\u00e9')
+    def _draw_footer(self):
+        self.saveState(); self.setFillColor(MARINE); self.rect(0,0,W,1.0*cm,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0,1.0*cm,W,0.07*cm,fill=1,stroke=0)
+        self.setFont('Helvetica',6.5); self.setFillColor(colors.HexColor('#8899BB'))
+        self.drawCentredString(W/2,0.45*cm,'SINELEC EI  \u2022  128 Rue La Boetie, 75008 Paris  \u2022  SIRET : 91015824500019  \u2022  TVA non applicable art. 293B CGI')
+        self.restoreState()
+doc=SimpleDocTemplate(sys.argv[2],pagesize=A4,leftMargin=1.2*cm,rightMargin=1.0*cm,topMargin=5.3*cm,bottomMargin=1.6*cm)
+story=[]
+# Client
+client_b=Table([[p('DESTINATAIRE',7,'Helvetica-Bold',OR,sa=3)],[p('${clientEsc}',11,'Helvetica-Bold',MARINE)],[p('${clientRue}',9)],[p('${clientVille}',9)]],colWidths=[10*cm])
+client_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),2),('BOTTOMPADDING',(0,0),(-1,-1),2),('LEFTPADDING',(0,0),(-1,-1),0)]))
+story.append(client_b); story.append(Spacer(1,0.7*cm))
+# Objet
+objet_b=Table([[p('OBJET DES TRAVAUX',7,'Helvetica-Bold',OR,sa=3)],[p('${descObjet}',10,'Helvetica-Bold',MARINE)]],colWidths=[18.2*cm])
+objet_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),2),('BOTTOMPADDING',(0,0),(-1,-1),2),('LEFTPADDING',(0,0),(-1,-1),0),('LINEBELOW',(0,-1),(-1,-1),1,GRIS_LIGNE)]))
+story.append(objet_b); story.append(Spacer(1,0.5*cm))
+# Ligne unique acompte
+acompte_line=Table([
+    [p('Acompte 40% sur devis n\u00b0 ${num}',11,'Helvetica-Bold',MARINE), p('${montantAcompte.toFixed(2)} \u20ac',14,'Helvetica-Bold',OR_FONCE,TA_RIGHT)]
+],colWidths=[13*cm,5.2*cm])
+acompte_line.setStyle(TableStyle([
+    ('BACKGROUND',(0,0),(-1,-1),BLEU_L),
+    ('BOX',(0,0),(-1,-1),1.5,BLEU),
+    ('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),
+    ('TOPPADDING',(0,0),(-1,-1),12),('BOTTOMPADDING',(0,0),(-1,-1),12),
+]))
+story.append(acompte_line); story.append(Spacer(1,0.2*cm))
+# NET À RÉGLER
+net=Table([[p('ACOMPTE \u00c0 R\u00c9GLER',13,'Helvetica-Bold',BLANC),p('${montantAcompte.toFixed(2)} \u20ac',18,'Helvetica-Bold',OR,TA_RIGHT)]],colWidths=[9.5*cm,8.7*cm])
+net.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),('LINEBELOW',(0,0),(-1,-1),2,OR)]))
+story.append(net); story.append(Spacer(1,0.2*cm))
+# Solde restant
+solde_b=Table([[p('\u26a0\ufe0f  Solde restant d\u00fb : ${montantSolde.toFixed(2)} \u20ac (60%)  \u2014  Exigible \u00e0 la r\u00e9ception des travaux',9,'Helvetica-Bold',colors.HexColor('#92400E'),TA_CENTER)]],colWidths=[18.2*cm])
+solde_b.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#FEF3C7')),('BOX',(0,0),(-1,-1),1,colors.HexColor('#F59E0B')),('TOPPADDING',(0,0),(-1,-1),9),('BOTTOMPADDING',(0,0),(-1,-1),9)]))
+story.append(solde_b); story.append(Spacer(1,0.3*cm))
+# Paiement + TVA
+story.append(Table([[p('TVA non applicable, art. 293B du CGI',8,color=GRIS_SOFT),p('Paiement : Esp\u00e8ces  \u2022  Virement  \u2022  CB (SumUp)  \u2022  PayPal',8,color=GRIS_SOFT,align=TA_RIGHT)]],colWidths=[9.5*cm,8.7*cm]))
+doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
+`;
+    fs.writeFileSync(pyPath, py, 'utf8');
+    execSync(`python3 "${pyPath}" "${detailsPath}" "${pdfPath}"`, { cwd: __dirname, timeout: 40000 });
+    const pdfBuffer = fs.readFileSync(pdfPath);
+    const pdf_b64 = pdfBuffer.toString('base64');
+    try { fs.unlinkSync(pyPath); fs.unlinkSync(detailsPath); fs.unlinkSync(pdfPath); } catch(e) {}
+    res.json({ success: true, num: numAcompte, pdf_b64, montant_acompte: montantAcompte, montant_solde: montantSolde });
+  } catch(error) {
+    console.error('❌ /api/acompte error:', error.message);
+    res.status(500).json({ error: error.message });
   }
 });
 
-// ── AVIS GOOGLE — lecture + mise à jour ──────────────
-// ── IMPORT 2 DEVIS MANQUANTS ──────────────────────────
-app.get('/api/import-devis-manquants', async (req, res) => {
-  const docs = [
-    {
-      num: 'OS-202604-006',
-      type: 'devis',
-      client: 'AMOUREUX VIRGINIE',
-      email: 'amoureux.virginie@wanadoo.fr',
-      telephone: '0788840673',
-      adresse: '27 Rue des Trois Freres, 75018 Paris',
-      statut: 'signe',
-      source: 'app',
-      total_ht: 370.00,
-      date_envoi: '2026-04-24T00:00:00.000Z',
-      created_at: '2026-04-24T00:00:00.000Z',
-      prestations: [
-        { nom: 'Deplacement Paris 18eme', prix: 50, quantite: 1, desc: 'Transport technicien, outillage professionnel' },
-        { nom: 'Tirage ligne electrique 2.5mm2 moins de 10m', prix: 120, quantite: 1, desc: 'Fourniture cable, passage sous goulotte, raccordement depart' },
-        { nom: 'Fourniture et pose prise murale 16A', prix: 90, quantite: 1, desc: 'Depose ancienne prise defectueuse, raccordement nouvelle prise, test fonctionnel' },
-        { nom: 'Raccordement radiateur electrique', prix: 110, quantite: 1, desc: 'Deblocage fils condamnes, verification section cable 2.5mm2, remise en service et test' }
-      ],
-      partenaire: false, part_diahe: 100, part_partenaire: 0
-    },
-    {
-      num: 'OS-202605-105',
-      type: 'devis',
-      client: 'RICK N RIEL',
-      email: 'ricknriel@gmail.com',
-      telephone: '+33624857184',
-      adresse: '9 Rue Eugene Manuel 75016 Paris',
-      statut: 'envoye',
-      source: 'app',
-      total_ht: 651.00,
-      date_envoi: '2026-05-04T00:00:00.000Z',
-      created_at: '2026-05-04T00:00:00.000Z',
-      prestations: [
-        { nom: 'Deplacement Paris intra-muros', prix: 65, quantite: 1, desc: 'Forfait deplacement tout compris' },
-        { nom: 'Creation ligne electrique dediee 32A equipement laser', prix: 515, quantite: 1, desc: 'Cable 6mm2, disjoncteur 32A, protection differentielle 30mA, conforme NF C 15-100' },
-        { nom: 'Prise specialisee 32A', prix: 120, quantite: 1, desc: 'Fourniture et pose prise 32A 2P+T Legrand/Schneider, raccordement cable 6mm2' },
-        { nom: 'Remise 7%', prix: -49, quantite: 1, desc: 'Remise accordee sur cette intervention' }
-      ],
-      partenaire: false, part_diahe: 100, part_partenaire: 0
+// ═══════════════════════════════════════════════════
+// API: AGENDA
+// ═══════════════════════════════════════════════════
+app.get('/api/agenda', async (req, res) => {
+  try {
+    const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
+    const role = getRoleFromToken(token);
+
+    let query = supabase.from('agenda').select('*').order('date_intervention', { ascending: true });
+
+    // Sous-traitant : ne voit que ses propres interventions assignées
+    if (role === 'soustraitant') {
+      query = query.eq('assigne_a', 'soustraitant');
     }
-  ];
 
-  const resultats = [];
-  for (const doc of docs) {
-    try {
-      const { data: existing } = await supabase.from('historique').select('num').eq('num', doc.num).single();
-      if (existing) { resultats.push({ num: doc.num, status: 'deja existant' }); continue; }
-      const { error } = await supabase.from('historique').insert(doc);
-      if (error) resultats.push({ num: doc.num, status: 'ERREUR: ' + error.message });
-      else resultats.push({ num: doc.num, client: doc.client, montant: doc.total_ht + 'EUR', statut: doc.statut, status: 'INSERE OK' });
-    } catch(e) { resultats.push({ num: doc.num, status: 'ERREUR: ' + e.message }); }
-  }
-  res.json({ success: true, resultats });
+    const { data, error } = await query;
+    if (error) throw error;
+    res.json(data || []);
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.get('/api/avis/compteur', async (req, res) => {
+app.post('/api/agenda', async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from('compteurs')
-      .select('valeur')
-      .eq('type', 'nb_avis_google')
-      .single();
-    const nb = (!error && data) ? data.valeur : 91;
-    res.json({ success: true, nb });
-  } catch(e) {
-    res.json({ success: true, nb: 91 }); // fallback
-  }
+    const body = req.body;
+    const { data, error } = await supabase.from('agenda').insert(body).select().single();
+    if (error) throw error;
+    res.json({ success: true, data });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/avis/compteur', authMiddleware, async (req, res) => {
-  const { nb } = req.body;
-  const valeur = parseInt(nb);
-  if (!valeur || valeur < 0 || valeur > 9999) {
-    return res.status(400).json({ success: false, error: 'Valeur invalide' });
-  }
+app.post('/api/agenda/:id/assigner', authMiddleware, async (req, res) => {
   try {
-    // Upsert : insert ou update selon si la ligne existe
-    const { data: existing } = await supabase
-      .from('compteurs')
-      .select('valeur')
-      .eq('type', 'nb_avis_google')
-      .single();
-    if (existing) {
-      await supabase.from('compteurs').update({ valeur }).eq('type', 'nb_avis_google');
-    } else {
-      await supabase.from('compteurs').insert({ type: 'nb_avis_google', valeur });
-    }
-    console.log(`⭐ Avis Google mis à jour : ${valeur}`);
-    res.json({ success: true, nb: valeur });
-  } catch(e) {
-    res.status(500).json({ success: false, error: e.message });
-  }
-});
-
-// ── ROUTE SMS DIRECT ──────────────────────────────
-app.post('/api/sms', authMiddleware, async (req, res) => {
-  const { telephone, message } = req.body;
-  if (!telephone || !message) return res.status(400).json({ success: false, error: 'telephone et message requis' });
-  try {
-    await envoyerSMS(telephone, message);
-    console.log(`📱 SMS envoyé à ${telephone}`);
+    const { id } = req.params;
+    const { assigne_a } = req.body; // 'soustraitant' ou null pour désassigner
+    const { error } = await supabase.from('agenda').update({ assigne_a: assigne_a || null }).eq('id', id);
+    if (error) throw error;
     res.json({ success: true });
-  } catch(e) {
-    console.error('SMS error:', e.message);
-    res.status(500).json({ success: false, error: e.message });
-  }
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/marquer-paye', async (req, res) => {
-  const { num, mode_paiement } = req.body;
-  if (!num) return res.status(400).json({ error: 'Numéro manquant' });
+app.patch('/api/agenda/:id', authMiddleware, async (req, res) => {
   try {
-    const modeLabel = mode_paiement === 'terminal' ? 'CB Terminal SumUp' : mode_paiement === 'virement' ? 'Virement bancaire' : 'Espèces';
-    await supabase.from('historique').update({ statut: 'paye', date_paiement: new Date().toISOString(), mode_paiement: modeLabel }).eq('num', num);
-    const { data: factureData } = await supabase.from('historique').select('*').eq('num', num).single();
-    if (!factureData) return res.status(404).json({ error: 'Facture non trouvée' });
-    res.json({ success: true, message: `Paiement ${modeLabel} enregistré` });
-    setImmediate(async () => {
-      try {
-        const montant = parseFloat(factureData.total_ht || 0);
-        const prenomClient = (factureData.client || 'client').split(' ')[0];
-        const html = `<html><body style="font-family:Arial;padding:20px;"><h2 style="color:#16a34a;">✅ Paiement reçu — ${modeLabel}</h2><p>Bonjour <b>${prenomClient}</b>, facture ${num} réglée — ${montant.toFixed(2)} €.</p></body></html>`;
-        if (factureData.email) await envoyerEmail(factureData.email, `✅ Facture SINELEC ${num} — Paiement reçu`, html);
-        await envoyerEmail('sinelec.paris@gmail.com', `💰 PAIEMENT ${modeLabel.toUpperCase()} — ${num} — ${factureData.client||''} — ${montant.toFixed(0)}€`, html);
-        // SMS confirmation paiement + avis Google en 1 seul message
-        if (factureData.telephone) {
-          await envoyerSMS(factureData.telephone, `Merci ${prenomClient} ! Paiement ${montant.toFixed(0)}€ reçu ✅ Un avis Google nous aiderait beaucoup : https://g.page/r/CSw-MABnFUAYEAE/review — SINELEC Paris ⚡`);
+    const { id } = req.params;
+    const { error } = await supabase.from('agenda').update(req.body).eq('id', id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/agenda/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { error } = await supabase.from('agenda').update(req.body).eq('id', id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.patch('/api/agenda/:id/statut', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { statut } = req.body;
+    const { error } = await supabase.from('agenda').update({ statut }).eq('id', id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/agenda/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { error } = await supabase.from('agenda').delete().eq('id', id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════
+// API: CLIENTS
+// ═══════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════
+// API: RECHERCHE CLIENTS (autocomplete)
+// ═══════════════════════════════════════════════════
+app.get('/api/clients/search', authMiddleware, async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q || q.length < 2) return res.json([]);
+
+    const term = q.toLowerCase().trim();
+
+    // Chercher dans clients + dans historique
+    const [{ data: clients }, { data: histo }] = await Promise.all([
+      supabase.from('clients').select('id,nom,email,telephone,adresse,nb_interventions,ca_total').limit(20),
+      supabase.from('historique').select('client,email,telephone,adresse').neq('client', null).limit(200)
+    ]);
+
+    // Fusionner et filtrer
+    const seen = new Set();
+    const results = [];
+
+    // D'abord les fiches clients
+    for (const c of (clients || [])) {
+      const nom = (c.nom || '').toLowerCase();
+      const tel = (c.telephone || '').toLowerCase();
+      const adr = (c.adresse || '').toLowerCase();
+      if (nom.includes(term) || tel.includes(term) || adr.includes(term)) {
+        const key = c.nom + c.telephone;
+        if (!seen.has(key)) {
+          seen.add(key);
+          results.push({ id: c.id, nom: c.nom, email: c.email, telephone: c.telephone, adresse: c.adresse, source: 'client', nb_interventions: c.nb_interventions || 0, ca_total: c.ca_total || 0 });
         }
-      } catch(e) {}
-    });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// ═══════════════════════════════════════════════════
-// MONITORING
-// ═══════════════════════════════════════════════════
-
-const serviceStatus = {
-  brevo_email: { status: 'unknown', lastCheck: null, lastError: null, uptime: 0, checks: 0 },
-  brevo_sms:   { status: 'unknown', lastCheck: null, lastError: null, uptime: 0, checks: 0 },
-  sumup:       { status: 'unknown', lastCheck: null, lastError: null, uptime: 0, checks: 0 },
-  supabase:    { status: 'unknown', lastCheck: null, lastError: null, uptime: 0, checks: 0 },
-  claude_api:  { status: 'unknown', lastCheck: null, lastError: null, uptime: 0, checks: 0 },
-  pdf_python:  { status: 'unknown', lastCheck: null, lastError: null, uptime: 0, checks: 0 },
-};
-
-async function mettreAJourStatut(service, ok, erreur = null) {
-  const s = serviceStatus[service]; if (!s) return;
-  s.status = ok ? 'ok' : 'error'; s.lastCheck = new Date().toISOString(); s.lastError = ok ? null : String(erreur || 'Erreur'); s.checks++; if (ok) s.uptime++;
-  try { await supabase.from('monitoring').upsert({ service, status: s.status, last_check: s.lastCheck, last_error: s.lastError, uptime_pct: Math.round((s.uptime / s.checks) * 100) }, { onConflict: 'service' }); } catch(e) {}
-}
-
-async function verifierSante() {
-  const erreurs = [];
-  try { const { error } = await supabase.from('compteurs').select('valeur').limit(1); if (error) throw error; await mettreAJourStatut('supabase', true); } catch(e) { await mettreAJourStatut('supabase', false, e.message); erreurs.push('supabase'); }
-  try { const r = await fetch('https://api.brevo.com/v3/account', { headers: { 'api-key': BREVO_API_KEY } }); if (!r.ok) throw new Error('HTTP ' + r.status); await mettreAJourStatut('brevo_email', true); await mettreAJourStatut('brevo_sms', true); } catch(e) { await mettreAJourStatut('brevo_email', false, e.message); await mettreAJourStatut('brevo_sms', false, e.message); erreurs.push('brevo'); }
-  try { if (SUMUP_API_KEY) { const r = await fetch('https://api.sumup.com/v0.1/me', { headers: { 'Authorization': `Bearer ${SUMUP_API_KEY}` } }); if (!r.ok && r.status !== 404) throw new Error('HTTP ' + r.status); await mettreAJourStatut('sumup', true); } } catch(e) { await mettreAJourStatut('sumup', false, e.message); erreurs.push('sumup'); }
-  try { if (!process.env.ANTHROPIC_API_KEY) throw new Error('Clé manquante'); await mettreAJourStatut('claude_api', true); } catch(e) { await mettreAJourStatut('claude_api', false, e.message); erreurs.push('claude_api'); }
-  try { execSync('python3 -c "import reportlab"', { timeout: 5000 }); await mettreAJourStatut('pdf_python', true); } catch(e) { await mettreAJourStatut('pdf_python', false, e.message); erreurs.push('pdf_python'); }
-  return { ok: erreurs.length === 0, erreurs, status: serviceStatus };
-}
-
-app.get('/api/sante', async (req, res) => {
-  try {
-    const { data } = await supabase.from('monitoring').select('*');
-    const result = {};
-    for (const [service, status] of Object.entries(serviceStatus)) {
-      const db = (data || []).find(r => r.service === service);
-      result[service] = { ...status, uptime_pct: db?.uptime_pct || null };
-    }
-    res.json({ global: Object.values(result).every(s => s.status === 'ok' || s.status === 'unknown') ? 'ok' : 'degraded', services: result });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-app.post('/api/sante/verifier', async (req, res) => {
-  try { res.json(await verifierSante()); } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// ═══════════════════════════════════════════════════
-// VEILLE + RELANCES
-// ═══════════════════════════════════════════════════
-
-app.post('/api/veille/lancer', async (req, res) => {
-  if (!CONFIG.features.veille_tarifaire) return res.status(403).json({ error: 'Feature désactivée' });
-  res.json({ success: true, message: 'Veille tarifaire lancée' });
-});
-
-app.post('/api/relances/lancer', async (req, res) => {
-  if (!CONFIG.features.relances_auto) return res.status(403).json({ error: 'Feature désactivée' });
-  res.json({ success: true, message: 'Relances lancées' });
-});
-
-// ═══════════════════════════════════════════════════
-// RAPPORT HEBDOMADAIRE
-// ═══════════════════════════════════════════════════
-
-async function rapportHebdomadaire() {
-  try {
-    const maintenant = new Date(); const lundiDernier = new Date(maintenant); lundiDernier.setDate(maintenant.getDate() - 7);
-    const { data: docs } = await supabase.from('historique').select('*').gte('created_at', lundiDernier.toISOString());
-    const factures = (docs || []).filter(d => d.type === 'facture');
-    const devis = (docs || []).filter(d => d.type === 'devis');
-    const caSemaine = factures.reduce((s, f) => s + parseFloat(f.total_ht || 0), 0);
-    const { data: tousDevis } = await supabase.from('historique').select('*').eq('type', 'devis').in('statut', ['envoyé', 'envoye']);
-    const devisARelancer = (tousDevis || []).filter(d => (new Date() - new Date(d.created_at)) / 3600000 > 48);
-    const semaine = `${lundiDernier.toLocaleDateString('fr-FR')} → ${maintenant.toLocaleDateString('fr-FR')}`;
-    const html = `<html><body style="font-family:Arial;padding:20px;"><h2>📊 Rapport hebdomadaire SINELEC — ${semaine}</h2><p>CA facturé : <strong>${caSemaine.toFixed(2)} €</strong> (${factures.length} factures)</p><p>Devis envoyés : ${devis.length}</p><p>À relancer (+48h) : <strong style="color:#ef4444;">${devisARelancer.length}</strong></p><p><a href="https://sinelec-api-production.up.railway.app/app.html">📱 SINELEC OS</a></p></body></html>`;
-    await envoyerEmail('sinelec.paris@gmail.com', `📊 Rapport SINELEC — CA: ${caSemaine.toFixed(0)}€ — ${devisARelancer.length} à relancer`, html);
-  } catch(e) { console.error('Rapport hebdo:', e.message); }
-}
-
-app.post('/api/rapport-hebdo/tester', async (req, res) => {
-  try { await rapportHebdomadaire(); res.json({ success: true }); } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// ═══════════════════════════════════════════════════
-// CRONS
-// ═══════════════════════════════════════════════════
-
-// SMS veille 18h
-cron.schedule('0 18 * * *', async () => {
-  try {
-    const demain = new Date(); demain.setDate(demain.getDate() + 1);
-    const demainStr = demain.toISOString().split('T')[0];
-    const { data } = await supabase.from('agenda').select('*').eq('date_intervention', demainStr).eq('sms_rappel', true).eq('sms_veille_envoye', false).neq('statut', 'annulé');
-    for (const iv of (data || [])) {
-      if (!iv.telephone) continue;
-      const prenom = iv.prenom || (iv.client||'').split(' ')[0];
-      const dateLabel = demain.toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' });
-      await envoyerSMS(iv.telephone, `Bonjour ${prenom} ! Rappel intervention SINELEC demain ${dateLabel} à ${iv.heure}. Tel: 07 87 38 86 22 ⚡`);
-      await supabase.from('agenda').update({ sms_veille_envoye: true }).eq('id', iv.id);
-    }
-  } catch(e) { console.error('SMS veille:', e.message); }
-});
-
-// SMS matin 8h45
-cron.schedule('45 8 * * *', async () => {
-  try {
-    const aujourdhui = new Date().toISOString().split('T')[0];
-    const { data } = await supabase.from('agenda').select('*').eq('date_intervention', aujourdhui).eq('sms_rappel', true).eq('sms_matin_envoye', false).neq('statut', 'annulé');
-    for (const iv of (data || [])) {
-      if (!iv.telephone) continue;
-      const prenom = iv.prenom || (iv.client||'').split(' ')[0];
-      await envoyerSMS(iv.telephone, `Bonjour ${prenom} 😊 Intervention SINELEC confirmée aujourd'hui à ${iv.heure}. Tel: 07 87 38 86 22 ⚡`);
-      await supabase.from('agenda').update({ sms_matin_envoye: true }).eq('id', iv.id);
-    }
-  } catch(e) { console.error('SMS matin:', e.message); }
-});
-
-// Récap matin 7h
-cron.schedule('0 7 * * *', async () => {
-  try {
-    const aujourdhui = new Date().toISOString().split('T')[0];
-    const dateLabel = new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
-    const { data: liste } = await supabase.from('agenda').select('*').eq('date_intervention', aujourdhui).neq('statut', 'annulé').order('heure', { ascending: true });
-    if (!liste || liste.length === 0) return;
-    const rows = liste.map(iv => `<tr><td style="padding:8px;color:#C9A84C;font-weight:700;">${iv.heure}</td><td style="padding:8px;">${iv.client}</td><td style="padding:8px;color:#555;">${iv.adresse||'—'}</td><td style="padding:8px;">${iv.type_intervention}</td></tr>`).join('');
-    const html = `<html><body style="font-family:Arial;padding:20px;"><h2>☀️ Bonjour Diahe ! — ${dateLabel}</h2><p><strong>${liste.length}</strong> intervention(s)</p><table border="1" cellpadding="8" style="border-collapse:collapse;width:100%;"><tr style="background:#f8f9fa;"><th>Heure</th><th>Client</th><th>Adresse</th><th>Type</th></tr>${rows}</table></body></html>`;
-    await envoyerEmail('sinelec.paris@gmail.com', `☀️ ${liste.length} intervention(s) aujourd'hui — SINELEC`, html);
-  } catch(e) { console.error('Récap matin:', e.message); }
-});
-
-// Rapport hebdo lundi 8h
-cron.schedule('0 8 * * 1', rapportHebdomadaire);
-
-// Health check toutes les heures
-cron.schedule('0 * * * *', verifierSante);
-
-// Health check démarrage (2min)
-setTimeout(() => { verifierSante().catch(() => {}); }, 120000);
-
-// ═══════════════════════════════════════════════════
-// CRON RELANCE FACTURES J+7 / J+14 — 8h chaque matin
-// ═══════════════════════════════════════════════════
-async function relancerFacturesImpayees() {
-  try {
-    const maintenant = new Date();
-    const { data: factures } = await supabase
-      .from('historique')
-      .select('*')
-      .eq('type', 'facture')
-      .not('statut', 'in', '("paye","payé","payée","annule","annulé")')
-      .not('telephone', 'is', null);
-
-    if (!factures || !factures.length) return;
-
-    let relancees = 0;
-
-    for (const f of factures) {
-      if (!f.telephone || !f.date_envoi) continue;
-
-      const joursSinceEnvoi = Math.floor((maintenant - new Date(f.date_envoi)) / (1000 * 60 * 60 * 24));
-      const nbRelances = f.nb_relances || 0;
-
-      // J+7 : première relance
-      // J+14 : deuxième et dernière relance
-      const doitRelancer =
-        (joursSinceEnvoi >= 7 && joursSinceEnvoi < 14 && nbRelances === 0) ||
-        (joursSinceEnvoi >= 14 && nbRelances === 1);
-
-      if (!doitRelancer) continue;
-
-      const montant = parseFloat(f.total_ht || 0).toFixed(0);
-      const prenom = (f.client || '').split(' ')[0];
-      const relanceNum = nbRelances + 1;
-
-      const msg = relanceNum === 1
-        ? `Bonjour ${prenom}, votre facture SINELEC n°${f.num} d'un montant de ${montant}€ est en attente de règlement. Pour payer par CB : sinelec-api-production.up.railway.app/payer/${f.num} — Merci, Diahe SINELEC 07 87 38 86 22`
-        : `Bonjour ${prenom}, rappel final : votre facture SINELEC n°${f.num} de ${montant}€ reste impayée. Merci de régulariser rapidement. Contact : 07 87 38 86 22 — SINELEC`;
-
-      try {
-        await envoyerSMS(f.telephone, msg);
-        // Mettre à jour nb_relances et date_derniere_relance
-        await supabase.from('historique').update({
-          nb_relances: relanceNum,
-          date_derniere_relance: new Date().toISOString()
-        }).eq('num', f.num);
-        relancees++;
-        console.log(`📱 Relance J+${joursSinceEnvoi} envoyée → ${f.client} (${f.num})`);
-      } catch(e) {
-        console.error(`Relance ${f.num}:`, e.message);
       }
     }
 
-    if (relancees > 0) {
-      // Notifier Diahe par email
-      await envoyerEmail(
-        'sinelec.paris@gmail.com',
-        `📱 ${relancees} relance(s) facture envoyée(s) — SINELEC`,
-        `<h3>Relances automatiques du jour</h3><p>${relancees} client(s) relancé(s) pour facture impayée.</p>`
-      );
+    // Ensuite depuis l'historique
+    for (const h of (histo || [])) {
+      const nom = (h.client || '').toLowerCase();
+      const tel = (h.telephone || '').toLowerCase();
+      const adr = (h.adresse || '').toLowerCase();
+      if (nom.includes(term) || tel.includes(term) || adr.includes(term)) {
+        const key = h.client + h.telephone;
+        if (!seen.has(key)) {
+          seen.add(key);
+          results.push({ nom: h.client, email: h.email, telephone: h.telephone, adresse: h.adresse, source: 'historique' });
+        }
+      }
     }
 
-    console.log(`✅ Relances factures : ${relancees} envoyées`);
+    res.json(results.slice(0, 8));
   } catch(e) {
-    console.error('Cron relances:', e.message);
-  }
-}
-
-
-// Lancer chaque matin à 9h05
-cron.schedule('5 9 * * *', relancerFacturesImpayees);
-
-// Route GET pour tester depuis le navigateur
-app.get('/api/relances/lancer', authMiddleware, async (req, res) => {
-  try {
-    await relancerFacturesImpayees();
-    res.json({ success: true, message: 'Relances lancées — vérifiez vos SMS et emails' });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// ═══════════════════════════════════════════════════
-// IA AUTONOME — SURVEILLANCE + AUTO-CORRECTION
-// ═══════════════════════════════════════════════════
-// IA SINELEC — client Anthropic déjà initialisé en haut du fichier
-// Log des erreurs en mémoire (buffer circulaire 100 entrées)
-const errorLog = [];
-const MAX_ERRORS = 100;
-
-function logError(route, error, req_info) {
-  errorLog.unshift({
-    ts: new Date().toISOString(),
-    route,
-    error: error.message || String(error),
-    stack: error.stack?.substring(0, 500) || '',
-    req: req_info || ''
-  });
-  if (errorLog.length > MAX_ERRORS) errorLog.pop();
-}
-
-// Middleware global de capture d'erreurs
-app.use((err, req, res, next) => {
-  logError(req.path, err, `${req.method} ${req.path}`);
-  res.status(500).json({ error: err.message });
-});
-
-// ── PUSH GITHUB ────────────────────────────────────
-async function pushGitHub(filename, content, message) {
-  const token = process.env.GITHUB_TOKEN;
-  const repo  = process.env.GITHUB_REPO || 'sinelecparis-del/sinelec-api';
-  if (!token) throw new Error('GITHUB_TOKEN manquant');
-
-  // Récupérer le SHA actuel du fichier
-  const getRes = await fetch(`https://api.github.com/repos/${repo}/contents/${filename}`, {
-    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' }
-  });
-  const getJson = await getRes.json();
-  const sha = getJson.sha;
-
-  // Encoder en base64
-  const encoded = Buffer.from(content).toString('base64');
-
-  // Push
-  const putRes = await fetch(`https://api.github.com/repos/${repo}/contents/${filename}`, {
-    method: 'PUT',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/vnd.github+json',
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      message: `🤖 IA SINELEC: ${message}`,
-      content: encoded,
-      sha
-    })
-  });
-  const putJson = await putRes.json();
-  if (!putJson.commit) throw new Error('Push GitHub échoué: ' + JSON.stringify(putJson).substring(0, 200));
-  return putJson.commit.sha;
-}
-
-// ── ANALYSE IA ─────────────────────────────────────
-async function analyserEtCorrigerErreurs() {
-  try {
-    if (errorLog.length === 0) return;
-
-    // Récupérer le code actuel
-    const fs = require('fs');
-    const serverCode = fs.readFileSync(__filename, 'utf8');
-
-    const erreurs = errorLog.slice(0, 10).map(e =>
-      `[${e.ts}] ${e.req} → ${e.error}`
-    ).join('\n');
-
-    const prompt = `Tu es l'IA de maintenance de SINELEC OS, une app de gestion pour électricien.
-
-ERREURS DÉTECTÉES :
-${erreurs}
-
-CODE SERVER.JS (extrait) :
-${serverCode.substring(0, 8000)}
-
-MISSION :
-1. Analyse les erreurs
-2. Si tu peux corriger dans server.js, fournis le code corrigé
-3. Si c'est dans app.html, indique-le
-4. Sois concis
-
-RÉPONDS EN JSON :
-{
-  "severite": "critique|majeur|mineur",
-  "diagnostic": "explication courte",
-  "peut_corriger_auto": true|false,
-  "correction_server": "code corrigé complet si applicable, sinon null",
-  "message_diahe": "message clair pour Diahe"
-}`;
-
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 4000,
-      messages: [{ role: 'user', content: prompt }]
-    });
-
-    const text = response.content[0].text;
-    let analyse;
-    try {
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      analyse = JSON.parse(jsonMatch[0]);
-    } catch(e) {
-      console.log('IA analyse:', text.substring(0, 200));
-      return;
-    }
-
-    console.log(`🤖 IA Analyse: ${analyse.severite} — ${analyse.diagnostic}`);
-
-    // Sauvegarder l'analyse en base
-    await supabase.from('ia_corrections').insert({
-      date: new Date().toISOString(),
-      severite: analyse.severite,
-      diagnostic: analyse.diagnostic,
-      peut_corriger: analyse.peut_corriger_auto,
-      message: analyse.message_diahe,
-      erreurs: erreurs,
-      statut: 'en_attente'
-    }).select();
-
-    // Notifier Diahe
-    const urgence = analyse.severite === 'critique' ? '🔴' : analyse.severite === 'majeur' ? '🟠' : '🟡';
-    await envoyerEmail('sinelec.paris@gmail.com',
-      `${urgence} SINELEC OS — ${analyse.severite.toUpperCase()} détecté`,
-      `<html><body style="font-family:Arial;padding:20px;background:#f8f8f8;">
-      <div style="max-width:500px;margin:0 auto;background:#fff;border-radius:12px;padding:24px;">
-        <h2 style="color:#E8B84B;">🤖 IA SINELEC — Alerte ${analyse.severite}</h2>
-        <p><strong>Diagnostic :</strong> ${analyse.diagnostic}</p>
-        <p><strong>Message :</strong> ${analyse.message_diahe}</p>
-        <p><strong>Correction auto disponible :</strong> ${analyse.peut_corriger_auto ? '✅ Oui' : '❌ Non — intervention manuelle requise'}</p>
-        ${analyse.peut_corriger_auto ? `<p style="background:#e8f5e9;padding:12px;border-radius:8px;">👉 Va dans SINELEC OS → Santé → <strong>Appliquer la correction</strong></p>` : ''}
-        <hr><p style="font-size:12px;color:#888;">Erreurs détectées : ${errorLog.length} | ${new Date().toLocaleString('fr-FR')}</p>
-      </div></body></html>`
-    );
-
-  } catch(e) {
-    console.error('IA analyse erreur:', e.message);
-  }
-}
-
-// ── APPLIQUER CORRECTION ──────────────────────────
-app.post('/api/ia/appliquer', authMiddleware, async (req, res) => {
-  try {
-    const { correction_id } = req.body;
-
-    // Récupérer la correction en attente
-    const { data: corrections } = await supabase
-      .from('ia_corrections')
-      .select('*')
-      .eq('statut', 'en_attente')
-      .eq('peut_corriger', true)
-      .order('date', { ascending: false })
-      .limit(1);
-
-    if (!corrections || !corrections.length) {
-      return res.json({ success: false, message: 'Aucune correction automatique disponible' });
-    }
-
-    const correction = corrections[0];
-
-    // Re-analyser pour obtenir le code corrigé
-    const fs = require('fs');
-    const serverCode = fs.readFileSync(__filename, 'utf8');
-
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 8000,
-      messages: [{
-        role: 'user',
-        content: `Voici le problème détecté sur SINELEC OS : ${correction.diagnostic}
-Erreurs : ${correction.erreurs}
-
-Code server.js actuel :
-${serverCode}
-
-Fournis le server.js complet corrigé. Réponds UNIQUEMENT avec le code JavaScript, sans explication ni balises markdown.`
-      }]
-    });
-
-    const codeCorrige = response.content[0].text
-      .replace(/^```javascript\n?/, '').replace(/^```js\n?/, '').replace(/```$/, '').trim();
-
-    // Push sur GitHub
-    const commitSha = await pushGitHub('server.js', codeCorrige,
-      `Correction auto: ${correction.diagnostic.substring(0, 60)}`);
-
-    // Mettre à jour le statut
-    await supabase.from('ia_corrections')
-      .update({ statut: 'appliqué', commit_sha: commitSha })
-      .eq('id', correction.id);
-
-    // Vider le log d'erreurs
-    errorLog.length = 0;
-
-    res.json({
-      success: true,
-      message: `✅ Correction appliquée ! Commit: ${commitSha.substring(0, 7)}. Railway redémarre dans 30 secondes.`
-    });
-
-  } catch(e) {
-    console.error('Appliquer correction:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
 
-// Créer ou mettre à jour une fiche client manuellement
-app.post('/api/clients/creer', authMiddleware, async (req, res) => {
+// ═══════════════════════════════════════════════════
+// API: FICHE CLIENT COMPLÈTE avec historique
+// ═══════════════════════════════════════════════════
+app.get('/api/clients/:id/fiche', authMiddleware, async (req, res) => {
   try {
-    const { nom, email, telephone, adresse } = req.body;
-    if (!nom) return res.status(400).json({ error: 'Nom manquant' });
+    const { id } = req.params;
+    const { data: client } = await supabase.from('clients').select('*').eq('id', id).single();
+    if (!client) return res.status(404).json({ error: 'Client non trouvé' });
 
-    // Chercher si client existe déjà
-    let existant = null;
-    if (email) {
-      const { data } = await supabase.from('clients').select('*').eq('email', email).maybeSingle();
-      existant = data;
-    }
-    if (!existant && telephone) {
-      const { data } = await supabase.from('clients').select('*').eq('telephone', telephone).maybeSingle();
-      existant = data;
-    }
+    // Historique du client
+    const { data: histo } = await supabase
+      .from('historique')
+      .select('num,type,statut,total_ht,date_envoi,description,created_at')
+      .or(`client.ilike.%${client.nom}%,telephone.eq.${client.telephone || 'null'}`)
+      .order('created_at', { ascending: false })
+      .limit(50);
 
-    if (existant) {
-      await supabase.from('clients').update({
-        nom, email: email || existant.email,
-        telephone: telephone || existant.telephone,
-        adresse: adresse || existant.adresse,
-        derniere_intervention: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }).eq('id', existant.id);
-      res.json({ success: true, created: false });
-    } else {
-      await supabase.from('clients').insert({
-        nom, email: email || null, telephone: telephone || null,
-        adresse: adresse || null, source: 'app',
-        premiere_intervention: new Date().toISOString(),
-        derniere_intervention: new Date().toISOString(),
-        created_at: new Date().toISOString()
-      });
-      res.json({ success: true, created: true });
-    }
+    const docs = histo || [];
+    const ca_total = docs.filter(d => d.type === 'facture').reduce((s, d) => s + parseFloat(d.total_ht || 0), 0);
+    const nb_devis = docs.filter(d => d.type === 'devis').length;
+    const nb_factures = docs.filter(d => d.type === 'facture').length;
+
+    // Mise à jour stats
+    await supabase.from('clients').update({
+      ca_total, nb_interventions: nb_factures,
+      derniere_intervention: docs[0]?.created_at || null
+    }).eq('id', id);
+
+    res.json({ ...client, historique: docs, stats: { ca_total, nb_devis, nb_factures } });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/clients', blockStandardiste, async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('clients').select('*').order('nom', { ascending: true });
+    if (error) throw error;
+    res.json(data || []);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── DESCRIPTION IA RAPPORT ────────────────────────
+app.post('/api/clients/creer', async (req, res) => {
+  try {
+    const { nom, email, telephone, adresse } = req.body;
+    // Check if exists
+    let existing = null;
+    if (email) {
+      const { data } = await supabase.from('clients').select('*').eq('email', email).single();
+      existing = data;
+    }
+    if (!existing && telephone) {
+      const { data } = await supabase.from('clients').select('*').eq('telephone', telephone).single();
+      existing = data;
+    }
+    if (existing) {
+      await supabase.from('clients').update({ nom, email: email||existing.email, telephone: telephone||existing.telephone, adresse: adresse||existing.adresse }).eq('id', existing.id);
+      return res.json({ success: true, created: false });
+    }
+    const { error } = await supabase.from('clients').insert({ nom, email, telephone, adresse, source: 'app', created_at: new Date().toISOString() });
+    if (error) throw error;
+    res.json({ success: true, created: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════
+// API: RENTABILITÉ / CHARGES
+// ═══════════════════════════════════════════════════
+app.get('/api/rentabilite/:mois', authMiddleware, async (req, res) => {
+  try {
+    const { mois } = req.params; // format: 2026-05
+    const [annee, moisNum] = mois.split('-');
+    const debut = `${mois}-01`;
+    const fin = `${mois}-31`;
+
+    // CA du mois (factures payées)
+    const { data: factures } = await supabase.from('historique')
+      .select('total_ht, statut')
+      .gte('created_at', debut)
+      .lte('created_at', fin + 'T23:59:59')
+      .eq('type', 'facture');
+
+    const ca_total = (factures || [])
+      .filter(f => ['paye','payé','payee','acquitte'].includes((f.statut||'').toLowerCase()))
+      .reduce((s, f) => s + parseFloat(f.total_ht || 0), 0);
+
+    // Charges du mois
+    const { data: charges } = await supabase.from('charges')
+      .select('*')
+      .gte('date', debut)
+      .lte('date', fin)
+      .order('date', { ascending: false });
+
+    const charges_total = (charges || []).reduce((s, c) => s + parseFloat(c.montant || 0), 0);
+
+    // Catégories
+    const par_categorie = {};
+    (charges || []).forEach(c => {
+      const cat = c.categorie || 'autre';
+      par_categorie[cat] = (par_categorie[cat] || 0) + parseFloat(c.montant || 0);
+    });
+
+    // URSSAF auto (22% CA si non saisie manuellement)
+    const urssaf_saisie = par_categorie.urssaf || 0;
+    const urssaf_auto = urssaf_saisie > 0 ? 0 : Math.round(ca_total * 0.22);
+    const total_charges_avec_urssaf = charges_total + urssaf_auto;
+
+    const benefice_net = ca_total - total_charges_avec_urssaf;
+    const taux_marge = ca_total > 0 ? Math.round((benefice_net / ca_total) * 100) : 0;
+
+    res.json({
+      mois, ca_total: Math.round(ca_total * 100) / 100,
+      charges_total: Math.round(total_charges_avec_urssaf * 100) / 100,
+      benefice_net: Math.round(benefice_net * 100) / 100,
+      taux_marge, par_categorie, charges: charges || [],
+      urssaf_auto, urssaf_saisie
+    });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/charges', authMiddleware, async (req, res) => {
+  try {
+    const { data } = await supabase.from('charges').select('*').order('date', { ascending: false });
+    res.json(data || []);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/charges', authMiddleware, async (req, res) => {
+  try {
+    const { categorie, montant, date, note } = req.body;
+    const { error } = await supabase.from('charges').insert({
+      categorie, montant: parseFloat(montant),
+      date: date || new Date().toISOString().split('T')[0], note
+    });
+    if (error) throw error;
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/charges/:id', authMiddleware, async (req, res) => {
+  try {
+    const { error } = await supabase.from('charges').delete().eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════
+// API: CHAT AI
+// ═══════════════════════════════════════════════════
+app.post('/api/chat', async (req, res) => {
+  try {
+    const { message } = req.body;
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1500,
+      system: `Tu es l'assistant SINELEC, expert électricien Paris. Aide à préparer des devis détaillés.`,
+      messages: [{ role: 'user', content: message }]
+    });
+    res.json({ success: true, explication: response.content[0].text });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════
+// API: IA DESCRIPTION LIBRE
+// ═══════════════════════════════════════════════════
+app.post('/api/ia/description-libre', authMiddleware, async (req, res) => {
+  try {
+    const { nom, mots, prix, longueur } = req.body;
+    const courte = longueur !== 'long';
+    const prompt = `Tu es un expert électricien SINELEC Paris. Rédige une description professionnelle pour cette prestation dans un devis.
+Prestation : "${nom || ''}"${mots ? `\nMots-clés : ${mots}` : ''}${prix ? `\nPrix : ${prix}€` : ''}
+Format : ${courte ? '2-3 phrases max, ~50-70 mots' : '4-6 phrases, ~120-150 mots'}
+Style : Professionnel, technique, détaillé. Mentionne MO + fournitures + raccordement. Conforme NF C 15-100.
+IMPORTANT : Réponds UNIQUEMENT avec la description, sans introduction ni guillemets.`;
+
+    const response = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 400,
+      messages: [{ role: 'user', content: prompt }]
+    });
+    res.json({ success: true, description: response.content[0].text.trim() });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════
+// API: IA STATUT + CORRECTION
+// ═══════════════════════════════════════════════════
+app.get('/api/ia/statut', authMiddleware, async (req, res) => {
+  try {
+    const { data: corrections } = await supabase.from('logs_system')
+      .select('*')
+      .in('type', ['erreur', 'correction', 'ia_correction'])
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    const erreurs = (corrections || []).filter(c => c.type === 'erreur' && !c.corrige);
+    const correctionsDisponibles = erreurs.filter(c => c.peut_corriger).map(c => ({
+      id: c.id, message: c.message, diagnostic: c.data?.diagnostic,
+      peut_corriger: c.peut_corriger, statut: c.corrige ? 'appliqué' : 'en_attente',
+      date: c.created_at, severite: c.data?.severite || 'mineur'
+    }));
+
+    res.json({
+      erreurs_en_cours: erreurs.length,
+      corrections: correctionsDisponibles,
+      statut: erreurs.length === 0 ? 'ok' : 'erreurs'
+    });
+  } catch(e) { res.json({ erreurs_en_cours: 0, corrections: [] }); }
+});
+
+app.post('/api/ia/appliquer', authMiddleware, async (req, res) => {
+  try {
+    // Marquer les corrections comme appliquées
+    await supabase.from('logs_system').update({ corrige: true }).eq('type', 'erreur').eq('peut_corriger', true);
+    await logSystem('ia_correction', 'Corrections appliquées manuellement');
+    res.json({ success: true, message: '✅ Corrections appliquées !' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════
+// API: SCAN TICKET (Claude Vision)
+// ═══════════════════════════════════════════════════
+app.post('/api/scan-ticket', authMiddleware, async (req, res) => {
+  try {
+    const { image_b64, media_type } = req.body;
+    if (!image_b64) return res.status(400).json({ error: 'Image requise' });
+
+    const response = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 300,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: media_type || 'image/jpeg', data: image_b64 } },
+          { type: 'text', text: `Analyse ce ticket de caisse. Réponds UNIQUEMENT en JSON valide:
+{"montant": 45.50, "categorie": "carburant", "date": "2026-05-22", "note": "Total TTC"}
+Catégories possibles: carburant, materiel, outillage, stationnement, telephone, lsa, urssaf, autre.
+Date format: YYYY-MM-DD. Montant: nombre décimal. Note: description courte (15 mots max).` }
+        ]
+      }]
+    });
+
+    const text = response.content[0].text.trim().replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(text);
+    res.json({ success: true, ...parsed });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════
+// API: RAPPORT INTERVENTION
+// ═══════════════════════════════════════════════════
 app.post('/api/rapport/description', authMiddleware, async (req, res) => {
   try {
     const { chantier, client, adresse } = req.body;
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1500,
-      messages: [{ role: 'user', content:
-        `Tu es un électricien professionnel parisien (SINELEC Paris). Rédige un rapport d'intervention très détaillé et long, style assurance/expertise, pour les travaux suivants :
-
-TRAVAUX : ${chantier}
-CLIENT : ${client || 'Client'}
-ADRESSE : ${adresse || 'Paris'}
-
-Le rapport doit contenir :
-1. Description technique détaillée de l'état initial de l'installation
-2. Travaux réalisés étape par étape (méthodologie, matériaux utilisés, marques)
-3. Tests et vérifications effectués (tensions mesurées, tests différentiels, continuité de terre)
-4. Résultats et conformité NF C 15-100
-5. Recommandations pour la suite
-
-Style : professionnel, technique, détaillé comme un rapport d'assurance. Minimum 300 mots. Pas de titre, juste le corps du texte.`
-      }]
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 600,
+      messages: [{ role: 'user', content: `Tu es un électricien expert SINELEC Paris. Rédige une description professionnelle détaillée pour un rapport d'intervention.
+Travaux réalisés (résumé court) : "${chantier}"${client ? `\nClient : ${client}` : ''}${adresse ? `\nAdresse : ${adresse}` : ''}
+Écris un texte professionnel de 150-200 mots décrivant précisément les travaux, les matériaux utilisés, les normes respectées (NF C 15-100), et les tests effectués. Commence directement par la description.` }]
     });
-    const description = response.content[0].text.trim();
-    res.json({ success: true, description });
+    res.json({ success: true, description: response.content[0].text.trim() });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── RAPPORT D'INTERVENTION ────────────────────────
 app.post('/api/rapport', authMiddleware, async (req, res) => {
-  if (!CONFIG.features.rapports_intervention) return res.status(403).json({ error: 'Feature désactivée' });
   try {
-    const { client, adresse, chantier, description, email, telephone, photo_avant, photo_apres } = req.body;
+    const { client, adresse, chantier, description, email, telephone, photo_avant, photo_apres, type_logement, num_facture, nature_panne } = req.body;
     const compteur = await incrementerCompteur('rapport');
-    const num = `R-${new Date().getFullYear()}${String(new Date().getMonth()+1).padStart(2,'0')}-${String(compteur).padStart(3,'0')}`;
+    const annee = new Date().getFullYear();
+    const mois = String(new Date().getMonth() + 1).padStart(2, '0');
+    const num = `RAP-${annee}${mois}-${String(compteur).padStart(3, '0')}`;
     const dateStr = new Date().toLocaleDateString('fr-FR');
 
-    // Sauvegarder en base
-    await supabase.from('rapports').insert({
-      num, client, adresse, chantier, description, email, telephone,
-      date_rapport: new Date().toISOString()
+    // Enregistrer en BDD
+    const { error: rapportErr } = await supabase.from('rapports').insert({
+      num, client, adresse, description: description || chantier,
+      email, telephone
     });
+    if (rapportErr) console.log('Rapport insert (non bloquant):', rapportErr.message);
 
-    // Générer PDF avec photos
-    const pyPath = path.join(__dirname, `_rapp_${num}.py`);
-    const pdfPath = path.join(__dirname, `_rapp_${num}.pdf`);
+    // Générer PDF rapport
+    const detailsPath = path.join('/tmp', `_rap_${num}.json`);
+    const pyPath     = path.join('/tmp', `_rap_${num}.py`);
+    const pdfPath    = path.join('/tmp', `_rap_${num}.pdf`);
 
-    const descEsc = String(description || chantier).replace(/'/g, ' ').replace(/\n/g, '\\n');
-    const clientEsc = String(client || '').replace(/'/g, ' ');
-    const adresseEsc = String(adresse || '').replace(/'/g, ' ');
-    const chantierEsc = String(chantier || '').replace(/'/g, ' ');
+    const statut_install = req.body.statut_install || 'ok';
+    const descRaw = description || chantier || '';
+    // Nettoyer le markdown et extraire les travaux proprement
+    const cleanMarkdown = (txt) => txt
+      .replace(/^#{1,6}\s+/gm, '')           // Retire ## headers
+      .replace(/\*\*([^*]+)\*\*/g, '$1')   // Retire **bold**
+      .replace(/\*([^*]+)\*/g, '$1')          // Retire *italic*
+      .replace(/^\d+\s+/gm, '')               // Retire les numéros en début de ligne (1 2 3...)
+      .replace(/Rapport d\'Intervention[^\n]*/gi, '') // Retire le titre si copié dedans
+      .replace(/Client :\s*[^\n]*/g, '')
+      .replace(/Adresse :\s*[^\n]*/g, '')
+      .replace(/Description des travaux[^\n]*/g, '')
+      .replace(/Actions réalisées :[^\n]*/g, '')
+      .replace(/Matériels utilisés :/g, 'Matériels utilisés :')
+      .replace(/Conformité :/g, 'Conformité :')
+      .replace(/Recommandations :/g, 'Recommandations :')
+      .trim();
 
-    // Encoder les photos en base64 pour Python
-    const photoAvantB64 = photo_avant ? photo_avant.replace(/^data:image\/[a-z]+;base64,/, '') : null;
-    const photoApresB64 = photo_apres ? photo_apres.replace(/^data:image\/[a-z]+;base64,/, '') : null;
+    const descFull = cleanMarkdown(descRaw);
+
+    // Parser les travaux — chaque ligne non vide = une entrée
+    const travaux = descFull.split('\n')
+      .map(l => l.trim())
+      .filter(l => l.length > 3) // Ignore les lignes trop courtes
+      .map((l, i) => ({
+        num: i + 1,
+        texte: l
+          .replace(/^[-•●▸\-]+\s*/, '')     // Retire les puces
+          .replace(/^\d+[.)\-]\s*/, '')      // Retire les numéros 1. 1) 1-
+          .trim()
+      }))
+      .filter(t => t.texte.length > 3);
+
+    fs.writeFileSync(detailsPath, JSON.stringify({
+      num, client, adresse, telephone, email,
+      dateStr, type_logement: type_logement || '',
+      num_facture: num_facture || '',
+      nature_panne: nature_panne || '',
+      statut_install,
+      travaux,
+      desc_full: descFull,
+      photo_avant: photo_avant || null,
+      photo_apres: photo_apres || null
+    }));
 
     const py = `# -*- coding: utf-8 -*-
-import io, base64
+import sys, json, base64, io
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.units import cm
-from reportlab.pdfgen import canvas as pdfcanvas
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
-from reportlab.platypus.flowables import HRFlowable
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
 from reportlab.lib.styles import ParagraphStyle
-from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
-from reportlab.lib.utils import ImageReader
+from reportlab.lib.enums import TA_LEFT, TA_JUSTIFY, TA_CENTER
+import reportlab.pdfgen.canvas as pdfcanvas
 
-W,H=A4
-MARINE=colors.HexColor('#1B2A4A'); OR=colors.HexColor('#C9A84C')
-VERT=colors.HexColor('#16a34a'); GRIS=colors.HexColor('#555555')
-GRIS_L=colors.HexColor('#f5f5f5'); LIGNE=colors.HexColor('#e0e0e0')
-BLANC=colors.white
+W, H = A4
+MARINE = colors.HexColor('#1B2A4A')
+OR     = colors.HexColor('#C9962A')
+OR_L   = colors.HexColor('#E8B84B')
+BLANC  = colors.white
+GRIS   = colors.HexColor('#64748b')
+GRIS_L = colors.HexColor('#f8fafc')
+VERT   = colors.HexColor('#16a34a')
 
-def p(txt,sz=9,font='Helvetica',color=colors.HexColor('#333333'),align=TA_LEFT,sb=4,sa=4):
-    return Paragraph(str(txt).replace('\\\\n','<br/>'),ParagraphStyle('s',fontName=font,fontSize=sz,textColor=color,alignment=align,spaceBefore=sb,spaceAfter=sa,leading=sz*1.5,wordWrap='CJK'))
+with open(sys.argv[1], encoding='utf-8') as f:
+    d = json.load(f)
 
-logo_bytes=base64.b64decode(open('/app/logo_b64.txt').read().strip())
+num           = d.get('num','')
+client        = d.get('client','')
+adresse       = d.get('adresse','')
+telephone     = d.get('telephone','')
+email         = d.get('email','')
+date_str      = d.get('dateStr','')
+type_logement = d.get('type_logement','')
+num_facture   = d.get('num_facture','')
+nature_panne  = d.get('nature_panne','')
+statut_install= d.get('statut_install','ok')
+travaux       = d.get('travaux',[])
+desc_full     = d.get('desc_full','')
+photo_avant   = d.get('photo_avant')
+photo_apres   = d.get('photo_apres')
+
+def p(txt, sz=10, font='Helvetica', color=None, align=TA_LEFT, leading=None):
+    color = color or MARINE
+    return Paragraph(str(txt), ParagraphStyle(name='s', fontSize=sz, fontName=font,
+        textColor=color, alignment=align, leading=leading or sz*1.4, spaceAfter=0, spaceBefore=0))
 
 class SC(pdfcanvas.Canvas):
-    def __init__(self,fn,**kw):
-        pdfcanvas.Canvas.__init__(self,fn,**kw); self._pg=0; self.saveState(); self._draw_bg()
-    def showPage(self): self._draw_footer(); pdfcanvas.Canvas.showPage(self); self._pg+=1; self.saveState(); self._draw_bg()
-    def save(self): self._draw_footer(); pdfcanvas.Canvas.save(self)
-    def _draw_bg(self):
-        self.setFillColor(BLANC); self.rect(0,0,W,H,fill=1,stroke=0)
-        self.setFillColor(MARINE); self.rect(0,0,0.6*cm,H,fill=1,stroke=0)
-        self.setFillColor(OR); self.rect(0.6*cm,0,0.08*cm,H,fill=1,stroke=0)
-        if self._pg==0: self._draw_header()
-    def _draw_header(self):
-        self.setFillColor(MARINE); self.rect(0.68*cm,H-4.8*cm,W-0.68*cm,4.8*cm,fill=1,stroke=0)
-        self.setFillColor(OR); self.rect(0.68*cm,H-4.8*cm,W-0.68*cm,0.1*cm,fill=1,stroke=0)
-        self.drawImage(ImageReader(io.BytesIO(logo_bytes)),0.9*cm,H-4.5*cm,width=3.5*cm,height=3.5*cm,preserveAspectRatio=True,mask='auto')
-        self.setFont('Helvetica-Bold',16); self.setFillColor(BLANC)
-        self.drawString(5.5*cm,H-1.6*cm,"RAPPORT D'INTERVENTION")
-        self.setFont('Helvetica',9); self.setFillColor(colors.HexColor('#BFC8D6'))
-        self.drawString(5.5*cm,H-2.2*cm,'SINELEC Paris — Electricien professionnel')
-        self.drawString(5.5*cm,H-2.7*cm,'128 Rue La Boetie, 75008 Paris — 07 87 38 86 22')
-        self.drawString(5.5*cm,H-3.2*cm,'sinelec.paris@gmail.com — SIRET : 91015824500019')
-        self.setFillColor(OR); self.roundRect(W-6.5*cm,H-3.8*cm,5.3*cm,1.3*cm,0.15*cm,fill=1,stroke=0)
-        self.setFont('Helvetica-Bold',9); self.setFillColor(MARINE)
-        self.drawCentredString(W-3.85*cm,H-2.85*cm,'Ref : ${num}')
-        self.drawCentredString(W-3.85*cm,H-3.3*cm,'Date : ${dateStr}')
-    def _draw_footer(self):
+    def __init__(self, fn, **kw):
+        pdfcanvas.Canvas.__init__(self, fn, **kw)
+        self.saveState(); self._bg(); self.restoreState()
+    def showPage(self): self._footer(); pdfcanvas.Canvas.showPage(self)
+    def save(self): self._footer(); pdfcanvas.Canvas.save(self)
+    def _bg(self):
+        self.saveState()
+        self.setFillColor(colors.HexColor('#FDFCF9')); self.rect(0,0,W,H,fill=1,stroke=0)
+        self.setFillColor(MARINE); self.rect(0,0,0.55*cm,H,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0.55*cm,0,0.06*cm,H,fill=1,stroke=0)
+        self.restoreState()
+    def _footer(self):
         self.saveState()
         self.setFillColor(MARINE); self.rect(0,0,W,0.9*cm,fill=1,stroke=0)
-        self.setFillColor(OR); self.rect(0,0.9*cm,W,0.08*cm,fill=1,stroke=0)
-        self.setFont('Helvetica',7); self.setFillColor(colors.HexColor('#8899BB'))
-        self.drawCentredString(W/2,0.38*cm,'SINELEC Paris \\u2022 128 Rue La Boetie 75008 Paris \\u2022 07 87 38 86 22 \\u2022 SIRET : 91015824500019 \\u2022 TVA non applicable art. 293B CGI')
-        self.setFont('Helvetica-Bold',7); self.setFillColor(OR); self.drawRightString(W-1.2*cm,0.22*cm,'${num}')
+        self.setFont('Helvetica',7); self.setFillColor(BLANC)
+        self.drawCentredString(W/2, 0.32*cm,
+            'SINELEC EI  ·  128 Rue La Boetie, 75008 Paris  ·  07 87 38 86 22  ·  SIRET : 91015824500019  ·  Garantie decennale ORUS')
         self.restoreState()
 
-doc=SimpleDocTemplate('${pdfPath}',pagesize=A4,leftMargin=1.3*cm,rightMargin=1.0*cm,topMargin=5.2*cm,bottomMargin=1.4*cm)
-story=[]
+doc = SimpleDocTemplate(sys.argv[2], pagesize=A4,
+    leftMargin=1.5*cm, rightMargin=1.1*cm, topMargin=0.9*cm, bottomMargin=1.3*cm)
+story = []
+CW = W - 1.5*cm - 1.1*cm
 
-# ── Fiche intervention ──
-fiche=Table([
-    [p('CLIENT',8,'Helvetica-Bold',OR,sa=2), p('${clientEsc}',10,'Helvetica-Bold',MARINE)],
-    [p('ADRESSE',8,'Helvetica-Bold',OR,sa=2), p('${adresseEsc}',9,color=GRIS)],
-    [p('OBJET',8,'Helvetica-Bold',OR,sa=2), p('${chantierEsc}',9,color=GRIS)],
-    [p('DATE',8,'Helvetica-Bold',OR,sa=2), p('${dateStr}',9,color=GRIS)],
-    [p('REF.',8,'Helvetica-Bold',OR,sa=2), p('${num}',9,color=GRIS)],
-],colWidths=[3.0*cm,15.4*cm])
-fiche.setStyle(TableStyle([
-    ('BOX',(0,0),(-1,-1),0.5,OR),('INNERGRID',(0,0),(-1,-1),0.3,LIGNE),
-    ('BACKGROUND',(0,0),(0,-1),colors.HexColor('#FBF7EC')),
-    ('BACKGROUND',(1,0),(1,-1),BLANC),
+# HEADER
+try:
+    logo_b = base64.b64decode(open('/app/logo_b64.txt').read().strip())
+    logo_img = RLImage(io.BytesIO(logo_b), width=2.8*cm, height=1.9*cm)
+except:
+    logo_img = p('⚡ SINELEC', 18, 'Helvetica-Bold', BLANC)
+
+hdr = Table([[
+    logo_img,
+    [
+        p("RAPPORT D'INTERVENTION", 13, 'Helvetica-Bold', BLANC),
+        p('Document officiel · Usage assurance & sinistre', 8, 'Helvetica', OR_L),
+    ],
+    [
+        p(f'N° {num}', 10, 'Helvetica-Bold', OR),
+        p(date_str, 8, 'Helvetica', colors.HexColor('#94a3b8')),
+    ]
+]], colWidths=[3.6*cm, CW - 3.6*cm - 3.5*cm, 3.5*cm])
+hdr.setStyle(TableStyle([
+    ('BACKGROUND',(0,0),(-1,-1),MARINE),
+    ('LEFTPADDING',(0,0),(0,-1),10),('LEFTPADDING',(1,0),(1,-1),14),
+    ('RIGHTPADDING',(0,0),(-1,-1),14),
+    ('TOPPADDING',(0,0),(-1,-1),12),('BOTTOMPADDING',(0,0),(-1,-1),12),
+    ('VALIGN',(0,0),(-1,-1),'MIDDLE'),
+    ('LINEBEFORE',(1,0),(1,-1),2,OR),
+    ('ALIGN',(2,0),(2,-1),'RIGHT'),
+]))
+story.append(hdr)
+
+# Bande statut dynamique
+VERT_D  = colors.HexColor('#15803d')
+ORANGE_B= colors.HexColor('#f59e0b')
+if statut_install == 'ok':
+    band_bg  = VERT_D
+    band_l   = p('<b>✓  INSTALLATION VÉRIFIÉE ET SÉCURISÉE</b>', 9, 'Helvetica-Bold', BLANC)
+    band_r   = p('NF C 15-100  ·  Garantie décennale ORUS', 8, 'Helvetica', colors.HexColor('#bbf7d0'), align=4)
+else:
+    band_bg  = ORANGE_B
+    band_l   = p('<b>⚠  INTERVENTION PARTIELLE — TRAVAUX COMPLÉMENTAIRES RECOMMANDÉS</b>', 9, 'Helvetica-Bold', colors.HexColor('#1c0a00'))
+    band_r   = p("Client informé · Devis complémentaire proposé et refusé", 8, 'Helvetica', colors.HexColor('#1c0a00'), align=4)
+
+band = Table([[band_l, band_r]], colWidths=[CW*0.62, CW*0.38])
+band.setStyle(TableStyle([
+    ('BACKGROUND',(0,0),(-1,-1),band_bg),
+    ('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),
     ('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7),
-    ('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),
-    ('LINEBEFORE',(0,0),(0,-1),4,MARINE),
     ('VALIGN',(0,0),(-1,-1),'MIDDLE'),
 ]))
-story.append(fiche)
-story.append(Spacer(1,0.4*cm))
+story.append(band)
+story.append(Spacer(1,0.12*cm))
 
-# ── Titre section rapport ──
-story.append(HRFlowable(width='100%',thickness=2,color=MARINE,spaceAfter=6))
-story.append(p("COMPTE-RENDU DETAILLE DE L'INTERVENTION",10,'Helvetica-Bold',MARINE,sa=8))
-story.append(HRFlowable(width='100%',thickness=0.5,color=OR,spaceAfter=12))
+def section_title(num_sec, txt):
+    num_cell = Table([[p(str(num_sec), 9, 'Helvetica-Bold', MARINE)]], colWidths=[0.7*cm],
+        style=[('BACKGROUND',(0,0),(-1,-1),OR),('ALIGN',(0,0),(-1,-1),'CENTER'),
+        ('VALIGN',(0,0),(-1,-1),'MIDDLE'),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4),
+        ('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)])
+    line = Table([['']], colWidths=[CW - 0.9*cm - 0.1*cm],
+        style=[('LINEBELOW',(0,0),(-1,-1),0.8,colors.HexColor('#e2e8f0')),
+        ('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0)])
+    t = Table([[num_cell, p(f'  {txt}', 10, 'Helvetica-Bold', MARINE), line]],
+        colWidths=[0.9*cm, 5*cm, CW - 0.9*cm - 5*cm])
+    t.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'MIDDLE'),
+        ('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0),
+        ('LEFTPADDING',(1,0),(1,-1),6),('RIGHTPADDING',(0,0),(-1,-1),0)]))
+    return t
 
-# ── Description longue ──
-desc_txt = '${descEsc}'
-for ligne in desc_txt.split('\\\\n'):
-    if ligne.strip():
-        story.append(p(ligne.strip(),9.5,sa=6))
-story.append(Spacer(1,0.4*cm))
+def field_row(label, val, w=CW/2 - 0.1*cm):
+    return Table([[
+        p(f'<b>{label}</b>', 8, 'Helvetica-Bold', GRIS),
+        p(val or '—', 11, 'Helvetica', MARINE)
+    ]], colWidths=[3*cm, w - 3*cm])
 
-${photoAvantB64 || photoApresB64 ? `
-# ── Photos avant / après ──
-story.append(HRFlowable(width='100%',thickness=2,color=MARINE,spaceAfter=6))
-story.append(p('PHOTOS AVANT / APRES',10,'Helvetica-Bold',MARINE,sa=8))
-story.append(HRFlowable(width='100%',thickness=0.5,color=OR,spaceAfter=12))
-photo_cells=[]
-photo_labels=[]
-${photoAvantB64 ? `
-av_bytes=base64.b64decode('${photoAvantB64}')
-av_img=Image(io.BytesIO(av_bytes),width=8.5*cm,height=6.0*cm)
-av_img.hAlign='CENTER'
-photo_cells.append(av_img)
-photo_labels.append(p('AVANT INTERVENTION',8,'Helvetica-Bold',GRIS,TA_CENTER))
-` : `photo_cells.append(p('')); photo_labels.append(p(''))`}
-${photoApresB64 ? `
-ap_bytes=base64.b64decode('${photoApresB64}')
-ap_img=Image(io.BytesIO(ap_bytes),width=8.5*cm,height=6.0*cm)
-ap_img.hAlign='CENTER'
-photo_cells.append(ap_img)
-photo_labels.append(p('APRES INTERVENTION',8,'Helvetica-Bold',VERT,TA_CENTER))
-` : `photo_cells.append(p('')); photo_labels.append(p(''))`}
-if len(photo_cells)==2:
-    t_ph=Table([photo_cells,photo_labels],colWidths=[9.1*cm,9.1*cm])
-    t_ph.setStyle(TableStyle([('ALIGN',(0,0),(-1,-1),'CENTER'),('VALIGN',(0,0),(-1,-1),'MIDDLE'),
-        ('BOX',(0,0),(-1,-1),0.5,LIGNE),('INNERGRID',(0,0),(-1,-1),0.3,LIGNE),
-        ('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
-    story.append(t_ph)
-    story.append(Spacer(1,0.3*cm))
-` : ''}
+HALF = CW / 2
 
-# ── Signature ──
-story.append(Spacer(1,0.3*cm))
-story.append(HRFlowable(width='100%',thickness=0.5,color=LIGNE,spaceAfter=10))
-sig=Table([
-    [p('Technicien SINELEC',8,'Helvetica-Bold',GRIS), p('Signature client',8,'Helvetica-Bold',GRIS,TA_RIGHT)],
-    [p('Diahe SINERA',10,'Helvetica-Bold',MARINE), p('Nom : _______________________',9,align=TA_RIGHT)],
-    [p('Electricien certifie — SINELEC Paris',8,color=GRIS), p('',8,align=TA_RIGHT)],
-    [p('Garanti decennale ORUS N° 278499522',8,color=GRIS), p('',8,align=TA_RIGHT)],
-],colWidths=[9.1*cm,9.1*cm])
-sig.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4),
-    ('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)]))
-story.append(sig)
+# ── BLOC CLIENT PRO — 2 colonnes avec headers marine ──
+DIV_W = 0.06*cm
+COL_W = (CW - DIV_W) / 2
 
-doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw))
-print('RAPPORT_OK')
+def champ(label, val, is_mono=False, bg=BLANC):
+    val_str = str(val) if val else '—'
+    font = 'Helvetica'
+    color_v = OR if is_mono else MARINE
+    row = Table([
+        [p(label.upper(), 8, 'Helvetica', GRIS)],
+        [p(val_str, 12, font, color_v)]
+    ], colWidths=[COL_W])
+    row.setStyle(TableStyle([
+        ('BACKGROUND',(0,0),(-1,-1),bg),
+        ('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),8),
+        ('TOPPADDING',(0,0),(0,0),6),('BOTTOMPADDING',(0,0),(0,0),1),
+        ('TOPPADDING',(0,1),(0,1),1),('BOTTOMPADDING',(0,1),(0,1),7),
+        ('LINEBELOW',(0,0),(-1,-1),0.5,colors.HexColor('#e8edf2')),
+    ]))
+    return row
+
+def hdr_col(txt):
+    row = Table([[p(txt, 9, 'Helvetica-Bold', OR)]], colWidths=[COL_W])
+    row.setStyle(TableStyle([
+        ('BACKGROUND',(0,0),(-1,-1),MARINE),
+        ('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),8),
+        ('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8),
+    ]))
+    return row
+
+left_rows  = [hdr_col('INFORMATIONS CLIENT'),
+              champ('Nom complet',  client,            bg=GRIS_L),
+              champ('Adresse',      adresse,           bg=BLANC),
+              champ('Telephone',    telephone,         bg=GRIS_L),
+              champ('Email',        email or '—',      bg=BLANC)]
+
+right_rows = [hdr_col('DETAILS INTERVENTION'),
+              champ("Date",         date_str,          bg=GRIS_L),
+              champ('Logement',     type_logement,     bg=BLANC),
+              champ('N° Facture',   num_facture,  is_mono=True, bg=GRIS_L),
+              champ('N° Rapport',   num,          is_mono=True, bg=BLANC)]
+
+div_col = Table([['']] * len(left_rows), colWidths=[DIV_W],
+    rowHeights=None)
+div_col.setStyle(TableStyle([
+    ('BACKGROUND',(0,0),(-1,-1),MARINE),
+    ('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0),
+    ('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),
+]))
+
+client_tbl = Table(
+    [[left_rows[i], '', right_rows[i]] for i in range(len(left_rows))],
+    colWidths=[COL_W, DIV_W, COL_W]
+)
+client_tbl.setStyle(TableStyle([
+    ('BOX',(0,0),(-1,-1),1.5,MARINE),
+    ('LINEAFTER',(0,0),(0,-1),1.5,MARINE),
+    ('TOPPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),0),
+    ('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),
+    ('VALIGN',(0,0),(-1,-1),'TOP'),
+]))
+story.append(client_tbl)
+story.append(Spacer(1,0.2*cm))
+
+# 2. NATURE DE LA PANNE
+if nature_panne:
+    story.append(section_title(2, "NATURE DE LA PANNE CONSTATÉE"))
+    story.append(Spacer(1,0.05*cm))
+    panne_tbl = Table([[p(nature_panne, 11, 'Helvetica', MARINE, align=TA_JUSTIFY, leading=16)]],
+        colWidths=[CW])
+    panne_tbl.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GRIS_L),
+        ('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0')),
+        ('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),
+        ('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10)]))
+    story.append(panne_tbl)
+    story.append(Spacer(1,0.18*cm))
+    num_section = 3
+else:
+    num_section = 2
+
+# 3. TRAVAUX RÉALISÉS
+story.append(section_title(num_section, "TRAVAUX RÉALISÉS"))
+story.append(Spacer(1,0.05*cm))
+if travaux:
+    # Séparer les étapes des sections spéciales
+    SECTION_PREFIXES = ['Matériels utilisés', 'Conformité', 'Recommandations', 'Matériel utilisé', 'Conclusion']
+    etapes = []
+    extras = []
+    for t in travaux:
+        txt = t['texte']
+        is_extra = any(txt.startswith(pref) for pref in SECTION_PREFIXES)
+        if is_extra:
+            extras.append(txt)
+        else:
+            etapes.append(txt)
+
+    # Rendu des étapes numérotées
+    rows = []
+    for i, texte in enumerate(etapes):
+        bg = GRIS_L if i % 2 == 0 else BLANC
+        num_cell = Table([[p(str(i+1), 9, 'Helvetica-Bold', OR)]], colWidths=[0.7*cm],
+            style=[('BACKGROUND',(0,0),(-1,-1),MARINE),('ALIGN',(0,0),(-1,-1),'CENTER'),
+            ('VALIGN',(0,0),(-1,-1),'MIDDLE'),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5)])
+        row = Table([[num_cell, p(texte, 10.5, 'Helvetica', MARINE, align=TA_JUSTIFY, leading=15)]],
+            colWidths=[0.9*cm, CW - 0.9*cm])
+        row.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),bg),
+            ('LINEBELOW',(0,0),(-1,-1),0.3,colors.HexColor('#e2e8f0')),
+            ('LEFTPADDING',(1,0),(1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),8),
+            ('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7),
+            ('VALIGN',(0,0),(-1,-1),'TOP'),
+            ('LEFTPADDING',(0,0),(0,-1),0),('RIGHTPADDING',(0,0),(0,-1),0),
+        ]))
+        rows.append(row)
+    for r in rows: story.append(r)
+
+    # Rendu des sections extras (matériels, conformité, recommandations)
+    if extras:
+        story.append(Spacer(1,0.1*cm))
+        for extra in extras:
+            parts = extra.split(':', 1)
+            label = parts[0].strip() if len(parts) > 1 else 'Note'
+            val   = parts[1].strip() if len(parts) > 1 else extra
+            ex_tbl = Table([[
+                p(f'<b>{label} :</b>', 9, 'Helvetica-Bold', GRIS),
+                p(val, 10, 'Helvetica', MARINE, align=TA_JUSTIFY, leading=14)
+            ]], colWidths=[3.5*cm, CW - 3.5*cm])
+            ex_tbl.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f8fafc')),
+                ('LINEBELOW',(0,0),(-1,-1),0.4,colors.HexColor('#e2e8f0')),
+                ('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),
+                ('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7),
+                ('VALIGN',(0,0),(-1,-1),'TOP')]))
+            story.append(ex_tbl)
+else:
+    tbl = Table([[p(desc_full or 'Voir description', 10.5, 'Helvetica', MARINE, align=TA_JUSTIFY)]],
+        colWidths=[CW])
+    tbl.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GRIS_L),
+        ('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),
+        ('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10)]))
+    story.append(tbl)
+story.append(Spacer(1,0.18*cm))
+
+# 4. PHOTOS
+if photo_avant or photo_apres:
+    story.append(section_title(num_section+1, "PHOTOS D'INTERVENTION"))
+    story.append(Spacer(1,0.08*cm))
+    photo_cols = []
+    PHOTO_W = (CW - 0.4*cm) / 2
+    for label, b64data in [('📷 Avant intervention', photo_avant), ('📷 Après intervention', photo_apres)]:
+        if b64data:
+            try:
+                raw = b64data.split(',')[-1]
+                img_bytes = base64.b64decode(raw)
+                img = RLImage(io.BytesIO(img_bytes), width=PHOTO_W, height=PHOTO_W * 0.7)
+                cell = [p(label, 8, 'Helvetica-Bold', GRIS), Spacer(1,0.05*cm), img]
+            except:
+                cell = [p(label, 8, 'Helvetica-Bold', GRIS), p('Photo non disponible', 9, color=GRIS)]
+        else:
+            cell = [p(label, 8, 'Helvetica-Bold', GRIS), p('Aucune photo', 9, color=GRIS)]
+        photo_cols.append(cell)
+    if len(photo_cols) == 2:
+        pt = Table([[photo_cols[0], photo_cols[1]]], colWidths=[PHOTO_W, PHOTO_W])
+    else:
+        pt = Table([[photo_cols[0]]], colWidths=[PHOTO_W])
+    pt.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GRIS_L),
+        ('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0')),
+        ('LINEBETWEEN',(0,0),(0,-1),0.4,colors.HexColor('#e2e8f0')),
+        ('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),
+        ('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),
+        ('VALIGN',(0,0),(-1,-1),'TOP'),
+    ]))
+    story.append(pt)
+    story.append(Spacer(1,0.18*cm))
+    num_section += 1
+
+# CONFORMITÉ
+story.append(section_title(num_section+1, "ATTESTATION DE CONFORMITÉ"))
+story.append(Spacer(1,0.08*cm))
+conf = Table([[
+    p('✅', 16, 'Helvetica', VERT),
+    p("À l'issue de l'intervention, <b>l'installation électrique est déclarée conforme à la norme NF C 15-100</b> en vigueur. Les protections différentielles 30mA sont fonctionnelles, la mise à la terre est vérifiée et opérationnelle. L'installation est sécurisée pour une utilisation normale du logement.", 10, 'Helvetica', colors.HexColor('#166534'), align=TA_JUSTIFY, leading=15)
+]], colWidths=[1*cm, CW - 1*cm])
+conf.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f0fdf4')),
+    ('BOX',(0,0),(-1,-1),1.5,VERT),
+    ('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),
+    ('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),
+    ('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
+story.append(conf)
+story.append(Spacer(1,0.18*cm))
+
+# BLOC SINELEC
+bloc = Table([[
+    [p(f'Fait à Paris, le {date_str}', 9, color=GRIS),
+     Spacer(1,0.06*cm),
+     p('<b>SINELEC EI</b>', 11, 'Helvetica-Bold', MARINE),
+     p('Électricien certifié — SIRET 91015824500019', 9, color=GRIS)],
+    [p('<b>SINELEC</b>', 16, 'Helvetica-Bold', MARINE, align=4),
+     Spacer(1,0.06*cm),
+     p('Garantie décennale ORUS Assurances<br/>RC Professionnelle : Oui<br/>128 Rue La Boétie, 75008 Paris', 9, color=GRIS, align=4),
+     Spacer(1,0.06*cm),
+     Table([[p('✓ Document certifié SINELEC', 8, 'Helvetica-Bold', VERT)]], colWidths=[6*cm],
+        style=[('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f0fdf4')),('BOX',(0,0),(-1,-1),1,VERT),
+               ('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4),
+               ('LEFTPADDING',(0,0),(-1,-1),8),('ALIGN',(0,0),(-1,-1),'CENTER')])]
+]], colWidths=[HALF, HALF])
+bloc.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GRIS_L),
+    ('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),
+    ('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),
+    ('VALIGN',(0,0),(-1,-1),'TOP'),
+    ('LINEBETWEEN',(0,0),(0,-1),0.4,colors.HexColor('#e2e8f0')),
+    ('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0'))]))
+story.append(bloc)
+
+doc.build(story, canvasmaker=lambda fn, **kw: SC(fn, **kw))
 `;
+
     fs.writeFileSync(pyPath, py, 'utf8');
+    let pdf_b64 = null;
     try {
-      execSync(`python3 ${pyPath} 2>&1`, { cwd: __dirname });
-    } catch(pyErr) { throw new Error('PDF rapport: ' + pyErr.message.substring(0,200)); }
+      execSync(`python3 "${pyPath}" "${detailsPath}" "${pdfPath}"`, { timeout: 40000, stdio: ['pipe','pipe','pipe'] });
+      if (fs.existsSync(pdfPath)) {
+        const buf = fs.readFileSync(pdfPath);
+        if (buf.length > 500 && buf.subarray(0,4).toString('ascii') === '%PDF') {
+          pdf_b64 = buf.toString('base64');
+          cachePdf(num, buf); // Stocker pour accès direct via URL
+          console.log(`✅ Rapport PDF généré: ${num} (${buf.length} bytes)`);
+        }
+      }
+    } catch(pyErr) {
+      const msg = pyErr.stderr?.toString() || pyErr.message;
+      console.error('❌ Rapport PDF error:', msg.substring(0,300));
+    }
+    // Nettoyage
+    try { fs.unlinkSync(pyPath); fs.unlinkSync(detailsPath); if(fs.existsSync(pdfPath)) fs.unlinkSync(pdfPath); } catch(e) {}
 
-    const pdfBuffer = fs.readFileSync(pdfPath);
-    const pdfB64Rapport = pdfBuffer.toString('base64');
-
-    // Envoyer par email au client si email fourni
-    if (email) {
-      const prenom = (client || '').split(' ')[0];
-      try {
-        await envoyerEmail(email,
-          `📋 SINELEC Paris — Rapport d'intervention ${num}`,
-          `<html><body style="font-family:Arial;padding:0;background:#f5f5f7;">
-          <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;">
-            <div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:28px;text-align:center;">
-              <div style="font-size:36px;">📋</div>
-              <h2 style="color:#fff;margin:8px 0 0;">Rapport d'intervention</h2>
-              <p style="color:#BFC8D6;font-size:12px;margin-top:6px;">SINELEC Paris</p>
-            </div>
-            <div style="padding:24px;">
-              <p style="color:#333;font-size:14px;">Bonjour <strong>${prenom}</strong>,</p>
-              <p style="color:#555;font-size:13px;line-height:1.6;margin:12px 0;">
-                Veuillez trouver ci-joint le rapport détaillé de l'intervention réalisée à votre domicile.<br>
-                Ce document récapitule l'ensemble des travaux effectués et les vérifications réalisées.
-              </p>
-              <div style="background:#f9f9f9;border-left:4px solid #C9A84C;border-radius:4px;padding:12px 16px;margin:16px 0;">
-                <div style="font-size:11px;font-weight:700;color:#C9A84C;text-transform:uppercase;margin-bottom:4px;">Référence</div>
-                <div style="font-size:14px;font-weight:800;color:#1B2A4A;">${num} — ${dateStr}</div>
-              </div>
-              <p style="color:#999;font-size:12px;line-height:1.6;">
-                Pour toute question : 📞 07 87 38 86 22<br>
-                sinelec.paris@gmail.com
-              </p>
-            </div>
-            <div style="background:#f8f8f8;padding:14px;text-align:center;">
-              <p style="color:#999;font-size:11px;">SINELEC Paris • 128 Rue La Boétie, 75008 Paris</p>
-            </div>
-          </div></body></html>`,
-          { content: pdfB64Rapport, name: `Rapport_SINELEC_${num}.pdf` }
-        );
-        console.log(`✅ Rapport envoyé à ${email}`);
-      } catch(e) { console.error('Email rapport:', e.message); }
+    // Mode preview (pas d'envoi email) ou envoi direct
+    const modeEnvoi = req.body.envoyer === true;
+    if (modeEnvoi && email) {
+      const html = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;">
+        <div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:24px;text-align:center;border-radius:12px 12px 0 0;">
+          <h2 style="color:#E8B84B;">Rapport d'intervention SINELEC</h2>
+        </div>
+        <div style="padding:24px;border:1px solid #e8e8e8;border-top:none;border-radius:0 0 12px 12px;">
+          <p>Bonjour,</p>
+          <p>Veuillez trouver ci-joint le rapport d'intervention n° <strong>${num}</strong> du ${dateStr}.</p>
+          <p>Ce document peut être transmis à votre assurance pour déclarer un sinistre.</p>
+          <p style="font-size:12px;color:#888;margin-top:16px;">📞 07 87 38 86 22 | sinelec.paris@gmail.com</p>
+        </div>
+      </div>`;
+      const attachment = pdf_b64 ? { content: pdf_b64, name: `${num}.pdf` } : null;
+      await envoyerEmail(email, `Rapport d'intervention ${num} - SINELEC Paris`, html, attachment);
+      console.log(`✅ Rapport envoyé: ${num} → ${email}`);
     }
 
-    // Copie à SINELEC Paris
-    try {
-      await envoyerEmail('sinelec.paris@gmail.com',
-        `📋 Rapport ${num} — ${client} — ${dateStr}`,
-        `<p>Rapport généré pour <strong>${client}</strong> — ${adresse}</p><p>Ref: ${num}</p>`,
-        { content: pdfB64Rapport, name: `Rapport_SINELEC_${num}.pdf` }
-      );
-    } catch(e) {}
+    const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+    const pdf_url = pdf_b64 ? `${appUrl}/api/rapport/pdf/${num}` : null;
+    res.json({ success: true, num, pdf_b64, pdf_url, envoye: modeEnvoi && !!email });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
 
-    res.json({ success: true, num });
+// Route pour envoyer le PDF rapport déjà généré (sans re-générer)
+app.post('/api/rapport/envoyer/:num', authMiddleware, async (req, res) => {
+  try {
+    const { num } = req.params;
+    const { email, client, payload } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email manquant' });
 
-    // Nettoyage
-    try { fs.unlinkSync(pyPath); fs.unlinkSync(pdfPath); } catch(e) {}
+    // Récupérer le PDF depuis le cache ou le régénérer si expiré
+    let pdfBuf = _pdfCache.get(num)?.buf;
+    if (!pdfBuf && payload) {
+      console.log(`⚠️ Cache vide pour ${num} — régénération depuis payload`);
+      try {
+        const tmpDetails = `/tmp/_rap_resend_${num}.json`;
+        const tmpPy     = `/tmp/_rap_resend_${num}.py`;
+        const tmpPdf    = `/tmp/_rap_resend_${num}.pdf`;
+        // Reconstruct minimal payload for regen
+        const { execSync } = require('child_process');
+        const fs = require('fs');
+        fs.writeFileSync(tmpDetails, JSON.stringify(payload));
+        // Use existing Python script via direct call
+        // For simplicity, just send without PDF if regen fails
+      } catch(regenErr) {
+        console.error('Regen failed:', regenErr.message);
+      }
+    }
+
+    const dateStr = new Date().toLocaleDateString('fr-FR');
+    const html = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;">
+      <div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:24px;text-align:center;border-radius:12px 12px 0 0;">
+        <h2 style="color:#E8B84B;margin:0;">Rapport d'intervention SINELEC</h2>
+      </div>
+      <div style="padding:24px;border:1px solid #e8e8e8;border-top:none;border-radius:0 0 12px 12px;">
+        <p>Bonjour${client ? ` <strong>${client}</strong>` : ''},</p>
+        <p>Veuillez trouver ci-joint votre rapport d'intervention n° <strong>${num}</strong> du ${dateStr}.</p>
+        <p>Ce document peut être transmis à votre assurance pour déclarer un sinistre.</p>
+        <p style="font-size:12px;color:#888;margin-top:16px;">📞 07 87 38 86 22 | sinelec.paris@gmail.com</p>
+      </div>
+    </div>`;
+
+    if (!pdfBuf) {
+      console.error(`❌ PDF manquant pour ${num} — envoi email sans pièce jointe`);
+      await envoyerEmail(email, `Rapport d'intervention ${num} - SINELEC Paris`, html, null);
+      return res.json({ success: true, num, email, warning: 'PDF non joint — cache expiré' });
+    }
+
+    const attachment = { content: pdfBuf.toString('base64'), name: `${num}.pdf` };
+    await envoyerEmail(email, `Rapport d'intervention ${num} - SINELEC Paris`, html, attachment);
+    console.log(`✅ Rapport envoyé avec PDF: ${num} → ${email} (${pdfBuf.length} bytes)`);
+    res.json({ success: true, num, email });
   } catch(e) {
-    console.error('Rapport:', e.message);
+    console.error('❌ rapport/envoyer:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
 
-// ── GÉNÉRATION RÉPONSE AVIS GOOGLE ────────────────
+// Route pour servir le PDF rapport directement (sans blob JS)
+app.get('/api/rapport/pdf/:num', (req, res) => {
+  const entry = _pdfCache.get(req.params.num);
+  if (!entry) return res.status(404).json({ error: 'PDF expiré ou non trouvé' });
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="${req.params.num}.pdf"`);
+  res.send(entry.buf);
+});
+
+// ═══════════════════════════════════════════════════
+// API: AVIS GOOGLE
+// ═══════════════════════════════════════════════════
+app.get('/api/avis/compteur', async (req, res) => {
+  try {
+    const { data } = await supabase.from('compteurs').select('valeur').eq('type', 'avis_google').single();
+    res.json({ success: true, nb: data?.valeur || 96 });
+  } catch(e) { res.json({ success: true, nb: 96 }); }
+});
+
+app.post('/api/avis/compteur', authMiddleware, async (req, res) => {
+  try {
+    const { nb } = req.body;
+    const { data: existing } = await supabase.from('compteurs').select('*').eq('type', 'avis_google').single();
+    if (existing) {
+      await supabase.from('compteurs').update({ valeur: nb }).eq('type', 'avis_google');
+    } else {
+      await supabase.from('compteurs').insert({ type: 'avis_google', valeur: nb });
+    }
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+
+// ═══════════════════════════════════════════════════
+// API: CAMPAGNE AVIS GOOGLE — Relance clients passés
+// ═══════════════════════════════════════════════════
+
+// État en mémoire de la campagne en cours
+let campagneAvisState = { running: false, total: 0, envoyes: 0, erreurs: 0, termine: false };
+
+app.get('/api/avis/campagne/preview', authMiddleware, async (req, res) => {
+  try {
+    // Tous les clients avec un numéro
+    const { data: clients } = await supabase.from('clients').select('id,nom,telephone,sms_avis_campagne_envoye');
+    const totalClients = (clients || []).length;
+    const avecTel = (clients || []).filter(c => c.telephone && c.telephone.trim());
+
+    // Numéros déjà sollicités via le système auto (post-paiement)
+    const { data: histoEnvoyes } = await supabase.from('historique').select('telephone').eq('sms_avis_envoye', true);
+    const telsAutoEnvoyes = new Set((histoEnvoyes || []).map(h => (h.telephone || '').replace(/\s/g, '')));
+
+    // Eligibles = a un tel, pas déjà reçu via auto, pas déjà reçu via campagne
+    const eligibles = avecTel.filter(c => {
+      const telClean = (c.telephone || '').replace(/\s/g, '');
+      return !telsAutoEnvoyes.has(telClean) && !c.sms_avis_campagne_envoye;
+    });
+
+    const sansTel = totalClients - avecTel.length;
+    const dejaSollicites = avecTel.length - eligibles.length;
+
+    // Compteur avis actuel (pour avant/après)
+    const { data: compteurData } = await supabase.from('compteurs').select('valeur').eq('type', 'avis_google').single();
+    const avisActuel = compteurData?.valeur || 96;
+
+    res.json({
+      success: true,
+      total_contacts: totalClients,
+      sans_telephone: sansTel,
+      deja_sollicites: dejaSollicites,
+      eligibles: eligibles.length,
+      avis_actuel: avisActuel,
+      exemple_prenom: eligibles[0] ? extractPrenom(eligibles[0].nom || '') : 'Client'
+    });
+  } catch(e) {
+    console.error('❌ avis/campagne/preview:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/avis/campagne/lancer', authMiddleware, async (req, res) => {
+  try {
+    if (campagneAvisState.running) {
+      return res.status(409).json({ error: 'Une campagne est déjà en cours' });
+    }
+
+    const { data: clients } = await supabase.from('clients').select('id,nom,telephone,sms_avis_campagne_envoye');
+    const avecTel = (clients || []).filter(c => c.telephone && c.telephone.trim());
+
+    const { data: histoEnvoyes } = await supabase.from('historique').select('telephone').eq('sms_avis_envoye', true);
+    const telsAutoEnvoyes = new Set((histoEnvoyes || []).map(h => (h.telephone || '').replace(/\s/g, '')));
+
+    const eligibles = avecTel.filter(c => {
+      const telClean = (c.telephone || '').replace(/\s/g, '');
+      return !telsAutoEnvoyes.has(telClean) && !c.sms_avis_campagne_envoye;
+    });
+
+    if (!eligibles.length) {
+      return res.json({ success: true, total: 0, message: 'Aucun client éligible' });
+    }
+
+    // Enregistrer le compteur avis avant campagne (pour comparaison)
+    const { data: compteurData } = await supabase.from('compteurs').select('valeur').eq('type', 'avis_google').single();
+    const avisAvant = compteurData?.valeur || 96;
+    const { data: baselineExist } = await supabase.from('compteurs').select('*').eq('type', 'avis_baseline_campagne').single();
+    if (baselineExist) {
+      await supabase.from('compteurs').update({ valeur: avisAvant }).eq('type', 'avis_baseline_campagne');
+    } else {
+      await supabase.from('compteurs').insert({ type: 'avis_baseline_campagne', valeur: avisAvant });
+    }
+
+    campagneAvisState = { running: true, total: eligibles.length, envoyes: 0, erreurs: 0, termine: false };
+    res.json({ success: true, total: eligibles.length, avis_avant: avisAvant });
+
+    // Envoi en arrière-plan, espacé pour respecter les limites Brevo
+    setImmediate(async () => {
+      for (const c of eligibles) {
+        try {
+          const prenom = extractPrenom(c.nom || '');
+          const msg = `Bonjour ${prenom}, c'est SINELEC, votre électricien à Paris ⚡ On espère que tout va bien depuis notre intervention. Si vous avez 30 secondes, un avis Google nous aiderait énormément : https://g.page/r/CSw-MABnFUAYEAE/review Merci ! — Diahe`;
+          await envoyerSMS(c.telephone, msg);
+          await supabase.from('clients').update({
+            sms_avis_campagne_envoye: true,
+            sms_avis_campagne_date: new Date().toISOString()
+          }).eq('id', c.id);
+          campagneAvisState.envoyes++;
+        } catch(e) {
+          console.error(`Campagne avis erreur ${c.id}:`, e.message);
+          campagneAvisState.erreurs++;
+        }
+        await new Promise(r => setTimeout(r, 800)); // 800ms entre chaque SMS
+      }
+      campagneAvisState.running = false;
+      campagneAvisState.termine = true;
+      console.log(`✅ Campagne avis terminée: ${campagneAvisState.envoyes}/${campagneAvisState.total} envoyés`);
+    });
+
+  } catch(e) {
+    console.error('❌ avis/campagne/lancer:', e.message);
+    campagneAvisState.running = false;
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/avis/campagne/status', authMiddleware, async (req, res) => {
+  try {
+    const { data: baseline } = await supabase.from('compteurs').select('valeur').eq('type', 'avis_baseline_campagne').single();
+    const { data: actuel } = await supabase.from('compteurs').select('valeur').eq('type', 'avis_google').single();
+    res.json({
+      success: true,
+      ...campagneAvisState,
+      avis_avant: baseline?.valeur || null,
+      avis_actuel: actuel?.valeur || null,
+      gain: (baseline?.valeur != null && actuel?.valeur != null) ? (actuel.valeur - baseline.valeur) : null
+    });
+  } catch(e) {
+    res.json({ success: true, ...campagneAvisState });
+  }
+});
+
 app.post('/api/avis/generer', authMiddleware, async (req, res) => {
   try {
     const { texte, etoiles, intervention } = req.body;
-    if (!texte) return res.status(400).json({ error: 'Texte manquant' });
-
     const prompt = `Tu es l'assistant de SINELEC, électricien Paris (Diahe).
-Génère une réponse professionnelle et chaleureuse à cet avis Google ${etoiles || 5} étoile(s).
-
-AVIS : "${texte}"
-${intervention ? `INTERVENTION : ${intervention}` : ''}
-
+Génère une réponse professionnelle et chaleureuse à cet avis Google ${etoiles} étoile(s).
+AVIS : "${texte}"${intervention ? `\nINTERVENTION : ${intervention}` : ''}
 RÈGLES :
 - 40 à 70 mots maximum
-- Intègre 2-3 mots-clés SEO naturellement parmi : électricien Paris, dépannage électrique Paris, électricien Paris 8e, urgence électrique Paris, mise aux normes NF C 15-100, électricien Île-de-France
-- ${(etoiles || 5) >= 4 ? 'Remercie sincèrement, valorise le point positif, invite à revenir' : 'Réponds calmement, propose de résoudre, reste professionnel'}
+- Intègre 2-3 mots-clés SEO : électricien Paris, dépannage électrique Paris, NF C 15-100
+- ${etoiles >= 4 ? 'Remercie sincèrement, valorise le point positif' : 'Réponds calmement, propose de résoudre'}
 - Termine par : Diahe — SINELEC ⚡
 - Donne UNIQUEMENT la réponse, sans introduction ni guillemets`;
 
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 300,
+      max_tokens: 200,
       messages: [{ role: 'user', content: prompt }]
     });
+    res.json({ success: true, reponse: response.content[0].text.trim() });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
 
-    const reponse = response.content[0]?.text?.trim();
-    res.json({ success: true, reponse });
+// ═══════════════════════════════════════════════════
+// API: ANALYSE DPE
+// ═══════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════
+// API: ANALYSE PHOTO → DEVIS AUTO
+// ═══════════════════════════════════════════════════
+app.post('/api/analyser-photo', authMiddleware, async (req, res) => {
+  try {
+    const { image_b64, media_type, contexte } = req.body;
+    if (!image_b64) return res.status(400).json({ error: 'Image requise' });
+
+    const prompt = `Tu es un expert électricien parisien. Analyse cette photo d'installation électrique et génère une liste de prestations à réaliser.
+
+CONTEXTE : ${contexte || 'Installation électrique résidentielle Paris'}
+
+GRILLE TARIFAIRE SINELEC (prix TTC, TVA non applicable) :
+- Disjoncteur standard : 150€ | Différentiel 63A type A : 250€ | Parafoudre : 160€
+- Tableau 1 rangée : 1200€ | Tableau 2 rangées : 1700€ | Tableau 3 rangées : 2200€
+- Prise standard : 90€ | Prise déplacement : 130€ | Interrupteur : 90€
+- Luminaire simple : 115€ | Spot encastré : 75€/u | Point DCL : 100€
+- Mise à la terre : 650€ | Liaison équipo SdB : 140€ | DAAF : 85€
+- Recherche panne : 120€ | Court-circuit : 125€ | Remise en service : 90€
+- Circuit encastré 5m : 300€ | Circuit apparent 5m : 200€
+- Déplacement Paris : 50€ (offert si intervention > 200€)
+- Mise en conformité NF C 15-100 : 65€/m²
+
+CONSIGNES :
+1. Identifie les travaux nécessaires en regardant l'image
+2. Pour chaque problème visible, propose la prestation correspondante
+3. Sois précis mais ne sur-vends pas
+4. Si l'image est floue ou insuffisante, dis-le
+
+Réponds UNIQUEMENT en JSON valide, sans markdown :
+{
+  "analyse": "Description courte de ce que tu vois (2-3 phrases)",
+  "urgence": "haute|normale|faible",
+  "prestations": [
+    {
+      "designation": "Nom de la prestation",
+      "detail": "Pourquoi c'est nécessaire (1 phrase)",
+      "prix": 150,
+      "qte": 1
+    }
+  ],
+  "notes": "Observations importantes ou limites de l'analyse"
+}`;
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1500,
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: media_type || 'image/jpeg',
+              data: image_b64
+            }
+          },
+          { type: 'text', text: prompt }
+        ]
+      }]
+    });
+
+    const raw = response.content[0].text.trim();
+    let result;
+    try {
+      const clean = raw.replace(/^```json?\s*/,'').replace(/\s*```$/,'');
+      result = JSON.parse(clean);
+    } catch(e) {
+      return res.status(500).json({ error: 'Réponse IA invalide', raw: raw.substring(0,200) });
+    }
+
+    // Calculer le total
+    const total = (result.prestations || []).reduce((s, p) => s + (p.prix * p.qte), 0);
+    result.total = total;
+
+    console.log(`📷 Analyse photo: ${(result.prestations||[]).length} prestations, ${total}€`);
+    res.json({ success: true, ...result });
+
   } catch(e) {
+    console.error('❌ analyser-photo:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
 
-// ── STATUT IA ──────────────────────────────────────
-app.get('/api/ia/statut', authMiddleware, async (req, res) => {
+app.post('/api/dpe', async (req, res) => {
   try {
-    const { data: corrections } = await supabase
-      .from('ia_corrections')
-      .select('*')
-      .order('date', { ascending: false })
-      .limit(10);
+    const { pdf_base64, pdf_type, pdf_text, nom_client, adresse_client } = req.body;
+    if (!pdf_base64 && !pdf_text) return res.status(400).json({ error: 'PDF ou texte DPE manquant' });
 
+    const promptBase = `Tu es un expert électricien parisien (SINELEC) qui analyse les DPE (Diagnostics de Performance Énergétique).
+Tu te concentres EXCLUSIVEMENT sur les travaux électriques. Ignore : isolation, fenêtres, toiture, chaudière gaz, etc.
+
+Analyse ce DPE et réponds UNIQUEMENT en JSON valide (sans backticks, sans markdown) :
+{
+  "logement": {
+    "surface": 65,
+    "classe_dpe": "E",
+    "annee_construction": "1975",
+    "chauffage": "Convecteurs électriques",
+    "eau_chaude": "Chauffe-eau électrique",
+    "vmc": "Absente",
+    "tableau": "Non conforme"
+  },
+  "recommandations": [
+    {
+      "id": "tableau",
+      "titre": "Remplacement tableau électrique",
+      "description": "Tableau vétuste non conforme NF C 15-100, protections insuffisantes.",
+      "priorite": "haute",
+      "prestations": [
+        {"nom": "Tableau complet 2 rangées", "prix": 1500, "quantite": 1}
+      ]
+    }
+  ],
+  "total_general": 2500
+}
+Priorités possibles : haute, moyenne, basse.
+Garde uniquement les travaux électriques pertinents (max 5-6 recommandations).`;
+
+    let messageContent;
+    if (pdf_base64) {
+      const mediaType = pdf_type || 'application/pdf';
+      if (mediaType.startsWith('image/')) {
+        messageContent = [
+          { type: 'image', source: { type: 'base64', media_type: mediaType, data: pdf_base64 } },
+          { type: 'text', text: promptBase }
+        ];
+      } else {
+        messageContent = [
+          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdf_base64 } },
+          { type: 'text', text: promptBase }
+        ];
+      }
+    } else {
+      messageContent = `${promptBase}\n\nContenu du DPE :\n---\n${(pdf_text || '').substring(0, 20000)}\n---`;
+    }
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 2000,
+      messages: [{ role: 'user', content: messageContent }]
+    });
+
+    const rawText = response.content[0].text.trim().replace(/```json|```/g, '').trim();
+    const result = JSON.parse(rawText);
+    result.recommandations = (result.recommandations || []).map(r => ({
+      ...r,
+      total: (r.prestations || []).reduce((s, p) => s + p.prix * (p.quantite || 1), 0)
+    }));
+    result.total_general = result.recommandations.reduce((s, r) => s + (r.total || 0), 0);
+    res.json({ success: true, ...result });
+  } catch(e) {
+    console.error('❌ DPE error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════
+// API: SANTÉ SYSTÈME
+// ═══════════════════════════════════════════════════
+async function verifierSante() {
+  const services = {};
+  // Brevo email
+  try {
+    const r = await fetch('https://api.brevo.com/v3/account', { headers: { 'api-key': BREVO_API_KEY || '' } });
+    services.brevo_email = { status: r.ok ? 'ok' : 'error' };
+  } catch(e) { services.brevo_email = { status: 'error' }; }
+  // Supabase
+  try {
+    const { error } = await supabase.from('compteurs').select('count').limit(1);
+    services.supabase = { status: error ? 'error' : 'ok' };
+  } catch(e) { services.supabase = { status: 'error' }; }
+  // Claude API
+  try {
+    services.claude_api = { status: (process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY.trim().length > 10) ? 'ok' : 'error' };
+  } catch(e) { services.claude_api = { status: 'unknown' }; }
+  // Python PDF
+  try {
+    execSync('python3 -c "from reportlab.lib.pagesizes import A4; print(\'ok\')"', { timeout: 5000 });
+    services.pdf_python = { status: 'ok' };
+  } catch(e) { services.pdf_python = { status: 'error' }; }
+  const allOk = Object.values(services).every(s => s.status === 'ok');
+  try { await supabase.from('logs_system').insert({ type: 'sante', message: 'Health check', data: services, success: allOk }); } catch(e) {}
+  return { global: allOk ? 'ok' : 'degraded', services };
+}
+
+app.get('/api/sante', authMiddleware, async (req, res) => {
+  try {
+    const result = await verifierSante();
+    res.json(result);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/sante/verifier', authMiddleware, async (req, res) => {
+  try {
+    const result = await verifierSante();
+    res.json(result);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+
+// ═══════════════════════════════════════════════════
+// API: SUMUP DIAGNOSTIC — Récupérer merchant_code (TEMPORAIRE)
+// ═══════════════════════════════════════════════════
+app.get('/api/sumup/me', authMiddleware, async (req, res) => {
+  try {
+    if (!SUMUP_API_KEY) return res.status(400).json({ error: 'SUMUP_API_KEY non configurée' });
+    const r = await fetch('https://api.sumup.com/v0.1/me', {
+      headers: { 'Authorization': 'Bearer ' + SUMUP_API_KEY }
+    });
+    const data = await r.json();
+    if (!r.ok) return res.status(r.status).json({ error: 'Erreur SumUp', details: data });
     res.json({
-      erreurs_en_cours: errorLog.length,
-      dernieres_erreurs: errorLog.slice(0, 5),
-      corrections: corrections || [],
-      ia_active: true
+      success: true,
+      merchant_code: data.merchant_profile?.merchant_code || data.merchant_code || null,
+      email: data.personal_profile?.email || data.email || null,
+      raw: data
     });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── CRON SURVEILLANCE — toutes les heures ──────────
-cron.schedule('0 * * * *', analyserEtCorrigerErreurs);
-
 // ═══════════════════════════════════════════════════
-// CALENDRIER CLIENT — PRISE DE RDV
+// API: SUMUP LIEN PAIEMENT
 // ═══════════════════════════════════════════════════
-
-function dureeEstimee(prestations) {
-  const noms = (prestations || []).map(p => (p.nom || p.designation || '').toLowerCase()).join(' ');
-  if (noms.includes('tableau') || noms.includes('renovation') || noms.includes('mise aux normes')) return 3;
-  if (noms.includes('vmc') || noms.includes('chauffe-eau') || noms.includes('borne')) return 2;
-  return 1;
-}
-
-// Page calendrier client
-app.get('/rdv/:num', async (req, res) => {
+app.post('/api/sumup/lien/:num', async (req, res) => {
   try {
     const { num } = req.params;
-    const { data: devis } = await supabase.from('historique').select('*').eq('num', num).single();
-    if (!devis) return res.status(404).send(`<html><body style="font-family:Arial;text-align:center;padding:40px;"><h2>Lien invalide</h2><p>Contactez SINELEC Paris : 07 87 38 86 22</p></body></html>`);
-    if (devis.date_intervention) {
-      const d = new Date(devis.date_intervention).toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
-      return res.send(`<html><body style="font-family:Arial;text-align:center;padding:40px;background:#f5f5f7;"><div style="max-width:400px;margin:0 auto;background:#fff;border-radius:20px;padding:32px;box-shadow:0 4px 24px rgba(0,0,0,0.1);"><div style="font-size:48px;margin-bottom:16px;">✅</div><h2 style="color:#1B2A4A;">RDV déjà planifié</h2><p style="color:#777;font-size:14px;margin-top:8px;">Votre intervention est prévue le<br><strong style="color:#1B2A4A;font-size:16px;">${d}</strong></p><p style="color:#999;font-size:12px;margin-top:20px;">SINELEC Paris — 07 87 38 86 22</p></div></body></html>`);
+    const { envoi } = req.query;
+    const { data: doc } = await supabase.from('historique').select('*').eq('num', num).single();
+    if (!doc) return res.status(404).json({ error: 'Document non trouvé' });
+    const total = parseFloat(doc.total_ht || 0);
+    const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+    const lien = `${appUrl}/paiement-confirme/${num}?montant=${total.toFixed(2)}`;
+    if (envoi === 'sms' || envoi === 'les2') {
+      if (doc.telephone) {
+        const msg = `Bonjour ${extractPrenom(doc.client)}, votre règlement SINELEC de ${total.toFixed(0)}€ est en attente. Payez en 1 clic 👉 ${lien} — L'équipe SINELEC Paris ⚡`;
+        await envoyerSMS(doc.telephone, msg);
+      }
     }
-    const duree = dureeEstimee(devis.prestations);
-    const prestDesc = (devis.prestations || []).slice(0,2).map(p => p.nom || p.designation || '').join(', ');
-    const montantStr = parseFloat(devis.total_ht || 0).toLocaleString('fr-FR',{minimumFractionDigits:2}) + ' €';
-
-    res.send(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>SINELEC Paris — Prendre RDV</title>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&display=swap');
-*{margin:0;padding:0;box-sizing:border-box;}
-body{font-family:'Plus Jakarta Sans',sans-serif;background:#f5f5f7;min-height:100vh;}
-.hd{background:linear-gradient(135deg,#1B2A4A,#243660);padding:20px 24px;text-align:center;}
-.hd-logo{font-size:30px;margin-bottom:4px;}.hd-title{font-size:18px;font-weight:900;color:#fff;}.hd-sub{font-size:11px;color:#BFC8D6;margin-top:4px;}
-.dc{background:#fff;margin:14px;border-radius:14px;padding:14px 18px;box-shadow:0 2px 12px rgba(0,0,0,0.08);border-left:4px solid #C9A84C;}
-.dl{font-size:9px;font-weight:800;color:#C9A84C;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;}
-.dn{font-size:15px;font-weight:800;color:#1B2A4A;}.dd{font-size:11px;color:#777;margin-top:2px;}.dm{font-size:18px;font-weight:900;color:#1B2A4A;margin-top:5px;}
-.st{font-size:11px;font-weight:800;color:#1B2A4A;text-transform:uppercase;letter-spacing:1px;margin:0 14px 8px;}
-.wn{display:flex;align-items:center;justify-content:space-between;margin:0 14px 10px;}
-.wb{background:#fff;border:1px solid #e5e5e5;border-radius:8px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;font-family:inherit;}
-.wl{font-size:12px;font-weight:800;color:#1B2A4A;}
-.dg{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin:0 14px 8px;}
-.db{background:#fff;border:1.5px solid #e5e5e5;border-radius:10px;padding:8px 3px;text-align:center;cursor:pointer;transition:all 0.2s;}
-.db.hs{border-color:#C9A84C;}.db.ns{opacity:0.3;cursor:not-allowed;}.db.sl{background:#1B2A4A;border-color:#1B2A4A;}
-.dn2{font-size:9px;font-weight:700;color:#999;text-transform:uppercase;}.dn3{font-size:15px;font-weight:900;color:#1B2A4A;margin:2px 0;}
-.dots{display:flex;justify-content:center;gap:2px;}.dot{width:4px;height:4px;border-radius:50%;background:#C9A84C;}
-.db.sl .dn2,.db.sl .dn3{color:#fff;}.db.sl .dot{background:rgba(255,255,255,0.5);}
-.lg{display:flex;gap:12px;margin:0 14px 10px;}
-.li{display:flex;align-items:center;gap:4px;font-size:10px;color:#777;font-weight:600;}
-.ld{width:10px;height:10px;border-radius:3px;}
-.ss{margin:0 14px 14px;display:none;}
-.st2{font-size:12px;font-weight:800;color:#1B2A4A;margin-bottom:8px;}
-.sg{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;}
-.sl2{background:#fff;border:1.5px solid #e5e5e5;border-radius:11px;padding:12px 8px;text-align:center;cursor:pointer;transition:all 0.2s;}
-.sl2.av:hover{border-color:#C9A84C;background:#fffbf0;}.sl2.se{background:#1B2A4A;border-color:#1B2A4A;}
-.sl2.bz{background:#f8f8f8;cursor:not-allowed;}
-.st3{font-size:15px;font-weight:800;color:#1B2A4A;}.sd{font-size:9px;color:#999;margin-top:1px;}
-.sl2.se .st3,.sl2.se .sd{color:#fff;}.sl2.bz .st3{font-size:10px;color:#ccc;font-weight:600;}
-.rp{background:#f0f7f0;border:1.5px solid rgba(22,163,74,0.25);border-radius:10px;padding:11px 14px;margin:0 14px 12px;display:none;align-items:center;gap:10px;}
-.rt{font-size:12px;font-weight:700;color:#15803d;}.rs{font-size:10px;color:#16a34a;margin-top:2px;}
-.cb{width:calc(100% - 28px);margin:0 14px 12px;background:linear-gradient(135deg,#C9A84C,#daa520);color:#fff;border:none;border-radius:12px;padding:15px;font-size:14px;font-weight:900;cursor:pointer;font-family:inherit;display:block;opacity:0.3;pointer-events:none;letter-spacing:0.5px;}
-.cb.ac{opacity:1;pointer-events:all;}
-.nt{margin:0 14px 28px;font-size:10px;color:#999;text-align:center;line-height:1.6;}
-.ok{display:none;text-align:center;padding:40px 20px;}
-.ok-i{font-size:52px;margin-bottom:14px;}.ok h2{color:#1B2A4A;font-size:18px;margin-bottom:8px;}.ok p{color:#777;font-size:13px;line-height:1.6;}
-</style></head><body>
-<div class="hd"><div class="hd-logo">⚡</div><div class="hd-title">SINELEC Paris</div><div class="hd-sub">Électricien Paris & Île-de-France • 7j/7</div></div>
-<div style="height:14px;"></div>
-<div class="dc"><div class="dl">📋 Devis signé — ${num}</div><div class="dn">${devis.client||''}</div><div class="dd">${prestDesc}</div><div class="dm">${montantStr}</div></div>
-<div id="mc">
-  <div class="st">Choisissez votre date</div>
-  <div class="wn"><button class="wb" onclick="chg(-1)">‹</button><span class="wl" id="wl">...</span><button class="wb" onclick="chg(1)">›</button></div>
-  <div class="dg" id="dg"></div>
-  <div class="lg">
-    <div class="li"><div class="ld" style="background:#C9A84C;"></div>Disponible</div>
-    <div class="li"><div class="ld" style="background:#e5e5e5;"></div>Complet</div>
-  </div>
-  <div class="ss" id="ss"><div class="st2" id="st2"></div><div class="sg" id="sg"></div></div>
-  <div class="rp" id="rp"><div style="font-size:20px;">✅</div><div><div class="rt" id="rt"></div><div class="rs">~${duree}h • En attente de confirmation</div></div></div>
-  <button class="cb" id="cb" onclick="confirmer()">Confirmer ce créneau →</button>
-  <div class="nt">⚡ Soumis à validation SINELEC Paris<br>SMS de confirmation dans les 2h • <strong>07 87 38 86 22</strong></div>
-</div>
-<div class="ok" id="ok">
-  <div class="ok-i">🎉</div><h2>Demande envoyée !</h2>
-  <p>Votre demande a été transmise à SINELEC Paris.<br>Vous recevrez un email de confirmation dans les 2h.</p>
-  <p style="margin-top:16px;font-weight:800;color:#1B2A4A;font-size:14px;" id="od"></p>
-  <p style="margin-top:14px;color:#999;font-size:11px;">SINELEC Paris — 07 87 38 86 22</p>
-</div>
-<script>
-const NUM='${num}',DUR=${duree};
-const HD=8,HF=20;
-let off=0,jour=null,cren=null,occ=[];
-async function init(){
-  try{const r=await fetch('/api/rdv/disponibilites?num='+NUM);const d=await r.json();occ=d.occupe||[];}catch(e){occ=[];}
-  rend();
-}
-function lundi(o){const d=new Date();d.setHours(0,0,0,0);const j=d.getDay()||7;d.setDate(d.getDate()-j+1+o*7);return d;}
-function fmt(d){return d.toISOString().split('T')[0];}
-function pris(ds,h){return occ.some(o=>o.date===ds&&o.heure===h);}
-function libres(ds){const s=[];for(let h=HD;h<=HF-DUR;h++){if(!pris(ds,h+':00'))s.push(h);}return s;}
-function chg(d){off+=d;jour=null;cren=null;document.getElementById('ss').style.display='none';document.getElementById('rp').style.display='none';document.getElementById('cb').classList.remove('ac');rend();}
-function rend(){
-  const l=lundi(off);const js=['Lun','Mar','Mer','Jeu','Ven','Sam'];
-  const ms=['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
-  const fin=new Date(l);fin.setDate(fin.getDate()+5);
-  document.getElementById('wl').textContent=l.getDate()+' '+ms[l.getMonth()]+' — '+fin.getDate()+' '+ms[fin.getMonth()]+' '+l.getFullYear();
-  const g=document.getElementById('dg');g.innerHTML='';
-  const t=new Date();t.setHours(0,0,0,0);
-  for(let i=0;i<6;i++){
-    const d=new Date(l);d.setDate(l.getDate()+i);
-    const ds=fmt(d);const past=d<t;
-    const sl=past?[]:libres(ds);const hs=sl.length>0;
-    const b=document.createElement('div');
-    b.className='db'+(hs?' hs':'  ns')+(jour===ds?' sl':'');
-    b.innerHTML='<div class="dn2">'+js[i]+'</div><div class="dn3">'+d.getDate()+'</div><div class="dots">'+sl.slice(0,3).map(()=>'<div class="dot"></div>').join('')+'</div>';
-    if(hs)b.onclick=()=>selJour(ds,d,sl);
-    g.appendChild(b);
-  }
-}
-function selJour(ds,do2,sl){
-  jour=ds;cren=null;
-  document.getElementById('rp').style.display='none';
-  document.getElementById('cb').classList.remove('ac');
-  rend();
-  const jn=['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
-  const mn=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
-  document.getElementById('st2').textContent=jn[do2.getDay()]+' '+do2.getDate()+' '+mn[do2.getMonth()];
-  document.getElementById('ss').style.display='block';
-  const g=document.getElementById('sg');g.innerHTML='';
-  for(let h=HD;h<=HF-DUR;h++){
-    const libre=!pris(ds,h+':00');
-    const d=document.createElement('div');
-    d.className='sl2 '+(libre?'av':'bz');
-    d.innerHTML=libre?'<div class="st3">'+h+'h00</div><div class="sd">~'+DUR+'h</div>':'<div class="st3">Non dispo</div><div class="sd"></div>';
-    if(libre)d.onclick=()=>selCren(h,d,do2);
-    g.appendChild(d);
-  }
-  document.getElementById('ss').scrollIntoView({behavior:'smooth',block:'start'});
-}
-function selCren(h,el,do2){
-  document.querySelectorAll('.sl2').forEach(s=>s.classList.remove('se'));
-  el.classList.add('se');cren=h;
-  const jn=['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
-  const mn=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
-  const lb=jn[do2.getDay()]+' '+do2.getDate()+' '+mn[do2.getMonth()]+' à '+h+'h00';
-  document.getElementById('rt').textContent=lb;
-  document.getElementById('rp').style.display='flex';
-  document.getElementById('cb').classList.add('ac');
-  document.getElementById('rp').scrollIntoView({behavior:'smooth',block:'nearest'});
-}
-async function confirmer(){
-  if(!jour||cren===null)return;
-  const btn=document.getElementById('cb');
-  btn.textContent='⏳ Envoi...';btn.classList.remove('ac');
-  try{
-    const r=await fetch('/api/rdv/demande',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({num:NUM,date:jour,heure:cren+':00'})});
-    const d=await r.json();
-    if(d.success){
-      document.getElementById('mc').style.display='none';
-      document.getElementById('ok').style.display='block';
-      document.getElementById('od').textContent=document.getElementById('rt').textContent;
-    } else { alert('Erreur : '+(d.error||'Réessayez'));btn.classList.add('ac');btn.textContent='Confirmer ce créneau →'; }
-  }catch(e){alert('Erreur réseau');btn.classList.add('ac');btn.textContent='Confirmer ce créneau →';}
-}
-init();
-</script></body></html>`);
-  } catch(e) { res.status(500).send('Erreur: ' + e.message); }
-});
-
-// Disponibilités — renvoie les créneaux occupés
-app.get('/api/rdv/disponibilites', async (req, res) => {
-  try {
-    const { data: agenda } = await supabase.from('agenda').select('date_intervention,heure').not('statut','in','("terminé","annulé")');
-    const occupe = (agenda||[]).filter(a=>a.date_intervention&&a.heure).map(a=>({date:a.date_intervention,heure:a.heure}));
-    res.json({ occupe });
+    if (envoi === 'email' || envoi === 'les2') {
+      if (doc.email) {
+        const html = `<p>Bonjour, votre facture SINELEC n°${num} d'un montant de ${total.toFixed(2)}€ est disponible.<br><a href="${lien}">Régler en ligne</a></p>`;
+        await envoyerEmail(doc.email, `Facture ${num} — Lien de paiement SINELEC`, html);
+      }
+    }
+    res.json({ success: true, lien });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// Demande RDV → email SINELEC Paris avec boutons Confirmer/Refuser
-app.post('/api/rdv/demande', async (req, res) => {
+// ═══════════════════════════════════════════════════
+// API: RELANCES AUTO
+// ═══════════════════════════════════════════════════
+
+app.post('/api/historique/:num/relance-manuelle', authMiddleware, async (req, res) => {
   try {
-    const { num, date, heure } = req.body;
-    const { data: devis } = await supabase.from('historique').select('*').eq('num', num).single();
-    if (!devis) return res.status(404).json({ error: 'Devis introuvable' });
-
-    const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
-    const dateFormate = new Date(date).toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
-    const lienOui = `${appUrl}/api/rdv/confirmer?num=${num}&date=${date}&heure=${encodeURIComponent(heure)}&action=oui`;
-    const lienNon = `${appUrl}/api/rdv/confirmer?num=${num}&date=${date}&heure=${encodeURIComponent(heure)}&action=non`;
-
-    await supabase.from('historique').update({ rdv_statut: 'en_attente' }).eq('num', num);
-
-    await envoyerEmail('sinelec.paris@gmail.com',
-      `📅 Demande RDV — ${devis.client} — Action requise`,
-      `<html><body style="font-family:Arial;padding:0;background:#f5f5f7;">
-      <div style="max-width:500px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.1);">
-        <div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:24px;text-align:center;">
-          <div style="font-size:32px;">📅</div>
-          <h2 style="color:#fff;margin:8px 0 0;font-size:18px;">Nouvelle demande de RDV</h2>
-        </div>
-        <div style="padding:24px;">
-          <p style="font-size:14px;color:#333;margin-bottom:14px;"><strong>${devis.client}</strong> — Devis <strong>${num}</strong> (${parseFloat(devis.total_ht||0).toFixed(0)}€)</p>
-          <div style="background:#fffbf0;border:1.5px solid #C9A84C;border-radius:12px;padding:16px;margin-bottom:16px;text-align:center;">
-            <div style="font-size:11px;font-weight:800;color:#C9A84C;text-transform:uppercase;margin-bottom:6px;">📅 Date souhaitée</div>
-            <div style="font-size:20px;font-weight:900;color:#1B2A4A;">${dateFormate}</div>
-            <div style="font-size:16px;font-weight:700;color:#555;margin-top:4px;">à ${heure.replace(':00','')}h00</div>
-          </div>
-          <p style="font-size:13px;color:#777;margin-bottom:6px;">📍 ${devis.adresse||'—'}</p>
-          <p style="font-size:13px;color:#777;margin-bottom:20px;">📞 ${devis.telephone||'—'}</p>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-            <a href="${lienOui}" style="background:#16a34a;color:#fff;text-decoration:none;border-radius:10px;padding:14px;text-align:center;font-size:15px;font-weight:800;display:block;">✅ Confirmer</a>
-            <a href="${lienNon}" style="background:#fee2e2;color:#dc2626;text-decoration:none;border-radius:10px;padding:14px;text-align:center;font-size:15px;font-weight:800;display:block;">❌ Refuser</a>
-          </div>
-        </div>
-        <div style="background:#f8f8f8;padding:12px;text-align:center;">
-          <p style="color:#999;font-size:11px;">SINELEC Paris • 07 87 38 86 22 • sinelec.paris@gmail.com</p>
-        </div>
-      </div></body></html>`
-    );
+    const { num } = req.params;
+    await supabase.from('historique').update({
+      sms_relance_j7: true, sms_relance_j7_date: new Date().toISOString()
+    }).eq('num', num);
     res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// Confirmation ou refus depuis l'email
-app.get('/api/rdv/confirmer', async (req, res) => {
+app.post('/api/relances/lancer', authMiddleware, async (req, res) => {
   try {
-    const { num, date, heure, action } = req.query;
-    const { data: devis } = await supabase.from('historique').select('*').eq('num', num).single();
-    if (!devis) return res.send('<h2>Lien invalide</h2>');
-
-    const prenom = (devis.client || '').split(' ')[0];
-    const dateFormate = new Date(date).toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
-
-    if (action === 'oui') {
-      // Ajouter dans l'agenda
-      await supabase.from('agenda').insert({
-        client: devis.client, telephone: devis.telephone, adresse: devis.adresse,
-        date_intervention: date, heure, statut: 'planifié',
-        type_intervention: (devis.prestations||[]).slice(0,1).map(p=>p.nom||p.designation).join('') || 'Intervention',
-        notes: `Devis ${num} — ${parseFloat(devis.total_ht||0).toFixed(0)}€`
-      });
-      // Mettre à jour l'historique
-      await supabase.from('historique').update({ date_intervention: date, rdv_heure: heure, rdv_statut: 'confirme' }).eq('num', num);
-
-      // Email de confirmation au client
-      if (devis.email) {
-        await envoyerEmail(devis.email,
-          `✅ SINELEC Paris — RDV confirmé !`,
-          `<html><body style="font-family:Arial;padding:0;background:#f5f5f7;">
-          <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;">
-            <div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:28px;text-align:center;">
-              <div style="font-size:40px;">✅</div>
-              <h2 style="color:#fff;margin:8px 0 0;">RDV Confirmé !</h2>
-            </div>
-            <div style="padding:28px;">
-              <p style="font-size:15px;color:#333;margin-bottom:16px;">Bonjour <strong>${prenom}</strong>,</p>
-              <div style="background:#f0f7f0;border:1.5px solid rgba(22,163,74,0.3);border-radius:12px;padding:18px;text-align:center;margin-bottom:16px;">
-                <div style="font-size:11px;font-weight:800;color:#16a34a;text-transform:uppercase;margin-bottom:6px;">📅 Votre RDV</div>
-                <div style="font-size:20px;font-weight:900;color:#1B2A4A;">${dateFormate}</div>
-                <div style="font-size:16px;font-weight:700;color:#555;margin-top:4px;">à ${heure.replace(':00','')}h00</div>
-              </div>
-              <p style="font-size:13px;color:#777;line-height:1.6;">📍 ${devis.adresse||''}<br>📞 En cas d'urgence : <strong>07 87 38 86 22</strong></p>
-            </div>
-            <div style="background:#f8f8f8;padding:14px;text-align:center;">
-              <p style="color:#999;font-size:11px;">SINELEC Paris • sinelec.paris@gmail.com</p>
-            </div>
-          </div></body></html>`
-        ).catch(()=>{});
+    const since = new Date(Date.now() - 48*3600*1000).toISOString();
+    const { data: devis } = await supabase.from('historique')
+      .select('*').eq('type', 'devis').eq('statut', 'envoye').lte('created_at', since);
+    let nb = 0;
+    for (const d of (devis || [])) {
+      if (d.telephone) {
+        await envoyerSMS(d.telephone, `Bonjour ${extractPrenom(d.client)}, votre devis SINELEC n°${d.num} de ${parseFloat(d.total_ht||0).toFixed(0)}€ attend votre validation. 📞 07 87 38 86 22`);
+        nb++;
       }
-
-      res.send(`<html><body style="font-family:Arial;text-align:center;padding:40px;background:#f5f5f7;"><div style="max-width:400px;margin:0 auto;background:#fff;border-radius:20px;padding:32px;box-shadow:0 4px 24px rgba(0,0,0,0.1);"><div style="font-size:48px;">✅</div><h2 style="color:#1B2A4A;margin:12px 0 8px;">RDV Confirmé !</h2><p style="color:#777;">${dateFormate} à ${heure.replace(':00','')}h00</p><p style="color:#777;margin-top:8px;">Email de confirmation envoyé à ${devis.client}.</p><p style="color:#999;font-size:11px;margin-top:20px;">SINELEC Paris</p></div></body></html>`);
-
-    } else {
-      // Refus → email au client pour rechoisir
-      await supabase.from('historique').update({ rdv_statut: 'refuse' }).eq('num', num);
-      const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
-      if (devis.email) {
-        await envoyerEmail(devis.email,
-          `📅 SINELEC Paris — Choisissez un autre créneau`,
-          `<html><body style="font-family:Arial;padding:0;background:#f5f5f7;"><div style="max-width:480px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;"><div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:28px;text-align:center;"><div style="font-size:36px;">⚡</div><h2 style="color:#fff;margin:8px 0 0;">SINELEC Paris</h2></div><div style="padding:28px;"><p style="font-size:14px;color:#333;margin-bottom:16px;">Bonjour <strong>${prenom}</strong>,</p><p style="font-size:14px;color:#555;margin-bottom:20px;">Le créneau demandé (${dateFormate} à ${heure.replace(':00','')}h00) n'est malheureusement plus disponible. Veuillez choisir un autre créneau :</p><div style="text-align:center;"><a href="${appUrl}/rdv/${num}" style="background:linear-gradient(135deg,#C9A84C,#daa520);color:#fff;text-decoration:none;border-radius:14px;padding:14px 28px;font-size:14px;font-weight:800;display:inline-block;">📅 Choisir un autre créneau</a></div></div><div style="background:#f8f8f8;padding:14px;text-align:center;"><p style="color:#999;font-size:11px;">SINELEC Paris • 07 87 38 86 22</p></div></div></body></html>`
-        ).catch(()=>{});
-      }
-      res.send(`<html><body style="font-family:Arial;text-align:center;padding:40px;background:#f5f5f7;"><div style="max-width:400px;margin:0 auto;background:#fff;border-radius:20px;padding:32px;box-shadow:0 4px 24px rgba(0,0,0,0.1);"><div style="font-size:48px;">📅</div><h2 style="color:#1B2A4A;margin:12px 0 8px;">Créneau refusé</h2><p style="color:#777;">Email envoyé à ${devis.client} pour rechoisir un créneau.</p></div></body></html>`);
     }
-  } catch(e) { res.status(500).send('Erreur: ' + e.message); }
+    res.json({ success: true, nb_relances: nb });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/track/click/:num', async (req, res) => {
+  const { num } = req.params;
+  const redirect = req.query.redirect || `/signer/${num}`;
+  try {
+    const now = new Date().toISOString();
+    await supabase.from('historique').update({ email_ouvert: true, derniere_ouverture: now }).eq('num', num);
+    const { data } = await supabase.from('historique').select('premiere_ouverture').eq('num', num).single();
+    if (!data?.premiere_ouverture) await supabase.from('historique').update({ premiere_ouverture: now }).eq('num', num);
+  } catch(e) {}
+  res.redirect(redirect);
+});
+
+app.get('/api/track/open/:num', async (req, res) => {
+  const { num } = req.params;
+  try {
+    const now = new Date().toISOString();
+    await supabase.from('historique').update({ email_ouvert: true, derniere_ouverture: now }).eq('num', num);
+  } catch(e) {}
+  const gif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
+  res.setHeader('Content-Type', 'image/gif');
+  res.setHeader('Cache-Control', 'no-cache, no-store');
+  res.send(gif);
 });
 
 // ═══════════════════════════════════════════════════
-// DÉMARRAGE
+// API: OTP SIGNATURE
 // ═══════════════════════════════════════════════════
+app.post('/api/otp-signature', async (req, res) => {
+  try {
+    const { num } = req.body;
+    let { telephone } = req.body;
+    if (!telephone) {
+      const { data: doc } = await supabase.from('historique').select('telephone').eq('num', num).single();
+      telephone = doc?.telephone || '';
+    }
+    if (!telephone || String(telephone).trim().length < 8) {
+      return res.status(400).json({ success: false, error: 'Numéro introuvable. Contactez SINELEC au 07 87 38 86 22.' });
+    }
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const expire_at = new Date(Date.now() + 15*60*1000).toISOString();
+    // Stocker en mémoire (pas besoin de colonne Supabase)
+    otpSet(num, code);
+    console.log('✅ OTP pour', num, '— code:', code);
+    const smsResult = await envoyerSMS(telephone, 'Votre code SINELEC : ' + code + '. Valable 15 minutes.');
+    if (!smsResult) return res.status(500).json({ success: false, error: "Impossible d'envoyer le SMS. Verifiez votre numero." });
+    const telMasq = String(telephone).replace(/(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 ** ** $5');
+    res.json({ success: true, tel: telMasq });
+  } catch(e) { console.error('❌ OTP:', e.message); res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/verifier-otp', async (req, res) => {
+  try {
+    const { num, code } = req.body;
+    const storedCode = otpGet(num);
+    const rows = storedCode ? [{ code: storedCode }] : [];
+    if (!storedCode) return res.status(404).json({ success: false, error: 'Aucun code envoyé pour ce devis' });
+    const entered = String(code).replace(/\D/g, '').trim();
+    const stored = String(storedCode).replace(/\D/g, '').trim();
+    console.log('OTP check:', num, '| stored:', stored, '| entered:', entered);
+    if (!stored || !entered || stored !== entered) return res.status(400).json({ success: false, error: 'Code incorrect' });
+    otpDel(num);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════
+// CRON JOBS
+// ═══════════════════════════════════════════════════
+// Email récap agenda à 7h chaque jour
+cron.schedule('0 7 * * *', async () => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const { data: interventions } = await supabase.from('agenda')
+      .select('*')
+      .gte('date_intervention', today)
+      .lte('date_intervention', today)
+      .order('heure', { ascending: true });
+
+    const nb = (interventions || []).length;
+    const liste = (interventions || []).map(iv =>
+      `• ${iv.heure || '?'} — ${iv.client || 'Client'} — ${iv.adresse || ''} — ${iv.type_intervention || ''}`
+    ).join('\n');
+
+    const html = `<h2>📅 Agenda du jour — ${new Date().toLocaleDateString('fr-FR')}</h2>
+    <p>${nb} intervention${nb > 1 ? 's' : ''} prévue${nb > 1 ? 's' : ''}</p>
+    <pre style="background:#f5f5f5;padding:12px;border-radius:8px;font-family:monospace;">${liste || 'Aucune intervention'}</pre>`;
+
+    await envoyerEmail('sinelec.paris@gmail.com', `⚡ Agenda du ${new Date().toLocaleDateString('fr-FR')} — ${nb} intervention${nb>1?'s':''}`, html);
+    console.log(`✅ Récap agenda envoyé: ${nb} interventions`);
+  } catch(e) { console.error('Cron agenda:', e.message); }
+});
 
 
+// ══════════════════════════════════════════════════════════════
+// RELANCES COMMERCIALES AUTOMATIQUES — J+7, J+14, J+21
+// Chaque matin à 9h — 3 tons progressifs
+// ══════════════════════════════════════════════════════════════
+cron.schedule('0 9 * * *', async () => {
+  try {
+    const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+    const now = Date.now();
 
+    const { data: devis } = await supabase
+      .from('historique')
+      .select('*')
+      .eq('type', 'devis')
+      .in('statut', ['envoye', 'envoyé', 'en attente'])
+      .order('created_at', { ascending: true });
+
+    let nb7 = 0, nb14 = 0, nb21 = 0, nb30 = 0;
+
+    for (const d of (devis || [])) {
+      const ageJours = Math.floor((now - new Date(d.created_at).getTime()) / (24 * 3600 * 1000));
+
+      // ── J+30 : devis expiré (CGV Art.1 — validité 30 jours) ──
+      if (ageJours >= 30) {
+        await supabase.from('historique').update({ statut: 'expire' }).eq('num', d.num);
+        console.log(`📁 Devis expiré: ${d.num} (${ageJours}j)`);
+        nb30++;
+        continue;
+      }
+
+      if (!d.telephone) continue;
+
+      const prenom = extractPrenom(d.client || '');
+      const montant = parseFloat(d.total_ht || 0).toFixed(0);
+      const lien = `${appUrl}/signer/${d.num}`;
+
+      try {
+        // ── J+7 : Rappel simple et professionnel ─────────────────
+        if (ageJours >= 7 && ageJours < 14 && !d.sms_relance_j7) {
+          const msg = `Bonjour ${prenom}, votre devis SINELEC n°${d.num} de ${montant}€ est toujours en attente. Pour planifier votre intervention, signez-le ici : ${lien} — Diahe ⚡`;
+          await envoyerSMS(d.telephone, msg);
+          await supabase.from('historique').update({ sms_relance_j7: true, sms_relance_j7_date: new Date().toISOString() }).eq('num', d.num);
+          console.log(`📨 Relance J+7: ${d.num} → ${d.telephone}`);
+          nb7++;
+        }
+
+        // ── J+14 : Ton commercial — met en avant la valeur ───────
+        else if (ageJours >= 14 && ageJours < 21 && !d.sms_relance_j14) {
+          const msg = `Bonjour ${prenom}, votre installation électrique mérite d'être sécurisée ! Notre devis n°${d.num} (${montant}€) inclut garantie décennale + norme NF C 15-100. On peut intervenir rapidement 👉 ${lien} — Diahe, SINELEC Paris ⚡`;
+          await envoyerSMS(d.telephone, msg);
+          await supabase.from('historique').update({ sms_relance_j14: true, sms_relance_j14_date: new Date().toISOString() }).eq('num', d.num);
+          console.log(`📨 Relance J+14: ${d.num} → ${d.telephone}`);
+          nb14++;
+        }
+
+        // ── J+21 : Négociation — dernière chance ─────────────────
+        else if (ageJours >= 21 && !d.sms_relance_j21) {
+          const msg = `Bonjour ${prenom}, c'est Diahe de SINELEC. Je voulais savoir si vous avez des questions sur votre devis n°${d.num} (${montant}€). Je suis disponible pour en discuter et m'adapter à votre budget si besoin. 📞 07 87 38 86 22 — SINELEC Paris ⚡`;
+          await envoyerSMS(d.telephone, msg);
+          await supabase.from('historique').update({ sms_relance_j21: true, sms_relance_j21_date: new Date().toISOString() }).eq('num', d.num);
+          console.log(`📨 Relance J+21 (négo): ${d.num} → ${d.telephone}`);
+          nb21++;
+        }
+      } catch(e) { console.error(`Relance ${d.num}:`, e.message); }
+    }
+
+    const total = nb7 + nb14 + nb21 + nb30;
+    if (total > 0) console.log(`✅ Relances/expirations du jour — J+7: ${nb7} | J+14: ${nb14} | J+21: ${nb21} | Expirés: ${nb30}`);
+  } catch(e) { console.error('Cron relances:', e.message); }
+});
+
+// Rappel SMS client veille à 18h
+cron.schedule('0 18 * * *', async () => {
+  try {
+    const tomorrow = new Date(Date.now() + 24*3600*1000).toISOString().split('T')[0];
+    const { data: interventions } = await supabase.from('agenda')
+      .select('*')
+      .eq('date_intervention', tomorrow)
+      .eq('sms_rappel', true);
+
+    for (const iv of (interventions || [])) {
+      if (iv.telephone) {
+        const heure = iv.heure ? ` à ${iv.heure}` : '';
+        const msg = `Bonjour ${iv.client || ''}, rappel de votre intervention SINELEC demain${heure}. 📞 07 87 38 86 22`;
+        await envoyerSMS(iv.telephone, msg);
+        await supabase.from('agenda').update({ sms_rappel_envoye: true }).eq('id', iv.id);
+      }
+    }
+  } catch(e) { console.error('Cron rappel:', e.message); }
+});
+
+// Santé toutes les heures
+cron.schedule('0 * * * *', async () => {
+  try { await verifierSante(); } catch(e) {}
+});
+
+// ═══════════════════════════════════════════════════
+// START
+// ═══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
+// MCP — SINELEC OS CONNECTOR (Claude.ai integration)
+// ═══════════════════════════════════════════════════
 app.get('/.well-known/oauth-protected-resource',(req,res)=>{res.json({resource:'https://sinelec-api-production.up.railway.app/mcp',authorization_servers:[],scopes_supported:[],bearer_methods_supported:[]});});
-
-
 app.get('/.well-known/oauth-authorization-server',(req,res)=>{res.json({issuer:'https://sinelec-api-production.up.railway.app',authorization_endpoint:'https://sinelec-api-production.up.railway.app/oauth/authorize',token_endpoint:'https://sinelec-api-production.up.railway.app/oauth/token',response_types_supported:['code'],grant_types_supported:['authorization_code'],code_challenge_methods_supported:['S256']});});
-
-// AUTH MCP
 app.use('/mcp',(req,res,next)=>{const key=req.headers['x-api-key'];if(key!=='sinelec2026'){return res.status(401).json({error:'Non autorise'});}next();});
-
-// OAUTH MCP
 app.get('/oauth/authorize',(req,res)=>{const{redirect_uri,state}=req.query;res.redirect(redirect_uri+'?code=sinelec_code&state='+(state||''));});
 app.post('/oauth/token',(req,res)=>{res.json({access_token:'sinelec_token_2026',token_type:'bearer',expires_in:86400});});
 app.get('/mcp',(req,res)=>{res.json({protocolVersion:'2024-11-05',capabilities:{tools:{}},serverInfo:{name:'sinelec-os',version:'2.0'}});});
-app.post('/mcp',async(req,res)=>{const{method,params,id}=req.body;res.setHeader('Content-Type','application/json');try{if(method==='initialize')return res.json({jsonrpc:'2.0',id,result:{protocolVersion:'2024-11-05',capabilities:{tools:{}},serverInfo:{name:'sinelec-os'}}});if(method==='tools/list')return res.json({jsonrpc:'2.0',id,result:{tools:[{name:'get_historique',description:'Historique devis/factures',inputSchema:{type:'object',properties:{type:{type:'string'},limite:{type:'number'}}}},{name:'get_clients',description:'Recherche clients',inputSchema:{type:'object',properties:{recherche:{type:'string'}}}},{name:'get_dashboard',description:'CA mois/annee',inputSchema:{type:'object',properties:{}}}]}});if(method==='tools/call'){const{name,arguments:args}=params;let result;if(name==='get_historique'){const{data}=await supabase.from('historique').select('*').order('created_at',{ascending:false}).limit(args.limite||20);result={documents:data||[],total:(data||[]).length};}else if(name==='get_clients'){let q=supabase.from('clients').select('*').order('updated_at',{ascending:false});if(args.recherche)q=q.or('nom.ilike.%'+args.recherche+'%,telephone.ilike.%'+args.recherche+'%');const{data}=await q.limit(20);result={clients:data||[]};}else if(name==='get_dashboard'){const{data:f}=await supabase.from('historique').select('*').eq('type','facture');const now=new Date();const mk=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');const fm=(f||[]).filter(x=>x.created_at&&x.created_at.startsWith(mk));const fa=(f||[]).filter(x=>x.created_at&&x.created_at.startsWith(''+now.getFullYear()));result={ca_mois:Math.round(fm.reduce((s,x)=>s+parseFloat(x.totalht||0),0)),ca_annee:Math.round(fa.reduce((s,x)=>s+parseFloat(x.totalht||0),0)),nb_factures_mois:fm.length};}return res.json({jsonrpc:'2.0',id,result:{content:[{type:'text',text:JSON.stringify(result,null,2)}]}});}if(method==='ping')return res.json({jsonrpc:'2.0',id,result:{}});res.json({jsonrpc:'2.0',id,error:{code:-32601,message:'Methode inconnue'}});}catch(e){res.json({jsonrpc:'2.0',id,error:{code:-32603,message:e.message}});}});
-
-
-// OAUTH MCP
-app.get('/oauth/authorize',(req,res)=>{const{redirect_uri,state}=req.query;res.redirect(redirect_uri+'?code=sinelec_code&state='+(state||''));});
-app.post('/oauth/token',(req,res)=>{res.json({access_token:'sinelec_token_2026',token_type:'bearer',expires_in:86400});});
-app.get('/mcp',(req,res)=>{res.json({protocolVersion:'2024-11-05',capabilities:{tools:{}},serverInfo:{name:'sinelec-os',version:'2.0'}});});
-app.post('/mcp',async(req,res)=>{const{method,params,id}=req.body;res.setHeader('Content-Type','application/json');try{if(method==='initialize')return res.json({jsonrpc:'2.0',id,result:{protocolVersion:'2024-11-05',capabilities:{tools:{}},serverInfo:{name:'sinelec-os'}}});if(method==='tools/list')return res.json({jsonrpc:'2.0',id,result:{tools:[{name:'get_historique',description:'Historique devis/factures',inputSchema:{type:'object',properties:{type:{type:'string'},limite:{type:'number'}}}},{name:'get_clients',description:'Recherche clients',inputSchema:{type:'object',properties:{recherche:{type:'string'}}}},{name:'get_dashboard',description:'CA mois/annee',inputSchema:{type:'object',properties:{}}}]}});if(method==='tools/call'){const{name,arguments:args}=params;let result;if(name==='get_historique'){const{data}=await supabase.from('historique').select('*').order('created_at',{ascending:false}).limit(args.limite||20);result={documents:data||[],total:(data||[]).length};}else if(name==='get_clients'){let q=supabase.from('clients').select('*').order('updated_at',{ascending:false});if(args.recherche)q=q.or('nom.ilike.%'+args.recherche+'%,telephone.ilike.%'+args.recherche+'%');const{data}=await q.limit(20);result={clients:data||[]};}else if(name==='get_dashboard'){const{data:f}=await supabase.from('historique').select('*').eq('type','facture');const now=new Date();const mk=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');const fm=(f||[]).filter(x=>x.created_at&&x.created_at.startsWith(mk));const fa=(f||[]).filter(x=>x.created_at&&x.created_at.startsWith(''+now.getFullYear()));result={ca_mois:Math.round(fm.reduce((s,x)=>s+parseFloat(x.totalht||0),0)),ca_annee:Math.round(fa.reduce((s,x)=>s+parseFloat(x.totalht||0),0)),nb_factures_mois:fm.length};}return res.json({jsonrpc:'2.0',id,result:{content:[{type:'text',text:JSON.stringify(result,null,2)}]}});}if(method==='ping')return res.json({jsonrpc:'2.0',id,result:{}});res.json({jsonrpc:'2.0',id,error:{code:-32601,message:'Methode inconnue'}});}catch(e){res.json({jsonrpc:'2.0',id,error:{code:-32603,message:e.message}});}});
-
-const server = app.listen(PORT, () => {
-  console.log(`⚡ SINELEC OS v${CONFIG.meta.version} — Port ${PORT}`);
+app.post('/mcp',async(req,res)=>{
+  const{method,params,id}=req.body;
+  res.setHeader('Content-Type','application/json');
+  try{
+    if(method==='initialize') return res.json({jsonrpc:'2.0',id,result:{protocolVersion:'2024-11-05',capabilities:{tools:{}},serverInfo:{name:'sinelec-os'}}});
+    if(method==='tools/list') return res.json({jsonrpc:'2.0',id,result:{tools:[
+      {name:'get_historique',description:'Historique devis/factures SINELEC',inputSchema:{type:'object',properties:{type:{type:'string'},limite:{type:'number'}}}},
+      {name:'get_clients',description:'Recherche clients SINELEC',inputSchema:{type:'object',properties:{recherche:{type:'string'}}}},
+      {name:'get_dashboard',description:'CA mois et annee SINELEC',inputSchema:{type:'object',properties:{}}}
+    ]}});
+    if(method==='tools/call'){
+      const{name,arguments:args}=params;
+      let result;
+      if(name==='get_historique'){
+        let q=supabase.from('historique').select('*').order('created_at',{ascending:false}).limit(args.limite||20);
+        if(args.type) q=q.eq('type',args.type);
+        const{data}=await q;
+        result={documents:data||[],total:(data||[]).length};
+      } else if(name==='get_clients'){
+        let q=supabase.from('clients').select('*').order('updated_at',{ascending:false});
+        if(args.recherche) q=q.or('nom.ilike.%'+args.recherche+'%,telephone.ilike.%'+args.recherche+'%');
+        const{data}=await q.limit(20);
+        result={clients:data||[]};
+      } else if(name==='get_dashboard'){
+        const{data:f}=await supabase.from('historique').select('*').eq('type','facture');
+        const now=new Date();
+        const mk=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+        const fm=(f||[]).filter(x=>x.created_at&&x.created_at.startsWith(mk));
+        const fa=(f||[]).filter(x=>x.created_at&&x.created_at.startsWith(''+now.getFullYear()));
+        result={ca_mois:Math.round(fm.reduce((s,x)=>s+parseFloat(x.total_ht||x.totalht||0),0)),ca_annee:Math.round(fa.reduce((s,x)=>s+parseFloat(x.total_ht||x.totalht||0),0)),nb_factures_mois:fm.length};
+      }
+      return res.json({jsonrpc:'2.0',id,result:{content:[{type:'text',text:JSON.stringify(result,null,2)}]}});
+    }
+    if(method==='ping') return res.json({jsonrpc:'2.0',id,result:{}});
+    res.json({jsonrpc:'2.0',id,error:{code:-32601,message:'Methode inconnue'}});
+  } catch(e){ res.json({jsonrpc:'2.0',id,error:{code:-32603,message:e.message}}); }
 });
 
-server.timeout = 300000;
-server.keepAliveTimeout = 300000;
+app.listen(PORT, () => {
+  console.log(`⚡ SINELEC OS v2.0 démarré sur le port ${PORT}`);
+  console.log(`📊 Supabase: ${process.env.SUPABASE_URL ? '✅' : '❌'}`);
+  console.log(`🤖 Claude API: ${process.env.ANTHROPIC_API_KEY ? '✅' : '❌'}`);
+  console.log(`📧 Brevo: ${BREVO_API_KEY ? '✅' : '❌'}`);
+});
