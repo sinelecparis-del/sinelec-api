@@ -3899,9 +3899,44 @@ cron.schedule('0 * * * *', async () => {
 // ═══════════════════════════════════════════════════
 app.get('/.well-known/oauth-protected-resource',(req,res)=>{res.json({resource:'https://sinelec-api-production.up.railway.app/mcp',authorization_servers:[],scopes_supported:[],bearer_methods_supported:[]});});
 app.get('/.well-known/oauth-authorization-server',(req,res)=>{res.json({issuer:'https://sinelec-api-production.up.railway.app',authorization_endpoint:'https://sinelec-api-production.up.railway.app/oauth/authorize',token_endpoint:'https://sinelec-api-production.up.railway.app/oauth/token',response_types_supported:['code'],grant_types_supported:['authorization_code'],code_challenge_methods_supported:['S256']});});
-app.use('/mcp',(req,res,next)=>{const key=req.headers['x-api-key'];if(key!=='sinelec2026'){return res.status(401).json({error:'Non autorise'});}next();});
-app.get('/oauth/authorize',(req,res)=>{const{redirect_uri,state}=req.query;res.redirect(redirect_uri+'?code=sinelec_code&state='+(state||''));});
-app.post('/oauth/token',(req,res)=>{res.json({access_token:'sinelec_token_2026',token_type:'bearer',expires_in:86400});});
+app.use('/mcp',(req,res,next)=>{
+  const key=req.headers['x-api-key'];
+  const auth=req.headers['authorization']||'';
+  const bearer=auth.replace('Bearer ','').trim();
+  // Accepter x-api-key OU Bearer JWT valide
+  if(key==='sinelec2026') return next();
+  if(bearer && verifierToken(bearer)) return next();
+  return res.status(401).json({error:'Non autorise',message:'Fournir x-api-key ou Bearer token valide'});
+});
+app.get('/oauth/authorize',(req,res)=>{
+  const{redirect_uri,state,code_challenge}=req.query;
+  // Stocker le challenge PKCE avec le code
+  const code = Buffer.from(JSON.stringify({ts:Date.now(),challenge:code_challenge||''})).toString('base64url');
+  res.redirect(redirect_uri+'?code='+code+'&state='+(state||''));
+});
+
+app.post('/oauth/token',express.urlencoded({extended:true}),async(req,res)=>{
+  try {
+    const{code,code_verifier,grant_type}=req.body;
+    if(grant_type!=='authorization_code') return res.status(400).json({error:'unsupported_grant_type'});
+    if(!code) return res.status(400).json({error:'invalid_request',error_description:'code manquant'});
+    // Décoder le code et vérifier le PKCE (S256)
+    let codeData={};
+    try { codeData=JSON.parse(Buffer.from(code,'base64url').toString()); } catch(e){}
+    // Vérifier PKCE S256 si challenge présent
+    if(codeData.challenge && code_verifier){
+      const crypto=require('crypto');
+      const expectedChallenge=crypto.createHash('sha256').update(code_verifier).digest('base64url');
+      if(expectedChallenge!==codeData.challenge) return res.status(400).json({error:'invalid_grant',error_description:'PKCE invalide'});
+    }
+    // Générer un vrai JWT SINELEC comme access_token
+    const access_token = genererToken('admin');
+    res.json({access_token,token_type:'bearer',expires_in:TOKEN_EXPIRY/1000});
+  } catch(e) {
+    console.error('OAuth token error:',e.message);
+    res.status(500).json({error:'server_error'});
+  }
+});
 app.get('/mcp',(req,res)=>{res.json({protocolVersion:'2024-11-05',capabilities:{tools:{}},serverInfo:{name:'sinelec-os',version:'2.0'}});});
 app.post('/mcp',async(req,res)=>{
   const{method,params,id}=req.body;
