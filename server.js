@@ -3911,7 +3911,21 @@ app.post('/mcp',async(req,res)=>{
     if(method==='tools/list') return res.json({jsonrpc:'2.0',id,result:{tools:[
       {name:'get_historique',description:'Historique devis/factures SINELEC',inputSchema:{type:'object',properties:{type:{type:'string'},limite:{type:'number'}}}},
       {name:'get_clients',description:'Recherche clients SINELEC',inputSchema:{type:'object',properties:{recherche:{type:'string'}}}},
-      {name:'get_dashboard',description:'CA mois et annee SINELEC',inputSchema:{type:'object',properties:{}}}
+      {name:'get_dashboard',description:'CA mois et annee SINELEC',inputSchema:{type:'object',properties:{}}},
+      {name:'get_grille',description:'Cherche une prestation dans la grille tarifaire SINELEC par mot-cle pour connaitre le prix',inputSchema:{type:'object',required:['recherche'],properties:{recherche:{type:'string',description:'Mot-cle ex: tableau, prise, disjoncteur, lave-linge'}}}},
+      {name:'creer_devis',description:'Créer un devis SINELEC et lenvoyer au client par email',inputSchema:{type:'object',required:['client','email','telephone','adresse','prestations'],properties:{
+        client:{type:'string',description:'Nom complet du client ex: M. Dupont Jean'},
+        email:{type:'string',description:'Email du client'},
+        telephone:{type:'string',description:'Téléphone du client ex: 0612345678'},
+        adresse:{type:'string',description:'Adresse complète du client'},
+        prestations:{type:'array',description:'Liste des prestations',items:{type:'object',properties:{
+          nom:{type:'string',description:'Nom exact de la prestation'},
+          quantite:{type:'number',description:'Quantité (défaut 1)'},
+          prix_unitaire:{type:'number',description:'Prix unitaire HT (si connu, sinon laisser vide pour chercher dans la grille)'}
+        }}},
+        objet:{type:'string',description:'Objet du devis ex: Travaux électriques'},
+        remise:{type:'number',description:'Remise en % (max 7%)'}
+      }}}
     ]}});
     if(method==='tools/call'){
       const{name,arguments:args}=params;
@@ -3926,6 +3940,69 @@ app.post('/mcp',async(req,res)=>{
         if(args.recherche) q=q.or('nom.ilike.%'+args.recherche+'%,telephone.ilike.%'+args.recherche+'%');
         const{data}=await q.limit(20);
         result={clients:data||[]};
+      } else if(name==='get_grille'){
+        const{data:grille}=await supabase.from('grille_tarifaire')
+          .select('nom,prix_ht,categorie,unite')
+          .ilike('nom','%'+args.recherche+'%')
+          .eq('actif',true)
+          .order('categorie')
+          .limit(10);
+        result={prestations:grille||[],total:(grille||[]).length};
+      } else if(name==='creer_devis'){
+        const { client, email, telephone, adresse, prestations, objet, remise } = args;
+        // Enrichir les prestations avec les prix de la grille si manquants
+        const prestationsEnrichies = [];
+        for (const p of prestations) {
+          let prix = p.prix_unitaire;
+          if (!prix) {
+            const { data: grille } = await supabase.from('grille_tarifaire')
+              .select('prix_ht, nom')
+              .ilike('nom', `%${p.nom}%`)
+              .eq('actif', true)
+              .limit(1);
+            if (grille && grille[0]) {
+              prix = parseFloat(grille[0].prix_ht);
+            } else {
+              prix = 0;
+            }
+          }
+          prestationsEnrichies.push({
+            designation: p.nom,
+            prixUnit: prix,
+            qte: p.quantite || 1,
+            desc: ''
+          });
+        }
+        // Appeler /api/generer en interne
+        const token = genererToken('admin');
+        const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+        const payload = {
+          type: 'devis',
+          client, email, telephone, adresse,
+          objet: objet || 'Travaux électriques',
+          prestations: prestationsEnrichies,
+          remise: remise || 0,
+          email_auto: true
+        };
+        const genRes = await fetch(`${appUrl}/api/generer`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify(payload)
+        });
+        const genData = await genRes.json();
+        if (genData.success) {
+          const total = prestationsEnrichies.reduce((s, p) => s + (p.prixUnit * p.qte), 0);
+          result = {
+            success: true,
+            num: genData.num,
+            client,
+            total_ht: Math.round(total * (1 - (remise||0)/100)),
+            email_envoye: email,
+            message: `✅ Devis ${genData.num} créé et envoyé à ${email}`
+          };
+        } else {
+          result = { success: false, error: genData.error || 'Erreur génération devis' };
+        }
       } else if(name==='get_dashboard'){
         const{data:f}=await supabase.from('historique').select('*').eq('type','facture');
         const now=new Date();
