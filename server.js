@@ -4070,18 +4070,30 @@ app.all('/mcp', mcpAuth, async(req,res)=>{
         else if(name==='creer_devis'){
           const{client,email,telephone,adresse,prestations,objet,remise}=args||{};
           const token=genererToken('admin');
+          // Format attendu par /api/generer : {nom, prix, quantite, desc}
           const prestationsFormatted=(prestations||[]).map(p=>({
-            designation:p.nom, prixUnit:p.prix_unitaire||0, qte:p.quantite||1, desc:''
+            nom: p.nom,
+            prix: parseFloat(p.prix_unitaire)||0,
+            quantite: parseInt(p.quantite)||1,
+            desc: p.description||''
           }));
+          const totalHT = prestationsFormatted.reduce((s,p)=>s+(p.prix*p.quantite),0);
+          const totalNet = Math.round(totalHT*(1-(parseFloat(remise)||0)/100));
           const genRes=await fetch(`${APP_URL_MCP}/api/generer`,{
             method:'POST',
             headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
-            body:JSON.stringify({type:'devis',client,email,telephone,adresse,objet:objet||'Travaux électriques',prestations:prestationsFormatted,remise:remise||0,email_auto:true})
+            body:JSON.stringify({
+              type:'devis', client, email, telephone, adresse,
+              objet: objet||'Travaux électriques',
+              prestations: prestationsFormatted,
+              total_ht: totalNet,
+              remise: parseFloat(remise)||0,
+              email_auto: true
+            })
           });
           const genData=await genRes.json();
           if(genData.success){
-            const total=prestationsFormatted.reduce((s,p)=>s+(p.prixUnit*p.qte),0);
-            result={success:true,num:genData.num,client,total_ht:Math.round(total*(1-(remise||0)/100)),email_envoye:email,message:`✅ Devis ${genData.num} créé et envoyé à ${email}`};
+            result={success:true,num:genData.num,client,total_ht:totalNet,email_envoye:email,message:`✅ Devis ${genData.num} créé et envoyé à ${email}`};
           } else {
             result={success:false,error:genData.error||'Erreur génération'};
           }
