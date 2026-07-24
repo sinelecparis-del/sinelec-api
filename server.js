@@ -4079,6 +4079,7 @@ app.all('/mcp', mcpAuth, async(req,res)=>{
           }));
           const totalHT = prestationsFormatted.reduce((s,p)=>s+(p.prix*p.quantite),0);
           const totalNet = Math.round(totalHT*(1-(parseFloat(remise)||0)/100));
+          // Étape 1 : Générer le devis (PDF + historique)
           const genRes=await fetch(`${APP_URL_MCP}/api/generer`,{
             method:'POST',
             headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
@@ -4087,15 +4088,25 @@ app.all('/mcp', mcpAuth, async(req,res)=>{
               objet: objet||'Travaux électriques',
               prestations: prestationsFormatted,
               total_ht: totalNet,
-              remise: parseFloat(remise)||0,
-              email_auto: true
+              remise: parseFloat(remise)||0
             })
           });
           const genData=await genRes.json();
-          if(genData.success){
-            result={success:true,num:genData.num,client,total_ht:totalNet,email_envoye:email,message:`✅ Devis ${genData.num} créé et envoyé à ${email}`};
-          } else {
+          if(!genData.success) {
             result={success:false,error:genData.error||'Erreur génération'};
+          } else {
+            const num = genData.num;
+            // Étape 2 : Envoyer l'email avec le PDF
+            try {
+              const envRes=await fetch(`${APP_URL_MCP}/api/envoyer/${num}`,{
+                method:'POST',
+                headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
+                body:JSON.stringify({email, pdfB64: genData.pdf_b64})
+              });
+              const envData=await envRes.json();
+              console.log(`📧 MCP email devis ${num}:`, envData.message||envData.error||'ok');
+            } catch(eEnv){ console.error('MCP envoi email:', eEnv.message); }
+            result={success:true,num,client,total_ht:totalNet,email_envoye:email,message:`✅ Devis ${num} créé et envoyé à ${email}`};
           }
         }
         else{ result={error:`Outil inconnu: ${name}`}; }
