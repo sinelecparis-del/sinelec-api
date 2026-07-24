@@ -3895,172 +3895,210 @@ cron.schedule('0 * * * *', async () => {
 // START
 // ═══════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════
-// MCP — SINELEC OS CONNECTOR (Claude.ai integration)
+// MCP — SINELEC OS CONNECTOR (Streamable HTTP + SSE)
+// Protocol: MCP 2025-03-26 — Streamable HTTP Transport
 // ═══════════════════════════════════════════════════
-app.get('/.well-known/oauth-protected-resource',(req,res)=>{res.json({resource:'https://sinelec-api-production.up.railway.app/mcp',authorization_servers:[],scopes_supported:[],bearer_methods_supported:[]});});
-app.get('/.well-known/oauth-authorization-server',(req,res)=>{res.json({issuer:'https://sinelec-api-production.up.railway.app',authorization_endpoint:'https://sinelec-api-production.up.railway.app/oauth/authorize',token_endpoint:'https://sinelec-api-production.up.railway.app/oauth/token',response_types_supported:['code'],grant_types_supported:['authorization_code'],code_challenge_methods_supported:['S256']});});
-// Auth MCP — bearer token OAuth ou x-api-key
-const mcpAuth = (req,res,next) => {
-  const key = req.headers['x-api-key']||'';
-  const auth = req.headers['authorization']||'';
-  const bearer = auth.replace(/^Bearer\s+/i,'').trim();
-  // Accepter x-api-key sinelec2026
-  if(key === 'sinelec2026') return next();
-  // Accepter tout Bearer token non vide issu de notre OAuth
-  if(bearer && bearer.length > 10) return next();
-  return res.status(401).json({error:'unauthorized',error_description:'Token requis'});
-};
-app.get('/oauth/authorize',(req,res)=>{
-  const{redirect_uri,state,code_challenge}=req.query;
-  // Stocker le challenge PKCE avec le code
-  const code = Buffer.from(JSON.stringify({ts:Date.now(),challenge:code_challenge||''})).toString('base64url');
-  res.redirect(redirect_uri+'?code='+code+'&state='+(state||''));
+
+const APP_URL_MCP = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+
+// CORS pour MCP
+app.use(['/mcp','/mcp/message','/.well-known/oauth-protected-resource','/.well-known/oauth-authorization-server','/oauth/authorize','/oauth/token'], (req,res,next) => {
+  res.setHeader('Access-Control-Allow-Origin','*');
+  res.setHeader('Access-Control-Allow-Methods','GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers','Content-Type,Authorization,x-api-key,Accept,Mcp-Session-Id');
+  if(req.method==='OPTIONS') return res.status(204).end();
+  next();
 });
 
-app.post('/oauth/token',express.urlencoded({extended:true}),async(req,res)=>{
-  try {
-    const{code,code_verifier,grant_type}=req.body;
+// OAuth discovery
+app.get('/.well-known/oauth-protected-resource',(req,res)=>{
+  res.json({resource:APP_URL_MCP+'/mcp',authorization_servers:[APP_URL_MCP],scopes_supported:[],bearer_methods_supported:['header']});
+});
+app.get('/.well-known/oauth-authorization-server',(req,res)=>{
+  res.json({
+    issuer:APP_URL_MCP,
+    authorization_endpoint:APP_URL_MCP+'/oauth/authorize',
+    token_endpoint:APP_URL_MCP+'/oauth/token',
+    response_types_supported:['code'],
+    grant_types_supported:['authorization_code'],
+    code_challenge_methods_supported:['S256'],
+    token_endpoint_auth_methods_supported:['none']
+  });
+});
+
+// OAuth flow
+app.get('/oauth/authorize',(req,res)=>{
+  const{redirect_uri,state,code_challenge,code_challenge_method}=req.query;
+  const code = Buffer.from(JSON.stringify({ts:Date.now(),challenge:code_challenge||'',method:code_challenge_method||'S256'})).toString('base64url');
+  const sep = redirect_uri.includes('?') ? '&' : '?';
+  res.redirect(`${redirect_uri}${sep}code=${code}&state=${state||''}`);
+});
+
+app.post('/oauth/token',express.urlencoded({extended:true}),express.json(),(req,res)=>{
+  try{
+    const body = req.body || {};
+    const{code,code_verifier,grant_type}=body;
+    if(!grant_type) return res.status(400).json({error:'invalid_request',error_description:'grant_type manquant'});
     if(grant_type!=='authorization_code') return res.status(400).json({error:'unsupported_grant_type'});
     if(!code) return res.status(400).json({error:'invalid_request',error_description:'code manquant'});
-    // Décoder le code et vérifier le PKCE (S256)
+    // Vérifier PKCE
     let codeData={};
-    try { codeData=JSON.parse(Buffer.from(code,'base64url').toString()); } catch(e){}
-    // Vérifier PKCE S256 si challenge présent
+    try{ codeData=JSON.parse(Buffer.from(code,'base64url').toString()); }catch(e){}
     if(codeData.challenge && code_verifier){
-      const crypto=require('crypto');
-      const expectedChallenge=crypto.createHash('sha256').update(code_verifier).digest('base64url');
+      const expectedChallenge=require('crypto').createHash('sha256').update(code_verifier).digest('base64url');
       if(expectedChallenge!==codeData.challenge) return res.status(400).json({error:'invalid_grant',error_description:'PKCE invalide'});
     }
-    // Générer un vrai JWT SINELEC comme access_token
     const access_token = genererToken('admin');
-    res.json({access_token,token_type:'bearer',expires_in:TOKEN_EXPIRY/1000});
-  } catch(e) {
+    console.log('✅ MCP OAuth token généré');
+    res.json({access_token,token_type:'Bearer',expires_in:86400,scope:''});
+  }catch(e){
     console.error('OAuth token error:',e.message);
     res.status(500).json({error:'server_error'});
   }
 });
-app.get('/mcp',(req,res)=>{
-  res.setHeader('Content-Type','application/json');
-  res.json({
-    protocolVersion:'2024-11-05',
-    capabilities:{tools:{}},
-    serverInfo:{name:'SINELEC OS',version:'2.0'}
-  });
-});
-app.post('/mcp',mcpAuth,async(req,res)=>{
-  const{method,params,id}=req.body;
-  res.setHeader('Content-Type','application/json');
-  try{
-    if(method==='initialize') return res.json({jsonrpc:'2.0',id,result:{protocolVersion:'2024-11-05',capabilities:{tools:{}},serverInfo:{name:'sinelec-os'}}});
-    if(method==='tools/list') return res.json({jsonrpc:'2.0',id,result:{tools:[
-      {name:'get_historique',description:'Historique devis/factures SINELEC',inputSchema:{type:'object',properties:{type:{type:'string'},limite:{type:'number'}}}},
-      {name:'get_clients',description:'Recherche clients SINELEC',inputSchema:{type:'object',properties:{recherche:{type:'string'}}}},
-      {name:'get_dashboard',description:'CA mois et annee SINELEC',inputSchema:{type:'object',properties:{}}},
-      {name:'get_grille',description:'Cherche une prestation dans la grille tarifaire SINELEC par mot-cle pour connaitre le prix',inputSchema:{type:'object',required:['recherche'],properties:{recherche:{type:'string',description:'Mot-cle ex: tableau, prise, disjoncteur, lave-linge'}}}},
-      {name:'creer_devis',description:'Créer un devis SINELEC et lenvoyer au client par email',inputSchema:{type:'object',required:['client','email','telephone','adresse','prestations'],properties:{
-        client:{type:'string',description:'Nom complet du client ex: M. Dupont Jean'},
-        email:{type:'string',description:'Email du client'},
-        telephone:{type:'string',description:'Téléphone du client ex: 0612345678'},
-        adresse:{type:'string',description:'Adresse complète du client'},
-        prestations:{type:'array',description:'Liste des prestations',items:{type:'object',properties:{
-          nom:{type:'string',description:'Nom exact de la prestation'},
-          quantite:{type:'number',description:'Quantité (défaut 1)'},
-          prix_unitaire:{type:'number',description:'Prix unitaire HT (si connu, sinon laisser vide pour chercher dans la grille)'}
-        }}},
-        objet:{type:'string',description:'Objet du devis ex: Travaux électriques'},
-        remise:{type:'number',description:'Remise en % (max 7%)'}
-      }}}
-    ]}});
-    if(method==='tools/call'){
-      const{name,arguments:args}=params;
-      let result;
-      if(name==='get_historique'){
-        let q=supabase.from('historique').select('*').order('created_at',{ascending:false}).limit(args.limite||20);
-        if(args.type) q=q.eq('type',args.type);
-        const{data}=await q;
-        result={documents:data||[],total:(data||[]).length};
-      } else if(name==='get_clients'){
-        let q=supabase.from('clients').select('*').order('updated_at',{ascending:false});
-        if(args.recherche) q=q.or('nom.ilike.%'+args.recherche+'%,telephone.ilike.%'+args.recherche+'%');
-        const{data}=await q.limit(20);
-        result={clients:data||[]};
-      } else if(name==='get_grille'){
-        const{data:grille}=await supabase.from('grille_tarifaire')
-          .select('nom,prix_ht,categorie,unite')
-          .ilike('nom','%'+args.recherche+'%')
-          .eq('actif',true)
-          .order('categorie')
-          .limit(10);
-        result={prestations:grille||[],total:(grille||[]).length};
-      } else if(name==='creer_devis'){
-        const { client, email, telephone, adresse, prestations, objet, remise } = args;
-        // Enrichir les prestations avec les prix de la grille si manquants
-        const prestationsEnrichies = [];
-        for (const p of prestations) {
-          let prix = p.prix_unitaire;
-          if (!prix) {
-            const { data: grille } = await supabase.from('grille_tarifaire')
-              .select('prix_ht, nom')
-              .ilike('nom', `%${p.nom}%`)
-              .eq('actif', true)
-              .limit(1);
-            if (grille && grille[0]) {
-              prix = parseFloat(grille[0].prix_ht);
-            } else {
-              prix = 0;
-            }
-          }
-          prestationsEnrichies.push({
-            designation: p.nom,
-            prixUnit: prix,
-            qte: p.quantite || 1,
-            desc: ''
-          });
-        }
-        // Appeler /api/generer en interne
-        const token = genererToken('admin');
-        const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
-        const payload = {
-          type: 'devis',
-          client, email, telephone, adresse,
-          objet: objet || 'Travaux électriques',
-          prestations: prestationsEnrichies,
-          remise: remise || 0,
-          email_auto: true
-        };
-        const genRes = await fetch(`${appUrl}/api/generer`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify(payload)
-        });
-        const genData = await genRes.json();
-        if (genData.success) {
-          const total = prestationsEnrichies.reduce((s, p) => s + (p.prixUnit * p.qte), 0);
-          result = {
-            success: true,
-            num: genData.num,
-            client,
-            total_ht: Math.round(total * (1 - (remise||0)/100)),
-            email_envoye: email,
-            message: `✅ Devis ${genData.num} créé et envoyé à ${email}`
-          };
-        } else {
-          result = { success: false, error: genData.error || 'Erreur génération devis' };
-        }
-      } else if(name==='get_dashboard'){
-        const{data:f}=await supabase.from('historique').select('*').eq('type','facture');
-        const now=new Date();
-        const mk=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
-        const fm=(f||[]).filter(x=>x.created_at&&x.created_at.startsWith(mk));
-        const fa=(f||[]).filter(x=>x.created_at&&x.created_at.startsWith(''+now.getFullYear()));
-        result={ca_mois:Math.round(fm.reduce((s,x)=>s+parseFloat(x.total_ht||x.totalht||0),0)),ca_annee:Math.round(fa.reduce((s,x)=>s+parseFloat(x.total_ht||x.totalht||0),0)),nb_factures_mois:fm.length};
+
+// Auth middleware MCP
+const mcpAuth = (req,res,next)=>{
+  const key = (req.headers['x-api-key']||'').trim();
+  const auth = (req.headers['authorization']||'').replace(/^Bearer\s+/i,'').trim();
+  if(key==='sinelec2026') return next();
+  if(auth && auth.length>10) return next();
+  return res.status(401).json({error:'unauthorized',error_description:'Authentication required'});
+};
+
+// Gestion sessions SSE (Streamable HTTP)
+const mcpSessions = new Map();
+
+// Endpoint MCP principal — Streamable HTTP Transport
+app.all('/mcp', mcpAuth, async(req,res)=>{
+  const accept = req.headers['accept']||'';
+  const wantsSSE = accept.includes('text/event-stream');
+  const sessionId = req.headers['mcp-session-id'] || require('crypto').randomUUID();
+
+  // GET /mcp + SSE = initialise une session SSE
+  if(req.method==='GET' && wantsSSE){
+    res.setHeader('Content-Type','text/event-stream');
+    res.setHeader('Cache-Control','no-cache');
+    res.setHeader('Connection','keep-alive');
+    res.setHeader('Mcp-Session-Id',sessionId);
+    res.flushHeaders();
+    mcpSessions.set(sessionId,res);
+    const ka = setInterval(()=>{ try{ res.write(': keepalive\n\n'); }catch(e){} },15000);
+    req.on('close',()=>{ clearInterval(ka); mcpSessions.delete(sessionId); });
+    return;
+  }
+
+  // GET sans SSE = discovery
+  if(req.method==='GET'){
+    return res.json({protocolVersion:'2024-11-05',capabilities:{tools:{}},serverInfo:{name:'SINELEC OS',version:'2.0'}});
+  }
+
+  // POST = traitement JSON-RPC
+  if(req.method==='POST'){
+    const{method,params,id}=req.body||{};
+    res.setHeader('Content-Type', wantsSSE ? 'text/event-stream' : 'application/json');
+    if(wantsSSE){ res.setHeader('Cache-Control','no-cache'); res.flushHeaders(); }
+
+    const send = (data) => {
+      const payload = JSON.stringify(data);
+      if(wantsSSE){ res.write(`data: ${payload}\n\n`); res.end(); }
+      else{ res.json(data); }
+    };
+
+    try{
+      console.log(`📡 MCP ${method} — session:${sessionId}`);
+
+      if(method==='initialize'){
+        return send({jsonrpc:'2.0',id,result:{
+          protocolVersion:'2024-11-05',
+          capabilities:{tools:{listChanged:false}},
+          serverInfo:{name:'SINELEC OS',version:'2.0'}
+        }});
       }
-      return res.json({jsonrpc:'2.0',id,result:{content:[{type:'text',text:JSON.stringify(result,null,2)}]}});
+
+      if(method==='notifications/initialized'){ return res.status(204).end(); }
+      if(method==='ping'){ return send({jsonrpc:'2.0',id,result:{}}); }
+
+      if(method==='tools/list'){
+        return send({jsonrpc:'2.0',id,result:{tools:[
+          {name:'get_dashboard',description:'CA du mois et de l annee SINELEC, nombre de factures et devis',inputSchema:{type:'object',properties:{}}},
+          {name:'get_historique',description:'Historique des devis et factures SINELEC. Filtrer par type (devis/facture) et limiter le nombre de resultats.',inputSchema:{type:'object',properties:{type:{type:'string',enum:['devis','facture']},limite:{type:'number',default:20}}}},
+          {name:'get_clients',description:'Recherche dans la base clients SINELEC par nom ou telephone',inputSchema:{type:'object',properties:{recherche:{type:'string',description:'Nom ou telephone du client'}}}},
+          {name:'get_grille',description:'Cherche le prix d une prestation dans la grille tarifaire SINELEC',inputSchema:{type:'object',required:['recherche'],properties:{recherche:{type:'string',description:'Mot-cle: tableau, prise, disjoncteur, VMC, etc.'}}}},
+          {name:'creer_devis',description:'Cree un devis SINELEC complet, genere le PDF et l envoie au client par email. Toujours confirmer les prestations et prix avant d appeler.',inputSchema:{type:'object',required:['client','email','telephone','adresse','prestations'],properties:{
+            client:{type:'string',description:'Nom complet ex: M. Dupont Jean'},
+            email:{type:'string',description:'Email du client pour envoi devis'},
+            telephone:{type:'string',description:'Telephone obligatoire pour signature OTP'},
+            adresse:{type:'string',description:'Adresse complete'},
+            objet:{type:'string',description:'Objet du devis ex: Travaux electriques'},
+            prestations:{type:'array',items:{type:'object',required:['nom','prix_unitaire'],properties:{
+              nom:{type:'string'},
+              prix_unitaire:{type:'number'},
+              quantite:{type:'number',default:1}
+            }}},
+            remise:{type:'number',description:'Remise en % max 7%',default:0}
+          }}}
+        ]}});
+      }
+
+      if(method==='tools/call'){
+        const{name,arguments:args}=params||{};
+        let result;
+
+        if(name==='get_dashboard'){
+          const{data:f}=await supabase.from('historique').select('total_ht,created_at').eq('type','facture');
+          const now=new Date(); const mk=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+          const fm=(f||[]).filter(x=>x.created_at?.startsWith(mk));
+          const fa=(f||[]).filter(x=>x.created_at?.startsWith(''+now.getFullYear()));
+          const{data:d}=await supabase.from('historique').select('num').eq('type','devis').in('statut',['envoye','envoyé']);
+          result={ca_mois:Math.round(fm.reduce((s,x)=>s+parseFloat(x.total_ht||0),0)),ca_annee:Math.round(fa.reduce((s,x)=>s+parseFloat(x.total_ht||0),0)),nb_factures_mois:fm.length,devis_en_attente:(d||[]).length};
+        }
+        else if(name==='get_historique'){
+          let q=supabase.from('historique').select('num,type,client,total_ht,statut,created_at').order('created_at',{ascending:false}).limit(args?.limite||20);
+          if(args?.type) q=q.eq('type',args.type);
+          const{data}=await q; result={documents:data||[]};
+        }
+        else if(name==='get_clients'){
+          let q=supabase.from('clients').select('nom,telephone,email,adresse').order('updated_at',{ascending:false});
+          if(args?.recherche) q=q.or(`nom.ilike.%${args.recherche}%,telephone.ilike.%${args.recherche}%`);
+          const{data}=await q.limit(10); result={clients:data||[]};
+        }
+        else if(name==='get_grille'){
+          const{data}=await supabase.from('grille_tarifaire').select('nom,prix_ht,categorie,unite').ilike('nom',`%${args?.recherche||''}%`).eq('actif',true).order('categorie').limit(10);
+          result={prestations:data||[]};
+        }
+        else if(name==='creer_devis'){
+          const{client,email,telephone,adresse,prestations,objet,remise}=args||{};
+          const token=genererToken('admin');
+          const prestationsFormatted=(prestations||[]).map(p=>({
+            designation:p.nom, prixUnit:p.prix_unitaire||0, qte:p.quantite||1, desc:''
+          }));
+          const genRes=await fetch(`${APP_URL_MCP}/api/generer`,{
+            method:'POST',
+            headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
+            body:JSON.stringify({type:'devis',client,email,telephone,adresse,objet:objet||'Travaux électriques',prestations:prestationsFormatted,remise:remise||0,email_auto:true})
+          });
+          const genData=await genRes.json();
+          if(genData.success){
+            const total=prestationsFormatted.reduce((s,p)=>s+(p.prixUnit*p.qte),0);
+            result={success:true,num:genData.num,client,total_ht:Math.round(total*(1-(remise||0)/100)),email_envoye:email,message:`✅ Devis ${genData.num} créé et envoyé à ${email}`};
+          } else {
+            result={success:false,error:genData.error||'Erreur génération'};
+          }
+        }
+        else{ result={error:`Outil inconnu: ${name}`}; }
+
+        return send({jsonrpc:'2.0',id,result:{content:[{type:'text',text:JSON.stringify(result,null,2)}]}});
+      }
+
+      send({jsonrpc:'2.0',id,error:{code:-32601,message:`Méthode inconnue: ${method}`}});
+    }catch(e){
+      console.error('❌ MCP error:',e.message);
+      send({jsonrpc:'2.0',id,error:{code:-32603,message:e.message}});
     }
-    if(method==='ping') return res.json({jsonrpc:'2.0',id,result:{}});
-    res.json({jsonrpc:'2.0',id,error:{code:-32601,message:'Methode inconnue'}});
-  } catch(e){ res.json({jsonrpc:'2.0',id,error:{code:-32603,message:e.message}}); }
+  }
 });
+
 
 app.listen(PORT, () => {
   console.log(`⚡ SINELEC OS v2.0 démarré sur le port ${PORT}`);
