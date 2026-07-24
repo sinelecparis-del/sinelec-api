@@ -661,15 +661,7 @@ doc.build(story,canvasmaker=lambda fn,**kw:SC(fn,**kw));print('REGEN_OK')
       try { await envoyerEmail(req.body.cc.trim(), sujet, htmlFinal, { content: pdfB64, name: `${num}.pdf` }); } catch(e) {}
     }
 
-    // Copie à Diahe
-    try {
-      await envoyerEmail(
-        'sinelec.paris@gmail.com',
-        `${type === 'devis' ? '📋 DEVIS' : '💶 FACTURE'} ${num} — ${client} — ${parseFloat(total_ht).toFixed(0)}€`,
-        `<p>Client: ${client} | Email: ${email} | Montant: ${parseFloat(total_ht).toFixed(2)}€</p>`,
-        { content: pdfB64, name: `${num}.pdf` }
-      );
-    } catch(e) {}
+    // [Copie Diahe désactivée — PDF signé envoyé à la signature]
 
     // Nettoyer le PDF stocké
     try { fs.unlinkSync(pdfStorePath); } catch(e) {}
