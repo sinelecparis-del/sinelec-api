@@ -422,8 +422,26 @@ IS_DEVIS = '${type}' == 'devis'
 IS_PAYE = False
 if IS_DEVIS:
     story.append(p('CONDITIONS',8,'Helvetica-Bold',MARINE,sa=6))
-    cond=Table([[p('Acompte 40% a la signature',9,color=GRIS_TEXTE),p('%.2f \\u20ac'%(totalHT*0.4),9,'Helvetica-Bold',OR_FONCE,TA_RIGHT)],[p('Solde a la fin des travaux',9,color=GRIS_TEXTE),p('%.2f \\u20ac'%(totalHT*0.6),9,align=TA_RIGHT)],[p('Validite 30 jours  \\u2022  Virement, especes, CB',8,color=GRIS_SOFT),'']],colWidths=[14.2*cm,4.0*cm])
-    cond.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,1),0.3,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0),('SPAN',(0,2),(1,2))]))
+    cond=Table([
+        [p('  Acompte 40% a la signature',9,'Helvetica-Bold',MARINE),p('%.2f EUR'%(totalHT*0.4),10,'Helvetica-Bold',OR_FONCE,TA_RIGHT)],
+        [p('  Solde a la fin des travaux',9,color=GRIS_TEXTE),p('%.2f EUR'%(totalHT*0.6),9,'Helvetica-Bold',GRIS_TEXTE,TA_RIGHT)],
+        [p('  Validite 30 jours  |  Virement, especes, CB, cheque',8,color=GRIS_SOFT),''],
+        [p('  IBAN : FR76 1695 8000 0174 2540 5920 931   BIC : QNTOFRP1XXX',7.5,color=GRIS_SOFT),'']
+    ],colWidths=[14.2*cm,4.0*cm])
+    cond.setStyle(TableStyle([
+        ('BACKGROUND',(0,0),(-1,0),OR_PALE),
+        ('BACKGROUND',(0,1),(-1,1),colors.HexColor('#F8F8F8')),
+        ('BACKGROUND',(0,2),(-1,-1),colors.HexColor('#F0F0F0')),
+        ('LINEBELOW',(0,0),(-1,-2),0.5,GRIS_LIGNE),
+        ('LINEABOVE',(0,0),(-1,0),1.5,OR),
+        ('LINEBELOW',(0,-1),(-1,-1),1.5,MARINE),
+        ('LEFTPADDING',(0,0),(-1,-1),0),
+        ('RIGHTPADDING',(0,0),(-1,-1),6),
+        ('TOPPADDING',(0,0),(-1,-1),7),
+        ('BOTTOMPADDING',(0,0),(-1,-1),7),
+        ('SPAN',(0,2),(1,2)),
+        ('SPAN',(0,3),(1,3)),
+    ]))
     story.append(cond); story.append(Spacer(1,0.15*cm))
 else:
     story.append(p('MODALITES DE PAIEMENT',8,'Helvetica-Bold',MARINE,sa=6))
