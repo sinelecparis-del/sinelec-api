@@ -1364,6 +1364,16 @@ print('PDF_SIG_OK')
         // Nettoyage
         try { fs.unlinkSync(pyPath2); fs.unlinkSync(detPath2); fs.unlinkSync(pdfPath2); } catch(e) {}
         console.log(`✅ PDF signé envoyé à ${devisData.email}`);
+        // Copie PDF signe a SINELEC
+        try {
+          await envoyerEmail(
+            'sinelec.paris@gmail.com',
+            'Devis signe ' + num + ' - ' + devisData.client,
+            '<p>Devis <b>' + num + '</b> signe par <b>' + devisData.client + '</b><br>Montant : <b>' + parseFloat(devisData.total_ht||0).toFixed(0) + ' EUR HT</b></p>',
+            { content: pdfB64, name: num + '_signe.pdf' }
+          );
+          console.log('Copie PDF signe envoyee a sinelec.paris@gmail.com');
+        } catch(e) { console.error('Copie SINELEC:', e.message); }
       } catch(e) {
         console.error('PDF signé:', e.message);
       }
