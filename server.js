@@ -646,7 +646,10 @@ doc.build(story,canvasmaker=lambda fn,**kw:SC(fn,**kw));print('REGEN_OK')
         <h2 style="color:#fff;margin:6px 0 0;font-size:17px;">SINELEC Paris</h2>
       </div>
       <div style="padding:24px;border:1px solid #e8e8e8;border-top:none;border-radius:0 0 10px 10px;">
-        ${msgTexte ? `<p style="font-size:14px;color:#333;line-height:1.7;white-space:pre-line;">${msgTexte}</p>` : `<p style="font-size:14px;color:#333;">Bonjour,<br><br>Veuillez trouver ci-joint votre ${type === 'devis' ? 'devis' : 'facture'} n° <strong>${num}</strong>.</p>`}
+        ${msgTexte ? `<p style="font-size:14px;color:#333;line-height:1.7;white-space:pre-line;">${msgTexte}</p>` : `<p style="font-size:14px;color:#333;line-height:1.8;">Bonjour,</p>
+        <p style="font-size:14px;color:#333;line-height:1.8;">Veuillez trouver ci-joint votre ${type === 'devis' ? 'devis' : 'facture'} <strong>${num}</strong> d'un montant de <strong>${parseFloat(total_ht||0).toFixed(0)} € HT</strong>.</p>
+        ${type === 'devis' ? '<p style="font-size:13px;color:#555;line-height:1.8;">Ce devis est valable 30 jours. Pour l\'accepter, vous pouvez le signer directement en ligne via le bouton ci-dessous.</p>' : ''}
+        <p style="font-size:13px;color:#555;">N\'hésitez pas à nous contacter pour toute question.</p>`}
         ${boutonSignature}
         <p style="font-size:12px;color:#aaa;margin-top:16px;">📎 PDF joint en pièce jointe<br>📞 07 87 38 86 22 | sinelec.paris@gmail.com</p>
       </div>
