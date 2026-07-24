@@ -800,14 +800,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         </div>
         <div class="cgv-item" onclick="toggleCGV(1)">
           <div class="cgv-check" id="chk1"></div>
-          <div class="cgv-txt">Je reconnais le devis <strong>N° ${num}</strong> d'un montant de <strong style="color:#C9A84C;">${montant} €</strong> et l'acompte de <strong style="color:#C9A84C;">${acompte} €</strong> dû à la signature.</div>
+          <div class="cgv-txt">J'ai lu et j'accepte les <strong>Conditions Générales de Vente SINELEC Paris</strong> — Travaux conformes NF C 15-100, garantie décennale ORUS.</div>
         </div>
         <div class="cgv-item" onclick="toggleCGV(2)">
           <div class="cgv-check" id="chk2"></div>
+          <div class="cgv-txt">Je reconnais le devis <strong>N° ${num}</strong> d'un montant de <strong style="color:#C9A84C;">${montant} €</strong> et l'acompte de <strong style="color:#C9A84C;">${acompte} €</strong> dû à la signature.</div>
+        </div>
+        <div class="cgv-item" onclick="toggleCGV(3)">
+          <div class="cgv-check" id="chk3"></div>
           <div class="cgv-txt">Je consens à ce que ma <strong>signature électronique</strong> ait la même valeur juridique qu'une signature manuscrite <em>(Loi n°2000-230 du 13 mars 2000)</em>.</div>
         </div>
       </div>
-
       <div class="err-msg" id="err-cgv">Veuillez cocher les 3 cases pour continuer.</div>
       <button class="btn-otp" id="btn-get-otp" onclick="demarrerSignature()">✍️ Signer le devis</button>
       <p style="font-size:11px;color:#bbb;text-align:center;margin-top:8px;">Un code à 6 chiffres sera envoyé au ${telMasque}</p>
