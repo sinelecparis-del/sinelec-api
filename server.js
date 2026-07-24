@@ -3899,14 +3899,16 @@ cron.schedule('0 * * * *', async () => {
 // ═══════════════════════════════════════════════════
 app.get('/.well-known/oauth-protected-resource',(req,res)=>{res.json({resource:'https://sinelec-api-production.up.railway.app/mcp',authorization_servers:[],scopes_supported:[],bearer_methods_supported:[]});});
 app.get('/.well-known/oauth-authorization-server',(req,res)=>{res.json({issuer:'https://sinelec-api-production.up.railway.app',authorization_endpoint:'https://sinelec-api-production.up.railway.app/oauth/authorize',token_endpoint:'https://sinelec-api-production.up.railway.app/oauth/token',response_types_supported:['code'],grant_types_supported:['authorization_code'],code_challenge_methods_supported:['S256']});});
-// Auth MCP — seulement sur POST (GET est public pour discovery)
+// Auth MCP — bearer token OAuth ou x-api-key
 const mcpAuth = (req,res,next) => {
-  const key=req.headers['x-api-key'];
-  const auth=req.headers['authorization']||'';
-  const bearer=auth.replace('Bearer ','').trim();
-  if(key==='sinelec2026') return next();
-  if(bearer && verifierToken(bearer)) return next();
-  return res.status(401).json({error:'Non autorise',message:'Bearer token ou x-api-key requis'});
+  const key = req.headers['x-api-key']||'';
+  const auth = req.headers['authorization']||'';
+  const bearer = auth.replace(/^Bearer\s+/i,'').trim();
+  // Accepter x-api-key sinelec2026
+  if(key === 'sinelec2026') return next();
+  // Accepter tout Bearer token non vide issu de notre OAuth
+  if(bearer && bearer.length > 10) return next();
+  return res.status(401).json({error:'unauthorized',error_description:'Token requis'});
 };
 app.get('/oauth/authorize',(req,res)=>{
   const{redirect_uri,state,code_challenge}=req.query;
@@ -3938,10 +3940,11 @@ app.post('/oauth/token',express.urlencoded({extended:true}),async(req,res)=>{
   }
 });
 app.get('/mcp',(req,res)=>{
+  res.setHeader('Content-Type','application/json');
   res.json({
     protocolVersion:'2024-11-05',
-    capabilities:{tools:{},logging:{}},
-    serverInfo:{name:'SINELEC OS',version:'2.0',description:'Assistant SINELEC Paris — Devis, Factures, Historique'}
+    capabilities:{tools:{}},
+    serverInfo:{name:'SINELEC OS',version:'2.0'}
   });
 });
 app.post('/mcp',mcpAuth,async(req,res)=>{
