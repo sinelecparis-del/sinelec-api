@@ -1856,6 +1856,8 @@ table.histo-table tr:hover td { background:#fafbff; }
 
 <!-- ════════════ PAGE HISTORIQUE — TABLEAU STYLE OBAT ════════════ -->
 <div id="page-historique" class="page">
+  <!-- Section devis sans réponse -->
+  <div id="histo-devis-relance" style="display:none;padding:16px 16px 0;"></div>
 <div class="content" style="max-width:1100px;padding:0;">
 
   <!-- Topbar -->
@@ -3309,7 +3311,7 @@ function switchPage(page, el) {
   if (page === 'depannage') setTimeout(initDepannage, 100);
   if (page === 'devis') { setTimeout(initBrouillons, 100); setTimeout(initModeNuit, 200); }
   if (page === 'accueil') { setTimeout(chargerAccueil, 100); setTimeout(chargerProchaineIntervention, 150); }
-  if (page === 'historique') setTimeout(chargerHistorique, 100);
+  if (page === 'historique') { setTimeout(chargerHistorique, 100); setTimeout(chargerDevisRelance, 200); }
   if (page === 'dashboard') setTimeout(chargerDashboard, 100);
   if (page === 'clients') { setTimeout(chargerClients, 100); setTimeout(chargerClientsInactifs, 150); }
   if (page === 'params') setTimeout(afficherParams, 100);
@@ -5062,6 +5064,54 @@ async function chargerClientsInactifs() {
       </div>`;
     el.style.display = 'block';
   } catch(e) { console.error('chargerClientsInactifs:', e); }
+}
+
+async function chargerDevisRelance() {
+  const el = document.getElementById('histo-devis-relance');
+  if (!el) return;
+  try {
+    const res = await fetch('/api/historique?type=devis', {
+      headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('sinelec_token') || '') }
+    });
+    const data = await res.json();
+    const attente = (data || []).filter(d => ['envoye','envoyé'].includes((d.statut||'').toLowerCase()));
+    if (!attente.length) { el.style.display = 'none'; return; }
+
+    const ageJours = (d) => Math.floor((Date.now() - new Date(d.created_at)) / (1000 * 60 * 60 * 24));
+
+    const urgents = attente.filter(d => ageJours(d) >= 7).sort((a,b) => ageJours(b) - ageJours(a));
+    const recents = attente.filter(d => ageJours(d) < 7);
+
+    const badgeStyle = (age) => {
+      if (age >= 21) return 'background:#FEE2E2;color:#dc2626';
+      if (age >= 14) return 'background:#FEF3C7;color:#d97706';
+      if (age >= 7)  return 'background:#FEF9EC;color:#C9962A';
+      return 'background:#F1F5F9;color:#64748b';
+    };
+
+    el.innerHTML = `
+      <div style="background:var(--glass);border:1.5px solid rgba(201,150,42,0.25);border-radius:16px;padding:16px;margin-bottom:4px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <div style="font-size:13px;font-weight:800;color:var(--text);">📋 Devis sans réponse (${attente.length})</div>
+          <div style="font-size:11px;font-weight:700;color:var(--accent);">${Math.round(attente.reduce((s,d)=>s+parseFloat(d.total_ht||0),0)).toLocaleString('fr-FR')} € en jeu</div>
+        </div>
+        ${urgents.slice(0, 6).map(d => {
+          const age = ageJours(d);
+          const montant = Math.round(parseFloat(d.total_ht||0)).toLocaleString('fr-FR');
+          return `<div onclick="allerSurDoc('${d.num}')" style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);cursor:pointer;">
+            <div style="font-size:10px;font-weight:800;padding:3px 8px;border-radius:6px;${badgeStyle(age)};flex-shrink:0;">J+${age}</div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${d.client||'—'}</div>
+              <div style="font-size:10px;color:var(--text-3);">${d.num}</div>
+            </div>
+            <div style="font-family:monospace;font-size:12px;font-weight:700;color:var(--text);flex-shrink:0;">${montant} €</div>
+            <button onclick="event.stopPropagation();marquerRefuse('${d.num}')" style="padding:5px 10px;border:1px solid rgba(239,68,68,0.2);border-radius:7px;background:rgba(239,68,68,0.06);color:#ef4444;font-size:10px;font-weight:800;cursor:pointer;flex-shrink:0;">❌</button>
+          </div>`;
+        }).join('')}
+        ${recents.length ? `<div style="font-size:11px;color:var(--text-3);text-align:center;margin-top:8px;font-weight:600;">+ ${recents.length} devis récents (moins de 7 jours)</div>` : ''}
+      </div>`;
+    el.style.display = 'block';
+  } catch(e) { console.error('chargerDevisRelance:', e); }
 }
 
 async function chargerClients() {
