@@ -2346,6 +2346,15 @@ app.post('/api/agenda', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+app.post('/api/agenda/:id/note', authMiddleware, async (req, res) => {
+  try {
+    const { note } = req.body;
+    const { error } = await supabase.from('agenda').update({ notes: note }).eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/agenda/:id/assigner', authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
@@ -3245,6 +3254,66 @@ app.get('/api/rapport/pdf/:num', (req, res) => {
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `inline; filename="${req.params.num}.pdf"`);
   res.send(entry.buf);
+});
+
+// ═══════════════════════════════════════════════════
+// API: CLIENTS INACTIFS
+// ═══════════════════════════════════════════════════
+app.get('/api/clients/inactifs', blockStandardiste, async (req, res) => {
+  try {
+    const moisSeuil = parseInt(req.query.mois) || 6;
+    const dateSeuil = new Date();
+    dateSeuil.setMonth(dateSeuil.getMonth() - moisSeuil);
+
+    const { data: derniers } = await supabase.from('historique')
+      .select('client, telephone, email, MAX(created_at) as derniere_intervention, COUNT(*) as nb_interventions, SUM(total_ht) as ca_total')
+      .eq('type', 'facture')
+      .in('statut', ['paye', 'payé'])
+      .lt('created_at', dateSeuil.toISOString())
+      .order('derniere_intervention', { ascending: true });
+
+    // Fallback: requête SQL directe
+    const { data: raw } = await supabase.rpc ? await supabase.rpc('get_clients_inactifs', { mois_seuil: moisSeuil }).catch(() => ({ data: null })) : { data: null };
+
+    // Simple query
+    const { data: factures } = await supabase.from('historique')
+      .select('client, telephone, email, total_ht, created_at')
+      .eq('type', 'facture')
+      .in('statut', ['paye', 'payé'])
+      .order('created_at', { ascending: false });
+
+    // Grouper par client et trouver les inactifs
+    const clientsMap = {};
+    (factures || []).forEach(f => {
+      if (!clientsMap[f.client]) {
+        clientsMap[f.client] = { client: f.client, telephone: f.telephone, email: f.email, derniere: f.created_at, nb: 0, ca: 0 };
+      }
+      clientsMap[f.client].nb++;
+      clientsMap[f.client].ca += parseFloat(f.total_ht || 0);
+    });
+
+    const inactifs = Object.values(clientsMap)
+      .filter(c => new Date(c.derniere) < dateSeuil)
+      .sort((a, b) => new Date(a.derniere) - new Date(b.derniere));
+
+    res.json({ inactifs, total: inactifs.length, seuil_mois: moisSeuil });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════
+// API: REFUS DEVIS
+// ═══════════════════════════════════════════════════
+app.post('/api/refuser/:num', authMiddleware, async (req, res) => {
+  try {
+    const { num } = req.params;
+    const { raison } = req.body;
+    const { error } = await supabase.from('historique')
+      .update({ statut: 'refuse', notes: raison || null })
+      .eq('num', num);
+    if (error) throw error;
+    console.log(`❌ Devis refusé: ${num} — raison: ${raison || 'non renseignée'}`);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ═══════════════════════════════════════════════════
