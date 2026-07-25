@@ -6,7 +6,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <title>SINELEC OS v2.0</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
@@ -14,23 +14,25 @@
 
 <style>
 :root {
-  /* ══ PALETTE PRESTIGE LIGHT ══ */
-  --bg:        #ffffff;
-  --bg-2:      #f9f9f9;
-  --bg-3:      #f4f4f4;
+  /* ══ PALETTE PRESTIGE LIGHT — v3 (chaleur + cuivre glossy) ══ */
+  --bg:        #F5F1E8;
+  --bg-2:      #F9F6EF;
+  --bg-3:      #F0EBDF;
   --glass:     rgba(255,255,255,0.85);
   --glass-2:   rgba(255,255,255,0.95);
   --border:    rgba(0,0,0,0.08);
-  --border-2:  rgba(232,184,75,0.3);
+  --border-2:  rgba(232,168,60,0.3);
 
   --text:   #0a0a0a;
   --text-2: rgba(0,0,0,0.65);
   --text-3: rgba(0,0,0,0.38);
 
-  --gold:    #C9962A;
-  --accent:  #E8B84B;
-  --accent-2:#A07820;
-  --gold-glow: rgba(232,184,75,0.2);
+  --gold:    #E8A83C;
+  --accent:  #FFD066;
+  --accent-2:#B8752E;
+  --gold-glow: rgba(232,168,60,0.25);
+
+  --marine-deep: #0B1428;
 
   --success: #00A878;
   --warning: #E8A000;
@@ -52,7 +54,8 @@
   --text-2:  rgba(255,255,255,0.75);
   --text-3:  rgba(255,255,255,0.4);
   --gold:    #FFD700;
-  --accent:  #E8B84B;
+  --accent:  #FFD066;
+  --marine-deep: #0B1428;
 }
 
 * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -667,24 +670,43 @@ body {
 /* ══ KPI PREMIUM ══ */
 .obat-kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:13px; margin-bottom:16px; }
 .obat-kpi {
-  background:#fff; border-radius:12px; padding:18px 20px;
+  background:#fff; border-radius:14px; padding:18px 20px;
   border:1.5px solid #E4E7EF; position:relative; overflow:hidden;
   transition:all 0.2s; cursor:default;
 }
 .obat-kpi::before {
   content:''; position:absolute; top:0; left:0; right:0; height:3px;
-  border-radius:12px 12px 0 0;
+  border-radius:14px 14px 0 0;
 }
-.obat-kpi.k1::before { background:linear-gradient(90deg,#E8B84B,#FFD270); }
+.obat-kpi.k1::before { background:linear-gradient(90deg,#E8A83C,#FFD066); }
 .obat-kpi.k2::before { background:linear-gradient(90deg,#16a34a,#4ade80); }
 .obat-kpi.k3::before { background:linear-gradient(90deg,#f59e0b,#fcd34d); }
 .obat-kpi.k4::before { background:linear-gradient(90deg,#3b82f6,#93c5fd); }
 .obat-kpi:hover { transform:translateY(-3px); box-shadow:0 10px 28px rgba(11,31,58,0.1); border-color:transparent; }
 .obat-kpi-icon { font-size:28px; opacity:0.08; position:absolute; top:14px; right:14px; }
 .obat-kpi-lbl { font-size:10px; color:#8896A8; font-weight:700; text-transform:uppercase; letter-spacing:1px; margin-bottom:9px; }
-.obat-kpi-val { font-size:24px; font-weight:900; color:#0B1F3A; letter-spacing:-0.5px; margin-bottom:8px; }
+.obat-kpi-val { font-family:'JetBrains Mono',monospace; font-size:24px; font-weight:800; color:#0B1F3A; letter-spacing:-0.3px; margin-bottom:8px; }
 .obat-kpi-trend { font-size:11px; font-weight:600; }
 .obat-kpi-sub { font-size:10.5px; color:#8896A8; margin-top:4px; }
+
+/* ── k1 (CA du mois) mis en avant : carte héros marine + halo doré ── */
+.obat-kpi.k1 {
+  background:linear-gradient(160deg,#132348,var(--marine-deep,#0B1428));
+  border-color:transparent;
+}
+.obat-kpi.k1::after {
+  content:''; position:absolute; top:-50px; right:-30px; width:160px; height:160px;
+  border-radius:50%; background:radial-gradient(circle,rgba(255,208,102,0.35),transparent 70%);
+  pointer-events:none;
+}
+.obat-kpi.k1 .obat-kpi-lbl { color:rgba(255,255,255,0.45); position:relative; z-index:1; }
+.obat-kpi.k1 .obat-kpi-val {
+  color:#fff; font-size:27px; position:relative; z-index:1;
+  background:linear-gradient(135deg,#fff,#FFD066); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+}
+.obat-kpi.k1 .obat-kpi-sub { color:rgba(255,255,255,0.35); position:relative; z-index:1; }
+.obat-kpi.k1 .obat-kpi-icon { opacity:0.18; filter:drop-shadow(0 0 6px rgba(255,208,102,0.6)); }
+.obat-kpi.k1:hover { box-shadow:0 14px 34px rgba(11,20,40,0.35); }
 
 /* ══ QUICK ACTIONS PREMIUM ══ */
 .obat-quick { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:16px; }
