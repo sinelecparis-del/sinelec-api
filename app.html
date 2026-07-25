@@ -2639,6 +2639,7 @@ table.histo-table tr:hover td { background:#fafbff; }
   </div>
 </div></div>
 <div id="page-clients" class="page">
+  <div id="clients-inactifs-section" style="display:none;padding:16px 16px 0;"></div>
 <div class="content" style="max-width:900px;padding:0;">
 
   <!-- Stats globales -->
@@ -3310,7 +3311,7 @@ function switchPage(page, el) {
   if (page === 'accueil') { setTimeout(chargerAccueil, 100); setTimeout(chargerProchaineIntervention, 150); }
   if (page === 'historique') setTimeout(chargerHistorique, 100);
   if (page === 'dashboard') setTimeout(chargerDashboard, 100);
-  if (page === 'clients') setTimeout(chargerClients, 100);
+  if (page === 'clients') { setTimeout(chargerClients, 100); setTimeout(chargerClientsInactifs, 150); }
   if (page === 'params') setTimeout(afficherParams, 100);
   if (page === 'sante') setTimeout(() => { chargerSante(); chargerStatutIA(); }, 100);
   if (page === 'agenda') setTimeout(chargerAgenda, 100);
@@ -3527,6 +3528,10 @@ function afficherHistorique() {
       btns.push(`<button onclick="telechargerPDF('${item.num}')" ${btnStyle('rgba(255,255,255,0.6)','var(--text-2)','var(--border)')}>⬇️ PDF</button>`);
       btns.push(`<button onclick="dupliquerDoc('${item.num}')" ${btnStyle('rgba(255,255,255,0.6)','var(--text-2)','var(--border)')}>📋 Dupliquer</button>`);
       btns.push(`<button onclick="creerFicheClient('${item.num}')" ${btnStyle('rgba(232,184,75,0.1)','var(--accent-2)','rgba(232,184,75,0.3)')}>👤 Fiche client</button>`);
+      // Bouton Refusé — seulement sur les devis en attente
+      if(item.type === 'devis' && ['envoye','envoyé'].includes(item.statut)) {
+        btns.push(`<button onclick="marquerRefuse('${item.num}')" ${btnStyle('rgba(239,68,68,0.06)','#ef4444','rgba(239,68,68,0.15)')}>❌ Refusé</button>`);
+      }
       btns.push(`<button onclick="supprimerDoc('${item.num}')" ${btnStyle('rgba(239,68,68,0.08)','#ef4444','rgba(239,68,68,0.2)')}>🗑️ Supprimer</button>`);
 
       actionsHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px;">${btns.join('')}</div>`;
@@ -3779,6 +3784,23 @@ function getTimeline(date) {
   if (diff < 86400) return `il y a ${Math.floor(diff/3600)}h`;
   if (diff < 604800) return `il y a ${Math.floor(diff/86400)} j`;
   return d.toLocaleDateString('fr-FR');
+}
+
+async function marquerRefuse(num) {
+  const raison = prompt(`❌ Devis ${num} refusé\n\nRaison du refus (optionnel) :\nEx: Prix trop élevé, Concurrents, Client indisponible...`);
+  if (raison === null) return; // Annulé
+  try {
+    const res = await fetch(`/api/refuser/${num}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('sinelec_token') || '') },
+      body: JSON.stringify({ raison: raison || 'Non renseignée' })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(`❌ Devis ${num} marqué refusé`, '📊');
+      chargerHistorique();
+    }
+  } catch(e) { showToast('Erreur: ' + e.message, '❌'); }
 }
 
 async function supprimerDoc(num) {
@@ -4853,7 +4875,8 @@ function afficherListeAgenda() {
         ${iv.telephone?`<button onclick="smsDepartClient('${iv.telephone}','${(nom).replace(/'/g,"\'")}','${(iv.adresse||'').replace(/'/g,"\'")}' )" style="background:linear-gradient(135deg,#E8B84B,#C9962A);color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;">🚗 Je pars</button>`:''}
         <button onclick="changerStatutIntervention('${iv.id}','terminé')" style="background:rgba(16,185,129,0.1);color:#10b981;border:1px solid rgba(16,185,129,0.3);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;">✅ Terminé</button>
         ${(iv.statut||'').toLowerCase()==='lead'?`<button onclick="creerDevisFromLead('${iv.id}','${(iv.client||'').replace(/'/g,"\'")}','${(iv.adresse||'').replace(/'/g,"\'")}','${(iv.telephone||'').replace(/'/g,"\'")}','${(iv.email||'').replace(/'/g,"\'")}','${iv.type_intervention||''}')" style="background:linear-gradient(135deg,#1B2A4A,#243660);color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;">📋 Créer devis</button>`:''}
-        <button onclick="assignerSousTraitant('${iv.id}','${(iv.assigne_a||'')}')" style="background:${iv.assigne_a==='soustraitant'?'rgba(201,150,42,0.15);color:#C9962A;border:1px solid rgba(201,150,42,0.3)':'rgba(100,116,139,0.08);color:#64748b;border:1px solid rgba(100,116,139,0.2)'};border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;" title="Assigner au sous-traitant">${iv.assigne_a==='soustraitant'?'🔧 Assigné':'🔧 Assigner'}</button>
+        <button onclick="ouvrirNoteAgenda('${iv.id}','${(iv.notes||'').replace(/'/g,"\\'")}')" style="background:rgba(232,184,75,0.1);color:var(--accent);border:1px solid rgba(232,184,75,0.2);border-radius:8px;padding:7px 10px;font-size:12px;font-weight:700;cursor:pointer;" title="Ajouter une note">${iv.notes ? '📝' : '📝'}</button>
+      <button onclick="assignerSousTraitant('${iv.id}','${(iv.assigne_a||'')}')" style="background:${iv.assigne_a==='soustraitant'?'rgba(201,150,42,0.15);color:#C9962A;border:1px solid rgba(201,150,42,0.3)':'rgba(100,116,139,0.08);color:#64748b;border:1px solid rgba(100,116,139,0.2)'};border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;" title="Assigner au sous-traitant">${iv.assigne_a==='soustraitant'?'🔧 Assigné':'🔧 Assigner'}</button>
         <button onclick="supprimerIntervention('${iv.id}')" style="background:rgba(239,68,68,0.08);color:#ef4444;border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;">🗑️</button>
       </div>
     </div>`;
@@ -4943,6 +4966,23 @@ async function changerStatutIntervention(id, statut) {
   } catch(e) { showToast('❌ Erreur', '⚠️'); }
 }
 
+async function ouvrirNoteAgenda(id, noteActuelle) {
+  const note = prompt("📝 Note d\'intervention :\n(Travaux réalisés, ce qui reste à faire, remarques...)", noteActuelle || '');
+  if (note === null) return;
+  try {
+    const res = await fetch(`/api/agenda/${id}/note`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('sinelec_token') || '') },
+      body: JSON.stringify({ note })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('📝 Note enregistrée', '✅');
+      chargerAgenda();
+    }
+  } catch(e) { showToast('Erreur: ' + e.message, '❌'); }
+}
+
 async function assignerSousTraitant(id, statutActuel) {
   const dejaAssigne = statutActuel === 'soustraitant';
   const action = dejaAssigne ? null : 'soustraitant'; // null = désassigner
@@ -4985,6 +5025,43 @@ function filtrerClients(query) {
     (c.adresse||'').toLowerCase().includes(q)
   );
   renderListeClients(filtres);
+}
+
+async function chargerClientsInactifs() {
+  const el = document.getElementById('clients-inactifs-section');
+  if (!el) return;
+  try {
+    const res = await fetch('/api/clients/inactifs?mois=6', {
+      headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('sinelec_token') || '') }
+    });
+    const data = await res.json();
+    const inactifs = data.inactifs || [];
+    if (!inactifs.length) { el.style.display = 'none'; return; }
+
+    const moisDepuis = (date) => {
+      const d = Math.floor((Date.now() - new Date(date)) / (1000 * 60 * 60 * 24 * 30));
+      return d + ' mois';
+    };
+
+    el.innerHTML = `
+      <div style="background:rgba(239,68,68,0.06);border:1.5px solid rgba(239,68,68,0.2);border-radius:16px;padding:16px;margin-bottom:16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <div style="font-size:13px;font-weight:800;color:#ef4444;">🔴 Clients inactifs — À relancer (${inactifs.length})</div>
+          <div style="font-size:11px;color:rgba(239,68,68,0.6);">Pas d'intervention depuis +6 mois</div>
+        </div>
+        ${inactifs.slice(0, 5).map(c => `
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(239,68,68,0.1);">
+            <div style="width:36px;height:36px;border-radius:10px;background:rgba(239,68,68,0.1);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#ef4444;flex-shrink:0;">${(c.client||'?')[0].toUpperCase()}</div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${c.client}</div>
+              <div style="font-size:11px;color:var(--text-3);">Dernière visite il y a ${moisDepuis(c.derniere)} · ${Math.round(c.ca)} € CA total</div>
+            </div>
+            ${c.telephone ? `<a href="sms:${c.telephone}?&body=Bonjour%2C%20c%27est%20SINELEC%20Paris.%20Comment%20puis-je%20vous%20aider%20%3F%2007%2087%2038%2086%2022" style="padding:8px 12px;border-radius:9px;background:rgba(37,211,102,0.1);color:#16a34a;font-size:11px;font-weight:800;text-decoration:none;white-space:nowrap;border:1px solid rgba(37,211,102,0.2);">📱 SMS</a>` : ''}
+          </div>`).join('')}
+        ${inactifs.length > 5 ? `<div style="text-align:center;font-size:11px;color:rgba(239,68,68,0.6);margin-top:10px;font-weight:700;">+ ${inactifs.length - 5} autres clients inactifs</div>` : ''}
+      </div>`;
+    el.style.display = 'block';
+  } catch(e) { console.error('chargerClientsInactifs:', e); }
 }
 
 async function chargerClients() {
