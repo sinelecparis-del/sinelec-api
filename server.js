@@ -4031,10 +4031,11 @@ app.all('/mcp', mcpAuth, async(req,res)=>{
             telephone:{type:'string',description:'Telephone obligatoire pour signature OTP'},
             adresse:{type:'string',description:'Adresse complete'},
             objet:{type:'string',description:'Objet du devis ex: Travaux electriques'},
-            prestations:{type:'array',items:{type:'object',required:['nom','prix_unitaire'],properties:{
-              nom:{type:'string'},
-              prix_unitaire:{type:'number'},
-              quantite:{type:'number',default:1}
+            prestations:{type:'array',description:'Liste des prestations avec descriptions détaillées',items:{type:'object',required:['nom','prix_unitaire'],properties:{
+              nom:{type:'string',description:'Nom exact de la prestation'},
+              prix_unitaire:{type:'number',description:'Prix unitaire HT en euros'},
+              quantite:{type:'number',default:1},
+              description:{type:'string',description:'Description technique détaillée incluse dans le PDF — main d oeuvre, fourniture, marques, normes'}
             }}},
             remise:{type:'number',description:'Remise en % max 7%',default:0}
           }}}
@@ -4075,7 +4076,7 @@ app.all('/mcp', mcpAuth, async(req,res)=>{
             nom: p.nom,
             prix: parseFloat(p.prix_unitaire)||0,
             quantite: parseInt(p.quantite)||1,
-            desc: p.description||''
+            desc: p.description || p.desc || ''
           }));
           const totalHT = prestationsFormatted.reduce((s,p)=>s+(p.prix*p.quantite),0);
           const totalNet = Math.round(totalHT*(1-(parseFloat(remise)||0)/100));
@@ -4096,12 +4097,31 @@ app.all('/mcp', mcpAuth, async(req,res)=>{
             result={success:false,error:genData.error||'Erreur génération'};
           } else {
             const num = genData.num;
-            // Étape 2 : Envoyer l'email avec le PDF
+            // Étape 2 : Envoyer l'email avec le PDF + message commercial pro
+            const prenomClient = (client||'').split(' ').slice(-1)[0] || client;
+            const msgCommercial = `Bonjour,
+
+Veuillez trouver ci-joint votre devis n° ${num} d'un montant de ${totalNet} € HT.
+
+Ce devis est valable 30 jours. Pour l'accepter, vous pouvez le signer directement en ligne via le bouton ci-dessous.
+
+Les travaux seront réalisés conformément à la norme NF C 15-100, avec garantie décennale ORUS.
+
+N'hésitez pas à nous contacter pour toute question.
+
+Cordialement,
+Diahe SINERA — SINELEC Paris
+📞 07 87 38 86 22`;
             try {
               const envRes=await fetch(`${APP_URL_MCP}/api/envoyer/${num}`,{
                 method:'POST',
                 headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
-                body:JSON.stringify({email, pdfB64: genData.pdf_b64})
+                body:JSON.stringify({
+                  email,
+                  pdfB64: genData.pdf_b64,
+                  message: msgCommercial,
+                  sujet: `Devis SINELEC ${num} — ${objet||'Travaux électriques'}`
+                })
               });
               const envData=await envRes.json();
               console.log(`📧 MCP email devis ${num}:`, envData.message||envData.error||'ok');
