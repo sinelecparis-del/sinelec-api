@@ -172,30 +172,45 @@ body {
 }
 .mobile-tab.fab-tab .mobile-tab-label { color:#E8B84B; font-weight:800; }
 
-/* ── Layout desktop : sidebar fixe + contenu décalé ── */
-.main-content {
-  margin-left: var(--sidebar-width);
+/* ── Layout CSS Grid (Notion / Linear style) ── */
+#app-grid {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr;
+  grid-template-rows: 1fr;
   min-height: 100vh;
-  position: relative;
-  z-index: 1;
-  /* Garantit que le contenu n'est jamais caché par la sidebar */
-  min-width: 0;
-  overflow-x: hidden;
 }
 
-/* ── Breakpoint mobile (téléphone/tablette <900px) ── */
+.sidebar {
+  grid-column: 1;
+  position: sticky !important;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  /* Supprime le position:fixed existant */
+}
+
+.main-content {
+  grid-column: 2;
+  min-width: 0;
+  margin-left: 0 !important; /* Grid gère la séparation */
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Mobile <900px : sidebar cachée, pleine largeur ── */
 @media(max-width:900px){
   body { padding-bottom:80px; }
-  .sidebar { display:none; }
-  .main-content { margin-left:0; }
+  #app-grid {
+    grid-template-columns: 1fr;
+  }
+  .sidebar { display:none !important; }
+  .main-content { grid-column: 1; }
   .mobile-tabs { display:block; }
 }
 
-/* ── Garantie desktop : sidebar toujours visible et contenu toujours décalé ── */
+/* ── Desktop >900px : tabs mobiles cachés ── */
 @media(min-width:901px){
-  .main-content { margin-left:var(--sidebar-width) !important; }
   .mobile-tabs { display:none !important; }
-  .sidebar { display:flex !important; }
 }
 
 /* ── HISTORIQUE MOBILE ── */
@@ -1546,6 +1561,7 @@ table.histo-table tr:hover td { background:#fafbff; }
 </div>
 
 <div id="main-app-std-wrapper" style="display:contents;">
+<div id="app-grid">
 <!-- ════════════ SIDEBAR DESKTOP ════════════ -->
 <div class="sidebar">
   <div class="sidebar-logo">
@@ -2770,6 +2786,7 @@ table.histo-table tr:hover td { background:#fafbff; }
 </div></div>
 
 </div><!-- fin main-content -->
+</div><!-- fin app-grid -->
 
 <!-- TIROIR CA MENSUEL -->
 <div class="tiroir-overlay" id="tiroir-ca-overlay" onclick="fermerTiroirCA()"></div>
