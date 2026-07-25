@@ -7668,7 +7668,8 @@ function renderTableauHistorique() {
         <div class="ht-dropdown" id="${moreId}">
           ${type === 'devis' && statut === 'envoye' ? `
           <div class="ht-dropdown-item" onclick="renvoyerDevis('${item.num}','${(item.email||'').replace(/'/g,"\\'")}','${(item.client||'').replace(/'/g,"\\'")}')">📧 Renvoyer le devis</div>
-          <div class="ht-dropdown-item" onclick="modifierDevis('${item.num}')" style="color:#E8B84B;font-weight:800;">✏️ Modifier le devis</div>` : ''}
+          <div class="ht-dropdown-item" onclick="modifierDevis('${item.num}')" style="color:#E8B84B;font-weight:800;">✏️ Modifier le devis</div>
+          <div class="ht-dropdown-item red" onclick="marquerRefuse('${item.num}')" style="font-weight:800;">❌ Marquer comme refusé</div>` : ''}
           ${type === 'devis' ? `<div class="ht-dropdown-item" onclick="convertirEnFacture('${item.num}')">💶 → Facture</div>` : ''}
           ${type === 'devis' && !estSigne ? `<div class="ht-dropdown-item" onclick="ouvrirPopupSig('${item.num}')">✍️ Signature</div>` : ''}
           ${type === 'devis' && !estSigne ? `<div class="ht-dropdown-item" onclick="marquerSigne('${item.num}')">✅ Marquer signé</div>` : ''}
