@@ -173,7 +173,19 @@ body {
 .mobile-tab.fab-tab .mobile-tab-label { color:#E8B84B; font-weight:800; }
 
 .main-content { margin-left:var(--sidebar-width); min-height:100vh; position:relative; z-index:1; }
-@media(max-width:900px){ body{padding-bottom:80px;} .sidebar{display:none;} .main-content{margin-left:0;} .mobile-tabs{display:block;} }
+/* Mobile uniquement (<640px = téléphones seulement) */
+@media(max-width:640px){ 
+  body { padding-bottom:80px; }
+  .sidebar { display:none; }
+  .main-content { margin-left:0; }
+  .mobile-tabs { display:block; }
+}
+/* Desktop/Chromebook/Tablette (>640px) : sidebar toujours visible */
+@media(min-width:641px){
+  .mobile-tabs { display:none; }
+  .sidebar { display:flex; }
+  .main-content { margin-left:var(--sidebar-width); }
+}
 
 /* ── HISTORIQUE MOBILE ── */
 @media(max-width:768px){
