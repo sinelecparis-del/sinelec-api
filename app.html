@@ -172,46 +172,8 @@ body {
 }
 .mobile-tab.fab-tab .mobile-tab-label { color:#E8B84B; font-weight:800; }
 
-/* ── Layout CSS Grid (Notion / Linear style) ── */
-#app-grid {
-  display: grid;
-  grid-template-columns: var(--sidebar-width) 1fr;
-  grid-template-rows: 1fr;
-  min-height: 100vh;
-}
-
-.sidebar {
-  grid-column: 1;
-  position: sticky !important;
-  top: 0;
-  height: 100vh;
-  overflow-y: auto;
-  /* Supprime le position:fixed existant */
-}
-
-.main-content {
-  grid-column: 2;
-  min-width: 0;
-  margin-left: 0 !important; /* Grid gère la séparation */
-  position: relative;
-  z-index: 1;
-}
-
-/* ── Mobile <900px : sidebar cachée, pleine largeur ── */
-@media(max-width:900px){
-  body { padding-bottom:80px; }
-  #app-grid {
-    grid-template-columns: 1fr;
-  }
-  .sidebar { display:none !important; }
-  .main-content { grid-column: 1; }
-  .mobile-tabs { display:block; }
-}
-
-/* ── Desktop >900px : tabs mobiles cachés ── */
-@media(min-width:901px){
-  .mobile-tabs { display:none !important; }
-}
+.main-content { margin-left:var(--sidebar-width); min-height:100vh; position:relative; z-index:1; }
+@media(max-width:900px){ body{padding-bottom:80px;} .sidebar{display:none;} .main-content{margin-left:0;} .mobile-tabs{display:block;} }
 
 /* ── HISTORIQUE MOBILE ── */
 @media(max-width:768px){
@@ -1561,7 +1523,6 @@ table.histo-table tr:hover td { background:#fafbff; }
 </div>
 
 <div id="main-app-std-wrapper" style="display:contents;">
-<div id="app-grid">
 <!-- ════════════ SIDEBAR DESKTOP ════════════ -->
 <div class="sidebar">
   <div class="sidebar-logo">
@@ -2786,7 +2747,6 @@ table.histo-table tr:hover td { background:#fafbff; }
 </div></div>
 
 </div><!-- fin main-content -->
-</div><!-- fin app-grid -->
 
 <!-- TIROIR CA MENSUEL -->
 <div class="tiroir-overlay" id="tiroir-ca-overlay" onclick="fermerTiroirCA()"></div>
