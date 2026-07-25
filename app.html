@@ -172,8 +172,31 @@ body {
 }
 .mobile-tab.fab-tab .mobile-tab-label { color:#E8B84B; font-weight:800; }
 
-.main-content { margin-left:var(--sidebar-width); min-height:100vh; position:relative; z-index:1; }
-@media(max-width:768px){ body{padding-bottom:70px;} .sidebar{display:none;} .main-content{margin-left:0;} .mobile-tabs{display:block;} }
+/* ── Layout desktop : sidebar fixe + contenu décalé ── */
+.main-content {
+  margin-left: var(--sidebar-width);
+  min-height: 100vh;
+  position: relative;
+  z-index: 1;
+  /* Garantit que le contenu n'est jamais caché par la sidebar */
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+/* ── Breakpoint mobile (téléphone/tablette <900px) ── */
+@media(max-width:900px){
+  body { padding-bottom:80px; }
+  .sidebar { display:none; }
+  .main-content { margin-left:0; }
+  .mobile-tabs { display:block; }
+}
+
+/* ── Garantie desktop : sidebar toujours visible et contenu toujours décalé ── */
+@media(min-width:901px){
+  .main-content { margin-left:var(--sidebar-width) !important; }
+  .mobile-tabs { display:none !important; }
+  .sidebar { display:flex !important; }
+}
 
 /* ── HISTORIQUE MOBILE ── */
 @media(max-width:768px){
