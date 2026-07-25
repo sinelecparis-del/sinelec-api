@@ -3585,6 +3585,12 @@ function afficherHistorique() {
         ${dateInterv ? `<span style="color:#10b981;font-size:14px;">✓</span>` : ''}
       </div>` : ''}
 
+      <!-- Bouton Refusé — visible directement sans ouvrir la carte -->
+      ${type === 'devis' && item.statut === 'envoye' ? `
+      <button onclick="marquerRefuse('${item.num}')" style="width:100%;padding:10px;border:1.5px solid rgba(239,68,68,0.25);border-radius:10px;background:rgba(239,68,68,0.05);color:#ef4444;font-size:13px;font-weight:800;cursor:pointer;margin-bottom:8px;display:flex;align-items:center;justify-content:center;gap:8px;">
+        ❌ Marquer comme refusé
+      </button>` : ''}
+
       <!-- Actions grille 2 col -->
       ${actionsHTML}
 
@@ -7737,6 +7743,7 @@ function renderTableauHistorique() {
         <div style="font-family:monospace;font-size:13px;font-weight:700;color:${estPaye?'#16a34a':'#1B2A4A'};">${parseInt(montant).toLocaleString('fr-FR')} €</div>
         <div style="display:inline-block;font-size:9px;font-weight:800;padding:2px 7px;border-radius:6px;margin-top:3px;${badgeStyle}">${badgeLabel}</div>
       </div>
+      ${type === 'devis' && statut === 'envoye' ? `<button onclick="event.stopPropagation();marquerRefuse('${item.num}')" style="padding:6px 10px;border:1px solid rgba(239,68,68,0.25);border-radius:8px;background:rgba(239,68,68,0.06);color:#ef4444;font-size:11px;font-weight:800;cursor:pointer;flex-shrink:0;white-space:nowrap;">❌ Refusé</button>` : ''}
       <div class="ht-actions" onclick="event.stopPropagation()">${actions}</div>
     </div>`;
   });
