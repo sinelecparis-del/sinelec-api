@@ -2526,6 +2526,56 @@ app.post('/api/clients/creer', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════
+// API: LEAD DEVIS (site vitrine) — créé/màj client + email de trace à Diahe
+// Appelé par le trigger Supabase trg_notify_new_lead_site (type_demande != 'depannage')
+// ═══════════════════════════════════════════════════
+app.post('/api/lead-devis', async (req, res) => {
+  try {
+    const { nom, email, telephone, adresse, description } = req.body;
+
+    // 1. Créer ou mettre à jour le client dans SINELEC OS
+    let existing = null;
+    if (email) {
+      const { data } = await supabase.from('clients').select('*').eq('email', email).single();
+      existing = data;
+    }
+    if (!existing && telephone) {
+      const { data } = await supabase.from('clients').select('*').eq('telephone', telephone).single();
+      existing = data;
+    }
+    if (existing) {
+      await supabase.from('clients').update({ nom, email: email||existing.email, telephone: telephone||existing.telephone, adresse: adresse||existing.adresse }).eq('id', existing.id);
+    } else {
+      await supabase.from('clients').insert({ nom, email, telephone, adresse, source: 'site-vitrine', created_at: new Date().toISOString() });
+    }
+
+    // 2. Email de trace à Diahe
+    const htmlDiahe = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;">
+      <div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:22px;text-align:center;border-radius:12px 12px 0 0;">
+        <h2 style="color:#fff;margin:0;font-size:17px;">📋 Nouvelle demande de devis — site</h2>
+      </div>
+      <div style="padding:22px;border:1px solid #e8e8e8;border-top:none;border-radius:0 0 12px 12px;font-size:14px;color:#333;line-height:1.7;">
+        <p><strong>Nom :</strong> ${nom || '?'}</p>
+        <p><strong>Téléphone :</strong> ${telephone || '?'}</p>
+        <p><strong>Email :</strong> ${email || '?'}</p>
+        <p><strong>Adresse :</strong> ${adresse || '—'}</p>
+        <p><strong>Besoin décrit :</strong><br>${(description || '—').replace(/\n/g, '<br>')}</p>
+      </div>
+    </div>`;
+    try {
+      await envoyerEmail('sinelec.paris@gmail.com', `📋 Devis site — ${nom || 'nouveau lead'}`, htmlDiahe);
+    } catch (emailErr) {
+      console.error('❌ Erreur email lead-devis (client créé quand même):', emailErr.message);
+    }
+
+    res.json({ success: true });
+  } catch (e) {
+    console.error('❌ Erreur /api/lead-devis:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════
 // API: RENTABILITÉ / CHARGES
 // ═══════════════════════════════════════════════════
 app.get('/api/rentabilite/:mois', authMiddleware, async (req, res) => {
