@@ -1685,7 +1685,7 @@ async function traiterPaiementRecu(num, mode_paiement) {
         if (doc.telephone && !doc.sms_avis_envoye) {
           try {
             const prenom = extractPrenom(doc.client || '');
-            const smsAvis = `Bonjour ${prenom}, votre règlement SINELEC a bien été enregistré ✅ Si vous avez 30 secondes, un avis Google nous aiderait énormément 👉 https://g.page/r/CSw-MABnFUAYEAE/review — L'équipe SINELEC Paris ⚡`;
+            const smsAvis = `Bonjour ${prenom}, votre règlement SINELEC a bien été enregistré ✅ Un avis Google nous aiderait énormément, encore plus si vous précisez le type d'intervention (ex: dépannage, mise aux normes...) 👉 https://g.page/r/CSw-MABnFUAYEAE/review — L'équipe SINELEC Paris ⚡`;
             await envoyerSMS(doc.telephone, smsAvis);
             await supabase.from('historique').update({ sms_avis_envoye: true, sms_avis_date: new Date().toISOString(), sms_avis_statut: 'envoye_auto' }).eq('num', num);
             console.log(`✅ SMS avis auto: ${num} → ${doc.telephone}`);
@@ -1762,7 +1762,7 @@ app.post('/api/envoyer-sms-avis/:num', async (req, res) => {
     if (!doc) return res.status(404).json({ error: 'Document non trouvé' });
     if (!doc.telephone) return res.status(400).json({ error: 'Pas de téléphone pour ce client' });
     const prenom = extractPrenom(doc.client);
-    const msg = `Bonjour ${prenom}, merci pour votre confiance ! Un avis Google nous aiderait beaucoup : https://g.page/r/CSw-MABnFUAYEAE/review — Diahe, SINELEC ⚡`;
+    const msg = `Bonjour ${prenom}, merci pour votre confiance ! Un avis Google nous aiderait beaucoup, encore plus si vous précisez le type d'intervention : https://g.page/r/CSw-MABnFUAYEAE/review — Diahe, SINELEC ⚡`;
     const msgId = await envoyerSMS(doc.telephone, msg);
     const now = new Date().toISOString();
     await supabase.from('historique').update({
