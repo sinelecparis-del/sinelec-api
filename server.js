@@ -1685,7 +1685,7 @@ async function traiterPaiementRecu(num, mode_paiement) {
         if (doc.telephone && !doc.sms_avis_envoye) {
           try {
             const prenom = extractPrenom(doc.client || '');
-            const smsAvis = `Bonjour ${prenom}, votre règlement SINELEC a bien été enregistré ✅ Un avis Google nous aiderait énormément, encore plus si vous précisez le type d'intervention (ex: dépannage, mise aux normes...) 👉 https://g.page/r/CSw-MABnFUAYEAE/review — L'équipe SINELEC Paris ⚡`;
+            const smsAvis = `Bonjour ${prenom}, votre règlement SINELEC a bien été enregistré ✅ Si vous avez 30 secondes, un avis Google nous aiderait énormément 👉 https://g.page/r/CSw-MABnFUAYEAE/review — L'équipe SINELEC Paris ⚡`;
             await envoyerSMS(doc.telephone, smsAvis);
             await supabase.from('historique').update({ sms_avis_envoye: true, sms_avis_date: new Date().toISOString(), sms_avis_statut: 'envoye_auto' }).eq('num', num);
             console.log(`✅ SMS avis auto: ${num} → ${doc.telephone}`);
@@ -1762,7 +1762,7 @@ app.post('/api/envoyer-sms-avis/:num', async (req, res) => {
     if (!doc) return res.status(404).json({ error: 'Document non trouvé' });
     if (!doc.telephone) return res.status(400).json({ error: 'Pas de téléphone pour ce client' });
     const prenom = extractPrenom(doc.client);
-    const msg = `Bonjour ${prenom}, merci pour votre confiance ! Un avis Google nous aiderait beaucoup, encore plus si vous précisez le type d'intervention : https://g.page/r/CSw-MABnFUAYEAE/review — Diahe, SINELEC ⚡`;
+    const msg = `Bonjour ${prenom}, merci pour votre confiance ! Un avis Google nous aiderait beaucoup : https://g.page/r/CSw-MABnFUAYEAE/review — Diahe, SINELEC ⚡`;
     const msgId = await envoyerSMS(doc.telephone, msg);
     const now = new Date().toISOString();
     await supabase.from('historique').update({
@@ -2523,56 +2523,6 @@ app.post('/api/clients/creer', async (req, res) => {
     if (error) throw error;
     res.json({ success: true, created: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// ═══════════════════════════════════════════════════
-// API: LEAD DEVIS (site vitrine) — créé/màj client + email de trace à Diahe
-// Appelé par le trigger Supabase trg_notify_new_lead_site (type_demande != 'depannage')
-// ═══════════════════════════════════════════════════
-app.post('/api/lead-devis', async (req, res) => {
-  try {
-    const { nom, email, telephone, adresse, description } = req.body;
-
-    // 1. Créer ou mettre à jour le client dans SINELEC OS
-    let existing = null;
-    if (email) {
-      const { data } = await supabase.from('clients').select('*').eq('email', email).single();
-      existing = data;
-    }
-    if (!existing && telephone) {
-      const { data } = await supabase.from('clients').select('*').eq('telephone', telephone).single();
-      existing = data;
-    }
-    if (existing) {
-      await supabase.from('clients').update({ nom, email: email||existing.email, telephone: telephone||existing.telephone, adresse: adresse||existing.adresse }).eq('id', existing.id);
-    } else {
-      await supabase.from('clients').insert({ nom, email, telephone, adresse, source: 'site-vitrine', created_at: new Date().toISOString() });
-    }
-
-    // 2. Email de trace à Diahe
-    const htmlDiahe = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;">
-      <div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:22px;text-align:center;border-radius:12px 12px 0 0;">
-        <h2 style="color:#fff;margin:0;font-size:17px;">📋 Nouvelle demande de devis — site</h2>
-      </div>
-      <div style="padding:22px;border:1px solid #e8e8e8;border-top:none;border-radius:0 0 12px 12px;font-size:14px;color:#333;line-height:1.7;">
-        <p><strong>Nom :</strong> ${nom || '?'}</p>
-        <p><strong>Téléphone :</strong> ${telephone || '?'}</p>
-        <p><strong>Email :</strong> ${email || '?'}</p>
-        <p><strong>Adresse :</strong> ${adresse || '—'}</p>
-        <p><strong>Besoin décrit :</strong><br>${(description || '—').replace(/\n/g, '<br>')}</p>
-      </div>
-    </div>`;
-    try {
-      await envoyerEmail('sinelec.paris@gmail.com', `📋 Devis site — ${nom || 'nouveau lead'}`, htmlDiahe);
-    } catch (emailErr) {
-      console.error('❌ Erreur email lead-devis (client créé quand même):', emailErr.message);
-    }
-
-    res.json({ success: true });
-  } catch (e) {
-    console.error('❌ Erreur /api/lead-devis:', e.message);
-    res.status(500).json({ error: e.message });
-  }
 });
 
 // ═══════════════════════════════════════════════════
@@ -4191,11 +4141,35 @@ app.all('/mcp', mcpAuth, async(req,res)=>{
           const{client,email,telephone,adresse,prestations,objet,remise}=args||{};
           const token=genererToken('admin');
           // Format attendu par /api/generer : {nom, prix, quantite, desc}
-          const prestationsFormatted=(prestations||[]).map(p=>({
-            nom: p.nom,
-            prix: parseFloat(p.prix_unitaire)||0,
-            quantite: parseInt(p.quantite)||1,
-            desc: p.description || p.desc || ''
+          // Auto-génération des descriptions manquantes via IA
+          const prestationsFormatted = await Promise.all((prestations||[]).map(async p => {
+            let desc = p.description || p.desc || '';
+            if (!desc || desc.length < 20) {
+              try {
+                const prix = parseFloat(p.prix_unitaire)||0;
+                const prompt = `Tu es un expert électricien SINELEC Paris. Rédige une description professionnelle pour cette prestation dans un devis client.
+Prestation : "${p.nom}"${prix ? `\nPrix : ${prix}€` : ''}
+Format : 4-6 phrases, ~120-150 mots
+Style : Professionnel, technique, rassurant. Mentionne : main d'œuvre + fourniture + marques (Hager, Legrand ou Schneider Electric) + raccordement + mise en service + tests. Conforme NF C 15-100. Garantie décennale ORUS.
+IMPORTANT : Réponds UNIQUEMENT avec la description, sans introduction ni guillemets.`;
+                const resp = await anthropic.messages.create({
+                  model: 'claude-haiku-4-5-20251001',
+                  max_tokens: 300,
+                  messages: [{ role: 'user', content: prompt }]
+                });
+                desc = resp.content[0].text.trim();
+                console.log(`✅ Description générée pour: ${p.nom} (${desc.length} chars)`);
+              } catch(descErr) {
+                console.error(`❌ Description IA échouée pour ${p.nom}:`, descErr.message);
+                desc = `Fourniture et pose : ${p.nom}. Main d'œuvre, matériaux et raccordement inclus. Conforme NF C 15-100.`;
+              }
+            }
+            return {
+              nom: p.nom,
+              prix: parseFloat(p.prix_unitaire)||0,
+              quantite: parseInt(p.quantite)||1,
+              desc
+            };
           }));
           const totalHT = prestationsFormatted.reduce((s,p)=>s+(p.prix*p.quantite),0);
           const totalNet = Math.round(totalHT*(1-(parseFloat(remise)||0)/100));
