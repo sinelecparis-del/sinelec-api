@@ -3257,6 +3257,74 @@ app.get('/api/rapport/pdf/:num', (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════
+// API: LEAD SITE → CLIENT + AGENDA
+// ═══════════════════════════════════════════════════
+app.post('/api/lead-devis', async (req, res) => {
+  try {
+    const { nom, telephone, email, adresse, description } = req.body;
+    if (!nom && !telephone) return res.status(400).json({ error: 'Données manquantes' });
+
+    const dateAujourdhui = new Date().toISOString().slice(0, 10);
+    const heureActuelle = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+    // 1. Créer ou mettre à jour le client
+    const { data: clientExist } = await supabase.from('clients')
+      .select('id').eq('telephone', telephone).single().catch(() => ({ data: null }));
+
+    if (!clientExist) {
+      await supabase.from('clients').insert({
+        nom: nom || 'Inconnu',
+        telephone: telephone || '',
+        email: email || '',
+        adresse: adresse || '',
+        source: 'site-sinelec-paris'
+      });
+    }
+
+    // 2. Ajouter dans l'agenda
+    await supabase.from('agenda').insert({
+      client: nom || 'Lead site',
+      telephone: telephone || '',
+      email: email || '',
+      adresse: adresse || '',
+      type_intervention: description ? description.slice(0, 100) : 'Demande de devis site',
+      statut: 'lead',
+      date_intervention: dateAujourdhui,
+      heure: heureActuelle,
+      notes: `Lead depuis sinelec-paris.fr\n${description || ''}`
+    });
+
+    // 3. Email de notification à Diahe
+    const html = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;">
+      <div style="background:#1B2A4A;padding:20px;border-radius:12px 12px 0 0;">
+        <h2 style="color:#E8B84B;margin:0;">🌐 Nouveau lead site sinelec-paris.fr</h2>
+      </div>
+      <div style="padding:20px;border:1px solid #e8e8e8;border-top:none;border-radius:0 0 12px 12px;">
+        <p><strong>Nom :</strong> ${nom || '—'}</p>
+        <p><strong>Téléphone :</strong> ${telephone || '—'}</p>
+        <p><strong>Email :</strong> ${email || '—'}</p>
+        <p><strong>Adresse :</strong> ${adresse || '—'}</p>
+        <p><strong>Besoin :</strong> ${description || '—'}</p>
+        <hr style="margin:16px 0;">
+        <p style="color:#666;font-size:12px;">✅ Lead ajouté dans ton agenda SINELEC OS</p>
+      </div>
+    </div>`;
+
+    await envoyerEmail(
+      CONFIG?.email?.sender_email || 'sinelec.paris@gmail.com',
+      `🌐 Nouveau lead site — ${nom || 'Inconnu'} — ${telephone || ''}`,
+      html
+    );
+
+    console.log(`✅ Lead site ajouté: ${nom} (${telephone}) → agenda + email`);
+    res.json({ success: true, message: 'Lead ajouté dans agenda et email envoyé' });
+  } catch(e) {
+    console.error('❌ lead-devis error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════
 // API: CLIENTS INACTIFS
 // ═══════════════════════════════════════════════════
 app.get('/api/clients/inactifs', blockStandardiste, async (req, res) => {
