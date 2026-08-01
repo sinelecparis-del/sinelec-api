@@ -298,7 +298,7 @@ function extractPrenom(clientStr) {
   return first || parts[0] || 'client';
 }
 
-async function envoyerEmail(to, subject, htmlContent, attachment = null) {
+async function envoyerEmail(to, subject, htmlContent, attachment = null, cc = null) {
   if (CONFIG.dev.skip_email) { console.log('Email skippé:', to); return { skipped: true }; }
 
   // Validation email AVANT l'appel Brevo — évite l'erreur "invalid_request" peu claire
@@ -312,6 +312,7 @@ async function envoyerEmail(to, subject, htmlContent, attachment = null) {
     sender: { name: CONFIG.email.sender_name, email: CONFIG.email.sender_email },
     to: [{ email: emailClean }], subject, htmlContent, trackOpens: 0, trackClicks: 0,
   };
+  if (cc && cc.length) payload.cc = cc.map(e => ({ email: e }));
   if (attachment) payload.attachment = [{ content: attachment.content, name: attachment.name }];
   const res = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
@@ -4008,6 +4009,81 @@ cron.schedule('0 9 * * *', async () => {
     const total = nb7 + nb14 + nb21 + nb30;
     if (total > 0) console.log(`✅ Relances/expirations du jour — J+7: ${nb7} | J+14: ${nb14} | J+21: ${nb21} | Expirés: ${nb30}`);
   } catch(e) { console.error('Cron relances:', e.message); }
+});
+
+// ══════════════════════════════════════════════════════════════
+// RELANCES FACTURES IMPAYÉES — J+7 (email), J+14 (email), J+21 (SMS)
+// Chaque matin à 9h30 — exclut les factures 'litige' (procédure en cours)
+// Copie systématique à sinelec.paris@gmail.com sur chaque relance
+// ══════════════════════════════════════════════════════════════
+cron.schedule('30 9 * * *', async () => {
+  try {
+    const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+    const now = Date.now();
+
+    const { data: factures } = await supabase
+      .from('historique')
+      .select('*')
+      .eq('type', 'facture')
+      .eq('statut', 'envoye')
+      .order('created_at', { ascending: true });
+
+    let nb7 = 0, nb14 = 0, nb21 = 0;
+
+    for (const f of (factures || [])) {
+      const ageJours = Math.floor((now - new Date(f.date_envoi || f.created_at).getTime()) / (24 * 3600 * 1000));
+      const total = parseFloat(f.total_ht || 0);
+      const lien = `${appUrl}/paiement-confirme/${f.num}?montant=${total.toFixed(2)}`;
+      const prenom = extractPrenom(f.client || '');
+      const nbDeja = f.nb_relances || 0;
+
+      try {
+        // ── J+7 : email courtois ──────────────────────────────────
+        if (ageJours >= 7 && ageJours < 14 && nbDeja === 0) {
+          if (f.email) {
+            const html = `<p>Bonjour ${prenom},</p>
+              <p>Petit rappel : votre facture SINELEC n°${f.num} d'un montant de ${total.toFixed(2)}€ est toujours en attente de règlement.</p>
+              <p><a href="${lien}">Régler en ligne en 1 clic</a></p>
+              <p>L'équipe SINELEC Paris</p>`;
+            await envoyerEmail(f.email, `Rappel — Facture ${f.num} en attente de paiement`, html, null, ['sinelec.paris@gmail.com']);
+          }
+          await supabase.from('historique').update({ nb_relances: 1, date_derniere_relance: new Date().toISOString() }).eq('num', f.num);
+          console.log(`📨 Relance facture J+7: ${f.num}`);
+          nb7++;
+        }
+
+        // ── J+14 : email plus direct ──────────────────────────────
+        else if (ageJours >= 14 && ageJours < 21 && nbDeja === 1) {
+          if (f.email) {
+            const html = `<p>Bonjour ${prenom},</p>
+              <p>Votre facture SINELEC n°${f.num} de ${total.toFixed(2)}€ reste impayée depuis ${ageJours} jours. Merci de bien vouloir régulariser rapidement.</p>
+              <p><a href="${lien}">Régler en ligne en 1 clic</a></p>
+              <p>Sans retour de votre part, une relance par SMS suivra.</p>
+              <p>L'équipe SINELEC Paris</p>`;
+            await envoyerEmail(f.email, `2e rappel — Facture ${f.num} impayée (${ageJours}j)`, html, null, ['sinelec.paris@gmail.com']);
+          }
+          await supabase.from('historique').update({ nb_relances: 2, date_derniere_relance: new Date().toISOString() }).eq('num', f.num);
+          console.log(`📨 Relance facture J+14: ${f.num}`);
+          nb14++;
+        }
+
+        // ── J+21 : SMS ─────────────────────────────────────────────
+        else if (ageJours >= 21 && nbDeja === 2) {
+          if (f.telephone) {
+            const msg = `Bonjour ${prenom}, votre facture SINELEC n°${f.num} de ${total.toFixed(0)}€ est impayée depuis ${ageJours}j. Réglez en 1 clic : ${lien} — SINELEC Paris`;
+            await envoyerSMS(f.telephone, msg);
+          }
+          await supabase.from('historique').update({ nb_relances: 3, date_derniere_relance: new Date().toISOString() }).eq('num', f.num);
+          console.log(`📨 Relance facture J+21 (SMS): ${f.num}`);
+          nb21++;
+        }
+        // Au-delà de J+21 (nb_relances = 3) : plus de relance auto, à traiter manuellement
+      } catch(e) { console.error(`Relance facture ${f.num}:`, e.message); }
+    }
+
+    const total = nb7 + nb14 + nb21;
+    if (total > 0) console.log(`✅ Relances factures du jour — J+7: ${nb7} | J+14: ${nb14} | J+21: ${nb21}`);
+  } catch(e) { console.error('Cron relances factures:', e.message); }
 });
 
 // Rappel SMS client veille à 18h
