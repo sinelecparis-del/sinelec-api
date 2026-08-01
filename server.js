@@ -3919,13 +3919,20 @@ cron.schedule('0 7 * * *', async () => {
       .order('heure', { ascending: true });
 
     const nb = (interventions || []).length;
+
+    // Pas d'email si aucune intervention
+    if (nb === 0) {
+      console.log('📅 Récap agenda : aucune intervention aujourd\'hui — email non envoyé');
+      return;
+    }
+
     const liste = (interventions || []).map(iv =>
       `• ${iv.heure || '?'} — ${iv.client || 'Client'} — ${iv.adresse || ''} — ${iv.type_intervention || ''}`
     ).join('\n');
 
     const html = `<h2>📅 Agenda du jour — ${new Date().toLocaleDateString('fr-FR')}</h2>
     <p>${nb} intervention${nb > 1 ? 's' : ''} prévue${nb > 1 ? 's' : ''}</p>
-    <pre style="background:#f5f5f5;padding:12px;border-radius:8px;font-family:monospace;">${liste || 'Aucune intervention'}</pre>`;
+    <pre style="background:#f5f5f5;padding:12px;border-radius:8px;font-family:monospace;">${liste}</pre>`;
 
     await envoyerEmail('sinelec.paris@gmail.com', `⚡ Agenda du ${new Date().toLocaleDateString('fr-FR')} — ${nb} intervention${nb>1?'s':''}`, html);
     console.log(`✅ Récap agenda envoyé: ${nb} interventions`);
