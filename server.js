@@ -2612,6 +2612,7 @@ app.delete('/api/charges/:id', authMiddleware, async (req, res) => {
 // API: CHAT AI
 // ═══════════════════════════════════════════════════
 app.post('/api/chat', async (req, res) => {
+  return res.status(403).json({ error: 'Feature désactivée' });
   try {
     const { message } = req.body;
     const response = await anthropic.messages.create({
