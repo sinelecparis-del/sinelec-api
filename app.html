@@ -1597,6 +1597,9 @@ table.histo-table tr:hover td { background:#fafbff; }
     <div class="sidebar-item" onclick="switchPage('rapport', this)">
       <span class="sidebar-item-icon">📸</span><span>Rapport</span>
     </div>
+    <div class="sidebar-item" onclick="switchPage('schema', this)">
+      <span class="sidebar-item-icon">🔌</span><span>Schéma unifilaire</span>
+    </div>
     <div class="sidebar-item" onclick="switchPage('dpe', this)">
       <span class="sidebar-item-icon">🏠</span><span>Analyse DPE</span>
     </div>
@@ -2531,6 +2534,73 @@ table.histo-table tr:hover td { background:#fafbff; }
 <div id="page-vocal" class="page"><div class="content"><div class="section"><div class="section-title">🎙️ Script Vocal IA</div><div id="vocal-content"></div></div></div></div>
 <div id="page-chat" class="page"><div class="content"><div class="section"><div class="section-title">🤖 Chat AI</div><div id="chat-messages" style="min-height:200px;"></div><div style="display:flex;gap:10px;margin-top:16px;"><input type="text" id="chat-input" placeholder="Décris le chantier..." style="flex:1;background:rgba(255,255,255,0.65);border:1.5px solid rgba(218,165,32,0.15);border-radius:12px;padding:14px 16px;color:var(--text);font-size:15px;outline:none;" onkeypress="if(event.key==='Enter') envoyerMessage()"><button onclick="envoyerMessage()" style="background:linear-gradient(135deg,var(--accent),var(--gold));color:#fff;border:none;border-radius:12px;padding:14px 20px;font-weight:800;cursor:pointer;font-size:20px;">→</button></div></div></div></div>
 <div id="page-dpe" class="page"><div class="content"><div class="section"><div class="section-title">🏠 Analyse DPE</div><div id="dpe-content"></div></div></div></div>
+<!-- ════════════ PAGE SCHÉMA UNIFILAIRE ════════════ -->
+<div id="page-schema" class="page"><div class="content">
+  <div class="section-title">🔌 Schéma Unifilaire</div>
+
+  <div class="section">
+    <div style="font-size:11px;font-weight:700;color:rgba(0,0,0,0.4);text-transform:uppercase;margin-bottom:10px;">👤 Informations client</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;position:relative;">
+      <div>
+        <div style="font-size:11px;font-weight:700;color:rgba(0,0,0,0.4);text-transform:uppercase;margin-bottom:4px;">Client</div>
+        <input id="sch-client" type="text" placeholder="Nom du client" autocomplete="off"
+          oninput="autocompleteClient('sch', this.value, 'nom')"
+          style="width:100%;padding:10px 12px;border:1.5px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;font-weight:600;background:#f9f9f9;outline:none;">
+        <div id="sch-client-sugg" style="position:absolute;top:100%;left:0;right:50%;background:#fff;border:1.5px solid rgba(0,0,0,0.12);border-top:none;border-radius:0 0 10px 10px;box-shadow:0 4px 16px rgba(0,0,0,0.1);z-index:999;max-height:200px;overflow-y:auto;"></div>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:rgba(0,0,0,0.4);text-transform:uppercase;margin-bottom:4px;">N° Facture liée</div>
+        <input id="sch-facture" type="text" placeholder="FA-202608-001" style="width:100%;padding:10px 12px;border:1.5px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;font-weight:600;background:#f9f9f9;outline:none;">
+      </div>
+    </div>
+    <div style="position:relative;margin-bottom:10px;">
+      <div style="font-size:11px;font-weight:700;color:rgba(0,0,0,0.4);text-transform:uppercase;margin-bottom:4px;">Adresse</div>
+      <input id="sch-adresse" type="text" placeholder="Adresse installation" autocomplete="off"
+        oninput="autocompleteRapAdresse ? autocompleteSchAdresse(this.value) : null"
+        style="width:100%;padding:10px 12px;border:1.5px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;font-weight:600;background:#f9f9f9;outline:none;">
+      <div id="sch-adresse-sugg" style="position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid rgba(0,0,0,0.12);border-top:none;border-radius:0 0 10px 10px;box-shadow:0 4px 16px rgba(0,0,0,0.1);z-index:999;max-height:200px;overflow-y:auto;"></div>
+    </div>
+    <div>
+      <div style="font-size:11px;font-weight:700;color:rgba(0,0,0,0.4);text-transform:uppercase;margin-bottom:4px;">Type de tableau</div>
+      <select id="sch-tableau-type" style="width:100%;padding:10px 12px;border:1.5px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;font-weight:600;background:#f9f9f9;outline:none;">
+        <option value="1 rangée">1 rangée</option>
+        <option value="2 rangées" selected>2 rangées</option>
+        <option value="3 rangées">3 rangées et +</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="section">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+      <div style="font-size:11px;font-weight:700;color:rgba(0,0,0,0.4);text-transform:uppercase;">⚡ Différentiels & circuits</div>
+      <button onclick="ajouterDifferentiel()" style="padding:8px 14px;border:none;border-radius:10px;background:#1B2A4A;color:#C9962A;font-family:inherit;font-size:12px;font-weight:800;cursor:pointer;">+ Différentiel</button>
+    </div>
+    <div id="sch-diff-list"></div>
+    <div id="sch-diff-empty" style="text-align:center;padding:30px 20px;color:rgba(0,0,0,0.3);font-size:13px;">
+      Aucun différentiel ajouté.<br>Clique sur "+ Différentiel" pour commencer.
+    </div>
+  </div>
+
+  <div class="section" style="background:#f0fdf4;border:1px solid rgba(22,163,74,0.2);">
+    <div style="font-size:11px;font-weight:700;color:#166534;text-transform:uppercase;margin-bottom:8px;">🌍 Prise de terre</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div>
+        <div style="font-size:10px;color:#166534;margin-bottom:4px;">Résistance mesurée (Ω)</div>
+        <input id="sch-terre-ohm" type="number" placeholder="28" style="width:100%;padding:9px 11px;border:1.5px solid rgba(22,163,74,0.25);border-radius:9px;font-size:13px;font-weight:600;background:#fff;outline:none;">
+      </div>
+      <div style="display:flex;align-items:flex-end;">
+        <div style="font-size:10px;color:#16a34a;font-weight:700;">✅ Conforme si &lt; 100 Ω</div>
+      </div>
+    </div>
+  </div>
+
+  <button onclick="previewSchema()" id="sch-btn-preview" class="btn-gen">👁️ Prévisualiser le schéma</button>
+  <button onclick="envoyerSchema()" id="sch-btn-envoyer" class="btn-gen" style="display:none;background:linear-gradient(135deg,#16a34a,#15803d);">📤 Envoyer au client</button>
+  <button onclick="resetSchema()" id="sch-btn-reset" style="display:none;width:100%;padding:12px;border:1.5px solid rgba(0,0,0,0.1);border-radius:12px;background:transparent;color:rgba(0,0,0,0.5);font-size:13px;font-weight:700;cursor:pointer;margin-top:6px;font-family:inherit;">✏️ Modifier et regénérer</button>
+  <div class="status" id="sch-status"></div>
+
+</div></div>
+
 <div id="page-rapport" class="page"><div class="content">
   <div class="section">
     <div class="section-title">📸 Rapport d'intervention</div>
@@ -6828,6 +6898,307 @@ function resetRapport() {
   const btnE = document.getElementById('rap-btn-envoyer');
   if (btnE) btnE.style.display='none';
   const btnR = document.getElementById('rap-btn-reset');
+  if (btnR) { btnR.style.display='none'; btnR.textContent='✏️ Modifier et regénérer'; }
+}
+
+// ═══════════════════════════════════════════════════
+// SCHÉMA UNIFILAIRE — NF C 15-100
+// ═══════════════════════════════════════════════════
+
+// Circuits qui EXIGENT un différentiel Type A (NF C 15-100)
+const CIRCUITS_TYPE_A_OBLIGATOIRE = [
+  'plaque', 'cuisson', 'cuisinière', 'cuisiniere',
+  'lave-linge', 'lave linge', 'lavelinge',
+  'chauffe-eau', 'chauffe eau', 'ballon', 'cumulus',
+  'irve', 'borne', 'recharge', 'véhicule', 'vehicule'
+];
+
+function circuitNeedsTypeA(nomCircuit) {
+  const n = (nomCircuit || '').toLowerCase();
+  return CIRCUITS_TYPE_A_OBLIGATOIRE.some(mot => n.includes(mot));
+}
+
+let _schemaDiffs = []; // [{id, type: 'A'|'AC', ampere: 40, circuits: [{id, nom, ampere, section}]}]
+let _schemaDiffIdCounter = 0;
+let _schemaCircuitIdCounter = 0;
+
+function ajouterDifferentiel() {
+  const id = ++_schemaDiffIdCounter;
+  _schemaDiffs.push({ id, type: 'AC', ampere: 40, circuits: [] });
+  renderSchemaDiffs();
+}
+
+function supprimerDifferentiel(diffId) {
+  if (!confirm('Supprimer ce différentiel et tous ses circuits ?')) return;
+  _schemaDiffs = _schemaDiffs.filter(d => d.id !== diffId);
+  renderSchemaDiffs();
+}
+
+function changerTypeDiff(diffId, nouveauType) {
+  const diff = _schemaDiffs.find(d => d.id === diffId);
+  if (!diff) return;
+
+  // Vérifier si des circuits existants nécessitent Type A
+  if (nouveauType === 'AC') {
+    const circuitsBloquants = diff.circuits.filter(c => circuitNeedsTypeA(c.nom));
+    if (circuitsBloquants.length > 0) {
+      showToast(`🚫 Impossible : "${circuitsBloquants[0].nom}" exige un différentiel Type A (NF C 15-100)`, '⚠️');
+      renderSchemaDiffs(); // re-render pour remettre le select à l'ancienne valeur
+      return;
+    }
+  }
+
+  diff.type = nouveauType;
+  renderSchemaDiffs();
+}
+
+function changerAmpereDiff(diffId, ampere) {
+  const diff = _schemaDiffs.find(d => d.id === diffId);
+  if (diff) diff.ampere = parseInt(ampere);
+}
+
+function ajouterCircuit(diffId) {
+  const diff = _schemaDiffs.find(d => d.id === diffId);
+  if (!diff) return;
+  const id = ++_schemaCircuitIdCounter;
+  diff.circuits.push({ id, nom: '', ampere: 16, section: '2,5' });
+  renderSchemaDiffs();
+}
+
+function supprimerCircuit(diffId, circuitId) {
+  const diff = _schemaDiffs.find(d => d.id === diffId);
+  if (!diff) return;
+  diff.circuits = diff.circuits.filter(c => c.id !== circuitId);
+  renderSchemaDiffs();
+}
+
+function updateCircuitNom(diffId, circuitId, val) {
+  const diff = _schemaDiffs.find(d => d.id === diffId);
+  if (!diff) return;
+  const circuit = diff.circuits.find(c => c.id === circuitId);
+  if (!circuit) return;
+
+  // VALIDATION NF C 15-100 EN TEMPS RÉEL
+  if (diff.type === 'AC' && circuitNeedsTypeA(val)) {
+    showToast(`🚫 "${val}" doit être sur un différentiel Type A — NF C 15-100 (norme obligatoire)`, '⚠️');
+    // On bloque : on vide le champ et on affiche l'alerte visuelle
+    circuit.nom = '';
+    circuit._blocked = true;
+    setTimeout(() => renderSchemaDiffs(), 50);
+    return;
+  }
+  circuit._blocked = false;
+  circuit.nom = val;
+}
+
+function updateCircuitAmpere(diffId, circuitId, val) {
+  const diff = _schemaDiffs.find(d => d.id === diffId);
+  const circuit = diff?.circuits.find(c => c.id === circuitId);
+  if (circuit) {
+    circuit.ampere = parseInt(val);
+    // Auto-suggestion section câble selon ampérage
+    const sections = { 2: '1,5', 10: '1,5', 16: '1,5', 20: '2,5', 32: '6' };
+    if (sections[circuit.ampere]) circuit.section = sections[circuit.ampere];
+  }
+}
+
+function updateCircuitSection(diffId, circuitId, val) {
+  const diff = _schemaDiffs.find(d => d.id === diffId);
+  const circuit = diff?.circuits.find(c => c.id === circuitId);
+  if (circuit) circuit.section = val;
+}
+
+function renderSchemaDiffs() {
+  const container = document.getElementById('sch-diff-list');
+  const emptyMsg = document.getElementById('sch-diff-empty');
+  if (!container) return;
+
+  if (!_schemaDiffs.length) {
+    container.innerHTML = '';
+    if (emptyMsg) emptyMsg.style.display = 'block';
+    return;
+  }
+  if (emptyMsg) emptyMsg.style.display = 'none';
+
+  container.innerHTML = _schemaDiffs.map((diff, idx) => {
+    const isTypeA = diff.type === 'A';
+    const borderColor = isTypeA ? '#C9962A' : '#1B2A4A';
+    const bgColor = isTypeA ? '#FBF7EC' : '#F1F5F9';
+
+    const circuitsHtml = diff.circuits.map(c => {
+      const blocked = c._blocked;
+      return `
+      <div style="display:flex;gap:6px;align-items:center;padding:8px;background:${blocked ? '#FEE2E2' : '#fff'};border-radius:8px;margin-bottom:6px;border:1px solid ${blocked ? '#fca5a5' : 'rgba(0,0,0,0.06)'};">
+        <input type="text" placeholder="Nom du circuit (ex: Prises cuisine)" value="${(c.nom||'').replace(/"/g,'&quot;')}"
+          oninput="updateCircuitNom(${diff.id},${c.id},this.value)"
+          style="flex:1;min-width:0;padding:7px 9px;border:1px solid rgba(0,0,0,0.1);border-radius:7px;font-size:12px;outline:none;">
+        <select onchange="updateCircuitAmpere(${diff.id},${c.id},this.value)" style="padding:7px 5px;border:1px solid rgba(0,0,0,0.1);border-radius:7px;font-size:11px;font-weight:700;width:56px;">
+          ${[2,10,16,20,32].map(a => `<option value="${a}" ${c.ampere===a?'selected':''}>${a}A</option>`).join('')}
+        </select>
+        <select onchange="updateCircuitSection(${diff.id},${c.id},this.value)" style="padding:7px 5px;border:1px solid rgba(0,0,0,0.1);border-radius:7px;font-size:11px;font-weight:700;width:64px;">
+          ${['1,5','2,5','6'].map(s => `<option value="${s}" ${c.section===s?'selected':''}>${s}mm²</option>`).join('')}
+        </select>
+        <button onclick="supprimerCircuit(${diff.id},${c.id})" style="background:rgba(239,68,68,0.08);color:#ef4444;border:none;border-radius:7px;padding:7px 9px;cursor:pointer;font-size:12px;">🗑️</button>
+      </div>
+      ${blocked ? `<div style="font-size:10px;color:#dc2626;font-weight:700;margin:-3px 0 6px 4px;">⚠️ Ce circuit exige un différentiel Type A (NF C 15-100)</div>` : ''}
+      `;
+    }).join('');
+
+    return `
+    <div style="border:2px solid ${borderColor};border-radius:14px;overflow:hidden;margin-bottom:14px;">
+      <div style="background:${bgColor};padding:12px 14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:13px;font-weight:800;color:#1B2A4A;">Différentiel ${idx+1}</span>
+          <select onchange="changerTypeDiff(${diff.id},this.value)" style="padding:6px 10px;border:1.5px solid ${borderColor};border-radius:8px;font-size:12px;font-weight:800;color:${borderColor};background:#fff;">
+            <option value="AC" ${diff.type==='AC'?'selected':''}>Type AC</option>
+            <option value="A" ${diff.type==='A'?'selected':''}>Type A</option>
+          </select>
+          <select onchange="changerAmpereDiff(${diff.id},this.value)" style="padding:6px 10px;border:1.5px solid ${borderColor};border-radius:8px;font-size:12px;font-weight:700;background:#fff;">
+            <option value="40" ${diff.ampere===40?'selected':''}>40A · 30mA</option>
+            <option value="63" ${diff.ampere===63?'selected':''}>63A · 30mA</option>
+          </select>
+        </div>
+        <button onclick="supprimerDifferentiel(${diff.id})" style="background:rgba(239,68,68,0.08);color:#ef4444;border:none;border-radius:8px;padding:7px 11px;font-size:11px;font-weight:700;cursor:pointer;">🗑️ Supprimer</button>
+      </div>
+      <div style="padding:12px 14px;">
+        ${circuitsHtml}
+        <button onclick="ajouterCircuit(${diff.id})" style="width:100%;padding:9px;border:1.5px dashed rgba(0,0,0,0.15);border-radius:9px;background:transparent;color:rgba(0,0,0,0.5);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">+ Ajouter un circuit</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function autocompleteSchAdresse(val) {
+  const sugg = document.getElementById('sch-adresse-sugg');
+  if (!sugg) return;
+  if (!val || val.length < 3) { sugg.innerHTML = ''; return; }
+  clearTimeout(window._schAdresseTimeout);
+  window._schAdresseTimeout = setTimeout(async () => {
+    try {
+      const url = `https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(val)}&limit=6`;
+      const res = await fetch(url);
+      const data = await res.json();
+      const features = (data.features || []).filter(f => {
+        const dept = f.properties.postcode?.substring(0, 2) || '';
+        return ['75','77','78','91','92','93','94','95'].includes(dept);
+      });
+      if (!features.length) { sugg.innerHTML = ''; return; }
+      sugg.innerHTML = features.map(f => {
+        const label = f.properties.label || '';
+        return `<div onclick="document.getElementById('sch-adresse').value='${label.replace(/'/g,"\\'")}';document.getElementById('sch-adresse-sugg').innerHTML=''"
+          style="padding:10px 12px;font-size:13px;color:#1B2A4A;cursor:pointer;border-bottom:1px solid #f5f5f5;">📍 ${label}</div>`;
+      }).join('');
+    } catch(e) { sugg.innerHTML = ''; }
+  }, 280);
+}
+
+function getSchemaPayload() {
+  return {
+    client: document.getElementById('sch-client')?.value.trim() || '',
+    adresse: document.getElementById('sch-adresse')?.value.trim() || '',
+    num_facture: document.getElementById('sch-facture')?.value.trim() || '',
+    type_tableau: document.getElementById('sch-tableau-type')?.value || '2 rangées',
+    terre_ohm: document.getElementById('sch-terre-ohm')?.value.trim() || '',
+    differentiels: _schemaDiffs.map(d => ({
+      type: d.type,
+      ampere: d.ampere,
+      circuits: d.circuits.filter(c => c.nom.trim()).map(c => ({ nom: c.nom, ampere: c.ampere, section: c.section }))
+    })).filter(d => d.circuits.length > 0)
+  };
+}
+
+let _schemaNumCache = null;
+let _schemaPayloadCache = null;
+
+async function previewSchema() {
+  const payload = getSchemaPayload();
+  if (!payload.client) { showToast('⚠️ Client requis', '❌'); return; }
+  if (!payload.differentiels.length) { showToast('⚠️ Ajoute au moins un différentiel avec des circuits', '❌'); return; }
+
+  const btn = document.getElementById('sch-btn-preview');
+  const status = document.getElementById('sch-status');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Génération...'; }
+  if (status) status.innerHTML = '';
+
+  try {
+    const res = await fetch('/api/schema-unifilaire', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('sinelec_token') || '') },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (data.success) {
+      _schemaNumCache = data.num;
+      _schemaPayloadCache = payload;
+      if (status) {
+        if (data.pdf_url) {
+          status.innerHTML = `
+            <div style="background:#FEF3C7;border:1.5px solid #f59e0b;border-radius:12px;padding:14px;margin-bottom:10px;text-align:center;">
+              <div style="font-size:28px;margin-bottom:6px;">🔌</div>
+              <div style="font-size:13px;font-weight:800;color:#92400E;margin-bottom:4px;">Schéma ${data.num} prêt !</div>
+              <div style="font-size:11px;color:#92400E;margin-bottom:12px;">Vérifie avant d'envoyer au client</div>
+              <a href="${data.pdf_url}" target="_blank" style="display:block;padding:13px;background:#1B2A4A;color:#C9962A;border-radius:10px;font-weight:800;text-decoration:none;margin-bottom:8px;font-size:14px;">👁️ Ouvrir le PDF</a>
+            </div>`;
+        }
+      }
+      const btnP = document.getElementById('sch-btn-preview');
+      if (btnP) { btnP.style.display = 'none'; btnP.disabled = false; }
+      document.getElementById('sch-btn-envoyer').style.display = 'block';
+      document.getElementById('sch-btn-reset').style.display = 'block';
+      setTimeout(() => status.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
+    } else {
+      showToast('❌ ' + (data.error || 'Erreur'), '⚠️');
+      if (btn) { btn.disabled = false; btn.textContent = '👁️ Prévisualiser le schéma'; }
+    }
+  } catch(e) {
+    showToast('❌ ' + e.message, '⚠️');
+    if (btn) { btn.disabled = false; btn.textContent = '👁️ Prévisualiser le schéma'; }
+  }
+}
+
+async function envoyerSchema() {
+  if (!_schemaNumCache) { showToast('⚠️ Génère d\'abord la prévisualisation', '❌'); return; }
+  const email = prompt('Email du client pour envoyer le schéma :');
+  if (!email) return;
+
+  const btn = document.getElementById('sch-btn-envoyer');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Envoi...'; }
+  try {
+    const res = await fetch(`/api/schema-unifilaire/envoyer/${_schemaNumCache}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('sinelec_token') || '') },
+      body: JSON.stringify({ email, client: _schemaPayloadCache?.client || '' })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(`✅ Schéma envoyé à ${email} !`, '📤');
+      shootConfetti();
+      document.getElementById('sch-btn-envoyer').style.display = 'none';
+      document.getElementById('sch-btn-reset').textContent = '🔄 Nouveau schéma';
+    } else {
+      showToast('❌ ' + (data.error || 'Erreur'), '⚠️');
+      if (btn) { btn.disabled = false; btn.textContent = '📤 Envoyer au client'; }
+    }
+  } catch(e) {
+    showToast('❌ ' + e.message, '⚠️');
+    if (btn) { btn.disabled = false; btn.textContent = '📤 Envoyer au client'; }
+  }
+}
+
+function resetSchema() {
+  _schemaDiffs = [];
+  _schemaNumCache = null;
+  _schemaPayloadCache = null;
+  ['sch-client','sch-adresse','sch-facture','sch-terre-ohm'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  renderSchemaDiffs();
+  const status = document.getElementById('sch-status');
+  if (status) status.innerHTML = '';
+  const btnP = document.getElementById('sch-btn-preview');
+  if (btnP) { btnP.style.display='block'; btnP.disabled=false; btnP.textContent='👁️ Prévisualiser le schéma'; }
+  document.getElementById('sch-btn-envoyer').style.display = 'none';
+  const btnR = document.getElementById('sch-btn-reset');
   if (btnR) { btnR.style.display='none'; btnR.textContent='✏️ Modifier et regénérer'; }
 }
 
