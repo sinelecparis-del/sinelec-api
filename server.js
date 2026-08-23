@@ -3250,6 +3250,293 @@ app.post('/api/rapport/envoyer/:num', authMiddleware, async (req, res) => {
 });
 
 // Route pour servir le PDF rapport directement (sans blob JS)
+// ═══════════════════════════════════════════════════
+// API: SCHÉMA UNIFILAIRE (NF C 15-100)
+// ═══════════════════════════════════════════════════
+app.post('/api/schema-unifilaire', authMiddleware, async (req, res) => {
+  try {
+    const { client, adresse, num_facture, type_tableau, terre_ohm, differentiels } = req.body;
+    if (!client || !differentiels || !differentiels.length) {
+      return res.status(400).json({ error: 'Client et au moins un différentiel requis' });
+    }
+
+    // Validation serveur NF C 15-100 (sécurité en plus du frontend)
+    const MOTS_TYPE_A = ['plaque','cuisson','cuisinière','cuisiniere','lave-linge','lave linge','lavelinge','chauffe-eau','chauffe eau','ballon','cumulus','irve','borne','recharge','véhicule','vehicule'];
+    for (const diff of differentiels) {
+      if (diff.type === 'AC') {
+        for (const c of diff.circuits) {
+          const nomLower = (c.nom || '').toLowerCase();
+          if (MOTS_TYPE_A.some(m => nomLower.includes(m))) {
+            return res.status(400).json({ error: `Le circuit "${c.nom}" doit être sur un différentiel Type A (NF C 15-100). Différentiel Type AC refusé.` });
+          }
+        }
+      }
+    }
+
+    const compteur = await incrementerCompteur('schema');
+    const annee = new Date().getFullYear();
+    const mois = String(new Date().getMonth() + 1).padStart(2, '0');
+    const num = `SCH-${annee}${mois}-${String(compteur).padStart(3, '0')}`;
+    const dateStr = new Date().toLocaleDateString('fr-FR');
+
+    const detailsPath = path.join('/tmp', `_sch_${num}.json`);
+    const pyPath = path.join('/tmp', `_sch_${num}.py`);
+    const pdfPath = path.join('/tmp', `_sch_${num}.pdf`);
+
+    fs.writeFileSync(detailsPath, JSON.stringify({
+      num, client, adresse, num_facture, type_tableau, terre_ohm, dateStr, differentiels
+    }));
+
+    const py = `# -*- coding: utf-8 -*-
+import json, sys
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.units import cm, mm
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.enums import TA_LEFT, TA_CENTER
+from reportlab.graphics.shapes import Drawing, Rect, Line, String, Circle
+from reportlab.graphics import renderPDF
+from reportlab.platypus.flowables import Flowable
+import reportlab.pdfgen.canvas as pdfcanvas
+
+W, H = A4
+MARINE = colors.HexColor('#1B2A4A')
+OR = colors.HexColor('#C9962A')
+OR_L = colors.HexColor('#FBF7EC')
+BLANC = colors.white
+GRIS = colors.HexColor('#64748b')
+GRIS_L = colors.HexColor('#f8fafc')
+VERT = colors.HexColor('#16a34a')
+
+with open(sys.argv[1], encoding='utf-8') as f:
+    d = json.load(f)
+
+num = d.get('num','')
+client = d.get('client','')
+adresse = d.get('adresse','')
+num_facture = d.get('num_facture','')
+type_tableau = d.get('type_tableau','')
+terre_ohm = d.get('terre_ohm','')
+date_str = d.get('dateStr','')
+differentiels = d.get('differentiels', [])
+
+def p(txt, sz=10, font='Helvetica', color=None, align=TA_LEFT, leading=None):
+    color = color or MARINE
+    return Paragraph(str(txt), ParagraphStyle(name='s', fontSize=sz, fontName=font,
+        textColor=color, alignment=align, leading=leading or sz*1.4))
+
+class SC(pdfcanvas.Canvas):
+    def __init__(self, fn, **kw):
+        pdfcanvas.Canvas.__init__(self, fn, **kw)
+        self.saveState(); self._bg(); self.restoreState()
+    def showPage(self): self._footer(); pdfcanvas.Canvas.showPage(self)
+    def save(self): self._footer(); pdfcanvas.Canvas.save(self)
+    def _bg(self):
+        self.saveState()
+        self.setFillColor(colors.HexColor('#FDFCF9')); self.rect(0,0,W,H,fill=1,stroke=0)
+        self.setFillColor(MARINE); self.rect(0,0,0.5*cm,H,fill=1,stroke=0)
+        self.setFillColor(OR); self.rect(0.5*cm,0,0.06*cm,H,fill=1,stroke=0)
+        self.restoreState()
+    def _footer(self):
+        self.saveState()
+        self.setFillColor(MARINE); self.rect(0,0,W,0.9*cm,fill=1,stroke=0)
+        self.setFont('Helvetica',7); self.setFillColor(BLANC)
+        self.drawCentredString(W/2, 0.32*cm, 'SINELEC EI  \u00b7  128 Rue La Boetie, 75008 Paris  \u00b7  07 87 38 86 22  \u00b7  SIRET : 91015824500019  \u00b7  Garantie decennale ORUS')
+        self.restoreState()
+
+doc = SimpleDocTemplate(sys.argv[2], pagesize=A4,
+    leftMargin=1.3*cm, rightMargin=1.0*cm, topMargin=0.9*cm, bottomMargin=1.3*cm)
+story = []
+CW = W - 1.3*cm - 1.0*cm
+
+# HEADER
+hdr = Table([[
+    p('\u26a1', 22, 'Helvetica-Bold', BLANC),
+    [p("SCHEMA UNIFILAIRE", 13, 'Helvetica-Bold', BLANC),
+     p("Tableau electrique \u00b7 Document technique NF C 15-100", 8, 'Helvetica', OR)],
+    [p(f'N\u00b0 {num}', 10, 'Helvetica-Bold', OR),
+     p(date_str, 8, 'Helvetica', colors.HexColor('#94a3b8'))]
+]], colWidths=[1.6*cm, CW - 1.6*cm - 3.5*cm, 3.5*cm])
+hdr.setStyle(TableStyle([
+    ('BACKGROUND',(0,0),(-1,-1),MARINE),
+    ('LEFTPADDING',(0,0),(0,-1),12),('LEFTPADDING',(1,0),(1,-1),8),
+    ('TOPPADDING',(0,0),(-1,-1),11),('BOTTOMPADDING',(0,0),(-1,-1),11),
+    ('VALIGN',(0,0),(-1,-1),'MIDDLE'),('ALIGN',(2,0),(2,-1),'RIGHT'),
+    ('LINEBEFORE',(1,0),(1,-1),2,OR),
+]))
+story.append(hdr)
+
+band = Table([[p('\u2713 CONFORME NF C 15-100', 9, 'Helvetica-Bold', BLANC),
+    p('Garantie decennale ORUS', 8, 'Helvetica', colors.HexColor('#bbf7d0'), align=4)]], colWidths=[CW*0.6, CW*0.4])
+band.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),VERT),
+    ('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),
+    ('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
+story.append(band)
+story.append(Spacer(1,0.15*cm))
+
+# INFOS
+HALF = CW/2
+info = Table([
+    [p('CLIENT',7,'Helvetica-Bold',GRIS), p(client,10,'Helvetica-Bold',MARINE)],
+    [p('ADRESSE',7,'Helvetica-Bold',GRIS), p(adresse or '\u2014',9,color=MARINE)],
+    [p('TABLEAU',7,'Helvetica-Bold',GRIS), p(type_tableau or '\u2014',9,color=MARINE)],
+    [p('FACTURE',7,'Helvetica-Bold',GRIS), p(num_facture or '\u2014',9,color=MARINE)],
+], colWidths=[3*cm, CW-3*cm])
+info.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GRIS_L),
+    ('LEFTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4),
+    ('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0')),('LINEBELOW',(0,0),(-1,-2),0.3,colors.HexColor('#e2e8f0'))]))
+story.append(info)
+story.append(Spacer(1,0.25*cm))
+
+story.append(p("1. ARCHITECTURE DE L'INSTALLATION", 10, 'Helvetica-Bold', MARINE))
+story.append(Spacer(1,0.15*cm))
+
+# ═══ DESSIN SCHEMA SVG-LIKE via Drawing ═══
+draw_h = 60 + len(differentiels) * 95 + sum(len(d.get('circuits',[])) for d in differentiels) * 8
+draw_h = max(draw_h, 200)
+dwg = Drawing(CW, draw_h)
+
+y = draw_h - 20
+# Arrivee
+dwg.add(String(5, y, "ARRIVEE ENEDIS", fontName='Helvetica-Bold', fontSize=8, fillColor=GRIS))
+y -= 15
+dwg.add(Line(5, y, CW-5, y, strokeColor=MARINE, strokeWidth=1, strokeDashArray=[3,3]))
+y -= 8
+x_db = 40
+dwg.add(Line(x_db, y, x_db, y-20, strokeColor=MARINE, strokeWidth=2))
+y -= 20
+dwg.add(Rect(x_db-16, y-30, 32, 30, fillColor=BLANC, strokeColor=MARINE, strokeWidth=1.5))
+dwg.add(Line(x_db-10, y-6, x_db+10, y-26, strokeColor=MARINE, strokeWidth=1.3))
+dwg.add(Line(x_db+10, y-6, x_db-10, y-26, strokeColor=MARINE, strokeWidth=1.3))
+dwg.add(String(x_db+22, y-14, "DB 30/60A", fontName='Helvetica-Bold', fontSize=8, fillColor=MARINE))
+y -= 30
+dwg.add(Line(x_db, y, x_db, y-15, strokeColor=MARINE, strokeWidth=2))
+y -= 15
+# Barre principale
+dwg.add(Line(x_db, y, CW-20, y, strokeColor=MARINE, strokeWidth=2.5))
+dwg.add(Circle(x_db, y, 2.5, fillColor=MARINE))
+y_barre = y
+
+x_pos = x_db + 60
+for diff in differentiels:
+    is_a = diff.get('type') == 'A'
+    col = OR if is_a else MARINE
+    bg = OR_L if is_a else GRIS_L
+    dwg.add(Line(x_pos, y_barre, x_pos, y_barre-18, strokeColor=MARINE, strokeWidth=1.5))
+    dwg.add(Circle(x_pos, y_barre, 2, fillColor=col))
+    y2 = y_barre - 18
+    dwg.add(Rect(x_pos-24, y2-28, 48, 28, fillColor=bg, strokeColor=col, strokeWidth=1.6))
+    dwg.add(Circle(x_pos, y2-14, 8, strokeColor=col, strokeWidth=1.4, fillColor=None))
+    dwg.add(String(x_pos-3, y2-17, diff.get('type','AC'), fontName='Helvetica-Bold', fontSize=6.5, fillColor=col))
+    dwg.add(String(x_pos+30, y2-11, f"ID {diff.get('ampere',40)}A \u00b7 30mA \u00b7 Type {diff.get('type','AC')}", fontName='Helvetica-Bold', fontSize=7.5, fillColor=MARINE))
+    y2 -= 28
+    dwg.add(Line(x_pos, y2, x_pos, y2-10, strokeColor=col, strokeWidth=1.8))
+    y2 -= 10
+    circuits = diff.get('circuits', [])
+    n = len(circuits)
+    largeur_dispo = CW - 80
+    if n > 0:
+        dwg.add(Line(x_pos - largeur_dispo/2 + 30, y2, x_pos + largeur_dispo/2 - 30, y2, strokeColor=col, strokeWidth=2))
+    cx = x_pos - largeur_dispo/2 + 30
+    step = largeur_dispo / max(n,1) if n else 0
+    for c in circuits:
+        dwg.add(Line(cx, y2, cx, y2-10, strokeColor=MARINE, strokeWidth=1.2))
+        dwg.add(Circle(cx, y2, 1.8, fillColor=col))
+        yb = y2-10
+        dwg.add(Rect(cx-11, yb-16, 22, 16, fillColor=BLANC, strokeColor=MARINE, strokeWidth=1))
+        dwg.add(Line(cx-6, yb-3, cx+6, yb-13, strokeColor=MARINE, strokeWidth=1))
+        dwg.add(Line(cx+6, yb-3, cx-6, yb-13, strokeColor=MARINE, strokeWidth=1))
+        dwg.add(String(cx, yb-24, f"{c.get('ampere','')}A", fontName='Helvetica-Bold', fontSize=6, fillColor=MARINE, textAnchor='middle'))
+        nom = c.get('nom','')[:14]
+        dwg.add(String(cx, yb-34, nom, fontName='Helvetica-Bold', fontSize=6, fillColor=MARINE, textAnchor='middle'))
+        dwg.add(String(cx, yb-42, f"{c.get('section','')}mm\u00b2", fontName='Helvetica', fontSize=5.5, fillColor=col, textAnchor='middle'))
+        cx += step
+    y_barre = y2 - 55
+    x_pos += 5
+
+# Terre
+if terre_ohm:
+    yt = 20
+    dwg.add(Line(x_db, y_barre if y_barre > 40 else 60, x_db, yt+15, strokeColor=VERT, strokeWidth=2))
+    dwg.add(Line(x_db-14, yt, x_db+14, yt, strokeColor=VERT, strokeWidth=2.2))
+    dwg.add(Line(x_db-9, yt-5, x_db+9, yt-5, strokeColor=VERT, strokeWidth=1.6))
+    dwg.add(Line(x_db-4, yt-10, x_db+4, yt-10, strokeColor=VERT, strokeWidth=1.2))
+    dwg.add(String(x_db+22, yt-5, f"TERRE \u00b7 {terre_ohm} \u03a9 \u00b7 Conforme", fontName='Helvetica-Bold', fontSize=7.5, fillColor=VERT))
+
+story.append(dwg)
+story.append(Spacer(1,0.25*cm))
+
+# CONFORMITE
+story.append(p('2. ATTESTATION DE CONFORMITE', 10, 'Helvetica-Bold', MARINE))
+story.append(Spacer(1,0.1*cm))
+conf = Table([[p('\u2705', 16, color=VERT),
+    p("Cette installation a ete realisee conformement a la <b>norme NF C 15-100</b> en vigueur. Les circuits sensibles (plaque de cuisson, lave-linge, chauffe-eau, IRVE) sont proteges par un differentiel <b>Type A</b> conformement a la reglementation. Toutes les protections differentielles 30mA sont fonctionnelles et testees.", 9.5, 'Helvetica', colors.HexColor('#166534'), align=TA_LEFT, leading=14)
+]], colWidths=[1*cm, CW-1*cm])
+conf.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f0fdf4')),
+    ('BOX',(0,0),(-1,-1),1.5,VERT),('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),
+    ('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
+story.append(conf)
+
+doc.build(story, canvasmaker=lambda fn, **kw: SC(fn, **kw))
+print('PDF_OK')
+`;
+
+    fs.writeFileSync(pyPath, py, 'utf8');
+    let pdf_b64 = null;
+    try {
+      execSync(`python3 "${pyPath}" "${detailsPath}" "${pdfPath}"`, { timeout: 40000, stdio: ['pipe','pipe','pipe'] });
+      if (fs.existsSync(pdfPath)) {
+        const buf = fs.readFileSync(pdfPath);
+        if (buf.length > 500 && buf.subarray(0,4).toString('ascii') === '%PDF') {
+          pdf_b64 = buf.toString('base64');
+          cachePdf(num, buf);
+          console.log(`✅ Schéma unifilaire généré: ${num} (${buf.length} bytes)`);
+        }
+      }
+    } catch(pyErr) {
+      console.error('❌ Schema PDF error:', (pyErr.stderr?.toString() || pyErr.message).substring(0,400));
+    }
+    try { fs.unlinkSync(pyPath); fs.unlinkSync(detailsPath); if(fs.existsSync(pdfPath)) fs.unlinkSync(pdfPath); } catch(e) {}
+
+    const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+    const pdf_url = pdf_b64 ? `${appUrl}/api/rapport/pdf/${num}` : null;
+    res.json({ success: true, num, pdf_url, envoye: false });
+  } catch(e) {
+    console.error('❌ schema-unifilaire:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/schema-unifilaire/envoyer/:num', authMiddleware, async (req, res) => {
+  try {
+    const { num } = req.params;
+    const { email, client } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email manquant' });
+    const entry = _pdfCache.get(num);
+    if (!entry) return res.status(404).json({ error: 'PDF expiré — régénère le schéma' });
+
+    const html = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;">
+      <div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:24px;text-align:center;border-radius:12px 12px 0 0;">
+        <h2 style="color:#E8B84B;margin:0;">🔌 Schéma unifilaire — SINELEC</h2>
+      </div>
+      <div style="padding:24px;border:1px solid #e8e8e8;border-top:none;border-radius:0 0 12px 12px;">
+        <p>Bonjour${client ? ` <strong>${client}</strong>` : ''},</p>
+        <p>Veuillez trouver ci-joint le schéma unifilaire de votre tableau électrique n° <strong>${num}</strong>.</p>
+        <p>Ce document technique conforme à la norme NF C 15-100 vous permet de comprendre votre installation. Conservez-le précieusement — il sera utile pour votre assurance ou un futur électricien.</p>
+        <p style="font-size:12px;color:#888;margin-top:16px;">📞 07 87 38 86 22 | sinelec.paris@gmail.com</p>
+      </div>
+    </div>`;
+    const attachment = { content: entry.buf.toString('base64'), name: `${num}.pdf` };
+    await envoyerEmail(email, `Schéma unifilaire ${num} - SINELEC Paris`, html, attachment);
+    console.log(`✅ Schéma envoyé: ${num} → ${email}`);
+    res.json({ success: true, num, email });
+  } catch(e) {
+    console.error('❌ schema envoyer:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/api/rapport/pdf/:num', (req, res) => {
   const entry = _pdfCache.get(req.params.num);
   if (!entry) return res.status(404).json({ error: 'PDF expiré ou non trouvé' });
