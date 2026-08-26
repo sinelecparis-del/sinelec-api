@@ -3261,12 +3261,13 @@ app.post('/api/schema-unifilaire', authMiddleware, async (req, res) => {
     }
 
     // Validation serveur NF C 15-100 (sécurité en plus du frontend)
-    const MOTS_TYPE_A = ['plaque','cuisson','cuisinière','cuisiniere','lave-linge','lave linge','lavelinge','chauffe-eau','chauffe eau','ballon','cumulus','irve','borne','recharge','véhicule','vehicule'];
+    const MOTS_TYPE_A = ['plaque','cuisson','cuisiniere','lavelinge','chauffeeau','ballon','cumulus','irve','borne','recharge','vehicule'];
+    const normaliserNom = (txt) => (txt || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[\s\-]/g, '');
     for (const diff of differentiels) {
       if (diff.type === 'AC') {
         for (const c of diff.circuits) {
-          const nomLower = (c.nom || '').toLowerCase();
-          if (MOTS_TYPE_A.some(m => nomLower.includes(m))) {
+          const nomNorm = normaliserNom(c.nom);
+          if (MOTS_TYPE_A.some(m => nomNorm.includes(m))) {
             return res.status(400).json({ error: `Le circuit "${c.nom}" doit être sur un différentiel Type A (NF C 15-100). Différentiel Type AC refusé.` });
           }
         }
@@ -4546,6 +4547,24 @@ app.all('/mcp', mcpAuth, async(req,res)=>{
               description:{type:'string',description:'Description technique détaillée incluse dans le PDF — main d oeuvre, fourniture, marques, normes'}
             }}},
             remise:{type:'number',description:'Remise en % max 7%',default:0}
+          }}},
+          {name:'creer_facture',description:'Cree une facture SINELEC complete, genere le PDF et l envoie au client par email avec lien de paiement.',inputSchema:{type:'object',required:['client','email','telephone','adresse','prestations'],properties:{
+            client:{type:'string',description:'Nom complet ex: M. Dupont Jean'},
+            email:{type:'string',description:'Email du client pour envoi facture'},
+            telephone:{type:'string',description:'Telephone du client'},
+            adresse:{type:'string',description:'Adresse complete'},
+            objet:{type:'string',description:'Objet de la facture ex: Travaux electriques'},
+            prestations:{type:'array',description:'Liste des prestations avec descriptions détaillées',items:{type:'object',required:['nom','prix_unitaire'],properties:{
+              nom:{type:'string',description:'Nom exact de la prestation'},
+              prix_unitaire:{type:'number',description:'Prix unitaire HT en euros'},
+              quantite:{type:'number',default:1},
+              description:{type:'string',description:'Description technique détaillée incluse dans le PDF'}
+            }}},
+            remise:{type:'number',description:'Remise en % max 7%',default:0}
+          }}},
+          {name:'marquer_paye',description:'Marque une facture comme payee et envoie la confirmation au client.',inputSchema:{type:'object',required:['num'],properties:{
+            num:{type:'string',description:'Numero de la facture ex: 202608-001'},
+            mode_paiement:{type:'string',description:'Mode: terminal, virement, especes',default:'terminal'}
           }}}
         ]}});
       }
@@ -4660,6 +4679,83 @@ Diahe SINERA — SINELEC Paris
             } catch(eEnv){ console.error('MCP envoi email:', eEnv.message); }
             result={success:true,num,client,total_ht:totalNet,email_envoye:email,message:`✅ Devis ${num} créé et envoyé à ${email}`};
           }
+        }
+        else if(name==='creer_facture'){
+          const{client,email,telephone,adresse,prestations,objet,remise}=args||{};
+          const token=genererToken('admin');
+          const prestationsFormatted = await Promise.all((prestations||[]).map(async p => {
+            let desc = p.description || p.desc || '';
+            if (!desc || desc.length < 20) {
+              try {
+                const prix = parseFloat(p.prix_unitaire)||0;
+                const prompt = `Tu es un expert électricien SINELEC Paris. Rédige une description professionnelle pour cette prestation dans une facture client.
+Prestation : "${p.nom}"${prix ? `\nPrix : ${prix}€` : ''}
+Format : 4-6 phrases, ~120-150 mots
+Style : Professionnel, technique, rassurant. Mentionne : main d'œuvre + fourniture + marques (Hager, Legrand ou Schneider Electric) + raccordement + mise en service + tests. Conforme NF C 15-100. Garantie décennale ORUS.
+IMPORTANT : Réponds UNIQUEMENT avec la description, sans introduction ni guillemets.`;
+                const resp = await anthropic.messages.create({
+                  model: 'claude-haiku-4-5-20251001',
+                  max_tokens: 300,
+                  messages: [{ role: 'user', content: prompt }]
+                });
+                desc = resp.content[0].text.trim();
+              } catch(descErr) {
+                desc = `Fourniture et pose : ${p.nom}. Main d'œuvre, matériaux et raccordement inclus. Conforme NF C 15-100.`;
+              }
+            }
+            return { nom: p.nom, prix: parseFloat(p.prix_unitaire)||0, quantite: parseInt(p.quantite)||1, desc };
+          }));
+          const totalHT = prestationsFormatted.reduce((s,p)=>s+(p.prix*p.quantite),0);
+          const totalNet = Math.round(totalHT*(1-(parseFloat(remise)||0)/100));
+          const genRes=await fetch(`${APP_URL_MCP}/api/generer`,{
+            method:'POST',
+            headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
+            body:JSON.stringify({
+              type:'facture', client, email, telephone, adresse,
+              objet: objet||'Travaux électriques',
+              prestations: prestationsFormatted,
+              total_ht: totalNet,
+              remise: parseFloat(remise)||0
+            })
+          });
+          const genData=await genRes.json();
+          if(!genData.success) {
+            result={success:false,error:genData.error||'Erreur génération'};
+          } else {
+            const num = genData.num;
+            const msgCommercial = `Bonjour,
+
+Veuillez trouver ci-joint votre facture n° ${num} d'un montant de ${totalNet} € HT.
+
+Merci de bien vouloir procéder au règlement selon les modalités habituelles (CB, virement, espèces).
+
+Cordialement,
+Diahe SINERA — SINELEC Paris
+📞 07 87 38 86 22`;
+            try {
+              await fetch(`${APP_URL_MCP}/api/envoyer/${num}`,{
+                method:'POST',
+                headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
+                body:JSON.stringify({ email, pdfB64: genData.pdf_b64, message: msgCommercial, sujet: `Facture SINELEC ${num} — ${objet||'Travaux électriques'}` })
+              });
+            } catch(eEnv){ console.error('MCP envoi facture:', eEnv.message); }
+            result={success:true,num,client,total_ht:totalNet,email_envoye:email,message:`✅ Facture ${num} créée et envoyée à ${email}`};
+          }
+        }
+        else if(name==='marquer_paye'){
+          const{num,mode_paiement}=args||{};
+          const token=genererToken('admin');
+          try {
+            const payRes=await fetch(`${APP_URL_MCP}/api/marquer-paye`,{
+              method:'POST',
+              headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
+              body:JSON.stringify({ num, mode_paiement: mode_paiement||'terminal' })
+            });
+            const payData=await payRes.json();
+            result = payData.success
+              ? {success:true,num,message:`✅ Facture ${num} marquée payée (${mode_paiement||'terminal'})`}
+              : {success:false,error:payData.error||'Erreur'};
+          } catch(e){ result={success:false,error:e.message}; }
         }
         else{ result={error:`Outil inconnu: ${name}`}; }
 
