@@ -2068,6 +2068,14 @@ table.histo-table tr:hover td { background:#fafbff; }
     <div id="renta-urssaf-text" style="font-size:12px;color:var(--text-2);"></div>
   </div>
 
+  <!-- Leads du mois -->
+  <div class="section" style="margin-bottom:16px;">
+    <div class="section-title">📞 Leads du mois</div>
+    <div id="renta-leads-content">
+      <div style="text-align:center;padding:16px;color:var(--text-3);font-size:12px;">Chargement...</div>
+    </div>
+  </div>
+
   <!-- Détail charges par catégorie -->
   <div class="section" style="margin-bottom:16px;">
     <div class="section-title">📊 Charges par catégorie</div>
@@ -4747,7 +4755,7 @@ function envoyerLeadStdWhatsApp() {
   fetch('/api/agenda', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('sinelec_token') || '') },
-    body: JSON.stringify({ client, telephone: tel, adresse, type_intervention: type, statut: 'lead', notes: note })
+    body: JSON.stringify({ client, telephone: tel, adresse, type_intervention: type, statut: 'lead', source: 'whatsapp', notes: note })
   }).catch(() => {});
 }
 
@@ -5829,7 +5837,7 @@ async function enregistrerLead(creerDevis) {
   if (!nom) { showToast('⚠️ Nom obligatoire', '❌'); return; }
   if (date) {
     try {
-      await fetch('/api/agenda', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ client:nom, telephone:tel, adresse, date_intervention:date, heure, type_intervention:leadTypeActif, notes, statut:'lead' }) });
+      await fetch('/api/agenda', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ client:nom, telephone:tel, adresse, date_intervention:date, heure, type_intervention:leadTypeActif, notes, statut:'lead', source:'manuel' }) });
     } catch(e) {}
   }
   showToast(`✅ Lead enregistré — ${nom}`, '📞');
@@ -6517,6 +6525,43 @@ async function chargerRentabilite() {
     afficherRentabilite(data);
   } catch(e) {
     showToast('❌ Erreur chargement rentabilité', '⚠️');
+  }
+  chargerLeadsStats();
+}
+
+async function chargerLeadsStats() {
+  const container = document.getElementById('renta-leads-content');
+  if (!container) return;
+  try {
+    const res = await fetch(`/api/leads/stats?mois=${rentaMoisCourant}`);
+    const data = await res.json();
+    const s = data.par_statut || {};
+    const src = data.par_source || {};
+    container.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px;">
+        <div class="stat-card" style="padding:12px;">
+          <div class="stat-value" style="font-size:22px;">${data.total || 0}</div>
+          <div class="stat-label" style="font-size:10px;">Leads reçus</div>
+        </div>
+        <div class="stat-card" style="padding:12px;background:linear-gradient(135deg,rgba(16,185,129,0.1),rgba(16,185,129,0.05));border-color:rgba(16,185,129,0.2);">
+          <div class="stat-value" style="font-size:22px;color:#10b981;">${data.convertis_en_devis_ou_facture || 0}</div>
+          <div class="stat-label" style="font-size:10px;">Convertis</div>
+        </div>
+        <div class="stat-card" style="padding:12px;background:linear-gradient(135deg,rgba(212,165,116,0.15),rgba(218,165,32,0.1));border-color:rgba(212,165,116,0.3);">
+          <div class="stat-value" style="font-size:22px;color:var(--accent);">${data.taux_conversion || 0}%</div>
+          <div class="stat-label" style="font-size:10px;">Taux conversion</div>
+        </div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+        <span style="font-size:11px;padding:4px 10px;border-radius:8px;background:#FEF3C7;color:#d97706;">🟡 ${s.lead || 0} à traiter</span>
+        <span style="font-size:11px;padding:4px 10px;border-radius:8px;background:#DBEAFE;color:#1d4ed8;">📅 ${s.planifie || 0} planifiés</span>
+        <span style="font-size:11px;padding:4px 10px;border-radius:8px;background:#F0FDF4;color:#16a34a;">✅ ${s.termine || 0} terminés</span>
+      </div>
+      <div style="font-size:11px;color:var(--text-3);">
+        Sources — 🌐 Site ${src.site || 0} · 📲 WhatsApp ${src.whatsapp || 0} · ✍️ Manuel ${src.manuel || 0}${src.autre ? ` · Autre ${src.autre}` : ''}
+      </div>`;
+  } catch(e) {
+    container.innerHTML = '<div style="text-align:center;padding:16px;color:var(--error);font-size:12px;">❌ Erreur chargement leads</div>';
   }
 }
 

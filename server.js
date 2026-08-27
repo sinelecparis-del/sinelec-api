@@ -2404,6 +2404,54 @@ app.delete('/api/agenda/:id', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════
+// API: STATS LEADS (conversion + sources)
+// ═══════════════════════════════════════════════════
+app.get('/api/leads/stats', async (req, res) => {
+  try {
+    const mois = req.query.mois || new Date().toISOString().slice(0, 7); // YYYY-MM
+
+    const { data: leads } = await supabase.from('agenda').select('*');
+    const { data: historique } = await supabase.from('historique').select('num,type,telephone,statut,created_at');
+
+    const normTel = t => (t || '').replace(/\D/g, '').slice(-9);
+    const telsHisto = new Set((historique || []).map(h => normTel(h.telephone)).filter(Boolean));
+
+    const leadsMois = (leads || []).filter(l => {
+      const d = (l.created_at || l.date_intervention || '').slice(0, 7);
+      return d === mois;
+    });
+
+    const parStatut = { lead: 0, planifie: 0, termine: 0, annule: 0 };
+    const parSource = { site: 0, whatsapp: 0, manuel: 0, autre: 0 };
+    let convertis = 0;
+
+    for (const l of leadsMois) {
+      const s = (l.statut || '').toLowerCase();
+      if (s === 'lead') parStatut.lead++;
+      else if (s === 'planifié' || s === 'planifie') parStatut.planifie++;
+      else if (s === 'termine' || s === 'terminé') parStatut.termine++;
+      else if (s === 'annule' || s === 'annulé') parStatut.annule++;
+
+      let src = (l.source || '').toLowerCase();
+      if (!src) src = (l.notes || '').includes('sinelec-paris.fr') ? 'site' : 'manuel';
+      if (parSource[src] !== undefined) parSource[src]++;
+      else parSource.autre++;
+
+      if (l.telephone && telsHisto.has(normTel(l.telephone))) convertis++;
+    }
+
+    res.json({
+      mois,
+      total: leadsMois.length,
+      par_statut: parStatut,
+      par_source: parSource,
+      convertis_en_devis_ou_facture: convertis,
+      taux_conversion: leadsMois.length ? Math.round((convertis / leadsMois.length) * 100) : 0
+    });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════
 // API: CLIENTS
 // ═══════════════════════════════════════════════════
 
@@ -3579,6 +3627,7 @@ app.post('/api/lead-devis', async (req, res) => {
       adresse: adresse || '',
       type_intervention: description ? description.slice(0, 100) : 'Demande de devis site',
       statut: 'lead',
+      source: 'site',
       date_intervention: dateAujourdhui,
       heure: heureActuelle,
       notes: `Lead depuis sinelec-paris.fr\n${description || ''}`
@@ -4373,6 +4422,63 @@ cron.schedule('30 9 * * *', async () => {
     const total = nb7 + nb14 + nb21;
     if (total > 0) console.log(`✅ Relances factures du jour — J+7: ${nb7} | J+14: ${nb14} | J+21: ${nb21}`);
   } catch(e) { console.error('Cron relances factures:', e.message); }
+});
+
+// Récap leads non traités depuis 48h — 8h30
+cron.schedule('30 8 * * *', async () => {
+  try {
+    const { data: leads } = await supabase.from('agenda')
+      .select('*')
+      .eq('statut', 'lead')
+      .order('created_at', { ascending: true });
+
+    const now = Date.now();
+    const enRetard = (leads || []).filter(l => {
+      const ref = l.created_at || l.date_intervention;
+      if (!ref) return false;
+      const ageH = (now - new Date(ref).getTime()) / 3600000;
+      return ageH >= 48;
+    });
+
+    if (enRetard.length === 0) return;
+
+    const lignes = enRetard.map(l => {
+      const ref = l.created_at || l.date_intervention;
+      const ageJ = Math.floor((now - new Date(ref).getTime()) / 86400000);
+      return `<tr>
+        <td style="padding:8px;border-bottom:1px solid #eee;">${l.client || '—'}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;">${l.telephone || '—'}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;">${l.type_intervention || '—'}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;">${ageJ}j</td>
+      </tr>`;
+    }).join('');
+
+    const html = `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;">
+      <div style="background:#1B2A4A;padding:20px;border-radius:12px 12px 0 0;">
+        <h2 style="color:#E8B84B;margin:0;">📞 ${enRetard.length} lead${enRetard.length>1?'s':''} en attente depuis 48h+</h2>
+      </div>
+      <div style="padding:20px;border:1px solid #e8e8e8;border-top:none;border-radius:0 0 12px 12px;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <tr style="background:#f5f5f5;">
+            <th style="padding:8px;text-align:left;">Client</th>
+            <th style="padding:8px;text-align:left;">Tél</th>
+            <th style="padding:8px;text-align:left;">Besoin</th>
+            <th style="padding:8px;text-align:left;">Depuis</th>
+          </tr>
+          ${lignes}
+        </table>
+        <p style="color:#666;font-size:12px;margin-top:16px;">Pense à les rappeler ou à les marquer terminés dans l'app.</p>
+      </div>
+    </div>`;
+
+    await envoyerEmail(
+      CONFIG?.email?.sender_email || 'sinelec.paris@gmail.com',
+      `📞 ${enRetard.length} lead${enRetard.length>1?'s':''} SINELEC en attente`,
+      html
+    );
+
+    console.log(`📨 Récap leads en retard envoyé: ${enRetard.length}`);
+  } catch(e) { console.error('Cron relance leads:', e.message); }
 });
 
 // Rappel SMS client veille à 18h
