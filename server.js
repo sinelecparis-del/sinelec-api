@@ -4754,20 +4754,44 @@ IMPORTANT : Réponds UNIQUEMENT avec la description, sans introduction ni guille
             result={success:false,error:genData.error||'Erreur génération'};
           } else {
             const num = genData.num;
-            // Étape 2 : Envoyer l'email avec le PDF + message commercial pro
+            // Étape 2 : Envoyer l'email avec le PDF + intro commerciale générée par IA
             const prenomClient = (client||'').split(' ').slice(-1)[0] || client;
-            const msgCommercial = `Bonjour,
+            let introIA = '';
+            try {
+              const listePrestations = prestationsFormatted.map(p => p.nom).join(', ');
+              const promptIntro = `Tu es Diahe, électricien indépendant à Paris (SINELEC Paris). Tu écris l'introduction d'un email accompagnant un devis.
+
+Client : ${prenomClient}
+Prestations du devis : ${listePrestations}
+Montant : ${totalNet}€ HT
+
+Écris 3 à 4 phrases courtes, à la première personne ("j'ai retenu...", "je vous propose..."), qui :
+- mentionnent un détail technique CONCRET tiré des prestations ci-dessus (pas générique)
+- rassurent brièvement sur le choix technique ou la qualité du matériel/travail
+- terminent par une phrase directe invitant à répondre — jamais "n'hésitez pas", jamais "je reste à votre disposition", jamais "cordialement"
+
+Ne mentionne PAS le prix (il est déjà dans le devis joint), ne mentionne PAS les CGV ou la garantie décennale (déjà ailleurs dans le mail), ne signe pas le message.
+Commence directement par "Bonjour ${prenomClient},".
+
+Style de référence (ton à reproduire) :
+"Bonjour Monsieur Touitou, votre devis est prêt — j'ai retenu l'AXELAIR Quadro comme vous le vouliez, avec la réduction 100/80 pour s'adapter à votre gaine existante. C'est le bon choix : le Quadro est justement conçu pour bien fonctionner malgré cette réduction. Une question, un ajustement à faire ? Je suis dispo par tél ou par mail."
+
+Réponds UNIQUEMENT avec le texte de l'intro, sans guillemets ni préambule.`;
+              const respIntro = await anthropic.messages.create({
+                model: 'claude-haiku-4-5-20251001',
+                max_tokens: 220,
+                messages: [{ role: 'user', content: promptIntro }]
+              });
+              introIA = respIntro.content[0].text.trim();
+            } catch(eIntro) { console.error('Intro IA devis:', eIntro.message); }
+
+            const msgCommercial = introIA || `Bonjour ${prenomClient},
 
 Veuillez trouver ci-joint votre devis n° ${num} d'un montant de ${totalNet} € HT.
 
 Ce devis est valable 30 jours. Pour l'accepter, vous pouvez le signer directement en ligne via le bouton ci-dessous.
 
-Les travaux seront réalisés conformément à la norme NF C 15-100, avec garantie décennale ORUS.
-
-N'hésitez pas à nous contacter pour toute question.
-
-Cordialement,
-Diahe SINERA — SINELEC Paris
+Une question, un ajustement à faire ? Je suis dispo par tél ou par mail.
 📞 07 87 38 86 22`;
             try {
               const envRes=await fetch(`${APP_URL_MCP}/api/envoyer/${num}`,{
