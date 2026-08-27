@@ -4801,7 +4801,8 @@ Une question, un ajustement à faire ? Je suis dispo par tél ou par mail.
                   email,
                   pdfB64: genData.pdf_b64,
                   message: msgCommercial,
-                  sujet: `Devis SINELEC ${num} — ${objet||'Travaux électriques'}`
+                  sujet: `Devis SINELEC ${num} — ${objet||'Travaux électriques'}`,
+                  cc: CONFIG?.email?.sender_email || 'sinelec.paris@gmail.com'
                 })
               });
               const envData=await envRes.json();
@@ -4866,7 +4867,7 @@ Diahe SINERA — SINELEC Paris
               await fetch(`${APP_URL_MCP}/api/envoyer/${num}`,{
                 method:'POST',
                 headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
-                body:JSON.stringify({ email, pdfB64: genData.pdf_b64, message: msgCommercial, sujet: `Facture SINELEC ${num} — ${objet||'Travaux électriques'}` })
+                body:JSON.stringify({ email, pdfB64: genData.pdf_b64, message: msgCommercial, sujet: `Facture SINELEC ${num} — ${objet||'Travaux électriques'}`, cc: CONFIG?.email?.sender_email || 'sinelec.paris@gmail.com' })
               });
             } catch(eEnv){ console.error('MCP envoi facture:', eEnv.message); }
             result={success:true,num,client,total_ht:totalNet,email_envoye:email,message:`✅ Facture ${num} créée et envoyée à ${email}`};
