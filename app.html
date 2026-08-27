@@ -1586,9 +1586,6 @@ table.histo-table tr:hover td { background:#fafbff; }
     <div class="sidebar-item" onclick="switchPage('clients', this)">
       <span class="sidebar-item-icon">👥</span><span>Clients</span>
     </div>
-    <div class="sidebar-item" onclick="switchPage('dashboard', this)">
-      <span class="sidebar-item-icon">📊</span><span>CA & Stats</span>
-    </div>
     <div class="sidebar-item" onclick="switchPage('rentabilite', this)">
       <span class="sidebar-item-icon">💰</span><span>Rentabilité</span>
     </div>
@@ -1694,13 +1691,13 @@ table.histo-table tr:hover td { background:#fafbff; }
         <div class="obat-kpi-sub" id="acc-ca-objectif">Objectif mensuel : 8 000 €</div>
         <div class="obat-kpi-tooltip">→ Factures payées ce mois</div>
       </div>
-      <div class="obat-kpi k2" onclick="switchPage('dashboard',null)" style="position:relative;">
+      <div class="obat-kpi k2" onclick="switchPage('rentabilite',null)" style="position:relative;">
         <div class="obat-kpi-icon">💰</div>
         <div class="obat-kpi-lbl">CA année 2026</div>
         <div class="obat-kpi-val" id="acc-ca-annee">—</div>
         <div class="obat-kpi-trend" id="acc-nb-factures" style="color:#16a34a;">—</div>
         <div class="obat-kpi-sub">106 985 € depuis création</div>
-        <div class="obat-kpi-tooltip">→ Page CA & Stats</div>
+        <div class="obat-kpi-tooltip">→ Rentabilité</div>
       </div>
       <div class="obat-kpi k3" onclick="filtrerHistoriqueEtNaviguer('facture','attente',null)" style="position:relative;">
         <div class="obat-kpi-icon">⏳</div>
@@ -2474,7 +2471,7 @@ table.histo-table tr:hover td { background:#fafbff; }
   <div class="status" id="f-status"></div>
 </div>
 </div>
-<div id="page-dashboard" class="page"><div class="content" style="max-width:1000px;"><div class="stat-grid" style="margin-bottom:20px;"><div class="stat-card"><div class="stat-value" id="dash-mois-ca">0</div><div class="stat-label">CA Ce Mois (€)</div></div><div class="stat-card"><div class="stat-value" id="dash-annee-ca">0</div><div class="stat-label">CA Année (€)</div></div><div class="stat-card"><div class="stat-value" id="dash-devis-attente">0</div><div class="stat-label">Devis en attente (€)</div></div><div class="stat-card"><div class="stat-value" id="dash-panier-moyen">0</div><div class="stat-label">Panier moyen (€)</div></div></div><div class="section"><div class="section-title">📊 CA par mois</div><div style="position:relative;width:100%;height:220px;"><canvas id="chart-ca"></canvas></div></div><div class="section"><div class="section-title">⚡ Top prestations</div><div id="dash-top-prests"></div></div></div></div>
+
 <div id="page-avis" class="page">
 <div class="content" style="max-width:700px;">
 
@@ -3407,7 +3404,6 @@ function switchPage(page, el) {
   if (page === 'devis') { setTimeout(initBrouillons, 100); setTimeout(initModeNuit, 200); }
   if (page === 'accueil') { setTimeout(chargerAccueil, 100); setTimeout(chargerProchaineIntervention, 150); }
   if (page === 'historique') { setTimeout(chargerHistorique, 100); setTimeout(chargerDevisRelance, 200); }
-  if (page === 'dashboard') setTimeout(chargerDashboard, 100);
   if (page === 'clients') { setTimeout(chargerClients, 100); setTimeout(chargerClientsInactifs, 150); }
   if (page === 'params') setTimeout(afficherParams, 100);
   if (page === 'sante') setTimeout(() => { chargerSante(); chargerStatutIA(); }, 100);
@@ -4429,54 +4425,6 @@ async function validerPopupSig() {
 // DASHBOARD
 // ═══════════════════════════════════════════════════
 let chartCA = null;
-
-async function chargerDashboard() {
-  try {
-    const res = await fetch('/api/ca-complet');
-    const data = await res.json();
-    const now = new Date();
-    const annee = now.getFullYear();
-    const moisCourant = `${annee}-${String(now.getMonth()+1).padStart(2,'0')}`;
-    const factures = data.filter(d => d.type === 'facture');
-    factures.forEach(f => { if (!f.created_at && f.date_facture) f.created_at = f.date_facture + 'T00:00:00.000Z'; });
-    const devis = data.filter(d => d.type === 'devis');
-    const facMois = factures.filter(f => (f.created_at||'').startsWith(moisCourant));
-    const caMois = facMois.reduce((s,f) => s+parseFloat(f.total_ht||0), 0);
-    const caAnnee = factures.filter(f => (f.created_at||'').startsWith(annee.toString())).reduce((s,f) => s+parseFloat(f.total_ht||0), 0);
-    const caAttente = devis.filter(d => d.statut==='envoyé'||d.statut==='envoye').reduce((s,d) => s+parseFloat(d.total_ht||0), 0);
-    const panierMoyen = factures.length > 0 ? caAnnee / factures.filter(f=>(f.created_at||'').startsWith(annee.toString())).length : 0;
-    document.getElementById('dash-mois-ca').textContent = '0';
-    document.getElementById('dash-annee-ca').textContent = '0';
-    document.getElementById('dash-devis-attente').textContent = '0';
-    document.getElementById('dash-panier-moyen').textContent = '0';
-    // Compteurs animés
-    setTimeout(() => {
-      animerCompteur('dash-mois-ca', Math.round(caMois));
-      animerCompteur('dash-annee-ca', Math.round(caAnnee));
-      animerCompteur('dash-devis-attente', Math.round(caAttente));
-      animerCompteur('dash-panier-moyen', Math.round(panierMoyen));
-    }, 80);
-    // Graphique 6 mois
-    const labels=[], vals=[];
-    for(let i=5;i>=0;i--){
-      const d=new Date(now.getFullYear(),now.getMonth()-i,1);
-      const mKey=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-      labels.push(d.toLocaleDateString('fr-FR',{month:'short'}));
-      vals.push(Math.round(factures.filter(f=>(f.created_at||'').startsWith(mKey)).reduce((s,f)=>s+parseFloat(f.total_ht||0),0)));
-    }
-    if (chartCA) { chartCA.destroy(); chartCA=null; }
-    const ctx = document.getElementById('chart-ca')?.getContext('2d');
-    if (ctx) {
-      chartCA = new Chart(ctx, { type:'bar', data:{ labels, datasets:[{label:'CA facturé',data:vals,backgroundColor:'#d4a574',borderRadius:6}] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{ticks:{color:'#9d8f7f',font:{size:11}},grid:{display:false},border:{display:false}}, y:{ticks:{color:'#9d8f7f',font:{size:11},callback:v=>v.toLocaleString('fr-FR')+'€'},grid:{color:'rgba(218,165,32,0.08)'},border:{display:false}} } } });
-    }
-    // Top prestations
-    const prestMap={};
-    factures.forEach(f => { (f.prestations||[]).forEach(p => { const nom=p.nom||p.designation||''; if(!nom) return; prestMap[nom]=(prestMap[nom]||{nb:0,ca:0}); prestMap[nom].nb++; prestMap[nom].ca+=parseFloat(p.prix||0)*(p.quantite||1); }); });
-    const prestSort=Object.entries(prestMap).sort((a,b)=>b[1].ca-a[1].ca).slice(0,5);
-    const maxP=prestSort[0]?.[1].ca||1;
-    document.getElementById('dash-top-prests').innerHTML = prestSort.length>0 ? prestSort.map(([nom,v])=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;"><div style="font-size:12px;color:var(--text-2);width:170px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${nom} <span style="color:var(--text-3);">×${v.nb}</span></div><div style="flex:1;height:8px;background:rgba(255,255,255,0.1);border-radius:4px;overflow:hidden;"><div style="height:100%;width:${Math.round((v.ca/maxP)*100)}%;background:linear-gradient(90deg,#1B2A4A,var(--accent));border-radius:4px;"></div></div><div style="font-size:12px;font-weight:700;color:var(--accent);width:65px;text-align:right;">${Math.round(v.ca).toLocaleString('fr-FR')} €</div></div>`).join('') : '<div style="color:var(--text-3);text-align:center;padding:20px;">Aucune facture</div>';
-  } catch(e) { console.error('Dashboard:', e); }
-}
 
 // ═══════════════════════════════════════════════════
 // AGENDA
@@ -8389,7 +8337,7 @@ function animerCompteur(elementId, valeurFinale, duree = 900, suffixe = ' €') 
   });
 }
 
-// Compteurs animés — appelés depuis chargerDashboard directement
+// Compteurs animés — appelés depuis chargerAccueil
 
 // Compteurs rentabilité — appelés depuis chargerRentabilite directement
 
@@ -8472,7 +8420,6 @@ function ajouterPageHeader(pageId) {
       // Recharger la page active
       const activePage = document.querySelector('.page.active')?.id?.replace('page-','');
       if (activePage === 'historique') chargerHistorique();
-      else if (activePage === 'dashboard') chargerDashboard();
       else if (activePage === 'rentabilite') chargerRentabilite();
       else if (activePage === 'agenda') chargerAgenda();
       else if (activePage === 'clients') chargerClients();
