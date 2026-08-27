@@ -4640,12 +4640,13 @@ app.all('/mcp', mcpAuth, async(req,res)=>{
           {name:'get_historique',description:'Historique des devis et factures SINELEC. Filtrer par type (devis/facture) et limiter le nombre de resultats.',inputSchema:{type:'object',properties:{type:{type:'string',enum:['devis','facture']},limite:{type:'number',default:20}}}},
           {name:'get_clients',description:'Recherche dans la base clients SINELEC par nom ou telephone',inputSchema:{type:'object',properties:{recherche:{type:'string',description:'Nom ou telephone du client'}}}},
           {name:'get_grille',description:'Cherche le prix d une prestation dans la grille tarifaire SINELEC',inputSchema:{type:'object',required:['recherche'],properties:{recherche:{type:'string',description:'Mot-cle: tableau, prise, disjoncteur, VMC, etc.'}}}},
-          {name:'creer_devis',description:'Cree un devis SINELEC complet, genere le PDF et l envoie au client par email. Toujours confirmer les prestations et prix avant d appeler.',inputSchema:{type:'object',required:['client','email','telephone','adresse','prestations'],properties:{
+          {name:'creer_devis',description:'Cree un devis SINELEC complet, genere le PDF et l envoie au client par email. Toujours confirmer les prestations et prix avant d appeler. Si le champ message n est pas fourni, une intro commerciale est generee automatiquement par IA — dans ce cas, montrer le texte a Diahe et obtenir son accord avant d appeler cet outil, ou rappeler l outil avec message rempli apres validation.',inputSchema:{type:'object',required:['client','email','telephone','adresse','prestations'],properties:{
             client:{type:'string',description:'Nom complet ex: M. Dupont Jean'},
             email:{type:'string',description:'Email du client pour envoi devis'},
             telephone:{type:'string',description:'Telephone obligatoire pour signature OTP'},
             adresse:{type:'string',description:'Adresse complete'},
             objet:{type:'string',description:'Objet du devis ex: Travaux electriques'},
+            message:{type:'string',description:'Intro commerciale de l email, validee au prealable avec Diahe. Si absent, une intro est generee automatiquement par IA sans validation prealable.'},
             prestations:{type:'array',description:'Liste des prestations avec descriptions détaillées',items:{type:'object',required:['nom','prix_unitaire'],properties:{
               nom:{type:'string',description:'Nom exact de la prestation'},
               prix_unitaire:{type:'number',description:'Prix unitaire HT en euros'},
@@ -4702,13 +4703,13 @@ app.all('/mcp', mcpAuth, async(req,res)=>{
           result={prestations:data||[]};
         }
         else if(name==='creer_devis'){
-          const{client,email,telephone,adresse,prestations,objet,remise}=args||{};
+          const{client,email,telephone,adresse,prestations,objet,remise,message:messageValide}=args||{};
           const token=genererToken('admin');
           // Format attendu par /api/generer : {nom, prix, quantite, desc}
-          // Auto-génération des descriptions manquantes via IA
+          // Auto-génération des descriptions détaillées via IA — se déclenche sauf si un vrai paragraphe complet est déjà fourni
           const prestationsFormatted = await Promise.all((prestations||[]).map(async p => {
             let desc = p.description || p.desc || '';
-            if (!desc || desc.length < 20) {
+            if (!desc || desc.length < 150) {
               try {
                 const prix = parseFloat(p.prix_unitaire)||0;
                 const prompt = `Tu es un expert électricien SINELEC Paris. Rédige une description professionnelle pour cette prestation dans un devis client.
@@ -4754,9 +4755,10 @@ IMPORTANT : Réponds UNIQUEMENT avec la description, sans introduction ni guille
             result={success:false,error:genData.error||'Erreur génération'};
           } else {
             const num = genData.num;
-            // Étape 2 : Envoyer l'email avec le PDF + intro commerciale générée par IA
+            // Étape 2 : Envoyer l'email avec le PDF + intro commerciale (validée par Diahe si fournie, sinon générée par IA)
             const prenomClient = (client||'').split(' ').slice(-1)[0] || client;
             let introIA = '';
+            if (!messageValide) {
             try {
               const listePrestations = prestationsFormatted.map(p => p.nom).join(', ');
               const promptIntro = `Tu es Diahe, électricien indépendant à Paris (SINELEC Paris). Tu écris l'introduction d'un email accompagnant un devis.
@@ -4784,8 +4786,9 @@ Réponds UNIQUEMENT avec le texte de l'intro, sans guillemets ni préambule.`;
               });
               introIA = respIntro.content[0].text.trim();
             } catch(eIntro) { console.error('Intro IA devis:', eIntro.message); }
+            }
 
-            const msgCommercial = introIA || `Bonjour ${prenomClient},
+            const msgCommercial = messageValide || introIA || `Bonjour ${prenomClient},
 
 Veuillez trouver ci-joint votre devis n° ${num} d'un montant de ${totalNet} € HT.
 
@@ -4816,7 +4819,7 @@ Une question, un ajustement à faire ? Je suis dispo par tél ou par mail.
           const token=genererToken('admin');
           const prestationsFormatted = await Promise.all((prestations||[]).map(async p => {
             let desc = p.description || p.desc || '';
-            if (!desc || desc.length < 20) {
+            if (!desc || desc.length < 150) {
               try {
                 const prix = parseFloat(p.prix_unitaire)||0;
                 const prompt = `Tu es un expert électricien SINELEC Paris. Rédige une description professionnelle pour cette prestation dans une facture client.
