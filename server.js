@@ -4640,6 +4640,29 @@ app.all('/mcp', mcpAuth, async(req,res)=>{
           {name:'get_historique',description:'Historique des devis et factures SINELEC. Filtrer par type (devis/facture) et limiter le nombre de resultats.',inputSchema:{type:'object',properties:{type:{type:'string',enum:['devis','facture']},limite:{type:'number',default:20}}}},
           {name:'get_clients',description:'Recherche dans la base clients SINELEC par nom ou telephone',inputSchema:{type:'object',properties:{recherche:{type:'string',description:'Nom ou telephone du client'}}}},
           {name:'get_grille',description:'Cherche le prix d une prestation dans la grille tarifaire SINELEC',inputSchema:{type:'object',required:['recherche'],properties:{recherche:{type:'string',description:'Mot-cle: tableau, prise, disjoncteur, VMC, etc.'}}}},
+          {name:'creer_rdv',description:'Cree une entree agenda SINELEC (lead ou rendez-vous planifie). Utiliser statut=lead pour un contact pas encore confirme, statut=planifie pour un rendez-vous confirme avec date et heure.',inputSchema:{type:'object',required:['client'],properties:{
+            client:{type:'string',description:'Nom du client'},
+            telephone:{type:'string'},
+            email:{type:'string'},
+            adresse:{type:'string'},
+            date_intervention:{type:'string',description:'Format YYYY-MM-DD'},
+            heure:{type:'string',description:'Format HH:MM'},
+            type_intervention:{type:'string',description:'Ex: depannage, devis, remplacement tableau'},
+            notes:{type:'string'},
+            statut:{type:'string',enum:['lead','planifié'],default:'lead'},
+            source:{type:'string',enum:['manuel','site','whatsapp'],default:'manuel'},
+            sms_rappel:{type:'boolean',description:'Active le SMS de rappel automatique la veille a 18h',default:true}
+          }}},
+          {name:'modifier_rdv',description:'Modifie une entree agenda SINELEC existante (trouvee par telephone). Utiliser pour corriger un nom, changer un statut lead vers planifie, deplacer une date, etc. Toujours confirmer avec Diahe avant d appeler.',inputSchema:{type:'object',required:['telephone'],properties:{
+            telephone:{type:'string',description:'Telephone de la fiche a modifier — sert a la retrouver'},
+            client:{type:'string'},
+            adresse:{type:'string'},
+            date_intervention:{type:'string',description:'Format YYYY-MM-DD'},
+            heure:{type:'string',description:'Format HH:MM'},
+            notes:{type:'string'},
+            statut:{type:'string',enum:['lead','planifié','terminé','annulé']},
+            sms_rappel:{type:'boolean'}
+          }}},
           {name:'creer_devis',description:'Cree un devis SINELEC complet, genere le PDF et l envoie au client par email. Toujours confirmer les prestations et prix avant d appeler. Si le champ message n est pas fourni, une intro commerciale est generee automatiquement par IA — dans ce cas, montrer le texte a Diahe et obtenir son accord avant d appeler cet outil, ou rappeler l outil avec message rempli apres validation.',inputSchema:{type:'object',required:['client','email','telephone','adresse','prestations'],properties:{
             client:{type:'string',description:'Nom complet ex: M. Dupont Jean'},
             email:{type:'string',description:'Email du client pour envoi devis'},
@@ -4701,6 +4724,41 @@ app.all('/mcp', mcpAuth, async(req,res)=>{
         else if(name==='get_grille'){
           const{data}=await supabase.from('grille_tarifaire').select('nom,prix_ht,categorie,unite').ilike('nom',`%${args?.recherche||''}%`).eq('actif',true).order('categorie').limit(10);
           result={prestations:data||[]};
+        }
+        else if(name==='creer_rdv'){
+          const{client,telephone,email,adresse,date_intervention,heure,type_intervention,notes,statut,source,sms_rappel}=args||{};
+          try {
+            const{data,error}=await supabase.from('agenda').insert({
+              client, telephone:telephone||'', email:email||'', adresse:adresse||'',
+              date_intervention:date_intervention||null, heure:heure||null,
+              type_intervention:type_intervention||'', notes:notes||'',
+              statut: statut||'lead', source: source||'manuel',
+              sms_rappel: sms_rappel!==undefined ? sms_rappel : true
+            }).select().single();
+            if(error) throw error;
+            result={success:true,id:data.id,message:`✅ Entrée agenda créée pour ${client}${date_intervention?` le ${date_intervention}`:''}`};
+          } catch(e){ result={success:false,error:e.message}; }
+        }
+        else if(name==='modifier_rdv'){
+          const{telephone,client,adresse,date_intervention,heure,notes,statut,sms_rappel}=args||{};
+          try {
+            const{data:existants}=await supabase.from('agenda').select('id,client,date_intervention').eq('telephone',telephone).order('created_at',{ascending:false}).limit(1);
+            if(!existants||existants.length===0){ result={success:false,error:`Aucune entrée agenda trouvée pour le téléphone ${telephone}`}; }
+            else {
+              const id=existants[0].id;
+              const maj={};
+              if(client!==undefined) maj.client=client;
+              if(adresse!==undefined) maj.adresse=adresse;
+              if(date_intervention!==undefined) maj.date_intervention=date_intervention;
+              if(heure!==undefined) maj.heure=heure;
+              if(notes!==undefined) maj.notes=notes;
+              if(statut!==undefined) maj.statut=statut;
+              if(sms_rappel!==undefined) maj.sms_rappel=sms_rappel;
+              const{error}=await supabase.from('agenda').update(maj).eq('id',id);
+              if(error) throw error;
+              result={success:true,id,message:`✅ Entrée agenda mise à jour (était: ${existants[0].client})`};
+            }
+          } catch(e){ result={success:false,error:e.message}; }
         }
         else if(name==='creer_devis'){
           const{client,email,telephone,adresse,prestations,objet,remise,message:messageValide}=args||{};
