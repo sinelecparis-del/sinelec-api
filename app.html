@@ -4870,8 +4870,17 @@ function afficherListeAgenda() {
   if (!liste) return;
   const today = new Date(); today.setHours(0,0,0,0);
   const todayStr = today.toISOString().split('T')[0];
-  const intervs = agendaInterventions.filter(iv => (iv.date_intervention||'') >= todayStr).sort((a,b) => (a.date_intervention+'T'+(a.heure||'00:00')).localeCompare(b.date_intervention+'T'+(b.heure||'00:00')));
-  if (intervs.length === 0) { liste.innerHTML = '<div class="panier-empty">Aucune intervention à venir</div>'; return; }
+  // Les leads non traités restent visibles quelle que soit leur date (sinon ils disparaissent silencieusement le lendemain)
+  const leadsEnAttente = agendaInterventions.filter(iv => (iv.statut||'').toLowerCase() === 'lead')
+    .sort((a,b) => (a.created_at||a.date_intervention||'').localeCompare(b.created_at||b.date_intervention||''));
+  const rdvPlanifies = agendaInterventions.filter(iv => (iv.statut||'').toLowerCase() !== 'lead' && (iv.date_intervention||'') >= todayStr);
+  const intervs = [...leadsEnAttente, ...rdvPlanifies].sort((a,b) => {
+    const aLead = (a.statut||'').toLowerCase() === 'lead', bLead = (b.statut||'').toLowerCase() === 'lead';
+    if (aLead && !bLead) return -1;
+    if (!aLead && bLead) return 1;
+    return (a.date_intervention+'T'+(a.heure||'00:00')).localeCompare(b.date_intervention+'T'+(b.heure||'00:00'));
+  });
+  if (intervs.length === 0) { liste.innerHTML = '<div class="panier-empty">Aucun lead ni intervention à venir</div>'; return; }
   liste.innerHTML = intervs.map(iv => {
     const nom = iv.client || `${iv.prenom||''} ${iv.nom||''}`.trim() || 'Client';
     const adresseEnc = iv.adresse ? encodeURIComponent(iv.adresse) : '';
