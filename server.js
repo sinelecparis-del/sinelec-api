@@ -1013,6 +1013,21 @@ app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
     const lienSig = `${appUrl}/api/track/click/${num}?redirect=/signer/${num}`;
     const docTypeLocal = num.startsWith('OS-') ? 'devis' : 'facture';
 
+    let recapHtml = '';
+    if (docTypeLocal === 'devis') {
+      try {
+        const { data: docRecap } = await supabase.from('historique').select('prestations,total_ht').eq('num', num).single();
+        if (docRecap && Array.isArray(docRecap.prestations) && docRecap.prestations.length) {
+          const lignes = docRecap.prestations.slice(0, 6).map(p => `✓ ${(p.nom || '').replace(/</g,'&lt;')}`).join('<br>');
+          recapHtml = `<div style="background:#F7F8FA;border:1px solid #e3e6ea;border-radius:10px;padding:14px 16px;margin:18px 0;">
+            <p style="font-size:11px;font-weight:700;color:#8896A8;margin:0 0 8px;letter-spacing:0.3px;">CE QUE COUVRE CE DEVIS</p>
+            <p style="font-size:13px;color:#333;margin:0;line-height:1.7;">${lignes}</p>
+            <p style="font-size:15px;font-weight:800;color:#1B2A4A;margin:10px 0 0;border-top:1px dashed #d5d9de;padding-top:8px;">Total : ${Math.round(docRecap.total_ht||0)} € HT</p>
+          </div>`;
+        }
+      } catch(e) { console.error('Recap devis email:', e.message); }
+    }
+
     const signatureBlock = docTypeLocal === 'devis' ? `
       <div style="background:#fffbf0;border:1.5px solid #C9A84C;border-radius:12px;padding:20px;text-align:center;margin:20px 0;">
         <p style="font-size:13px;color:#555;margin-bottom:16px;">Pour accepter ce devis, signez-le directement en ligne :</p>
@@ -1021,14 +1036,18 @@ app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
       </div>` : '';
 
     const htmlEmail = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;">
-      <div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:24px;text-align:center;border-radius:12px 12px 0 0;">
-        <div style="font-size:28px;">⚡</div>
-        <h2 style="color:#fff;margin:8px 0 0;font-size:16px;">SINELEC Paris</h2>
+      <div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:22px 24px;border-radius:12px 12px 0 0;display:flex;align-items:center;gap:12px;">
+        <img src="${appUrl}/logo-sinelec.png" alt="SINELEC" style="width:38px;height:38px;flex-shrink:0;">
+        <div>
+          <h2 style="color:#fff;margin:0;font-size:16px;">SINELEC Paris</h2>
+          <p style="color:#BFC8D6;margin:2px 0 0;font-size:11px;">Électricien Paris &amp; Île-de-France</p>
+        </div>
       </div>
       <div style="padding:24px;border:1px solid #e8e8e8;border-top:none;border-radius:0 0 12px 12px;">
         <p style="white-space:pre-wrap;font-size:14px;color:#333;line-height:1.6;">${(message || '').replace(/</g,'&lt;')}</p>
+        ${recapHtml}
         ${signatureBlock}
-        ${docTypeLocal === 'devis' ? `<div style="background:#1e2a3a;border-left:3px solid #C9A84C;border-radius:8px;padding:12px 14px;margin:16px 0;"><p style="color:#C9A84C;font-size:11px;font-weight:700;margin:0 0 6px;">📋 CONDITIONS GÉNÉRALES DE VENTE</p><p style="color:#9ca3af;font-size:11px;line-height:1.6;margin:0;">En signant ce devis, vous reconnaissez avoir pris connaissance et acceptez sans réserve les CGV de SINELEC Paris. Les CGV complètes sont affichées lors de la signature en ligne.</p></div>` : ''}
+        ${docTypeLocal === 'devis' ? `<div style="background:#F7F8FA;border-left:3px solid #C9C2B4;border-radius:8px;padding:10px 14px;margin:16px 0;"><p style="color:#8896A8;font-size:10.5px;font-weight:700;margin:0 0 4px;">📋 CONDITIONS GÉNÉRALES DE VENTE</p><p style="color:#a3a9b3;font-size:10.5px;line-height:1.5;margin:0;">En signant, vous acceptez les CGV de SINELEC Paris, affichées lors de la signature en ligne.</p></div>` : ''}
         <div style="margin-top:20px;padding-top:16px;border-top:1px solid #eee;">
           <div style="display:flex;gap:12px;align-items:flex-start;">
             <div style="width:48px;height:48px;border-radius:8px;background:#1B2A4A;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
