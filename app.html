@@ -2476,6 +2476,27 @@ table.histo-table tr:hover td { background:#fafbff; }
 <div class="content" style="max-width:700px;">
 
   <!-- ═══════════════════════════════════════════════════ -->
+  <!-- ENVOI MANUEL — un seul numéro                        -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-title">📲 Demander un avis à un client</div>
+    <div class="input-group">
+      <label>Téléphone</label>
+      <input type="tel" id="avis-manuel-tel" placeholder="06 XX XX XX XX"
+        style="width:100%;background:rgba(255,255,255,0.65);border:1.5px solid rgba(218,165,32,0.15);border-radius:12px;padding:13px 16px;font-size:14px;color:var(--text);outline:none;">
+    </div>
+    <div class="input-group" style="margin-bottom:12px;">
+      <label>Prénom <span style="font-size:11px;color:var(--text-3);">(optionnel)</span></label>
+      <input type="text" id="avis-manuel-prenom" placeholder="Ex: Jacques"
+        style="width:100%;background:rgba(255,255,255,0.65);border:1.5px solid rgba(218,165,32,0.15);border-radius:12px;padding:13px 16px;font-size:14px;color:var(--text);outline:none;">
+    </div>
+    <button onclick="envoyerDemandeAvisManuel()" id="avis-manuel-btn"
+      style="width:100%;padding:13px;border-radius:12px;border:none;background:linear-gradient(135deg,var(--accent),var(--gold));color:#fff;font-size:14px;font-weight:800;cursor:pointer;">
+      📨 Envoyer le SMS avec le lien d'avis
+    </button>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════ -->
   <!-- CAMPAGNE AVIS — Relance clients passés               -->
   <!-- ═══════════════════════════════════════════════════ -->
   <div class="section">
@@ -2484,6 +2505,7 @@ table.histo-table tr:hover td { background:#fafbff; }
       <div style="text-align:center;padding:20px;color:var(--text-3);font-size:13px;">Chargement...</div>
     </div>
   </div>
+
 
   <div class="section">
     <div class="section-title">⭐ Avis reçu</div>
@@ -6351,6 +6373,32 @@ async function importerDevisExterne() {
     errEl.textContent = '❌ Erreur lors de l\'import : ' + e.message;
     errEl.style.display = 'block';
   }
+}
+
+async function envoyerDemandeAvisManuel() {
+  const tel = document.getElementById('avis-manuel-tel')?.value?.trim();
+  const prenom = document.getElementById('avis-manuel-prenom')?.value?.trim();
+  if (!tel) { showToast('❌ Numéro de téléphone requis', '⚠️'); return; }
+  const btn = document.getElementById('avis-manuel-btn');
+  const texteOriginal = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '⏳ Envoi...';
+  try {
+    const res = await fetch('/api/avis/demander-sms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('sinelec_token') || '') },
+      body: JSON.stringify({ telephone: tel, prenom })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('✅ SMS envoyé', '📨');
+      shootConfetti();
+      document.getElementById('avis-manuel-tel').value = '';
+      document.getElementById('avis-manuel-prenom').value = '';
+    } else {
+      showToast('❌ ' + (data.error || 'Erreur'), '⚠️');
+    }
+  } catch(e) { showToast('❌ Erreur réseau', '⚠️'); }
+  finally { btn.disabled = false; btn.innerHTML = texteOriginal; }
 }
 
 async function genererReponseAvis() {
