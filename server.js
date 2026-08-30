@@ -16,19 +16,26 @@ process.on('unhandledRejection', (reason) => {
 // ═══════════════════════════════════════════════════════════════
 
 
-// ─── OTP Store en mémoire (15 min TTL) ───────────────────────
-const otpStore = new Map(); // num → { code, expiry }
-function otpSet(num, code) {
-  otpStore.set(num, { code, expiry: Date.now() + 15*60*1000 });
-  setTimeout(() => otpStore.delete(num), 15*60*1000);
+// ─── OTP Store persistant (table otp_signatures, survit aux redéploiements) ───
+async function otpSet(num, code) {
+  const expires_at = new Date(Date.now() + 15*60*1000).toISOString();
+  // On invalide les anciens codes non utilisés pour ce devis avant d'en créer un nouveau
+  await supabase.from('otp_signatures').update({ used: true }).eq('num', num).eq('used', false);
+  await supabase.from('otp_signatures').insert({ num, code, expires_at, used: false });
 }
-function otpGet(num) {
-  const entry = otpStore.get(num);
-  if (!entry) return null;
-  if (Date.now() > entry.expiry) { otpStore.delete(num); return null; }
-  return entry.code;
+async function otpGet(num) {
+  const { data } = await supabase.from('otp_signatures')
+    .select('code, expires_at')
+    .eq('num', num).eq('used', false)
+    .order('created_at', { ascending: false })
+    .limit(1).maybeSingle();
+  if (!data) return null;
+  if (new Date() > new Date(data.expires_at)) return null;
+  return data.code;
 }
-function otpDel(num) { otpStore.delete(num); }
+async function otpDel(num) {
+  await supabase.from('otp_signatures').update({ used: true }).eq('num', num).eq('used', false);
+}
 
 const express = require('express');
 const cors = require('cors');
@@ -4290,8 +4297,8 @@ app.post('/api/otp-signature', async (req, res) => {
     }
     const code = String(Math.floor(100000 + Math.random() * 900000));
     const expire_at = new Date(Date.now() + 15*60*1000).toISOString();
-    // Stocker en mémoire (pas besoin de colonne Supabase)
-    otpSet(num, code);
+    // Stocké en base (table otp_signatures) — survit aux redéploiements du serveur
+    await otpSet(num, code);
     console.log('✅ OTP pour', num, '— code:', code);
     const smsResult = await envoyerSMS(telephone, 'Votre code SINELEC : ' + code + '. Valable 15 minutes.');
     if (!smsResult) return res.status(500).json({ success: false, error: "Impossible d'envoyer le SMS. Verifiez votre numero." });
@@ -4303,14 +4310,14 @@ app.post('/api/otp-signature', async (req, res) => {
 app.post('/api/verifier-otp', async (req, res) => {
   try {
     const { num, code } = req.body;
-    const storedCode = otpGet(num);
+    const storedCode = await otpGet(num);
     const rows = storedCode ? [{ code: storedCode }] : [];
     if (!storedCode) return res.status(404).json({ success: false, error: 'Aucun code envoyé pour ce devis' });
     const entered = String(code).replace(/\D/g, '').trim();
     const stored = String(storedCode).replace(/\D/g, '').trim();
     console.log('OTP check:', num, '| stored:', stored, '| entered:', entered);
     if (!stored || !entered || stored !== entered) return res.status(400).json({ success: false, error: 'Code incorrect' });
-    otpDel(num);
+    await otpDel(num);
     res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
