@@ -7287,6 +7287,7 @@ function renderAccueilDocs(docs, containerId, type) {
     const alerte = type === 'devis' && s === 'envoye' && h > 48;
     if (['paye','payee','acquitte'].includes(s)) return `<span style="background:#d1fae5;color:#065f46;border-radius:20px;padding:3px 9px;font-size:10.5px;font-weight:700;white-space:nowrap;">💰 Payée</span>`;
     if (s === 'signe') return `<span style="background:#dcfce7;color:#15803d;border-radius:20px;padding:3px 9px;font-size:10.5px;font-weight:700;white-space:nowrap;">✅ Signé</span>`;
+    if (s === 'facture') return `<span style="background:#e0e7ff;color:#3730a3;border-radius:20px;padding:3px 9px;font-size:10.5px;font-weight:700;white-space:nowrap;">📄 Facturé</span>`;
     if (s === 'annule') return `<span style="background:#f3f4f6;color:#6b7280;border-radius:20px;padding:3px 9px;font-size:10.5px;font-weight:700;white-space:nowrap;">❌ Annulé</span>`;
     if (alerte) return `<span style="background:#fee2e2;color:#dc2626;border-radius:20px;padding:3px 9px;font-size:10.5px;font-weight:700;white-space:nowrap;">⚠️ +48h</span>`;
     if (s === 'envoye') return `<span style="background:#dbeafe;color:#1d4ed8;border-radius:20px;padding:3px 9px;font-size:10.5px;font-weight:700;white-space:nowrap;">📧 Envoyé</span>`;
@@ -8077,10 +8078,12 @@ function renderTableauHistorique() {
     let statutBadge;
     const estPaye = ['paye','payee','acquitte'].includes(statut);
     const estSigne = statut === 'signe';
+    const estFacture = statut === 'facture';
     const estAnnule = statut === 'annule';
     const estAlerte = type === 'devis' && statut === 'envoye' && ageH > 48;
     if (estPaye) statutBadge = `<span style="background:#d1fae5;color:#065f46;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;">💰 Payée</span>`;
     else if (estSigne) statutBadge = `<span style="background:#dcfce7;color:#15803d;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;">✅ Signé</span>`;
+    else if (estFacture) statutBadge = `<span style="background:#e0e7ff;color:#3730a3;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;">📄 Facturé</span>`;
     else if (estAnnule) statutBadge = `<span style="background:#f3f4f6;color:#6b7280;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;">❌ Annulé</span>`;
     else if (estAlerte) statutBadge = `<span style="background:#fef2f2;color:#dc2626;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;">⚠️ +48h</span>`;
     else statutBadge = `<span style="background:#fef9c3;color:#854d0e;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;">⏳ En attente</span>`;
