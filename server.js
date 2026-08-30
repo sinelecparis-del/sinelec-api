@@ -3879,8 +3879,8 @@ app.post('/api/avis/demander-sms', authMiddleware, async (req, res) => {
     if (!telephone) return res.status(400).json({ error: 'Numéro de téléphone requis' });
     const nom = (prenom || '').trim();
     const msg = nom
-      ? `Bonjour ${nom}, c'est Diahe de SINELEC ⚡ Si vous avez 30 secondes, un avis Google nous aiderait énormément : https://g.page/r/CSw-MABnFUAYEAE/review Merci !`
-      : `Bonjour, c'est Diahe de SINELEC ⚡ Si vous avez 30 secondes, un avis Google nous aiderait énormément : https://g.page/r/CSw-MABnFUAYEAE/review Merci !`;
+      ? `Bonjour ${nom}, c'est SINELEC Paris ⚡ Si vous avez 30 secondes, un avis Google nous aiderait énormément : https://g.page/r/CSw-MABnFUAYEAE/review Merci !`
+      : `Bonjour, c'est SINELEC Paris ⚡ Si vous avez 30 secondes, un avis Google nous aiderait énormément : https://g.page/r/CSw-MABnFUAYEAE/review Merci !`;
     await envoyerSMS(telephone, msg);
     res.json({ success: true, message: `✅ SMS envoyé au ${telephone}` });
   } catch(e) { res.status(500).json({ error: e.message }); }
