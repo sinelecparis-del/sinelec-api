@@ -1029,7 +1029,27 @@ app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
         <p style="white-space:pre-wrap;font-size:14px;color:#333;line-height:1.6;">${(message || '').replace(/</g,'&lt;')}</p>
         ${signatureBlock}
         ${docTypeLocal === 'devis' ? `<div style="background:#1e2a3a;border-left:3px solid #C9A84C;border-radius:8px;padding:12px 14px;margin:16px 0;"><p style="color:#C9A84C;font-size:11px;font-weight:700;margin:0 0 6px;">📋 CONDITIONS GÉNÉRALES DE VENTE</p><p style="color:#9ca3af;font-size:11px;line-height:1.6;margin:0;">En signant ce devis, vous reconnaissez avoir pris connaissance et acceptez sans réserve les CGV de SINELEC Paris. Les CGV complètes sont affichées lors de la signature en ligne.</p></div>` : ''}
-        <p style="font-size:12px;color:#888;margin-top:16px;">📞 07 87 38 86 22 | sinelec.paris@gmail.com</p>
+        <div style="margin-top:20px;padding-top:16px;border-top:1px solid #eee;">
+          <div style="display:flex;gap:12px;align-items:flex-start;">
+            <div style="width:48px;height:48px;border-radius:8px;background:#1B2A4A;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <img src="${appUrl}/logo-sinelec.png" alt="SINELEC" style="width:32px;height:32px;">
+            </div>
+            <div style="border-left:2px solid #1B2A4A;padding-left:10px;">
+              <p style="margin:0;font-size:14px;font-weight:800;color:#1B2A4A;">SINELEC Paris</p>
+              <p style="margin:2px 0 0;font-size:10.5px;font-weight:700;color:#C9962A;letter-spacing:0.3px;">ÉLECTRICIEN — PARIS &amp; ÎLE-DE-FRANCE</p>
+              <p style="margin:5px 0 0;font-size:11px;color:#8896A8;">📞 07 87 38 86 22 · 🌐 sinelec-paris.fr</p>
+            </div>
+          </div>
+          <div style="margin-top:10px;padding:7px 10px;background:#FBF7EC;border-radius:8px;display:inline-flex;align-items:center;gap:6px;font-size:11.5px;">
+            <span style="font-weight:800;color:#1B2A4A;">G</span>
+            <span style="color:#E8B84B;">★★★★★</span>
+            <span style="font-weight:800;color:#1B2A4A;">5,0/5</span>
+            <span style="color:#8896A8;">· 106 avis Google</span>
+          </div>
+          <div style="margin-top:8px;">
+            <span style="font-size:10px;padding:3px 8px;border-radius:6px;background:#E1F5EE;color:#085041;font-weight:700;">Garantie décennale ORUS</span>
+          </div>
+        </div>
       </div>
     </div>`;
 
