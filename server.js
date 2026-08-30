@@ -1731,7 +1731,7 @@ app.post('/api/envoyer-lien-signature/:num', async (req, res) => {
     const lienSig = appUrl + '/signer/' + num;
     const prenom = extractPrenom(doc.client || '');
     const montant = parseFloat(doc.total_ht || 0).toFixed(0);
-    const msg = 'Bonjour ' + prenom + ', votre devis SINELEC n°' + num + ' (' + montant + '€) est prêt. Signez-le ici : ' + lienSig + ' — Diahe ⚡';
+    const msg = 'Bonjour ' + prenom + ', votre devis SINELEC n°' + num + ' (' + montant + '€) est prêt. Signez-le ici : ' + lienSig + ' — SINELEC ⚡';
     await envoyerSMS(tel, msg);
     await supabase.from('historique').update({ sms_signature_envoye: true, sms_signature_date: new Date().toISOString() }).eq('num', num);
     res.json({ success: true, lien: lienSig, telephone: tel });
@@ -1763,7 +1763,7 @@ app.post('/api/envoyer-sms-avis/:num', async (req, res) => {
     if (!doc) return res.status(404).json({ error: 'Document non trouvé' });
     if (!doc.telephone) return res.status(400).json({ error: 'Pas de téléphone pour ce client' });
     const prenom = extractPrenom(doc.client);
-    const msg = `Bonjour ${prenom}, merci pour votre confiance ! Un avis Google nous aiderait beaucoup : https://g.page/r/CSw-MABnFUAYEAE/review — Diahe, SINELEC ⚡`;
+    const msg = `Bonjour ${prenom}, merci pour votre confiance ! Un avis Google nous aiderait beaucoup : https://g.page/r/CSw-MABnFUAYEAE/review — SINELEC ⚡`;
     const msgId = await envoyerSMS(doc.telephone, msg);
     const now = new Date().toISOString();
     await supabase.from('historique').update({
@@ -3832,7 +3832,7 @@ app.post('/api/avis/campagne/lancer', authMiddleware, async (req, res) => {
       for (const c of eligibles) {
         try {
           const prenom = extractPrenom(c.nom || '');
-          const msg = `Bonjour ${prenom}, c'est SINELEC, votre électricien à Paris ⚡ On espère que tout va bien depuis notre intervention. Si vous avez 30 secondes, un avis Google nous aiderait énormément : https://g.page/r/CSw-MABnFUAYEAE/review Merci ! — Diahe`;
+          const msg = `Bonjour ${prenom}, c'est SINELEC, votre électricien à Paris ⚡ On espère que tout va bien depuis notre intervention. Si vous avez 30 secondes, un avis Google nous aiderait énormément : https://g.page/r/CSw-MABnFUAYEAE/review Merci ! — SINELEC Paris ⚡`;
           await envoyerSMS(c.telephone, msg);
           await supabase.from('clients').update({
             sms_avis_campagne_envoye: true,
@@ -3896,7 +3896,7 @@ RÈGLES :
 - 40 à 70 mots maximum
 - Intègre 2-3 mots-clés SEO : électricien Paris, dépannage électrique Paris, NF C 15-100
 - ${etoiles >= 4 ? 'Remercie sincèrement, valorise le point positif' : 'Réponds calmement, propose de résoudre'}
-- Termine par : Diahe — SINELEC ⚡
+- Termine par : SINELEC Paris ⚡
 - Donne UNIQUEMENT la réponse, sans introduction ni guillemets`;
 
     const response = await anthropic.messages.create({
@@ -4330,7 +4330,7 @@ cron.schedule('0 9 * * *', async () => {
       try {
         // ── J+7 : Rappel simple et professionnel ─────────────────
         if (ageJours >= 7 && ageJours < 14 && !d.sms_relance_j7) {
-          const msg = `Bonjour ${prenom}, votre devis SINELEC n°${d.num} de ${montant}€ est toujours en attente. Pour planifier votre intervention, signez-le ici : ${lien} — Diahe ⚡`;
+          const msg = `Bonjour ${prenom}, votre devis SINELEC n°${d.num} de ${montant}€ est toujours en attente. Pour planifier votre intervention, signez-le ici : ${lien} — SINELEC Paris ⚡`;
           await envoyerSMS(d.telephone, msg);
           await supabase.from('historique').update({ sms_relance_j7: true, sms_relance_j7_date: new Date().toISOString() }).eq('num', d.num);
           console.log(`📨 Relance J+7: ${d.num} → ${d.telephone}`);
@@ -4339,7 +4339,7 @@ cron.schedule('0 9 * * *', async () => {
 
         // ── J+14 : Ton commercial — met en avant la valeur ───────
         else if (ageJours >= 14 && ageJours < 21 && !d.sms_relance_j14) {
-          const msg = `Bonjour ${prenom}, votre installation électrique mérite d'être sécurisée ! Notre devis n°${d.num} (${montant}€) inclut garantie décennale + norme NF C 15-100. On peut intervenir rapidement 👉 ${lien} — Diahe, SINELEC Paris ⚡`;
+          const msg = `Bonjour ${prenom}, votre installation électrique mérite d'être sécurisée ! Notre devis n°${d.num} (${montant}€) inclut garantie décennale + norme NF C 15-100. On peut intervenir rapidement 👉 ${lien} — SINELEC Paris ⚡`;
           await envoyerSMS(d.telephone, msg);
           await supabase.from('historique').update({ sms_relance_j14: true, sms_relance_j14_date: new Date().toISOString() }).eq('num', d.num);
           console.log(`📨 Relance J+14: ${d.num} → ${d.telephone}`);
@@ -4348,7 +4348,7 @@ cron.schedule('0 9 * * *', async () => {
 
         // ── J+21 : Négociation — dernière chance ─────────────────
         else if (ageJours >= 21 && !d.sms_relance_j21) {
-          const msg = `Bonjour ${prenom}, c'est Diahe de SINELEC. Je voulais savoir si vous avez des questions sur votre devis n°${d.num} (${montant}€). Je suis disponible pour en discuter et m'adapter à votre budget si besoin. 📞 07 87 38 86 22 — SINELEC Paris ⚡`;
+          const msg = `Bonjour ${prenom}, c'est SINELEC Paris. Je voulais savoir si vous avez des questions sur votre devis n°${d.num} (${montant}€). Je suis disponible pour en discuter et m'adapter à votre budget si besoin. 📞 07 87 38 86 22 — SINELEC Paris ⚡`;
           await envoyerSMS(d.telephone, msg);
           await supabase.from('historique').update({ sms_relance_j21: true, sms_relance_j21_date: new Date().toISOString() }).eq('num', d.num);
           console.log(`📨 Relance J+21 (négo): ${d.num} → ${d.telephone}`);
@@ -4935,7 +4935,7 @@ Veuillez trouver ci-joint votre facture n° ${num} d'un montant de ${totalNet} �
 Merci de bien vouloir procéder au règlement selon les modalités habituelles (CB, virement, espèces).
 
 Cordialement,
-Diahe SINERA — SINELEC Paris
+SINELEC Paris
 📞 07 87 38 86 22`;
             try {
               await fetch(`${APP_URL_MCP}/api/envoyer/${num}`,{
