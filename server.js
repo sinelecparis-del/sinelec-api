@@ -4276,7 +4276,7 @@ cron.schedule('0 7 * * *', async () => {
     await envoyerEmail('sinelec.paris@gmail.com', `⚡ Agenda du ${new Date().toLocaleDateString('fr-FR')} — ${nb} intervention${nb>1?'s':''}`, html);
     console.log(`✅ Récap agenda envoyé: ${nb} interventions`);
   } catch(e) { console.error('Cron agenda:', e.message); }
-});
+}, {timezone: 'Europe/Paris'});
 
 
 // ══════════════════════════════════════════════════════════════
@@ -4347,7 +4347,7 @@ cron.schedule('0 9 * * *', async () => {
     const total = nb7 + nb14 + nb21 + nb30;
     if (total > 0) console.log(`✅ Relances/expirations du jour — J+7: ${nb7} | J+14: ${nb14} | J+21: ${nb21} | Expirés: ${nb30}`);
   } catch(e) { console.error('Cron relances:', e.message); }
-});
+}, {timezone: 'Europe/Paris'});
 
 // ══════════════════════════════════════════════════════════════
 // RELANCES FACTURES IMPAYÉES — J+7 (email), J+14 (email), J+21 (SMS)
@@ -4422,7 +4422,7 @@ cron.schedule('30 9 * * *', async () => {
     const total = nb7 + nb14 + nb21;
     if (total > 0) console.log(`✅ Relances factures du jour — J+7: ${nb7} | J+14: ${nb14} | J+21: ${nb21}`);
   } catch(e) { console.error('Cron relances factures:', e.message); }
-});
+}, {timezone: 'Europe/Paris'});
 
 // Récap leads non traités depuis 48h — 8h30
 cron.schedule('30 8 * * *', async () => {
@@ -4479,7 +4479,7 @@ cron.schedule('30 8 * * *', async () => {
 
     console.log(`📨 Récap leads en retard envoyé: ${enRetard.length}`);
   } catch(e) { console.error('Cron relance leads:', e.message); }
-});
+}, {timezone: 'Europe/Paris'});
 
 // Rappel SMS client veille à 18h
 cron.schedule('0 18 * * *', async () => {
@@ -4499,7 +4499,7 @@ cron.schedule('0 18 * * *', async () => {
       }
     }
   } catch(e) { console.error('Cron rappel:', e.message); }
-});
+}, {timezone: 'Europe/Paris'});
 
 // Santé toutes les heures
 cron.schedule('0 * * * *', async () => {
