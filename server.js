@@ -1018,18 +1018,37 @@ app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
       try {
         const { data: docRecap } = await supabase.from('historique').select('prestations,total_ht').eq('num', num).single();
         if (docRecap && Array.isArray(docRecap.prestations) && docRecap.prestations.length) {
-          const lignes = docRecap.prestations.slice(0, 6).map(p => `✓ ${(p.nom || '').replace(/</g,'&lt;')}`).join('<br>');
-          recapHtml = `<div style="background:#F7F8FA;border:1px solid #e3e6ea;border-radius:10px;padding:14px 16px;margin:18px 0;">
-            <p style="font-size:11px;font-weight:700;color:#8896A8;margin:0 0 8px;letter-spacing:0.3px;">CE QUE COUVRE CE DEVIS</p>
-            <p style="font-size:13px;color:#333;margin:0;line-height:1.7;">${lignes}</p>
-            <p style="font-size:15px;font-weight:800;color:#1B2A4A;margin:10px 0 0;border-top:1px dashed #d5d9de;padding-top:8px;">Total : ${Math.round(docRecap.total_ht||0)} € HT</p>
+          const prestas = docRecap.prestations;
+          const avecRaison = prestas.slice(0, 4).map(p => {
+            const nom = (p.nom || '').replace(/</g,'&lt;');
+            const desc = (p.desc || p.description || '').replace(/</g,'&lt;');
+            const premierePhrase = desc.split(/(?<=[.!?])\s+/)[0] || '';
+            const raison = premierePhrase.length > 8 && premierePhrase.length < 200 ? premierePhrase : '';
+            return `<div style="margin-bottom:10px;">
+              <div style="font-size:13px;font-weight:700;color:#1B2A4A;">✓ ${nom}</div>
+              ${raison ? `<div style="font-size:12px;color:#6b7280;line-height:1.5;margin-top:2px;">${raison}</div>` : ''}
+            </div>`;
+          }).join('');
+          const reste = prestas.length > 4
+            ? `<div style="font-size:12px;color:#8896A8;margin-top:4px;">+ ${prestas.length - 4} autre${prestas.length - 4 > 1 ? 's' : ''} prestation${prestas.length - 4 > 1 ? 's' : ''} — détail complet dans le PDF joint</div>`
+            : '';
+          recapHtml = `<div style="background:#F7F8FA;border:1px solid #e3e6ea;border-radius:10px;padding:16px;margin:18px 0;">
+            <p style="font-size:11px;font-weight:700;color:#8896A8;margin:0 0 12px;letter-spacing:0.3px;">CE QUE COUVRE CE DEVIS</p>
+            ${avecRaison}
+            ${reste}
+            <p style="font-size:15px;font-weight:800;color:#1B2A4A;margin:12px 0 0;border-top:1px dashed #d5d9de;padding-top:10px;">Total : ${Math.round(docRecap.total_ht||0)} € HT</p>
           </div>`;
         }
       } catch(e) { console.error('Recap devis email:', e.message); }
     }
 
     const signatureBlock = docTypeLocal === 'devis' ? `
-      <div style="background:#fffbf0;border:1.5px solid #C9A84C;border-radius:12px;padding:20px;text-align:center;margin:20px 0;">
+      <div style="display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin:16px 0 4px;padding:10px;background:#FBFAF7;border-radius:10px;">
+        <span style="font-size:11px;color:#5b6472;font-weight:600;">✓ Décennale ORUS</span>
+        <span style="font-size:11px;color:#5b6472;font-weight:600;">✓ 106 avis 5★</span>
+        <span style="font-size:11px;color:#5b6472;font-weight:600;">✓ Paiement après travaux</span>
+      </div>
+      <div style="background:#fffbf0;border:1.5px solid #C9A84C;border-radius:12px;padding:20px;text-align:center;margin:12px 0 20px;">
         <p style="font-size:13px;color:#555;margin-bottom:16px;">Pour accepter ce devis, signez-le directement en ligne :</p>
         <a href="${lienSig}" style="background:linear-gradient(135deg,#C9A84C,#daa520);color:#fff;text-decoration:none;border-radius:10px;padding:14px 28px;font-size:15px;font-weight:800;display:inline-block;">✍️ Signer le devis en ligne</a>
         <p style="font-size:11px;color:#aaa;margin-top:12px;">Signature électronique valide — Loi n°2000-230</p>
