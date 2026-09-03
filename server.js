@@ -1019,6 +1019,11 @@ app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
     const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
     const lienSig = `${appUrl}/api/track/click/${num}?redirect=/signer/${num}`;
     const docTypeLocal = num.startsWith('OS-') ? 'devis' : 'facture';
+    let nbAvisGoogle = 106;
+    try {
+      const { data: cptAvis } = await supabase.from('compteurs').select('valeur').eq('type', 'avis_google').single();
+      if (cptAvis?.valeur) nbAvisGoogle = cptAvis.valeur;
+    } catch(e) { /* garde la valeur par défaut si indisponible */ }
 
     let recapHtml = '';
     if (docTypeLocal === 'devis') {
@@ -1052,7 +1057,7 @@ app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
     const signatureBlock = docTypeLocal === 'devis' ? `
       <div style="display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin:16px 0 4px;padding:10px;background:#FBFAF7;border-radius:10px;">
         <span style="font-size:11px;color:#5b6472;font-weight:600;">✓ Décennale ORUS</span>
-        <span style="font-size:11px;color:#5b6472;font-weight:600;">✓ 106 avis 5★</span>
+        <span style="font-size:11px;color:#5b6472;font-weight:600;">✓ ${nbAvisGoogle} avis 5★</span>
         <span style="font-size:11px;color:#5b6472;font-weight:600;">✓ Paiement après travaux</span>
       </div>
       <div style="background:#fffbf0;border:1.5px solid #C9A84C;border-radius:12px;padding:20px;text-align:center;margin:12px 0 20px;">
@@ -1089,7 +1094,7 @@ app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
             <span style="font-weight:800;color:#1B2A4A;">G</span>
             <span style="color:#E8B84B;">★★★★★</span>
             <span style="font-weight:800;color:#1B2A4A;">5,0/5</span>
-            <span style="color:#8896A8;">· 106 avis Google</span>
+            <span style="color:#8896A8;">· ${nbAvisGoogle} avis Google</span>
           </div>
           <div style="margin-top:8px;">
             <span style="font-size:10px;padding:3px 8px;border-radius:6px;background:#E1F5EE;color:#085041;font-weight:700;">Garantie décennale ORUS</span>
