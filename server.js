@@ -2503,7 +2503,10 @@ app.get('/api/leads/stats', async (req, res) => {
       else if (s === 'annule' || s === 'annulé') parStatut.annule++;
 
       let src = (l.source || '').toLowerCase();
-      if (!src) src = (l.notes || '').includes('sinelec-paris.fr') ? 'site' : 'manuel';
+      if (!src) {
+        const n = l.notes || '';
+        src = n.includes('sinelec-paris.fr') ? 'site' : n.includes('[WhatsApp]') ? 'whatsapp' : 'manuel';
+      }
       if (parSource[src] !== undefined) parSource[src]++;
       else parSource.autre++;
 
@@ -3690,18 +3693,17 @@ app.post('/api/lead-devis', async (req, res) => {
     }
 
     // 2. Ajouter dans l'agenda
-    await supabase.from('agenda').insert({
+    const { error: erreurAgenda } = await supabase.from('agenda').insert({
       client: nom || 'Lead site',
       telephone: telephone || '',
-      email: email || '',
       adresse: adresse || '',
       type_intervention: description ? description.slice(0, 100) : 'Demande de devis site',
       statut: 'lead',
-      source: 'site',
       date_intervention: dateAujourdhui,
       heure: heureActuelle,
-      notes: `Lead depuis sinelec-paris.fr\n${description || ''}`
+      notes: `Lead depuis sinelec-paris.fr${email ? ` | Email: ${email}` : ''}\n${description || ''}`
     });
+    if (erreurAgenda) console.error('❌ Échec insertion lead agenda:', erreurAgenda.message);
 
     // 3. Email de notification à Diahe
     const html = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;">
@@ -4811,11 +4813,12 @@ app.all('/mcp', mcpAuth, async(req,res)=>{
         else if(name==='creer_rdv'){
           const{client,telephone,email,adresse,date_intervention,heure,type_intervention,notes,statut,source,sms_rappel}=args||{};
           try {
+            const notesCompletes = [notes, email?`Email: ${email}`:null, source?`Source: ${source}`:null].filter(Boolean).join(' | ');
             const{data,error}=await supabase.from('agenda').insert({
-              client, telephone:telephone||'', email:email||'', adresse:adresse||'',
+              client, telephone:telephone||'', adresse:adresse||'',
               date_intervention:date_intervention||null, heure:heure||null,
-              type_intervention:type_intervention||'', notes:notes||'',
-              statut: statut||'lead', source: source||'manuel',
+              type_intervention:type_intervention||'', notes:notesCompletes||'',
+              statut: statut||'lead',
               sms_rappel: sms_rappel!==undefined ? sms_rappel : true
             }).select().single();
             if(error) throw error;

@@ -4725,7 +4725,7 @@ function envoyerLeadStdWhatsApp() {
   fetch('/api/agenda', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('sinelec_token') || '') },
-    body: JSON.stringify({ client, telephone: tel, adresse, type_intervention: type, statut: 'lead', source: 'whatsapp', notes: note })
+    body: JSON.stringify({ client, telephone: tel, adresse, type_intervention: type, statut: 'lead', notes: `[WhatsApp] ${note}` })
   }).catch(() => {});
 }
 
@@ -5816,7 +5816,7 @@ async function enregistrerLead(creerDevis) {
   if (!nom) { showToast('⚠️ Nom obligatoire', '❌'); return; }
   if (date) {
     try {
-      await fetch('/api/agenda', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ client:nom, telephone:tel, adresse, date_intervention:date, heure, type_intervention:leadTypeActif, notes, statut:'lead', source:'manuel' }) });
+      await fetch('/api/agenda', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ client:nom, telephone:tel, adresse, date_intervention:date, heure, type_intervention:leadTypeActif, notes, statut:'lead' }) });
     } catch(e) {}
   }
   showToast(`✅ Lead enregistré — ${nom}`, '📞');
