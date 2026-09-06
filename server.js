@@ -4591,6 +4591,36 @@ cron.schedule('0 * * * *', async () => {
   try { await verifierSante(); } catch(e) {}
 });
 
+// Notification des nouveaux leads du site perso (sinelec-paris.fr) — toutes les heures
+cron.schedule('15 * * * *', async () => {
+  try {
+    const { data: nouveaux } = await supabase.from('leads_site')
+      .select('*').eq('notifie', false).order('created_at', { ascending: true });
+    if (!nouveaux || nouveaux.length === 0) return;
+
+    for (const lead of nouveaux) {
+      const html = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;">
+        <div style="background:#1B2A4A;padding:20px;border-radius:12px 12px 0 0;">
+          <h2 style="color:#E8B84B;margin:0;">🌐 Nouveau lead — sinelec-paris.fr</h2>
+        </div>
+        <div style="padding:20px;border:1px solid #e8e8e8;border-top:none;border-radius:0 0 12px 12px;">
+          <p><strong>Nom :</strong> ${lead.nom || '—'}</p>
+          <p><strong>Téléphone :</strong> ${lead.telephone || '—'}</p>
+          <p><strong>Email :</strong> ${lead.email || '—'}</p>
+          <p><strong>Adresse :</strong> ${lead.adresse || '—'}</p>
+          <p><strong>Type de demande :</strong> ${lead.type_demande || '—'}</p>
+          <p><strong>Message :</strong> ${lead.description || '—'}</p>
+          <p style="color:#999;font-size:11px;">Page d'origine : ${lead.page_origine || '—'}</p>
+        </div>
+      </div>`;
+      try {
+        await envoyerEmail(CONFIG?.email?.sender_email || 'sinelec.paris@gmail.com', `🌐 Nouveau lead site — ${lead.nom || 'inconnu'}`, html);
+        await supabase.from('leads_site').update({ notifie: true }).eq('id', lead.id);
+      } catch(eMail) { console.error('Échec notif lead_site id', lead.id, ':', eMail.message); }
+    }
+  } catch(e) { console.error('Cron leads_site:', e.message); }
+}, {timezone: 'Europe/Paris'});
+
 // ═══════════════════════════════════════════════════
 // START
 // ═══════════════════════════════════════════════════
