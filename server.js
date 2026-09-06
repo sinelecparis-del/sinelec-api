@@ -131,7 +131,7 @@ function blockStandardiste(req, res, next) {
 }
 
 function authMiddleware(req, res, next) {
-  const publicRoutes = ['/', '/health', '/api/login', '/signer/', '/paiement-confirme/', '/paiement-retour/', '/api/signature', '/api/otp-signature', '/api/verifier-otp', '/api/track/click/', '/api/track/open/', '/api/auth/check', '/api/test-pdf', '/api/test'];
+  const publicRoutes = ['/', '/health', '/api/login', '/signer/', '/paiement-confirme/', '/paiement-retour/', '/api/signature', '/api/otp-signature', '/api/verifier-otp', '/api/track/click/', '/api/track/open/', '/api/auth/check', '/api/test-pdf', '/api/test', '/api/webhook/lead-site'];
   if (publicRoutes.some(r => req.path.startsWith(r))) return next();
   const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
   if (!verifierToken(token)) return res.status(401).json({ error: 'Non autorisé', code: 'UNAUTHORIZED' });
@@ -3670,6 +3670,35 @@ app.get('/api/rapport/pdf/:num', (req, res) => {
 // ═══════════════════════════════════════════════════
 // API: LEAD SITE → CLIENT + AGENDA
 // ═══════════════════════════════════════════════════
+app.post('/api/webhook/lead-site', async (req, res) => {
+  try {
+    if (req.headers['x-webhook-secret'] !== (process.env.WEBHOOK_SECRET || 'sinelec2026webhook')) {
+      return res.status(401).json({ error: 'Non autorisé' });
+    }
+    const lead = req.body?.record || req.body;
+    if (!lead || !lead.id) return res.status(400).json({ error: 'Payload invalide' });
+
+    const html = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;">
+      <div style="background:#1B2A4A;padding:20px;border-radius:12px 12px 0 0;">
+        <h2 style="color:#E8B84B;margin:0;">🌐 Nouveau lead — sinelec-paris.fr</h2>
+      </div>
+      <div style="padding:20px;border:1px solid #e8e8e8;border-top:none;border-radius:0 0 12px 12px;">
+        <p><strong>Nom :</strong> ${lead.nom || '—'}</p>
+        <p><strong>Téléphone :</strong> ${lead.telephone || '—'}</p>
+        <p><strong>Email :</strong> ${lead.email || '—'}</p>
+        <p><strong>Adresse :</strong> ${lead.adresse || '—'}</p>
+        <p><strong>Type de demande :</strong> ${lead.type_demande || '—'}</p>
+        <p><strong>Message :</strong> ${lead.description || '—'}</p>
+        <p style="color:#999;font-size:11px;">Page d'origine : ${lead.page_origine || '—'}</p>
+        <p style="color:#16a34a;font-size:11px;font-weight:700;">⚡ Notification instantanée</p>
+      </div>
+    </div>`;
+    await envoyerEmail(CONFIG?.email?.sender_email || 'sinelec.paris@gmail.com', `🌐 Nouveau lead site — ${lead.nom || 'inconnu'}`, html);
+    await supabase.from('leads_site').update({ notifie: true }).eq('id', lead.id);
+    res.json({ success: true });
+  } catch(e) { console.error('Webhook lead-site:', e.message); res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/lead-devis', async (req, res) => {
   try {
     const { nom, telephone, email, adresse, description } = req.body;
