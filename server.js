@@ -4650,6 +4650,38 @@ cron.schedule('15 * * * *', async () => {
   } catch(e) { console.error('Cron leads_site:', e.message); }
 }, {timezone: 'Europe/Paris'});
 
+// Relance automatique des prospects (démarchage B2B) sans réponse après 12 jours — une seule fois
+cron.schedule('0 10 * * *', async () => {
+  try {
+    const { data: aRelancer } = await supabase.from('prospection')
+      .select('*')
+      .eq('repondu', false)
+      .eq('relance_envoyee', false)
+      .lte('date_envoi', new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString());
+
+    if (!aRelancer || aRelancer.length === 0) return;
+
+    for (const p of aRelancer) {
+      const msg = `Bonjour,
+
+Je me permets de revenir vers vous suite à mon message du ${new Date(p.date_envoi).toLocaleDateString('fr-FR')} concernant mes services d'électricien sur Paris.
+
+Je reste disponible si vous avez besoin d'un prestataire réactif — n'hésitez pas à me contacter au 07 87 38 86 22.
+
+Bien cordialement,
+
+Diahe Sinera
+SINELEC — Électricien
+128 rue La Boétie, 75008 Paris`;
+      try {
+        await envoyerEmail(p.email, 'Relance — Électricien SINELEC Paris', `<div style="font-family:Arial,sans-serif;white-space:pre-wrap;">${msg}</div>`);
+        await supabase.from('prospection').update({ relance_envoyee: true }).eq('id', p.id);
+        console.log(`📤 Relance prospection envoyée: ${p.entreprise}`);
+      } catch(eMail) { console.error('Échec relance prospection', p.entreprise, ':', eMail.message); }
+    }
+  } catch(e) { console.error('Cron relance prospection:', e.message); }
+}, {timezone: 'Europe/Paris'});
+
 // ═══════════════════════════════════════════════════
 // START
 // ═══════════════════════════════════════════════════
