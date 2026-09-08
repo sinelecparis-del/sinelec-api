@@ -3698,6 +3698,49 @@ app.post('/api/webhook/lead-site', async (req, res) => {
     const lead = req.body?.record || req.body;
     if (!lead || !lead.id) return res.status(400).json({ error: 'Payload invalide' });
 
+    // Génération d'un brouillon de devis suggéré par IA, à partir de la description du lead
+    let brouillonHTML = '';
+    try {
+      const grille = await chargerGrilleTarifaire();
+      if (grille && anthropic && lead.description) {
+        const grilleTexte = Object.entries(grille).map(([cat, items]) =>
+          `${cat}: ` + items.map(i => `${i.nom} (${i.prix}€)`).join(', ')
+        ).join('\n');
+
+        const promptBrouillon = `Tu es électricien à SINELEC Paris. Voici la description d'un besoin client reçu via le site :
+"${lead.description}"
+
+Voici la grille tarifaire disponible (choisis UNIQUEMENT dans cette liste, ne rien inventer) :
+${grilleTexte}
+
+Propose 1 à 4 lignes de prestations pertinentes avec leur prix, au format JSON strict, sans aucun texte autour :
+[{"nom":"...","prix":123}]
+
+Si la description est trop vague pour proposer quoi que ce soit de fiable, réponds exactement: []`;
+        const respBrouillon = await anthropic.messages.create({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 300,
+          messages: [{ role: 'user', content: promptBrouillon }]
+        });
+        const texteBrouillon = respBrouillon.content[0].text.trim();
+        let prestationsSuggerees = [];
+        try { prestationsSuggerees = JSON.parse(texteBrouillon); } catch(eParse) { prestationsSuggerees = []; }
+
+        if (Array.isArray(prestationsSuggerees) && prestationsSuggerees.length > 0) {
+          const total = prestationsSuggerees.reduce((s, p) => s + (Number(p.prix) || 0), 0);
+          const lignesHTML = prestationsSuggerees.map(p => `<li>${p.nom} — ${p.prix}€</li>`).join('');
+          brouillonHTML = `
+      <div style="margin-top:16px;padding:16px;background:#fef9e7;border:1px solid #f0d878;border-radius:8px;">
+        <p style="margin:0 0 8px;font-weight:700;color:#8a6d00;">🤖 Brouillon de devis suggéré (à valider, rien n'est envoyé)</p>
+        <ul style="margin:0 0 8px;padding-left:20px;">${lignesHTML}</ul>
+        <p style="margin:0;font-weight:700;">Total estimé : ${total}€ HT</p>
+        <p style="margin:8px 0 0;font-size:12px;color:#8a6d00;">Dis-moi si tu veux que je crée ce devis, ou demande-moi un ajustement.</p>
+      </div>`;
+          await supabase.from('leads_site').update({ brouillon_devis: prestationsSuggerees }).eq('id', lead.id);
+        }
+      }
+    } catch(eBrouillon) { console.error('Brouillon IA lead-site:', eBrouillon.message); }
+
     const html = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;">
       <div style="background:#1B2A4A;padding:20px;border-radius:12px 12px 0 0;">
         <h2 style="color:#E8B84B;margin:0;">🌐 Nouveau lead — sinelec-paris.fr</h2>
@@ -3711,6 +3754,7 @@ app.post('/api/webhook/lead-site', async (req, res) => {
         <p><strong>Message :</strong> ${lead.description || '—'}</p>
         <p style="color:#999;font-size:11px;">Page d'origine : ${lead.page_origine || '—'}</p>
         <p style="color:#16a34a;font-size:11px;font-weight:700;">⚡ Notification instantanée</p>
+        ${brouillonHTML}
       </div>
     </div>`;
     await envoyerEmail(CONFIG?.email?.sender_email || 'sinelec.paris@gmail.com', `🌐 Nouveau lead site — ${lead.nom || 'inconnu'}`, html);
