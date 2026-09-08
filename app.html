@@ -2475,6 +2475,17 @@ table.histo-table tr:hover td { background:#fafbff; }
 </div>
 </div>
 
+<div id="page-leadssite" class="page">
+<div class="content" style="max-width:800px;">
+  <div class="section">
+    <div class="section-title">🤖 Leads Site — brouillons IA</div>
+    <div id="leadssite-liste">
+      <div style="text-align:center;padding:20px;color:var(--text-3);font-size:13px;">Chargement...</div>
+    </div>
+  </div>
+</div>
+</div>
+
 <div id="page-prospection" class="page">
 <div class="content" style="max-width:800px;">
   <div class="section">
@@ -3452,6 +3463,7 @@ function switchPage(page, el) {
   if (page === 'agenda') setTimeout(chargerAgenda, 100);
   if (page === 'rentabilite') setTimeout(chargerRentabilite, 100);
   if (page === 'prospection') setTimeout(chargerProspection, 100);
+  if (page === 'leadssite') setTimeout(chargerLeadsSite, 100);
   if (page === 'dpe') setTimeout(initDPE, 100);
   if (page === 'avis') setTimeout(chargerCampagneAvis, 100);
   // Page header animé
@@ -3466,7 +3478,7 @@ function switchPageMenu() {
   menuPlusOpen = true;
   const menu = document.createElement('div');
   menu.style.cssText = 'position:fixed;bottom:70px;right:10px;background:var(--glass);backdrop-filter:blur(24px);border:1px solid var(--border);border-radius:16px;padding:12px;z-index:999;box-shadow:0 8px 32px rgba(26,20,16,0.15);';
-  const pages = [['agenda','📅','Agenda'],['rentabilite','💰','Rentabilité'],['prospection','🎯','Prospection B2B'],['avis','⭐','Avis Google'],['rapport','📸','Rapport'],['clients','👥','Clients'],['depannage','⚡','Dépannage'],['params','⚙️','Paramètres']];
+  const pages = [['agenda','📅','Agenda'],['rentabilite','💰','Rentabilité'],['prospection','🎯','Prospection B2B'],['leadssite','🤖','Leads Site'],['avis','⭐','Avis Google'],['rapport','📸','Rapport'],['clients','👥','Clients'],['depannage','⚡','Dépannage'],['params','⚙️','Paramètres']];
   menu.innerHTML = pages.map(([p,i,l]) =>
     `<div onclick="switchPage('${p}',this);this.closest('[style*=fixed]').remove();menuPlusOpen=false;" style="padding:12px 20px;border-radius:10px;background:rgba(255,255,255,0.5);cursor:pointer;font-size:14px;font-weight:600;display:flex;align-items:center;gap:10px;margin-bottom:4px;">
       <span>${i}</span> ${l}
@@ -6532,6 +6544,77 @@ function moisRentaSuivant() {
   const d = new Date(y, m, 1);
   rentaMoisCourant = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
   chargerRentabilite();
+}
+
+async function chargerLeadsSite() {
+  const liste = document.getElementById('leadssite-liste');
+  if (!liste) return;
+  try {
+    const res = await fetch('/api/leads-site');
+    const data = await res.json();
+
+    if (!data.length) { liste.innerHTML = '<div class="panier-empty">Aucun lead en attente</div>'; return; }
+
+    liste.innerHTML = data.map(lead => {
+      const brouillon = lead.brouillon_devis || [];
+      const lignesHTML = brouillon.map((p, i) => `
+        <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center;" data-ligne="${i}">
+          <input type="text" value="${(p.nom||'').replace(/"/g,'&quot;')}" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px;" class="ls-nom">
+          <input type="number" value="${p.prix||0}" style="width:80px;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px;" class="ls-prix">€
+          <button onclick="this.parentElement.remove(); majTotalLead('${lead.id}')" style="background:none;border:none;color:var(--error);font-size:18px;cursor:pointer;">✕</button>
+        </div>`).join('');
+
+      return `
+      <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px;" id="lead-${lead.id}">
+        <div style="font-size:14px;font-weight:700;margin-bottom:4px;">${lead.nom || 'Inconnu'}</div>
+        <div style="font-size:11.5px;color:var(--text-3);margin-bottom:8px;">${lead.telephone||''} · ${lead.email||''} · ${lead.adresse||''}</div>
+        <div style="font-size:12.5px;color:var(--text-2);background:#f8f8f8;padding:8px;border-radius:8px;margin-bottom:10px;">${lead.description||''}</div>
+        <div class="ls-lignes">${lignesHTML}</div>
+        <button onclick="ajouterLignePrestation('${lead.id}')" style="background:none;border:1px dashed var(--border);border-radius:8px;padding:6px 10px;font-size:12px;color:var(--text-2);cursor:pointer;margin-bottom:10px;">+ Ajouter une ligne</button>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
+          <button onclick="creerDevisDepuisLead('${lead.id}')" style="flex:1;padding:12px;background:var(--accent);border:none;border-radius:10px;color:#1a1a1a;font-weight:800;font-size:13px;cursor:pointer;">✅ Créer et envoyer le devis</button>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) { liste.innerHTML = '<div class="panier-empty" style="color:var(--error);">❌ Erreur chargement</div>'; }
+}
+
+function ajouterLignePrestation(leadId) {
+  const container = document.querySelector(`#lead-${leadId} .ls-lignes`);
+  const div = document.createElement('div');
+  div.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:center;';
+  div.innerHTML = `
+    <input type="text" placeholder="Nom prestation" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px;" class="ls-nom">
+    <input type="number" placeholder="0" style="width:80px;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px;" class="ls-prix">€
+    <button onclick="this.parentElement.remove()" style="background:none;border:none;color:var(--error);font-size:18px;cursor:pointer;">✕</button>`;
+  container.appendChild(div);
+}
+
+async function creerDevisDepuisLead(leadId) {
+  const container = document.querySelector(`#lead-${leadId} .ls-lignes`);
+  const lignes = [...container.children].map(div => ({
+    nom: div.querySelector('.ls-nom').value.trim(),
+    prix: parseFloat(div.querySelector('.ls-prix').value) || 0
+  })).filter(l => l.nom);
+
+  if (!lignes.length) { showToast('❌ Ajoute au moins une prestation', '⚠️'); return; }
+
+  const total = lignes.reduce((s,l)=>s+l.prix,0);
+  if (!confirm(`Créer et envoyer ce devis pour ${total}€ HT ?`)) return;
+
+  try {
+    const res = await fetch(`/api/leads-site/${leadId}/creer-devis`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ prestations: lignes })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(`✅ Devis ${data.num} envoyé`, '🎉');
+      chargerLeadsSite();
+    } else {
+      showToast('❌ ' + (data.error || 'Erreur'), '⚠️');
+    }
+  } catch(e) { showToast('❌ Erreur réseau', '⚠️'); }
 }
 
 async function chargerProspection() {

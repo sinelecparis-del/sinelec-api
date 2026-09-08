@@ -2527,6 +2527,55 @@ app.get('/api/leads/stats', async (req, res) => {
 // ═══════════════════════════════════════════════════
 // API: PROSPECTION B2B
 // ═══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
+// API: LEADS SITE (avec brouillon de devis IA)
+// ═══════════════════════════════════════════════════
+app.get('/api/leads-site', async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('leads_site').select('*').eq('traite', false).order('created_at', { ascending: false });
+    if (error) throw error;
+    res.json(data || []);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/leads-site/:id/creer-devis', authMiddleware, async (req, res) => {
+  try {
+    const { prestations, objet } = req.body;
+    const { data: lead, error: errLead } = await supabase.from('leads_site').select('*').eq('id', req.params.id).single();
+    if (errLead || !lead) return res.status(404).json({ error: 'Lead introuvable' });
+    if (!prestations || !prestations.length) return res.status(400).json({ error: 'Aucune prestation fournie' });
+
+    const token = genererToken('admin');
+    const prestationsFormatted = prestations.map(p => ({
+      nom: p.nom, prix: parseFloat(p.prix) || 0, quantite: parseInt(p.quantite) || 1,
+      desc: p.desc || `Fourniture et pose : ${p.nom}. Main d'œuvre, matériaux et raccordement inclus. Conforme NF C 15-100.`
+    }));
+    const totalNet = prestationsFormatted.reduce((s, p) => s + (p.prix * p.quantite), 0);
+
+    const genRes = await fetch(`${APP_URL_MCP}/api/generer`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({
+        type: 'devis', client: lead.nom, email: lead.email, telephone: lead.telephone, adresse: lead.adresse,
+        objet: objet || 'Travaux électriques', prestations: prestationsFormatted, total_ht: totalNet, remise: 0
+      })
+    });
+    const genData = await genRes.json();
+    if (!genData.success) return res.status(500).json({ error: genData.error || 'Erreur génération devis' });
+
+    const prenomClient = (lead.nom || '').split(' ').slice(-1)[0] || lead.nom;
+    const msgCommercial = `Bonjour ${prenomClient},\n\nSuite à votre demande, voici mon devis pour votre intervention.\n\nCe devis est valable 30 jours. Pour l'accepter, vous pouvez le signer directement en ligne via le bouton ci-dessous.\n\nUne question, un ajustement à faire ? Je suis dispo par tél ou par mail.\n📞 07 87 38 86 22`;
+
+    const envRes = await fetch(`${APP_URL_MCP}/api/envoyer/${genData.num}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ email: lead.email, pdfB64: genData.pdf_b64, message: msgCommercial })
+    });
+    const envData = await envRes.json();
+
+    await supabase.from('leads_site').update({ traite: true }).eq('id', lead.id);
+    res.json({ success: true, num: genData.num, email_envoye: envData.success });
+  } catch(e) { console.error('creer-devis-from-lead:', e.message); res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/prospection', async (req, res) => {
   try {
     const { data, error } = await supabase.from('prospection').select('*').order('date_envoi', { ascending: false });
