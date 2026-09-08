@@ -2525,6 +2525,26 @@ app.get('/api/leads/stats', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════
+// API: PROSPECTION B2B
+// ═══════════════════════════════════════════════════
+app.get('/api/prospection', async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('prospection').select('*').order('date_envoi', { ascending: false });
+    if (error) throw error;
+    res.json(data || []);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.patch('/api/prospection/:id', async (req, res) => {
+  try {
+    const { repondu } = req.body;
+    const { error } = await supabase.from('prospection').update({ repondu }).eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════
 // API: CLIENTS
 // ═══════════════════════════════════════════════════
 

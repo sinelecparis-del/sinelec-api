@@ -1589,6 +1589,9 @@ table.histo-table tr:hover td { background:#fafbff; }
     <div class="sidebar-item" onclick="switchPage('rentabilite', this)">
       <span class="sidebar-item-icon">💰</span><span>Rentabilité</span>
     </div>
+    <div class="sidebar-item" onclick="switchPage('prospection', this)">
+      <span class="sidebar-item-icon">🎯</span><span>Prospection B2B</span>
+    </div>
 
     <div class="sidebar-section">Outils IA</div>
     <div class="sidebar-item" onclick="switchPage('rapport', this)">
@@ -2472,7 +2475,24 @@ table.histo-table tr:hover td { background:#fafbff; }
 </div>
 </div>
 
+<div id="page-prospection" class="page">
+<div class="content" style="max-width:800px;">
+  <div class="section">
+    <div class="section-title">🎯 Prospection B2B</div>
+    <div id="prospection-stats" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;">
+      <div class="stat-card"><div class="stat-value" id="prosp-total">–</div><div class="stat-label">Contactés</div></div>
+      <div class="stat-card" style="background:linear-gradient(135deg,rgba(16,185,129,0.1),rgba(16,185,129,0.05));border-color:rgba(16,185,129,0.2);"><div class="stat-value" id="prosp-repondu" style="color:#10b981;">–</div><div class="stat-label">Ont répondu</div></div>
+      <div class="stat-card"><div class="stat-value" id="prosp-attente" style="color:var(--accent);">–</div><div class="stat-label">En attente</div></div>
+    </div>
+    <div id="prospection-liste">
+      <div style="text-align:center;padding:20px;color:var(--text-3);font-size:13px;">Chargement...</div>
+    </div>
+  </div>
+</div>
+</div>
+
 <div id="page-avis" class="page">
+
 <div class="content" style="max-width:700px;">
 
   <!-- ═══════════════════════════════════════════════════ -->
@@ -3431,6 +3451,7 @@ function switchPage(page, el) {
   if (page === 'sante') setTimeout(() => { chargerSante(); chargerStatutIA(); }, 100);
   if (page === 'agenda') setTimeout(chargerAgenda, 100);
   if (page === 'rentabilite') setTimeout(chargerRentabilite, 100);
+  if (page === 'prospection') setTimeout(chargerProspection, 100);
   if (page === 'dpe') setTimeout(initDPE, 100);
   if (page === 'avis') setTimeout(chargerCampagneAvis, 100);
   // Page header animé
@@ -6511,6 +6532,52 @@ function moisRentaSuivant() {
   const d = new Date(y, m, 1);
   rentaMoisCourant = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
   chargerRentabilite();
+}
+
+async function chargerProspection() {
+  const liste = document.getElementById('prospection-liste');
+  if (!liste) return;
+  try {
+    const res = await fetch('/api/prospection');
+    const data = await res.json();
+    const total = data.length;
+    const repondu = data.filter(p => p.repondu).length;
+    document.getElementById('prosp-total').textContent = total;
+    document.getElementById('prosp-repondu').textContent = repondu;
+    document.getElementById('prosp-attente').textContent = total - repondu;
+
+    if (total === 0) { liste.innerHTML = '<div class="panier-empty">Aucun prospect enregistré</div>'; return; }
+
+    const emojiCategorie = { syndic:'🏢', conciergerie:'🏠', agence_immo:'🔑', hotel:'🏨', architecte:'🎨', plombier:'🔧' };
+
+    liste.innerHTML = data.map(p => {
+      const date = new Date(p.date_envoi).toLocaleDateString('fr-FR');
+      const badge = p.repondu
+        ? `<span style="background:#d1fae5;color:#065f46;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;">✅ Répondu</span>`
+        : p.relance_envoyee
+          ? `<span style="background:#fef3c7;color:#92400e;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;">🔁 Relancé</span>`
+          : `<span style="background:#f3f4f6;color:#6b7280;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;">⏳ En attente</span>`;
+      return `
+      <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:10px;">
+        <div style="min-width:0;">
+          <div style="font-size:14px;font-weight:700;color:var(--text-primary);">${emojiCategorie[p.categorie]||'📌'} ${p.entreprise}</div>
+          <div style="font-size:11.5px;color:var(--text-3);margin-top:2px;">${p.email} · envoyé le ${date}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+          ${badge}
+          ${!p.repondu ? `<button onclick="marquerProspectRepondu('${p.id}')" style="padding:6px 10px;border:1px solid rgba(16,185,129,0.3);border-radius:8px;background:rgba(16,185,129,0.06);color:#10b981;font-size:11px;font-weight:800;cursor:pointer;">A répondu</button>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) { liste.innerHTML = '<div class="panier-empty" style="color:var(--error);">❌ Erreur chargement</div>'; }
+}
+
+async function marquerProspectRepondu(id) {
+  try {
+    await fetch(`/api/prospection/${id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ repondu: true }) });
+    showToast('✅ Marqué comme répondu', '🎉');
+    chargerProspection();
+  } catch(e) { showToast('❌ Erreur', '⚠️'); }
 }
 
 async function chargerRentabilite() {
