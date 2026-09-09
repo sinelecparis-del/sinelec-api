@@ -4965,7 +4965,8 @@ app.all('/mcp', mcpAuth, async(req,res)=>{
               quantite:{type:'number',default:1},
               description:{type:'string',description:'Description technique détaillée incluse dans le PDF — main d oeuvre, fourniture, marques, normes'}
             }}},
-            remise:{type:'number',description:'Remise en % max 7%',default:0}
+            remise:{type:'number',description:'Remise en % max 7%',default:0},
+            apporteur:{type:'string',description:'Apporteur d affaires interne — jamais visible du client, sert uniquement au suivi de CA/commission de Diahe',enum:['Aucun','Paris Express','M. Leblanc','Pierrot'],default:'Aucun'}
           }}},
           {name:'creer_facture',description:'Cree une facture SINELEC complete, genere le PDF et l envoie au client par email avec lien de paiement.',inputSchema:{type:'object',required:['client','email','telephone','adresse','prestations'],properties:{
             client:{type:'string',description:'Nom complet ex: M. Dupont Jean'},
@@ -4979,7 +4980,8 @@ app.all('/mcp', mcpAuth, async(req,res)=>{
               quantite:{type:'number',default:1},
               description:{type:'string',description:'Description technique détaillée incluse dans le PDF'}
             }}},
-            remise:{type:'number',description:'Remise en % max 7%',default:0}
+            remise:{type:'number',description:'Remise en % max 7%',default:0},
+            apporteur:{type:'string',description:'Apporteur d affaires interne — jamais visible du client, sert uniquement au suivi de CA/commission de Diahe',enum:['Aucun','Paris Express','M. Leblanc','Pierrot'],default:'Aucun'}
           }}},
           {name:'marquer_paye',description:'Marque une facture comme payee et envoie la confirmation au client.',inputSchema:{type:'object',required:['num'],properties:{
             num:{type:'string',description:'Numero de la facture ex: 202608-001'},
@@ -5051,8 +5053,11 @@ app.all('/mcp', mcpAuth, async(req,res)=>{
           } catch(e){ result={success:false,error:e.message}; }
         }
         else if(name==='creer_devis'){
-          const{client,email,telephone,adresse,prestations,objet,remise,message:messageValide}=args||{};
+          const{client,email,telephone,adresse,prestations,objet,remise,apporteur,message:messageValide}=args||{};
           const token=genererToken('admin');
+          const SPLITS_APPORTEUR = {'Paris Express':{diahe:80,partenaire:20},'M. Leblanc':{diahe:50,partenaire:50},'Pierrot':{diahe:50,partenaire:50}};
+          const isPartenaire = !!(apporteur && apporteur!=='Aucun');
+          const splitApporteur = SPLITS_APPORTEUR[apporteur] || {diahe:100,partenaire:0};
           // Format attendu par /api/generer : {nom, prix, quantite, desc}
           // Auto-génération des descriptions détaillées via IA — se déclenche sauf si un vrai paragraphe complet est déjà fourni
           const prestationsFormatted = await Promise.all((prestations||[]).map(async p => {
@@ -5095,7 +5100,9 @@ IMPORTANT : Réponds UNIQUEMENT avec la description, sans introduction ni guille
               objet: objet||'Travaux électriques',
               prestations: prestationsFormatted,
               total_ht: totalNet,
-              remise: parseFloat(remise)||0
+              remise: parseFloat(remise)||0,
+              partenaire: isPartenaire, nom_partenaire: isPartenaire ? apporteur : null,
+              part_diahe: splitApporteur.diahe, part_partenaire: splitApporteur.partenaire
             })
           });
           const genData=await genRes.json();
@@ -5163,8 +5170,11 @@ Une question, un ajustement à faire ? Je suis dispo par tél ou par mail.
           }
         }
         else if(name==='creer_facture'){
-          const{client,email,telephone,adresse,prestations,objet,remise}=args||{};
+          const{client,email,telephone,adresse,prestations,objet,remise,apporteur}=args||{};
           const token=genererToken('admin');
+          const SPLITS_APPORTEUR_F = {'Paris Express':{diahe:80,partenaire:20},'M. Leblanc':{diahe:50,partenaire:50},'Pierrot':{diahe:50,partenaire:50}};
+          const isPartenaireF = !!(apporteur && apporteur!=='Aucun');
+          const splitApporteurF = SPLITS_APPORTEUR_F[apporteur] || {diahe:100,partenaire:0};
           const prestationsFormatted = await Promise.all((prestations||[]).map(async p => {
             let desc = p.description || p.desc || '';
             if (!desc || desc.length < 150) {
@@ -5197,7 +5207,9 @@ IMPORTANT : Réponds UNIQUEMENT avec la description, sans introduction ni guille
               objet: objet||'Travaux électriques',
               prestations: prestationsFormatted,
               total_ht: totalNet,
-              remise: parseFloat(remise)||0
+              remise: parseFloat(remise)||0,
+              partenaire: isPartenaireF, nom_partenaire: isPartenaireF ? apporteur : null,
+              part_diahe: splitApporteurF.diahe, part_partenaire: splitApporteurF.partenaire
             })
           });
           const genData=await genRes.json();
