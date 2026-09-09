@@ -2303,29 +2303,16 @@ table.histo-table tr:hover td { background:#fafbff; }
     </div>
   </div>
 
-  <!-- Toggle partenaire Alopronto — masqué (inactif depuis 6+ mois, sept 2026) -->
-  <div id="d-partenaire-box" style="display:none;background:rgba(255,255,255,0.6);border:1.5px solid var(--border);border-radius:16px;padding:16px;margin-bottom:16px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="togglePartenaire('d')">
-      <div>
-        <div style="font-size:14px;font-weight:700;color:var(--text);">👥 Intervention Alopronto</div>
-        <div style="font-size:12px;color:var(--text-3);margin-top:2px;">Partage 60% Diahe / 40% Alopronto</div>
-      </div>
-      <div id="d-partenaire-toggle" style="width:44px;height:24px;border-radius:12px;background:var(--border);position:relative;transition:all 0.3s;flex-shrink:0;">
-        <div style="width:20px;height:20px;border-radius:50%;background:#fff;position:absolute;top:2px;left:2px;transition:all 0.3s;box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div>
-      </div>
-    </div>
-    <div id="d-partenaire-detail" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-        <div>
-          <div style="font-size:11px;color:var(--text-3);font-weight:600;margin-bottom:4px;">PART DIAHE (%)</div>
-          <input type="number" id="d-part-diahe" value="60" min="0" max="100" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:10px;font-size:15px;font-weight:700;color:var(--accent);text-align:center;background:rgba(255,255,255,0.8);outline:none;" oninput="document.getElementById('d-part-alopronto').value=100-parseInt(this.value||0)">
-        </div>
-        <div>
-          <div style="font-size:11px;color:var(--text-3);font-weight:600;margin-bottom:4px;">PART ALOPRONTO (%)</div>
-          <input type="number" id="d-part-alopronto" value="40" min="0" max="100" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:10px;font-size:15px;font-weight:700;color:#3b82f6;text-align:center;background:rgba(255,255,255,0.8);outline:none;" oninput="document.getElementById('d-part-diahe').value=100-parseInt(this.value||0)">
-        </div>
-      </div>
-    </div>
+  <!-- Apporteur d'affaires — usage interne, jamais visible du client -->
+  <div id="d-partenaire-box" style="background:rgba(255,255,255,0.6);border:1.5px solid var(--border);border-radius:16px;padding:16px;margin-bottom:16px;">
+    <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:2px;">👥 Apporteur d'affaires</div>
+    <div style="font-size:11px;color:var(--text-3);margin-bottom:10px;">Usage interne uniquement — jamais visible du client</div>
+    <select id="d-apporteur-select" onchange="setApporteur('d')" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;font-weight:600;color:var(--text);background:rgba(255,255,255,0.9);outline:none;">
+      <option value="Aucun">Aucun</option>
+      <option value="Paris Express">Paris Express (80/20)</option>
+      <option value="M. Leblanc">M. Leblanc (50/50)</option>
+      <option value="Pierrot">Pierrot (50/50)</option>
+    </select>
   </div>
 
   <!-- TOGGLE IMMÉDIAT / PLANIFIÉ -->
@@ -6497,22 +6484,12 @@ function copierReponseAvis() {
 }
 
 // ═══════════════════════════════════════════════════
-let partenaireActifD = false;
+const SPLITS_APPORTEUR_UI = {'Paris Express':{diahe:80,partenaire:20},'M. Leblanc':{diahe:50,partenaire:50},'Pierrot':{diahe:50,partenaire:50}};
+let apporteurActifD = 'Aucun';
 
-function togglePartenaire(prefix) {
-  partenaireActifD = !partenaireActifD;
-  const toggle = document.getElementById(`${prefix}-partenaire-toggle`);
-  const detail = document.getElementById(`${prefix}-partenaire-detail`);
-  const dot = toggle?.querySelector('div');
-  if (partenaireActifD) {
-    if (toggle) toggle.style.background = '#3b82f6';
-    if (dot) dot.style.left = 'calc(100% - 22px)';
-    if (detail) detail.style.display = 'block';
-  } else {
-    if (toggle) toggle.style.background = 'var(--border)';
-    if (dot) dot.style.left = '2px';
-    if (detail) detail.style.display = 'none';
-  }
+function setApporteur(prefix) {
+  const sel = document.getElementById(`${prefix}-apporteur-select`);
+  apporteurActifD = sel?.value || 'Aucun';
 }
 
 // ═══════════════════════════════════════════════════
@@ -10569,10 +10546,10 @@ async function generer(type) {
         siret_client: getSiret(prefix),
         description: document.getElementById(`${prefix}-description`)?.value.trim() || '',
         prestations: prestationsAEnvoyer,
-        partenaire: prefix === 'd' ? partenaireActifD : false,
-        part_diahe: prefix === 'd' ? parseInt(document.getElementById('d-part-diahe')?.value || 60) : 100,
-        part_partenaire: prefix === 'd' ? parseInt(document.getElementById('d-part-alopronto')?.value || 40) : 0,
-        nom_partenaire: 'Alopronto',
+        partenaire: prefix === 'd' ? (apporteurActifD !== 'Aucun') : false,
+        part_diahe: prefix === 'd' && apporteurActifD !== 'Aucun' ? SPLITS_APPORTEUR_UI[apporteurActifD].diahe : 100,
+        part_partenaire: prefix === 'd' && apporteurActifD !== 'Aucun' ? SPLITS_APPORTEUR_UI[apporteurActifD].partenaire : 0,
+        nom_partenaire: prefix === 'd' && apporteurActifD !== 'Aucun' ? apporteurActifD : null,
         intervention_type: type === 'devis' ? typeIntervention : 'immediat'
       })
     });
