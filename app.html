@@ -2303,8 +2303,8 @@ table.histo-table tr:hover td { background:#fafbff; }
     </div>
   </div>
 
-  <!-- Toggle partenaire Alopronto -->
-  <div id="d-partenaire-box" style="background:rgba(255,255,255,0.6);border:1.5px solid var(--border);border-radius:16px;padding:16px;margin-bottom:16px;">
+  <!-- Toggle partenaire Alopronto — masqué (inactif depuis 6+ mois, sept 2026) -->
+  <div id="d-partenaire-box" style="display:none;background:rgba(255,255,255,0.6);border:1.5px solid var(--border);border-radius:16px;padding:16px;margin-bottom:16px;">
     <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="togglePartenaire('d')">
       <div>
         <div style="font-size:14px;font-weight:700;color:var(--text);">👥 Intervention Alopronto</div>
@@ -3700,7 +3700,7 @@ function afficherHistorique() {
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px;">
             <span style="font-size:14px;font-weight:800;color:var(--accent);">${item.num}</span>
             <span style="background:${typeBg};color:${typeColor};border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;">${typeLabel}</span>
-            ${item.partenaire ? `<span style="background:rgba(59,130,246,0.1);color:#3b82f6;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;">👥 Alopronto ${item.part_partenaire||40}%</span>` : ''}
+            ${item.partenaire ? `<span style="background:rgba(59,130,246,0.1);color:#3b82f6;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;">👥 ${item.nom_partenaire||'Partenaire'} ${item.part_partenaire||0}%</span>` : ''}
             ${isObat ? `<span style="background:rgba(156,163,175,0.15);color:var(--text-3);border-radius:6px;padding:2px 6px;font-size:10px;">Obat</span>` : ''}
           </div>
           <div style="font-size:15px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${item.client || '—'}</div>
@@ -6737,7 +6737,7 @@ function afficherRentabilite(data) {
     setTimeout(() => animerCompteur('renta-benefice', b), 160);
   }
   if (tauxEl) tauxEl.textContent = `Taux de marge : ${data.taux_marge || 0}%`;
-  if (caSubEl) caSubEl.textContent = 'Part Diahe (60/40 Alopronto)';
+  if (caSubEl) caSubEl.textContent = 'Chiffre d\'affaires total';
 
   // Alerte URSSAF
   const alerteEl = document.getElementById('renta-urssaf-alerte');
