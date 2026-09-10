@@ -3821,8 +3821,14 @@ app.post('/api/lead-devis', async (req, res) => {
     const heureActuelle = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 
     // 1. Créer ou mettre à jour le client
-    const { data: clientExist } = await supabase.from('clients')
-      .select('id').eq('telephone', telephone).single().catch(() => ({ data: null }));
+    let clientExist = null;
+    try {
+      const { data } = await supabase.from('clients')
+        .select('id').eq('telephone', telephone).single();
+      clientExist = data;
+    } catch (e) {
+      clientExist = null;
+    }
 
     if (!clientExist) {
       await supabase.from('clients').insert({
