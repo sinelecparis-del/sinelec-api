@@ -2202,7 +2202,7 @@ table.histo-table tr:hover td { background:#fafbff; }
         <div id="d-adresse-suggestions" style="position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #E8E8EC;border-radius:12px;margin-top:4px;max-height:220px;overflow-y:auto;display:none;z-index:999;box-shadow:0 8px 24px rgba(0,0,0,0.08);"></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 2fr;gap:8px;margin-top:8px;">
-        <input type="text" id="d-cp" placeholder="75008" maxlength="5" style="width:100%;padding:11px 13px;border:1.5px solid var(--border);border-radius:12px;font-size:14px;color:var(--text);background:rgba(255,255,255,0.65);outline:none;font-family:inherit;transition:border-color 0.3s;">
+        <input type="text" id="d-cp" placeholder="75008" maxlength="5" onchange="appliquerDeplacementAuto()" style="width:100%;padding:11px 13px;border:1.5px solid var(--border);border-radius:12px;font-size:14px;color:var(--text);background:rgba(255,255,255,0.65);outline:none;font-family:inherit;transition:border-color 0.3s;">
         <input type="text" id="d-ville" placeholder="Paris" style="width:100%;padding:11px 13px;border:1.5px solid var(--border);border-radius:12px;font-size:14px;color:var(--text);background:rgba(255,255,255,0.65);outline:none;font-family:inherit;transition:border-color 0.3s;">
       </div>
     </div>
@@ -3511,6 +3511,9 @@ async function autocompleteAdresse(id, value) {
         const villeEl = document.getElementById(`${prefix}-ville`);
         if (cpEl    && p.postcode) cpEl.value    = p.postcode;
         if (villeEl && p.city)     villeEl.value = p.city;
+
+        // Déclenche la détection auto de zone de déplacement (formulaire devis uniquement)
+        if (id === 'd-adresse') appliquerDeplacementAuto();
 
         // Fermer les suggestions
         suggestionsDiv.style.display = 'none';
@@ -9980,6 +9983,48 @@ function supprimerUrgencePanier() {
   const idx = panierD.findIndex(p => p._urgence);
   if (idx >= 0) { panierD.splice(idx, 1); renderPanier('d'); }
 }
+
+// ═══════════════════════════════════════════════════
+// DÉPLACEMENT AUTO — sélection de zone via code postal
+// ═══════════════════════════════════════════════════
+function supprimerDeplacementPanier() {
+  const idx = panierD.findIndex(p => p._deplacement);
+  if (idx >= 0) { panierD.splice(idx, 1); renderPanier('d'); }
+}
+
+async function appliquerDeplacementAuto() {
+  const adresseEl = document.getElementById('d-adresse');
+  const cpEl = document.getElementById('d-cp');
+  const villeEl = document.getElementById('d-ville');
+  const adresseComplete = `${adresseEl?.value || ''} ${cpEl?.value || ''} ${villeEl?.value || ''}`.trim();
+  if (!cpEl?.value || cpEl.value.length < 5) return;
+
+  try {
+    const res = await _originalFetch('/api/deplacement/zone', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('sinelec_token') || '') },
+      body: JSON.stringify({ adresse: adresseComplete })
+    });
+    if (!res.ok) return;
+    const zone = await res.json();
+
+    supprimerDeplacementPanier();
+    const itemDeplacement = {
+      designation: `Déplacement — ${villeEl?.value || zone.cp || ''}`,
+      prixUnit: zone.prix,
+      qte: 1,
+      categorie: 'Déplacement',
+      desc: zone.label + (zone.note ? ` (${zone.note})` : ''),
+      _deplacement: true
+    };
+    panierD.unshift(itemDeplacement);
+    renderPanier('d');
+    if (zone.code === 'deplacement_zone3') {
+      showToast('Grand déplacement détecté — vérifier le minimum de devis 350€ HT', '⚠️');
+    }
+  } catch (e) { /* silencieux : pas de blocage si l'appel échoue */ }
+}
+
 
 function toggleModeNuitManuel() {
   const banner = document.getElementById('mode-nuit-banner');
