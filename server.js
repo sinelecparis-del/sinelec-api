@@ -140,6 +140,48 @@ function authMiddleware(req, res, next) {
 
 app.use(authMiddleware);
 
+// ═══════════════════════════════════════════════════
+// DÉPLACEMENT — détection automatique de zone via code postal
+// ═══════════════════════════════════════════════════
+const ZONES_DEPLACEMENT = {
+  zone1: { code: 'deplacement_zone1', prix: 65, label: 'Zone 1 — Paris/92 nord/95 proche' },
+  zone2: { code: 'deplacement_zone2', prix: 85, label: 'Zone 2 — 94/91 proche/78 proche/reste 92-95' },
+  zone3: { code: 'deplacement_zone3', prix: 90, label: 'Zone 3 — Grand déplacement (+50km) — minimum devis 350€ HT hors déplacement' }
+};
+
+// Villes/CP précis connus en zone 1 malgré leur département (92/95 proches d'Argenteuil)
+const CP_ZONE1_EXCEPTIONS = new Set([
+  '92600','92700','92230','92110','92200','92300', // Asnières, Colombes, Gennevilliers, Clichy, Levallois, Neuilly
+  '95100','95200','95210','95600','95870' // Argenteuil, Sartrouville, St-Gratien, Eaubonne, Bezons
+]);
+
+function extraireCodePostal(adresse) {
+  if (!adresse) return null;
+  const match = String(adresse).match(/\b(\d{5})\b/);
+  return match ? match[1] : null;
+}
+
+function detecterZoneDeplacement(adresse) {
+  const cp = extraireCodePostal(adresse);
+  if (!cp) return { ...ZONES_DEPLACEMENT.zone1, cp: null, note: 'Code postal introuvable dans l\'adresse — zone 1 appliquée par défaut, à vérifier manuellement' };
+
+  const dept = cp.slice(0, 2);
+
+  if (dept === '75') return { ...ZONES_DEPLACEMENT.zone1, cp };
+  if (CP_ZONE1_EXCEPTIONS.has(cp)) return { ...ZONES_DEPLACEMENT.zone1, cp };
+  if (['92', '93', '94', '91', '78', '95'].includes(dept)) return { ...ZONES_DEPLACEMENT.zone2, cp };
+
+  // Hors IDF proche (77 loin, province, etc.) → zone 3
+  return { ...ZONES_DEPLACEMENT.zone3, cp };
+}
+
+app.post('/api/deplacement/zone', (req, res) => {
+  const { adresse } = req.body;
+  if (!adresse) return res.status(400).json({ error: 'adresse requise' });
+  const resultat = detecterZoneDeplacement(adresse);
+  res.json(resultat);
+});
+
 app.post('/api/login', (req, res) => {
   const inputPwd  = String(req.body.password || '').trim();
   const adminPwd  = String(APP_PASSWORD).trim();
