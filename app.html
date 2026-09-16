@@ -1493,11 +1493,12 @@ table.histo-table tr:hover td { background:#fafbff; }
     <button onclick="deconnexionSousTraitant()" style="background:none;border:none;color:rgba(255,255,255,0.5);font-size:11px;cursor:pointer;padding:4px 8px;">Déco</button>
   </div>
 
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:3px;background:#E8E2D9;padding:4px;flex-shrink:0;">
-    <button onclick="switchStTab('inter',this)" id="st-tab-inter" style="padding:9px 4px;border-radius:9px;background:#fff;color:#1B2A4A;border:none;font-family:inherit;font-size:10px;font-weight:800;cursor:pointer;">📅 Mes inter.</button>
-    <button onclick="switchStTab('devis',this)" id="st-tab-devis" style="padding:9px 4px;border-radius:9px;background:transparent;color:#999;border:none;font-family:inherit;font-size:10px;font-weight:800;cursor:pointer;">📋 Devis</button>
-    <button onclick="switchStTab('facture',this)" id="st-tab-facture" style="padding:9px 4px;border-radius:9px;background:transparent;color:#999;border:none;font-family:inherit;font-size:10px;font-weight:800;cursor:pointer;">💶 Facture</button>
-    <button onclick="switchStTab('tarifs',this)" id="st-tab-tarifs" style="padding:9px 4px;border-radius:9px;background:transparent;color:#999;border:none;font-family:inherit;font-size:10px;font-weight:800;cursor:pointer;">💰 Tarifs</button>
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:3px;background:#E8E2D9;padding:4px;flex-shrink:0;">
+    <button onclick="switchStTab('inter',this)" id="st-tab-inter" style="padding:9px 2px;border-radius:9px;background:#fff;color:#1B2A4A;border:none;font-family:inherit;font-size:9px;font-weight:800;cursor:pointer;">📅 Inter.</button>
+    <button onclick="switchStTab('devis',this)" id="st-tab-devis" style="padding:9px 2px;border-radius:9px;background:transparent;color:#999;border:none;font-family:inherit;font-size:9px;font-weight:800;cursor:pointer;">📋 Devis</button>
+    <button onclick="switchStTab('facture',this)" id="st-tab-facture" style="padding:9px 2px;border-radius:9px;background:transparent;color:#999;border:none;font-family:inherit;font-size:9px;font-weight:800;cursor:pointer;">💶 Facture</button>
+    <button onclick="switchStTab('historique',this)" id="st-tab-historique" style="padding:9px 2px;border-radius:9px;background:transparent;color:#999;border:none;font-family:inherit;font-size:9px;font-weight:800;cursor:pointer;">🕐 Histo.</button>
+    <button onclick="switchStTab('tarifs',this)" id="st-tab-tarifs" style="padding:9px 2px;border-radius:9px;background:transparent;color:#999;border:none;font-family:inherit;font-size:9px;font-weight:800;cursor:pointer;">💰 Tarifs</button>
   </div>
 
   <div style="flex:1;overflow-y:auto;">
@@ -1539,6 +1540,12 @@ table.histo-table tr:hover td { background:#fafbff; }
       <div style="font-size:12px;font-weight:800;color:#1B2A4A;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Tarifs SINELEC <span style="font-size:9px;background:#F0FDF4;color:#16a34a;padding:2px 6px;border-radius:6px;font-weight:700;">Lecture seule</span></div>
       <input id="st-grille-search" oninput="rechercherGrilleSt(this.value)" placeholder="🔍 Rechercher une prestation..." style="width:100%;padding:10px 12px;border:1.5px solid #E8E2D9;border-radius:10px;background:#fff;font-family:inherit;font-size:12.5px;margin-bottom:12px;outline:none;">
       <div id="st-grille-list"></div>
+    </div>
+
+    <!-- TAB HISTORIQUE -->
+    <div id="st-page-historique" style="display:none;padding:16px;">
+      <div style="font-size:12px;font-weight:800;color:#1B2A4A;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Mes devis/factures <span style="font-size:9px;background:#F0FDF4;color:#16a34a;padding:2px 6px;border-radius:6px;font-weight:700;">10 derniers jours</span></div>
+      <div id="st-histo-list" style="margin-top:10px;"><div style="text-align:center;padding:20px;color:#999;font-size:12px;">Chargement...</div></div>
     </div>
 
   </div>
@@ -4531,7 +4538,7 @@ function deconnexionSousTraitant() {
 }
 
 function switchStTab(tab, btn) {
-  ['inter','devis','facture','tarifs'].forEach(t => {
+  ['inter','devis','facture','tarifs','historique'].forEach(t => {
     document.getElementById('st-page-' + t).style.display = 'none';
     const b = document.getElementById('st-tab-' + t);
     if (b) { b.style.background = 'transparent'; b.style.color = '#999'; }
@@ -4539,6 +4546,7 @@ function switchStTab(tab, btn) {
   document.getElementById('st-page-' + tab).style.display = 'block';
   if (btn) { btn.style.background = '#fff'; btn.style.color = '#1B2A4A'; }
   if (tab === 'tarifs') renderGrilleSt('');
+  if (tab === 'historique') chargerHistoriqueSt();
 }
 
 async function chargerSousTraitant() {
@@ -4588,6 +4596,45 @@ async function chargerMesInterventions() {
           ${tel ? `<a href="tel:${tel}" style="flex:1;padding:7px;border-radius:8px;background:#F0FDF4;color:#16a34a;font-size:10.5px;font-weight:800;text-align:center;text-decoration:none;">📞 Appel</a>` : ''}
           <button onclick="ouvrirFormulaireDevisSt()" style="flex:1;padding:7px;border-radius:8px;border:none;background:#1B2A4A;color:#C9962A;font-size:10.5px;font-weight:800;cursor:pointer;font-family:inherit;">📋 Devis</button>
         </div>` : ''}
+      </div>`;
+    }).join('');
+  } catch(e) {
+    el.innerHTML = '<div style="text-align:center;padding:20px;color:#dc2626;font-size:12px;">Erreur de chargement</div>';
+  }
+}
+
+async function chargerHistoriqueSt() {
+  const el = document.getElementById('st-histo-list');
+  if (!el) return;
+  el.innerHTML = '<div style="text-align:center;padding:20px;color:#999;font-size:12px;">Chargement...</div>';
+  try {
+    const res = await fetch('/api/historique', {
+      headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('sinelec_token') || '') }
+    });
+    const data = await res.json();
+    if (!Array.isArray(data) || !data.length) {
+      el.innerHTML = '<div style="text-align:center;padding:30px;color:#999;font-size:13px;">Aucun devis/facture sur les 10 derniers jours</div>';
+      return;
+    }
+    const labelsStatut = {
+      en_attente_validation: { label: '⏳ En attente de validation', bg: '#FEF3C7', color: '#d97706' },
+      envoye: { label: '📤 Envoyé', bg: '#EEF2FF', color: '#3b82f6' },
+      signe: { label: '✅ Signé', bg: '#F0FDF4', color: '#16a34a' },
+      paye: { label: '💰 Payé', bg: '#F0FDF4', color: '#16a34a' },
+      refuse: { label: '❌ Refusé', bg: '#FEF2F2', color: '#dc2626' },
+      expire: { label: '⌛ Expiré', bg: '#F3F4F6', color: '#6b7280' }
+    };
+    el.innerHTML = data.map(d => {
+      const st = labelsStatut[d.statut] || { label: d.statut, bg: '#F3F4F6', color: '#6b7280' };
+      const dateStr = d.created_at ? new Date(d.created_at).toLocaleDateString('fr-FR') : '';
+      return `
+      <div style="background:#fff;border-radius:12px;padding:13px 14px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,0.04);">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <div style="font-family:monospace;font-size:11px;font-weight:800;color:#999;">${d.num} · ${dateStr}</div>
+          <div style="font-size:9px;font-weight:800;padding:2px 8px;border-radius:6px;background:${st.bg};color:${st.color};">${st.label}</div>
+        </div>
+        <div style="font-size:13px;font-weight:800;color:#1B2A4A;">${d.client || ''}</div>
+        <div style="font-size:11px;color:#999;margin-top:2px;">${d.total_ht || 0}€ HT · ${d.type === 'devis' ? 'Devis' : 'Facture'}</div>
       </div>`;
     }).join('');
   } catch(e) {
