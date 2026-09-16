@@ -121,6 +121,10 @@ function verifierToken(token) {
   } catch(e) { return false; }
 }
 
+function genererTokenValidation(num) {
+  return crypto.createHmac('sha256', JWT_SECRET).update('valider-envoi:' + num).digest('hex').slice(0, 32);
+}
+
 function blockStandardiste(req, res, next) {
   const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
   const role = getRoleFromToken(token);
@@ -131,7 +135,7 @@ function blockStandardiste(req, res, next) {
 }
 
 function authMiddleware(req, res, next) {
-  const publicRoutes = ['/', '/health', '/api/login', '/signer/', '/paiement-confirme/', '/paiement-retour/', '/api/signature', '/api/otp-signature', '/api/verifier-otp', '/api/track/click/', '/api/track/open/', '/api/auth/check', '/api/test-pdf', '/api/test', '/api/webhook/lead-site'];
+  const publicRoutes = ['/', '/health', '/api/login', '/signer/', '/paiement-confirme/', '/paiement-retour/', '/api/signature', '/api/otp-signature', '/api/verifier-otp', '/api/track/click/', '/api/track/open/', '/api/auth/check', '/api/test-pdf', '/api/test', '/api/webhook/lead-site', '/valider-envoi/', '/api/valider-envoi/'];
   if (publicRoutes.some(r => req.path.startsWith(r))) return next();
   const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
   if (!verifierToken(token)) return res.status(401).json({ error: 'Non autorisé', code: 'UNAUTHORIZED' });
@@ -202,6 +206,52 @@ app.post('/api/login', (req, res) => {
 app.get('/api/auth/check', (req, res) => {
   const token = req.headers['authorization']?.replace('Bearer ', '');
   res.json({ valid: verifierToken(token) });
+});
+
+// ═══════════════════════════════════════════════════
+// VALIDATION DEVIS SOUS-TRAITANT — lien email, sans login
+// ═══════════════════════════════════════════════════
+app.get('/valider-envoi/:num', async (req, res) => {
+  const { num } = req.params;
+  const { token } = req.query;
+  if (token !== genererTokenValidation(num)) return res.status(403).send('<p style="font-family:sans-serif;text-align:center;margin-top:60px;">Lien invalide.</p>');
+  const { data: doc } = await supabase.from('historique').select('*').eq('num', num).single();
+  if (!doc) return res.status(404).send('<p style="font-family:sans-serif;text-align:center;margin-top:60px;">Devis introuvable.</p>');
+  if (doc.statut !== 'en_attente_validation') {
+    return res.send(`<html><body style="font-family:sans-serif;text-align:center;padding:60px;"><h2>Déjà traité</h2><p>Statut actuel : ${doc.statut}</p></body></html>`);
+  }
+  res.send(`<html><body style="font-family:sans-serif;max-width:420px;margin:60px auto;text-align:center;">
+    <h2>Valider l'envoi — ${num}</h2>
+    <p>Client : <b>${doc.client}</b><br>Montant : <b>${doc.total_ht}€ HT</b></p>
+    <form method="POST" action="/api/valider-envoi/${num}?token=${token}">
+      <button type="submit" style="padding:14px 28px;background:#1B2A4A;color:#C9962A;border:none;border-radius:10px;font-size:16px;font-weight:800;cursor:pointer;">Confirmer l'envoi</button>
+    </form>
+  </body></html>`);
+});
+
+app.post('/api/valider-envoi/:num', async (req, res) => {
+  const { num } = req.params;
+  const { token } = req.query;
+  if (token !== genererTokenValidation(num)) return res.status(403).send('Lien invalide.');
+  const { data: doc } = await supabase.from('historique').select('*').eq('num', num).single();
+  if (!doc || doc.statut !== 'en_attente_validation') return res.status(400).send('Déjà traité ou introuvable.');
+
+  await supabase.from('historique').update({ statut: 'envoye', date_envoi: new Date().toISOString() }).eq('num', num);
+
+  try {
+    const pdfRes = await fetch(`${process.env.APP_URL || 'https://sinelec-api-production.up.railway.app'}/api/pdf/${num}`, {
+      headers: { 'Authorization': 'Bearer ' + genererToken('admin') }
+    });
+    let pdf_b64 = null;
+    if (pdfRes.ok) {
+      const buf = Buffer.from(await pdfRes.arrayBuffer());
+      if (buf.length > 500 && buf.subarray(0, 4).toString('ascii') === '%PDF') pdf_b64 = buf.toString('base64');
+    }
+    const html = `<p>Bonjour ${doc.client},</p><p>Veuillez trouver ci-joint votre ${doc.type === 'devis' ? 'devis' : 'facture'} <b>${doc.num}</b>.</p><p>Cordialement,<br>SINELEC Paris</p>`;
+    await envoyerEmail(doc.email, `${doc.type === 'devis' ? 'Devis' : 'Facture'} ${num} — SINELEC Paris`, html, pdf_b64 ? { content: pdf_b64, name: `${num}.pdf` } : null);
+  } catch(e) { console.error('Erreur envoi post-validation:', e.message); }
+
+  res.send(`<html><body style="font-family:sans-serif;text-align:center;padding:60px;"><h2>✅ Envoyé à ${doc.client}</h2></body></html>`);
 });
 
 // ═══════════════════════════════════════════════════
@@ -437,6 +487,9 @@ app.post('/api/generer', async (req, res) => {
   try {
     const { type, client, email, telephone, adresse, complement, codePostal, ville, prenom, description, prestations, partenaire, part_diahe, part_partenaire, nom_partenaire, intervention_type, siret_client, num_existant } = req.body;
 
+    const roleGenerateur = getRoleFromToken(req.headers['authorization']?.replace('Bearer ', '') || req.query.token);
+    const estSousTraitant = roleGenerateur === 'soustraitant';
+
     // Si modification d'un devis existant → garder le même numéro sans incrémenter le compteur
     let num;
     if (num_existant && type === 'devis') {
@@ -460,7 +513,9 @@ app.post('/api/generer', async (req, res) => {
     let insertOk = false;
     const payloadComplet = {
       num, type, client, email, telephone, adresse, prestations, total_ht,
-      statut: 'envoye', date_envoi: new Date().toISOString(), source: 'app',
+      statut: estSousTraitant ? 'en_attente_validation' : 'envoye',
+      date_envoi: estSousTraitant ? null : new Date().toISOString(),
+      source: 'app', role_createur: estSousTraitant ? 'soustraitant' : null,
       partenaire: isPartenaire, part_diahe: pdiahe, part_partenaire: ppartenaire,
       nom_partenaire: isPartenaire ? (nom_partenaire || 'Alopronto') : null,
       intervention_type: intervention_type || 'immediat'
@@ -472,7 +527,7 @@ app.post('/api/generer', async (req, res) => {
     } else {
       console.warn('⚠️ Insert complet échoué:', insertErr1.message, '— tentative payload minimal');
       // Tentative 2 : payload minimal (colonnes de base uniquement)
-      const payloadMinimal = { num, type, client, email, telephone, adresse, prestations, total_ht, statut: 'envoye', date_envoi: new Date().toISOString(), source: 'app' };
+      const payloadMinimal = { num, type, client, email, telephone, adresse, prestations, total_ht, statut: estSousTraitant ? 'en_attente_validation' : 'envoye', date_envoi: estSousTraitant ? null : new Date().toISOString(), source: 'app', role_createur: estSousTraitant ? 'soustraitant' : null };
       const { error: insertErr2 } = await supabase.from('historique').upsert(payloadMinimal, { onConflict: 'num' });
       if (!insertErr2) {
         insertOk = true;
@@ -480,6 +535,20 @@ app.post('/api/generer', async (req, res) => {
       } else {
         console.error('❌ INSERT historique échoué (2 tentatives):', insertErr2.message, '— num:', num, '— VERIFIER TABLE SUPABASE');
       }
+    }
+
+    // ── NOTIFICATION VALIDATION — devis créé par le sous-traitant ──
+    if (insertOk && estSousTraitant) {
+      try {
+        const tokenValidation = genererTokenValidation(num);
+        const lienValidation = `${process.env.APP_URL || 'https://sinelec-api-production.up.railway.app'}/valider-envoi/${num}?token=${tokenValidation}`;
+        const htmlNotif = `
+          <p>Un ${type} a été créé par ${SOUSTRAITANT_NOM} et attend ta validation :</p>
+          <p><b>${num}</b> — ${client} — ${total_ht}€ HT</p>
+          <p><a href="${lienValidation}" style="display:inline-block;padding:12px 22px;background:#1B2A4A;color:#C9962A;text-decoration:none;border-radius:8px;font-weight:700;">Valider et envoyer au client</a></p>
+        `;
+        await envoyerEmail('sinelec.paris@gmail.com', `🔧 ${SOUSTRAITANT_NOM} — ${type} en attente de validation (${num})`, htmlNotif);
+      } catch(e) { console.error('Erreur notification validation sous-traitant:', e.message); }
     }
 
     console.log('📄 generer START — type:', type, '| client:', client, '| prestations:', prestations?.length);
@@ -1026,6 +1095,10 @@ app.post('/api/import-devis', authMiddleware, async (req, res) => {
 
 app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
   try {
+    const roleEnvoi = getRoleFromToken(req.headers['authorization']?.replace('Bearer ', '') || req.query.token);
+    if (roleEnvoi === 'soustraitant') {
+      return res.status(403).json({ error: 'Envoi non autorisé pour ce rôle — validation requise par l\'administrateur', code: 'FORBIDDEN_ROLE' });
+    }
     const { num } = req.params;
     const { email, sujet, message, cc, pdfB64, sms, telephone } = req.body;
     if (!email) return res.status(400).json({ error: 'Email requis' });
@@ -1632,12 +1705,21 @@ app.get('/api/ca-complet', blockStandardiste, async (req, res) => {
   } catch(error) { res.status(500).json({ error: error.message }); }
 });
 
-app.get('/api/historique', blockStandardiste, async (req, res) => {
+app.get('/api/historique', async (req, res) => {
   try {
     const { type, statut } = req.query;
+    const roleHisto = getRoleFromToken(req.headers['authorization']?.replace('Bearer ', '') || req.query.token);
+
+    if (roleHisto === 'standardiste') {
+      return res.status(403).json({ error: 'Accès non autorisé pour ce rôle', code: 'FORBIDDEN_ROLE' });
+    }
 
     // Charger devis/factures depuis historique
     let query = supabase.from('historique').select('*').order('created_at', { ascending: false });
+    if (roleHisto === 'soustraitant') {
+      const dixJoursAvant = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
+      query = query.eq('role_createur', 'soustraitant').gte('created_at', dixJoursAvant);
+    }
     if (type && type !== 'rapport') query = query.eq('type', type);
     if (statut) query = query.eq('statut', statut);
     const { data: docs, error } = await query;
@@ -1645,7 +1727,7 @@ app.get('/api/historique', blockStandardiste, async (req, res) => {
 
     // Fusionner avec les rapports si pas de filtre type spécifique
     let result = docs || [];
-    if (!type || type === 'rapport') {
+    if ((!type || type === 'rapport') && roleHisto !== 'soustraitant') {
       const { data: rapports } = await supabase.from('rapports')
         .select('*').order('created_at', { ascending: false });
       const rapportsFormatted = (rapports || []).map(r => ({
