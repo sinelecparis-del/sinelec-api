@@ -193,7 +193,9 @@ function blockStandardiste(req, res, next) {
 function authMiddleware(req, res, next) {
   // IMPORTANT : '/' matche TOUT chemin avec startsWith — ne jamais mettre '/' seul dans cette liste.
   // Utiliser une égalité exacte pour la racine et le /health, startsWith uniquement pour les préfixes réels.
-  const publicExact = ['/', '/health', '/api/login', '/api/auth/check', '/api/test-pdf', '/api/test', '/api/webhook/lead-site'];
+  // /api/test-pdf est un endpoint de diagnostic interne (révèle version python,
+  // libs installées, chemins serveur) — pas de raison qu'il soit public.
+  const publicExact = ['/', '/health', '/api/login', '/api/auth/check', '/api/webhook/lead-site'];
   const publicPrefixes = ['/signer/', '/paiement-confirme/', '/paiement-retour/', '/api/signature', '/api/otp-signature', '/api/verifier-otp', '/api/track/click/', '/api/track/open/', '/valider-envoi/', '/api/valider-envoi/', '/mcp', '/oauth/', '/.well-known/'];
   if (publicExact.includes(req.path) || publicPrefixes.some(r => req.path.startsWith(r))) return next();
   const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
@@ -1522,7 +1524,7 @@ app.post('/api/signature', async (req, res) => {
     res.json({ success: true });
   } catch(error) {
     console.error('❌ /api/signature error:', error.message);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: "Erreur lors de l'enregistrement de la signature. Contactez SINELEC au 07 87 38 86 22." });
   }
 });
 
@@ -4841,7 +4843,7 @@ app.post('/api/otp-signature', async (req, res) => {
     if (!smsResult) return res.status(500).json({ success: false, error: "Impossible d'envoyer le SMS. Verifiez votre numero." });
     const telMasq = String(telephone).replace(/(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 ** ** $5');
     res.json({ success: true, tel: telMasq });
-  } catch(e) { console.error('❌ OTP:', e.message); res.status(500).json({ error: e.message }); }
+  } catch(e) { console.error('❌ OTP:', e.message); res.status(500).json({ error: "Erreur d'envoi du code. Contactez SINELEC au 07 87 38 86 22." }); }
 });
 
 app.post('/api/verifier-otp', async (req, res) => {
@@ -4859,7 +4861,7 @@ app.post('/api/verifier-otp', async (req, res) => {
     if (!stored || !entered || stored !== entered) return res.status(400).json({ success: false, error: 'Code incorrect' });
     await otpMarquerVerifie(num);
     res.json({ success: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { console.error('❌ verifier-otp:', e.message); res.status(500).json({ error: "Erreur de vérification. Contactez SINELEC au 07 87 38 86 22." }); }
 });
 
 // ═══════════════════════════════════════════════════
