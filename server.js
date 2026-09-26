@@ -5638,6 +5638,10 @@ app.all('/mcp', mcpAuth, async(req,res)=>{
           {name:'marquer_paye',description:'Marque une facture comme payee et envoie la confirmation au client.',inputSchema:{type:'object',required:['num'],properties:{
             num:{type:'string',description:'Numero de la facture ex: 202608-001'},
             mode_paiement:{type:'string',description:'Mode: terminal, virement, especes',default:'terminal'}
+          }}},
+          {name:'envoyer_sms_devis',description:'Renvoie par SMS (via Brevo) le lien de signature d un devis existant au telephone du client, sans creer de nouveau devis.',inputSchema:{type:'object',required:['num'],properties:{
+            num:{type:'string',description:'Numero du devis ex: OS-202609-309'},
+            telephone:{type:'string',description:'Telephone du client (optionnel — sinon celui deja enregistre sur le devis est utilise)'}
           }}}
         ]}});
       }
@@ -5930,6 +5934,21 @@ SINELEC Paris
             result = payData.success
               ? {success:true,num,message:`✅ Facture ${num} marquée payée (${mode_paiement||'terminal'})`}
               : {success:false,error:payData.error||'Erreur'};
+          } catch(e){ result={success:false,error:e.message}; }
+        }
+        else if(name==='envoyer_sms_devis'){
+          const{num,telephone}=args||{};
+          const token=genererToken('admin');
+          try {
+            const smsRes=await fetch(`${APP_URL_MCP}/api/envoyer-lien-signature/${num}`,{
+              method:'POST',
+              headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
+              body:JSON.stringify(telephone ? { telephone } : {})
+            });
+            const smsData=await smsRes.json();
+            result = smsData.success
+              ? {success:true,num,telephone:smsData.telephone,lien:smsData.lien,message:`✅ SMS envoyé pour le devis ${num} au ${smsData.telephone}`}
+              : {success:false,error:smsData.error||'Erreur envoi SMS'};
           } catch(e){ result={success:false,error:e.message}; }
         }
         else{ result={error:`Outil inconnu: ${name}`}; }
