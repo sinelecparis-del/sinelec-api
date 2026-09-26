@@ -1948,7 +1948,7 @@ app.patch('/api/historique/:num/statut', async (req, res) => {
 // ═══════════════════════════════════════════════════
 // HELPERS: SUMUP HOSTED CHECKOUT
 // ═══════════════════════════════════════════════════
-async function creerCheckoutSumUp(num, montant, description) {
+async function creerCheckoutSumUp(num, montant, description, lienToken) {
   if (!SUMUP_API_KEY || !SUMUP_MERCHANT_CODE) {
     console.error('❌ SumUp non configuré (clé ou merchant_code manquant)');
     return null;
@@ -1956,6 +1956,7 @@ async function creerCheckoutSumUp(num, montant, description) {
   try {
     const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
     const checkout_reference = `${num}-${Date.now()}`;
+    const retourUrl = `${appUrl}/paiement-retour/${num}` + (lienToken ? `?token=${lienToken}` : '');
     const r = await fetch('https://api.sumup.com/v0.1/checkouts', {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + SUMUP_API_KEY, 'Content-Type': 'application/json' },
@@ -1966,7 +1967,7 @@ async function creerCheckoutSumUp(num, montant, description) {
         merchant_code: SUMUP_MERCHANT_CODE,
         description: description || `SINELEC - ${num}`,
         hosted_checkout: { enabled: true },
-        redirect_url: `${appUrl}/paiement-retour/${num}`
+        redirect_url: retourUrl
       })
     });
     const data = await r.json();
@@ -2487,13 +2488,21 @@ app.get('/paiement-confirme/:num', async (req, res) => {
     const { data: doc } = await supabase.from('historique').select('*').eq('num', num).single();
     if (!doc) return res.send(pagePaiement({ icon:'❓', titre:'Facture introuvable', couleur:'#dc2626', message:'Cette facture n\'existe pas ou plus.', num }));
 
+    // SÉCURITÉ : num est séquentiel/devinable — mêmes règles que /signer (token
+    // requis si présent en base, legacy accepté sinon pour ne rien casser).
+    if (doc.lien_token && req.query.token !== doc.lien_token) {
+      console.error('⚠️ Tentative accès /paiement-confirme avec token invalide pour', doc.num);
+      return res.status(403).send(pagePaiement({ icon:'🔒', titre:'Lien invalide', couleur:'#dc2626', message:"Ce lien de paiement n'est pas valide. Utilisez le lien reçu par SMS ou email." }));
+    }
+    const lienToken = await getOrCreerLienToken(doc.num);
+
     const isPaye = ['paye','payé','payee','acquitte','acquitté'].includes((doc.statut||'').toLowerCase());
     if (isPaye) return res.send(pagePaiement({ icon:'✅', titre:'Déjà réglée', couleur:'#16a34a', message:'Cette facture a déjà été payée. Merci !', num }));
 
     const total = parseFloat(doc.total_ht || 0);
     if (!(total > 0)) return res.send(pagePaiement({ icon:'⚠️', titre:'Montant invalide', couleur:'#dc2626', message:'Impossible de générer le paiement pour cette facture. Contactez-nous.', num }));
 
-    const checkout = await creerCheckoutSumUp(num, total, `SINELEC - Facture ${num}`);
+    const checkout = await creerCheckoutSumUp(num, total, `SINELEC - Facture ${num}`, lienToken);
     if (!checkout || !checkout.hosted_checkout_url) {
       return res.send(pagePaiement({ icon:'⚠️', titre:'Paiement indisponible', couleur:'#dc2626', message:'Le paiement en ligne est momentanément indisponible. Merci de nous contacter pour régler par un autre moyen.', num }));
     }
@@ -2512,6 +2521,12 @@ app.get('/paiement-retour/:num', async (req, res) => {
     const { data: doc } = await supabase.from('historique').select('*').eq('num', num).single();
     if (!doc) return res.send(pagePaiement({ icon:'❓', titre:'Facture introuvable', couleur:'#dc2626', message:'Cette facture n\'existe pas ou plus.', num }));
 
+    if (doc.lien_token && req.query.token !== doc.lien_token) {
+      console.error('⚠️ Tentative accès /paiement-retour avec token invalide pour', doc.num);
+      return res.status(403).send(pagePaiement({ icon:'🔒', titre:'Lien invalide', couleur:'#dc2626', message:"Ce lien n'est pas valide. Utilisez le lien reçu par SMS ou email." }));
+    }
+    const tokenQS = doc.lien_token ? `?token=${doc.lien_token}` : '';
+
     const dejaPaye = ['paye','payé','payee','acquitte','acquitté'].includes((doc.statut||'').toLowerCase());
     if (dejaPaye) return res.send(pagePaiement({ icon:'✅', titre:'Paiement confirmé !', couleur:'#16a34a', message:'Merci pour votre règlement.', num }));
 
@@ -2524,11 +2539,11 @@ app.get('/paiement-retour/:num', async (req, res) => {
     }
     if (status === 'FAILED') {
       return res.send(pagePaiement({ icon:'❌', titre:'Paiement échoué', couleur:'#dc2626', message:'Le paiement n\'a pas pu être traité.', num,
-        extra: `<a href="/paiement-confirme/${num}" style="display:inline-block;margin-top:14px;background:#1B2A4A;color:#fff;padding:12px 24px;border-radius:10px;text-decoration:none;font-weight:700;">Réessayer</a>` }));
+        extra: `<a href="/paiement-confirme/${num}${tokenQS}" style="display:inline-block;margin-top:14px;background:#1B2A4A;color:#fff;padding:12px 24px;border-radius:10px;text-decoration:none;font-weight:700;">Réessayer</a>` }));
     }
     // PENDING ou inconnu
     return res.send(pagePaiement({ icon:'⏳', titre:'Paiement en cours', couleur:'#C9962A', message:'Votre paiement est en cours de traitement. Si vous avez bien payé, cette page se mettra à jour sous peu.', num,
-      extra: `<a href="/paiement-retour/${num}" style="display:inline-block;margin-top:14px;background:#1B2A4A;color:#fff;padding:12px 24px;border-radius:10px;text-decoration:none;font-weight:700;">Actualiser</a>` }));
+      extra: `<a href="/paiement-retour/${num}${tokenQS}" style="display:inline-block;margin-top:14px;background:#1B2A4A;color:#fff;padding:12px 24px;border-radius:10px;text-decoration:none;font-weight:700;">Actualiser</a>` }));
   } catch(e) {
     console.error('❌ paiement-retour:', e.message);
     res.send(pagePaiement({ icon:'⚠️', titre:'Erreur', couleur:'#dc2626', message:'Une erreur est survenue. Merci de nous contacter.', num }));
@@ -2708,9 +2723,29 @@ app.get('/api/agenda', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// SÉCURITÉ : un sous-traitant ne doit pouvoir modifier/supprimer que les
+// interventions qui lui sont assignées (même règle que le GET /api/agenda
+// ci-dessus) — sinon un compte sous-traitant légitime pourrait toucher les
+// rendez-vous d'autres clients. On ajoute ce filtre à la requête Supabase ;
+// si la ligne existe mais n'est pas la sienne, la requête ne matche aucune
+// ligne et on renvoie 404/403 plutôt que de silencieusement ne rien faire.
+async function agendaAppartientAuRole(id, role) {
+  if (role !== 'soustraitant') return true;
+  const { data } = await supabase.from('agenda').select('id').eq('id', id).eq('assigne_a', 'soustraitant').maybeSingle();
+  return !!data;
+}
+// Champs autorisés en écriture sur une ligne agenda existante — évite le
+// mass assignment (écraser des colonnes non prévues via un body arbitraire).
+const CHAMPS_AGENDA_AUTORISES = ['client','nom','prenom','adresse','telephone','email','type_intervention','prestation','date_intervention','heure','notes','statut','assigne_a'];
+function filtrerChampsAgenda(body) {
+  const out = {};
+  for (const k of CHAMPS_AGENDA_AUTORISES) if (body[k] !== undefined) out[k] = body[k];
+  return out;
+}
+
 app.post('/api/agenda', async (req, res) => {
   try {
-    const body = req.body;
+    const body = filtrerChampsAgenda(req.body);
     const { data, error } = await supabase.from('agenda').insert(body).select().single();
     if (error) throw error;
     res.json({ success: true, data });
@@ -2719,8 +2754,11 @@ app.post('/api/agenda', async (req, res) => {
 
 app.post('/api/agenda/:id/note', authMiddleware, async (req, res) => {
   try {
+    const { id } = req.params;
+    const role = getRoleFromToken(req.headers['authorization']?.replace('Bearer ', '') || req.query.token);
+    if (!(await agendaAppartientAuRole(id, role))) return res.status(403).json({ error: 'Accès non autorisé' });
     const { note } = req.body;
-    const { error } = await supabase.from('agenda').update({ notes: note }).eq('id', req.params.id);
+    const { error } = await supabase.from('agenda').update({ notes: note }).eq('id', id);
     if (error) throw error;
     res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -2739,7 +2777,9 @@ app.post('/api/agenda/:id/assigner', authMiddleware, async (req, res) => {
 app.patch('/api/agenda/:id', authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
-    const { error } = await supabase.from('agenda').update(req.body).eq('id', id);
+    const role = getRoleFromToken(req.headers['authorization']?.replace('Bearer ', '') || req.query.token);
+    if (!(await agendaAppartientAuRole(id, role))) return res.status(403).json({ error: 'Accès non autorisé' });
+    const { error } = await supabase.from('agenda').update(filtrerChampsAgenda(req.body)).eq('id', id);
     if (error) throw error;
     res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -2748,7 +2788,9 @@ app.patch('/api/agenda/:id', authMiddleware, async (req, res) => {
 app.put('/api/agenda/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { error } = await supabase.from('agenda').update(req.body).eq('id', id);
+    const role = getRoleFromToken(req.headers['authorization']?.replace('Bearer ', '') || req.query.token);
+    if (!(await agendaAppartientAuRole(id, role))) return res.status(403).json({ error: 'Accès non autorisé' });
+    const { error } = await supabase.from('agenda').update(filtrerChampsAgenda(req.body)).eq('id', id);
     if (error) throw error;
     res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -2757,6 +2799,8 @@ app.put('/api/agenda/:id', async (req, res) => {
 app.patch('/api/agenda/:id/statut', async (req, res) => {
   try {
     const { id } = req.params;
+    const role = getRoleFromToken(req.headers['authorization']?.replace('Bearer ', '') || req.query.token);
+    if (!(await agendaAppartientAuRole(id, role))) return res.status(403).json({ error: 'Accès non autorisé' });
     const { statut } = req.body;
     const { error } = await supabase.from('agenda').update({ statut }).eq('id', id);
     if (error) throw error;
@@ -2767,6 +2811,8 @@ app.patch('/api/agenda/:id/statut', async (req, res) => {
 app.delete('/api/agenda/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const role = getRoleFromToken(req.headers['authorization']?.replace('Bearer ', '') || req.query.token);
+    if (!(await agendaAppartientAuRole(id, role))) return res.status(403).json({ error: 'Accès non autorisé' });
     const { error } = await supabase.from('agenda').delete().eq('id', id);
     if (error) throw error;
     res.json({ success: true });
@@ -4693,7 +4739,8 @@ app.post('/api/sumup/lien/:num', async (req, res) => {
     if (!doc) return res.status(404).json({ error: 'Document non trouvé' });
     const total = parseFloat(doc.total_ht || 0);
     const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
-    const lien = `${appUrl}/paiement-confirme/${num}?montant=${total.toFixed(2)}`;
+    const lienTokenPay = await getOrCreerLienToken(num);
+    const lien = `${appUrl}/paiement-confirme/${num}?montant=${total.toFixed(2)}&token=${lienTokenPay}`;
     if (envoi === 'sms' || envoi === 'les2') {
       if (doc.telephone) {
         const msg = `Bonjour ${extractPrenom(doc.client)}, votre règlement SINELEC de ${total.toFixed(0)}€ est en attente. Payez en 1 clic 👉 ${lien} — L'équipe SINELEC Paris ⚡`;
@@ -4940,7 +4987,8 @@ cron.schedule('30 9 * * *', async () => {
     for (const f of (factures || [])) {
       const ageJours = Math.floor((now - new Date(f.date_envoi || f.created_at).getTime()) / (24 * 3600 * 1000));
       const total = parseFloat(f.total_ht || 0);
-      const lien = `${appUrl}/paiement-confirme/${f.num}?montant=${total.toFixed(2)}`;
+      const lienTokenF = await getOrCreerLienToken(f.num);
+      const lien = `${appUrl}/paiement-confirme/${f.num}?montant=${total.toFixed(2)}&token=${lienTokenF}`;
       const prenom = extractPrenom(f.client || '');
       const nbDeja = f.nb_relances || 0;
 
