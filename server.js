@@ -181,6 +181,14 @@ async function getOrCreerLienToken(num) {
   return token;
 }
 
+async function getOrCreerAgendaLienToken(id) {
+  const { data } = await supabase.from('agenda').select('lien_token').eq('id', id).single();
+  if (data?.lien_token) return data.lien_token;
+  const token = crypto.randomBytes(20).toString('hex');
+  await supabase.from('agenda').update({ lien_token: token }).eq('id', id);
+  return token;
+}
+
 function blockStandardiste(req, res, next) {
   const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
   const role = getRoleFromToken(token);
@@ -196,7 +204,7 @@ function authMiddleware(req, res, next) {
   // /api/test-pdf est un endpoint de diagnostic interne (révèle version python,
   // libs installées, chemins serveur) — pas de raison qu'il soit public.
   const publicExact = ['/', '/health', '/api/login', '/api/auth/check', '/api/webhook/lead-site'];
-  const publicPrefixes = ['/signer/', '/paiement-confirme/', '/paiement-retour/', '/api/signature', '/api/otp-signature', '/api/verifier-otp', '/api/track/click/', '/api/track/open/', '/valider-envoi/', '/api/valider-envoi/', '/mcp', '/oauth/', '/.well-known/'];
+  const publicPrefixes = ['/signer/', '/paiement-confirme/', '/paiement-retour/', '/api/confirmer-rdv/', '/api/signature', '/api/otp-signature', '/api/verifier-otp', '/api/track/click/', '/api/track/open/', '/valider-envoi/', '/api/valider-envoi/', '/mcp', '/oauth/', '/.well-known/'];
   if (publicExact.includes(req.path) || publicPrefixes.some(r => req.path.startsWith(r))) return next();
   const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
   if (!verifierToken(token)) return res.status(401).json({ error: 'Non autorisé', code: 'UNAUTHORIZED' });
@@ -2805,6 +2813,46 @@ app.get('/paiement-retour/:num', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════
+// CONFIRMATION RDV EN 1 CLIC (client confirme un créneau proposé)
+// ═══════════════════════════════════════════════════
+app.get('/api/confirmer-rdv/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { data: rdv } = await supabase.from('agenda').select('*').eq('id', id).single();
+    if (!rdv) return res.send(pagePaiement({ icon:'❓', titre:'Rendez-vous introuvable', couleur:'#dc2626', message:'Ce rendez-vous n\'existe pas ou plus.' }));
+
+    // SÉCURITÉ : id séquentiel — même règle que /signer et /paiement-confirme
+    // (token requis si présent en base, legacy accepté sinon).
+    if (rdv.lien_token && req.query.token !== rdv.lien_token) {
+      console.error('⚠️ Tentative accès /api/confirmer-rdv avec token invalide pour', id);
+      return res.status(403).send(pagePaiement({ icon:'🔒', titre:'Lien invalide', couleur:'#dc2626', message:"Ce lien de confirmation n'est pas valide. Utilisez le lien reçu par SMS ou email." }));
+    }
+
+    if (rdv.confirme_par_client) {
+      return res.send(pagePaiement({ icon:'✅', titre:'Déjà confirmé', couleur:'#16a34a', message:`Ce rendez-vous du ${rdv.date_intervention || ''} ${rdv.heure || ''} est déjà confirmé. À bientôt !` }));
+    }
+
+    await supabase.from('agenda').update({
+      statut: 'planifié',
+      confirme_par_client: true,
+      date_confirmation: new Date().toISOString()
+    }).eq('id', id);
+
+    // Notifie Diahe — pas besoin de traiter la réponse email manuellement
+    try {
+      await envoyerEmail('sinelec.paris@gmail.com', `✅ RDV confirmé par le client — ${rdv.client || ''} — ${rdv.date_intervention || ''} ${rdv.heure || ''}`,
+        `<h3>✅ Rendez-vous confirmé</h3><p><strong>${rdv.client || 'Client'}</strong><br>${rdv.date_intervention || ''} à ${rdv.heure || ''}<br>${rdv.adresse || ''}<br>${rdv.type_intervention || ''}</p><p style="color:#888;font-size:12px;">Confirmé automatiquement par le client via le lien de confirmation.</p>`);
+    } catch(e) { console.error('Notif confirmation RDV:', e.message); }
+
+    console.log(`✅ RDV confirmé par le client: ${rdv.client} — ${rdv.date_intervention} ${rdv.heure}`);
+    return res.send(pagePaiement({ icon:'✅', titre:'Rendez-vous confirmé !', couleur:'#16a34a', message:`Merci, votre créneau du ${rdv.date_intervention || ''} à ${rdv.heure || ''} est confirmé. À bientôt !` }));
+  } catch(e) {
+    console.error('❌ confirmer-rdv:', e.message);
+    return res.send(pagePaiement({ icon:'⚠️', titre:'Erreur', couleur:'#dc2626', message:'Une erreur est survenue. Merci de nous contacter.' }));
+  }
+});
+
+// ═══════════════════════════════════════════════════
 // API: FACTURE ACOMPTE 40%
 // ═══════════════════════════════════════════════════
 app.post('/api/acompte/:num', async (req, res) => {
@@ -5117,7 +5165,10 @@ app.post('/api/verifier-otp', async (req, res) => {
 // ═══════════════════════════════════════════════════
 // CRON JOBS
 // ═══════════════════════════════════════════════════
-// Email récap agenda à 7h chaque jour
+// Récap quotidien à 7h : agenda du jour + argent réel en jeu + top devis à relancer
+// Règle validée par Diahe (27/09/2026) : chiffres réels uniquement (devis non
+// expirés), et ceci est informatif — les relances restent gérées par le cron
+// J+7/J+14/J+21 existant, pas une invitation à agir manuellement.
 cron.schedule('0 7 * * *', async () => {
   try {
     const today = new Date().toISOString().split('T')[0];
@@ -5128,24 +5179,40 @@ cron.schedule('0 7 * * *', async () => {
       .order('heure', { ascending: true });
 
     const nb = (interventions || []).length;
+    const listeAgenda = nb > 0
+      ? (interventions || []).map(iv => `• ${iv.heure || '?'} — ${iv.client || 'Client'} — ${iv.adresse || ''} — ${iv.type_intervention || ''}`).join('\n')
+      : 'Aucune intervention prévue aujourd\'hui.';
 
-    // Pas d'email si aucune intervention
-    if (nb === 0) {
-      console.log('📅 Récap agenda : aucune intervention aujourd\'hui — email non envoyé');
-      return;
-    }
+    // ── Argent réel en jeu : devis actifs, non expirés (< 30 jours) ──
+    const now = Date.now();
+    const { data: devisActifs } = await supabase
+      .from('historique')
+      .select('num, client, total_ht, created_at')
+      .eq('type', 'devis')
+      .in('statut', ['envoye', 'envoyé', 'en attente'])
+      .order('total_ht', { ascending: false });
 
-    const liste = (interventions || []).map(iv =>
-      `• ${iv.heure || '?'} — ${iv.client || 'Client'} — ${iv.adresse || ''} — ${iv.type_intervention || ''}`
-    ).join('\n');
+    const actifsFiltres = (devisActifs || []).filter(d => {
+      const age = Math.floor((now - new Date(d.created_at).getTime()) / (24 * 3600 * 1000));
+      return age < 30;
+    });
+    const argentEnJeu = actifsFiltres.reduce((s, d) => s + parseFloat(d.total_ht || 0), 0);
+    const top3 = actifsFiltres.slice(0, 3);
+    const listeTop3 = top3.length > 0
+      ? top3.map(d => `• ${d.num} — ${d.client || 'Client'} — ${parseFloat(d.total_ht || 0).toFixed(0)}€`).join('\n')
+      : 'Aucun devis en attente actuellement.';
 
-    const html = `<h2>📅 Agenda du jour — ${new Date().toLocaleDateString('fr-FR')}</h2>
-    <p>${nb} intervention${nb > 1 ? 's' : ''} prévue${nb > 1 ? 's' : ''}</p>
-    <pre style="background:#f5f5f5;padding:12px;border-radius:8px;font-family:monospace;">${liste}</pre>`;
+    const html = `<h2>⚡ Récap SINELEC — ${new Date().toLocaleDateString('fr-FR')}</h2>
+    <h3>📅 Agenda du jour (${nb})</h3>
+    <pre style="background:#f5f5f5;padding:12px;border-radius:8px;font-family:monospace;">${listeAgenda}</pre>
+    <h3>💰 Argent réel en jeu — ${argentEnJeu.toFixed(0)}€ (${actifsFiltres.length} devis actifs, non expirés)</h3>
+    <h3>🎯 Top devis en attente</h3>
+    <pre style="background:#f5f5f5;padding:12px;border-radius:8px;font-family:monospace;">${listeTop3}</pre>
+    <p style="color:#888;font-size:12px;">Info uniquement — la relance automatique (J+7/J+14/J+21) s'occupe déjà de ces devis.</p>`;
 
-    await envoyerEmail('sinelec.paris@gmail.com', `⚡ Agenda du ${new Date().toLocaleDateString('fr-FR')} — ${nb} intervention${nb>1?'s':''}`, html);
-    console.log(`✅ Récap agenda envoyé: ${nb} interventions`);
-  } catch(e) { console.error('Cron agenda:', e.message); }
+    await envoyerEmail('sinelec.paris@gmail.com', `⚡ Récap du ${new Date().toLocaleDateString('fr-FR')} — ${nb} RDV | ${argentEnJeu.toFixed(0)}€ en jeu`, html);
+    console.log(`✅ Récap quotidien envoyé: ${nb} interventions, ${argentEnJeu.toFixed(0)}€ en jeu`);
+  } catch(e) { console.error('Cron récap:', e.message); }
 }, {timezone: 'Europe/Paris'});
 
 
@@ -5204,12 +5271,27 @@ cron.schedule('0 9 * * *', async () => {
           nb14++;
         }
 
-        // ── J+21 : Négociation — dernière chance ─────────────────
+        // ── J+21 : Négociation — remise auto -5% pour débloquer, valable 72h ──
+        // Règle validée par Diahe (27/09/2026) : plutôt qu'un mail neutre suivi
+        // d'une décision au cas par cas, la remise est appliquée directement au
+        // devis dès J+21, une seule fois (sms_relance_j21 sert de flag).
         else if (ageJours >= 21 && !d.sms_relance_j21) {
-          const msg = `Bonjour ${prenom}, c'est SINELEC Paris. Je voulais savoir si vous avez des questions sur votre devis n°${d.num} (${montant}€). Je suis disponible pour en discuter et m'adapter à votre budget si besoin. 📞 07 87 38 86 22 — SINELEC Paris ⚡`;
+          const totalActuel = parseFloat(d.total_ht || 0);
+          const remiseMontant = Math.round(totalActuel * 0.05 * 100) / 100;
+          const nouveauTotal = Math.round((totalActuel - remiseMontant) * 100) / 100;
+          let prestationsMaj = Array.isArray(d.prestations) ? d.prestations : [];
+          const dejaRemise = prestationsMaj.some(p => /^remise/i.test(p.nom || ''));
+          if (!dejaRemise && remiseMontant > 0) {
+            prestationsMaj = [...prestationsMaj, { nom: 'Remise 5%', desc: 'Remise commerciale automatique — offre valable 72h', prix: -remiseMontant, quantite: 1 }];
+            await supabase.from('historique').update({ prestations: prestationsMaj, total_ht: nouveauTotal }).eq('num', d.num);
+          }
+          const montantAffiche = dejaRemise ? montant : nouveauTotal.toFixed(0);
+          const msg = dejaRemise
+            ? `Bonjour ${prenom}, c'est SINELEC Paris. Je voulais savoir si vous avez des questions sur votre devis n°${d.num} (${montantAffiche}€). Je suis disponible pour en discuter. 📞 07 87 38 86 22 — SINELEC Paris ⚡`
+            : `Bonjour ${prenom}, c'est SINELEC Paris. Pour débloquer votre devis n°${d.num}, je vous propose -5% si vous validez sous 72h : ${nouveauTotal.toFixed(0)}€ au lieu de ${montant}€. Signez ici : ${lien} — SINELEC Paris ⚡`;
           await envoyerSMS(d.telephone, msg);
           await supabase.from('historique').update({ sms_relance_j21: true, sms_relance_j21_date: new Date().toISOString() }).eq('num', d.num);
-          console.log(`📨 Relance J+21 (négo): ${d.num} → ${d.telephone}`);
+          console.log(`📨 Relance J+21 (négo -5% auto): ${d.num} → ${d.telephone}`);
           nb21++;
         }
       } catch(e) { console.error(`Relance ${d.num}:`, e.message); }
@@ -5642,6 +5724,10 @@ app.all('/mcp', mcpAuth, async(req,res)=>{
           {name:'envoyer_sms_devis',description:'Renvoie par SMS (via Brevo) le lien de signature d un devis existant au telephone du client, sans creer de nouveau devis.',inputSchema:{type:'object',required:['num'],properties:{
             num:{type:'string',description:'Numero du devis ex: OS-202609-309'},
             telephone:{type:'string',description:'Telephone du client (optionnel — sinon celui deja enregistre sur le devis est utilise)'}
+          }}},
+          {name:'envoyer_confirmation_rdv',description:'Envoie par SMS au client un lien de confirmation en 1 clic pour un creneau agenda deja cree (statut lead ou planifie). Le client clique, le RDV passe automatiquement en planifie et Diahe est notifie par email — evite de devoir traiter sa reponse manuellement.',inputSchema:{type:'object',required:['id'],properties:{
+            id:{type:'string',description:'Id de l entree agenda (renvoye par creer_rdv)'},
+            telephone:{type:'string',description:'Telephone du client (optionnel — sinon celui deja enregistre sur l entree agenda est utilise)'}
           }}}
         ]}});
       }
@@ -5949,6 +6035,26 @@ SINELEC Paris
             result = smsData.success
               ? {success:true,num,telephone:smsData.telephone,lien:smsData.lien,message:`✅ SMS envoyé pour le devis ${num} au ${smsData.telephone}`}
               : {success:false,error:smsData.error||'Erreur envoi SMS'};
+          } catch(e){ result={success:false,error:e.message}; }
+        }
+        else if(name==='envoyer_confirmation_rdv'){
+          const{id,telephone}=args||{};
+          try {
+            const{data:rdv}=await supabase.from('agenda').select('*').eq('id',id).single();
+            if(!rdv){ result={success:false,error:`Aucune entrée agenda avec l'id ${id}`}; }
+            else {
+              const tel = telephone || rdv.telephone;
+              if(!tel){ result={success:false,error:'Aucun téléphone disponible pour ce RDV — précise-le.'}; }
+              else {
+                const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+                const lienToken = await getOrCreerAgendaLienToken(id);
+                const lien = `${appUrl}/api/confirmer-rdv/${id}?token=${lienToken}`;
+                const prenom = extractPrenom(rdv.client||'');
+                const msg = `Bonjour ${prenom}, SINELEC Paris vous propose un rendez-vous le ${rdv.date_intervention||''} à ${rdv.heure||''}${rdv.adresse?` (${rdv.adresse})`:''}. Confirmez en 1 clic : ${lien} — SINELEC Paris ⚡`;
+                await envoyerSMS(tel, msg);
+                result={success:true,id,telephone:tel,lien,message:`✅ SMS de confirmation RDV envoyé à ${tel}`};
+              }
+            }
           } catch(e){ result={success:false,error:e.message}; }
         }
         else{ result={error:`Outil inconnu: ${name}`}; }
