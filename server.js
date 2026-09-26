@@ -2363,6 +2363,23 @@ app.get('/api/pdf/:num', async (req, res) => {
     }));
     const datePaiement = data.date_paiement ? new Date(data.date_paiement).toLocaleDateString('fr-FR') : dateStr;
     const modePaiement = String(data.mode_paiement || 'Règlement reçu').replace(/'/g,' ').substring(0,30);
+
+    // Facture d'acompte créée comme une facture "normale" (via creer_facture) plutôt
+    // que via /api/acompte/:num : on la détecte quand même pour afficher le solde
+    // restant dû (60%), sinon le client ne voit jamais ce qu'il reste à payer.
+    let devisRefNum = data.devis_origine || '';
+    const mentionAcompte = /acompte/i.test(data.description || '') || (prestationsArr[0] && /acompte/i.test(prestationsArr[0].nom || prestationsArr[0].designation || ''));
+    if (!devisRefNum && mentionAcompte) {
+      const m = String(data.description || (prestationsArr[0] && (prestationsArr[0].nom || prestationsArr[0].designation)) || '').match(/devis\s+(?:n[°o]\s*)?(\S+)/i);
+      if (m) devisRefNum = m[1].replace(/[.,;:]+$/, '');
+    }
+    const isAcompteFacture = docType === 'facture' && !!(devisRefNum || mentionAcompte);
+    let montantSoldeDl = null;
+    if (isAcompteFacture && devisRefNum) {
+      const { data: devisRefDl } = await supabase.from('historique').select('total_ht').eq('num', devisRefNum).maybeSingle();
+      if (devisRefDl) montantSoldeDl = Math.max(parseFloat(devisRefDl.total_ht || 0) - parseFloat(data.total_ht || 0), 0);
+    }
+
     const jsonPayloadDl = {
       _meta: {
         type: docType, num,
@@ -2377,7 +2394,9 @@ app.get('/api/pdf/:num', async (req, res) => {
         isPaye, isSigne: ['signe','signé'].includes(docStatut.toLowerCase()),
         datePaiement, modePaiement, nomCourt: clientEscDl.toUpperCase().split(' ').slice(0,2).join(' ').substring(0,14),
         signatureData: data.signature_data || '',
-        dateSignature: data.date_signature ? new Date(data.date_signature).toLocaleDateString('fr-FR') : ''
+        dateSignature: data.date_signature ? new Date(data.date_signature).toLocaleDateString('fr-FR') : '',
+        isAcompteFacture, devisRefNum,
+        montantSolde: montantSoldeDl != null ? montantSoldeDl.toFixed(2) : ''
       },
       _items: itemsArr
     };
@@ -2555,6 +2574,13 @@ elif doc_type=='facture' and is_paye:
     recap=Table([[p('\\U0001f9fe  R\\u00e9capitulatif du r\\u00e8glement',9,'Helvetica-Bold',MARINE),p('')],[p('Mode :',8,'Helvetica',GRIS_SOFT),p(mode_p,8,'Helvetica-Bold',MARINE,TA_RIGHT)],[p('Date :',8,'Helvetica',GRIS_SOFT),p(date_p,8,'Helvetica-Bold',MARINE,TA_RIGHT)],[p('Montant encaiss\\u00e9 :',9,'Helvetica-Bold',VERT_P),p('%.2f \\u20ac'%totalHT,10,'Helvetica-Bold',VERT_P,TA_RIGHT)]],colWidths=[9.1*cm,9.1*cm])
     recap.setStyle(TableStyle([('SPAN',(0,0),(1,0)),('BACKGROUND',(0,0),(-1,-1),VERT_BG),('BOX',(0,0),(-1,-1),1.5,VERT_P),('LINEABOVE',(0,3),(-1,3),1,colors.HexColor('#bbf7d0')),('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6)]))
     story.append(recap); story.append(Spacer(1,0.3*cm))
+if doc_type=='facture' and meta.get('isAcompteFacture'):
+    solde_txt=str(meta.get('montantSolde','') or '')
+    solde_aff=(solde_txt+' \\u20ac (60%)') if solde_txt else '60% du devis'
+    devis_ref=str(meta.get('devisRefNum','') or '')
+    solde_b=Table([[p('\\u26a0\\ufe0f  Solde restant d\\u00fb : '+solde_aff+('  \\u2014  Devis '+devis_ref if devis_ref else '')+'  \\u2014  \\u00e0 r\\u00e9gler \\u00e0 la fin des travaux',9,'Helvetica-Bold',colors.HexColor('#92400E'),TA_CENTER)]],colWidths=[18.2*cm])
+    solde_b.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#FEF3C7')),('BOX',(0,0),(-1,-1),1,colors.HexColor('#F59E0B')),('TOPPADDING',(0,0),(-1,-1),9),('BOTTOMPADDING',(0,0),(-1,-1),9)]))
+    story.append(solde_b); story.append(Spacer(1,0.3*cm))
 elif doc_type=='devis' and totalHT>=400:
     acompte=totalHT*0.4; solde=totalHT*0.6
     BLEU_L=colors.HexColor('#EFF6FF'); BLEU_T=colors.HexColor('#0369A1'); VERT_L2=colors.HexColor('#F0FDF4')
