@@ -5097,6 +5097,8 @@ function afficherListeAgenda() {
         ${iv.telephone?`<a href="tel:${esc(iv.telephone)}" style="background:rgba(59,130,246,0.1);color:#3b82f6;border:1px solid rgba(59,130,246,0.3);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;text-decoration:none;">📞 ${esc(iv.telephone)}</a>`:''}
         ${iv.adresse?`<a href="https://waze.com/ul?q=${adresseEnc}&navigate=yes" target="_blank" style="background:#1da46222;color:#1da462;border:1px solid #1da46244;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;text-decoration:none;">🔵 Waze</a>`:''}        <button onclick="partagerLeadWhatsApp('${nomJs}','${adresseJs}','${typeJs}','${escJs(iv.date_intervention||'')}','${escJs(iv.heure||'')}','${telJs}')" style="background:#25D36622;color:#25D366;border:1px solid #25D36644;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;">📲 WhatsApp</button>
         ${iv.telephone?`<button onclick="smsDepartClient('${telJs}','${nomJs}','${adresseJs}' )" style="background:linear-gradient(135deg,#E8B84B,#C9962A);color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;">🚗 Je pars</button>`:''}
+        ${iv.telephone && !iv.confirme_par_client && (iv.date_intervention||iv.heure) ?`<button onclick="envoyerConfirmationRdv('${idJs}','${telJs}','${nomJs}')" style="background:rgba(59,130,246,0.1);color:#3b82f6;border:1px solid rgba(59,130,246,0.3);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;" title="Envoie un SMS au client pour qu'il confirme son créneau en 1 clic — pas d'urgence, utilise-le seulement si tu veux une confirmation client">✅ Confirmer par SMS</button>`:''}
+        ${iv.confirme_par_client?`<span style="background:rgba(16,185,129,0.1);color:#10b981;border:1px solid rgba(16,185,129,0.3);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;">✅ Confirmé par le client</span>`:''}
         <button onclick="changerStatutIntervention('${idJs}','terminé')" style="background:rgba(16,185,129,0.1);color:#10b981;border:1px solid rgba(16,185,129,0.3);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;">✅ Terminé</button>
         ${(iv.statut||'').toLowerCase()==='lead'?`<button onclick="creerDevisFromLead('${idJs}','${nomJs}','${adresseJs}','${telJs}','${emailJs}','${typeJs}')" style="background:linear-gradient(135deg,#1B2A4A,#243660);color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;">📋 Créer devis</button>`:''}
         <button onclick="ouvrirNoteAgenda('${idJs}','${notesJs}')" style="background:rgba(232,184,75,0.1);color:var(--accent);border:1px solid rgba(232,184,75,0.2);border-radius:8px;padding:7px 10px;font-size:12px;font-weight:700;cursor:pointer;" title="Ajouter une note">${iv.notes ? '📝' : '📝'}</button>
@@ -5105,6 +5107,23 @@ function afficherListeAgenda() {
       </div>
     </div>`;
   }).join('');
+}
+
+// ─── CONFIRMATION RDV MANUELLE (bouton) ──────────────────────
+// Volontairement 100% manuel : pas déclenché à la création du RDV, pour ne
+// jamais envoyer ce lien sur une urgence traitée directement sur le terrain.
+async function envoyerConfirmationRdv(id, tel, nom) {
+  if (!confirm(`Envoyer un SMS à ${nom} pour qu'il confirme son créneau ?`)) return;
+  try {
+    const res = await fetch(`/api/agenda/${id}/confirmer-sms`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    const data = await res.json();
+    if (data.success) showToast(`✅ SMS de confirmation envoyé à ${nom}`, '📲');
+    else showToast(`❌ ${data.error || 'Erreur envoi SMS'}`, '⚠️');
+  } catch(e) { showToast('❌ Erreur', '⚠️'); }
 }
 
 async function majAgendaChamp(id, champ, valeur) {

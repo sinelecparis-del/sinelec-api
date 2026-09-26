@@ -3077,6 +3077,28 @@ app.post('/api/agenda/:id/assigner', authMiddleware, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// Déclenchement MANUEL depuis l'app (bouton) — envoie au client un lien de
+// confirmation en 1 clic pour son créneau. Jamais automatique : Diahe décide
+// au cas par cas (utile quand ce n'est pas une urgence traitée sur le terrain).
+app.post('/api/agenda/:id/confirmer-sms', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { telephone } = req.body || {};
+    const { data: rdv } = await supabase.from('agenda').select('*').eq('id', id).single();
+    if (!rdv) return res.status(404).json({ success: false, error: 'Rendez-vous introuvable' });
+    const tel = telephone || rdv.telephone;
+    if (!tel) return res.status(400).json({ success: false, error: 'Aucun téléphone pour ce rendez-vous' });
+
+    const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+    const lienToken = await getOrCreerAgendaLienToken(id);
+    const lien = `${appUrl}/api/confirmer-rdv/${id}?token=${lienToken}`;
+    const prenom = extractPrenom(rdv.client || '');
+    const msg = `Bonjour ${prenom}, SINELEC Paris vous propose un rendez-vous le ${rdv.date_intervention||''} à ${rdv.heure||''}${rdv.adresse?` (${rdv.adresse})`:''}. Confirmez en 1 clic : ${lien} — SINELEC Paris ⚡`;
+    await envoyerSMS(tel, msg);
+    res.json({ success: true, telephone: tel, lien });
+  } catch(e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
 app.patch('/api/agenda/:id', authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
