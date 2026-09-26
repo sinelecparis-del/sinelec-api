@@ -513,7 +513,7 @@ async function chargerGrilleTarifaire() {
 app.post('/api/generer', async (req, res) => {
   if (!CONFIG.features.devis_factures) return res.status(403).json({ error: 'Feature désactivée' });
   try {
-    const { type, client, email, telephone, adresse, complement, codePostal, ville, prenom, description, prestations, partenaire, part_diahe, part_partenaire, nom_partenaire, intervention_type, siret_client, num_existant } = req.body;
+    const { type, client, email, telephone, adresse, complement, codePostal, ville, prenom, description, prestations, partenaire, part_diahe, part_partenaire, nom_partenaire, intervention_type, siret_client, num_existant, remise } = req.body;
 
     const roleGenerateur = getRoleFromToken(req.headers['authorization']?.replace('Bearer ', '') || req.query.token);
     const estSousTraitant = roleGenerateur === 'soustraitant';
@@ -529,7 +529,15 @@ app.post('/api/generer', async (req, res) => {
       const mois = String(new Date().getMonth() + 1).padStart(2, '0');
       num = type === 'devis' ? `OS-${annee}${mois}-${String(compteur).padStart(3, '0')}` : `${annee}${mois}-${String(compteur).padStart(3, '0')}`;
     }
-    const total_ht = prestations.reduce((sum, p) => sum + (p.prix * p.quantite), 0);
+    const sousTotal_ht = prestations.reduce((sum, p) => sum + (p.prix * p.quantite), 0);
+    let total_ht = sousTotal_ht;
+    if (remise && parseFloat(remise) > 0) {
+      const remiseMontant = Math.round(sousTotal_ht * (parseFloat(remise) / 100) * 100) / 100;
+      if (remiseMontant > 0 && !prestations.some(p => /^remise/i.test(p.nom || ''))) {
+        prestations.push({ nom: `Remise ${parseFloat(remise)}%`, desc: 'Remise accordée sur cette intervention', prix: -remiseMontant, quantite: 1 });
+      }
+      total_ht = Math.round((sousTotal_ht - remiseMontant) * 100) / 100;
+    }
 
     // Calcul parts partenaire
     const isPartenaire = !!partenaire;
