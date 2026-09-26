@@ -3849,6 +3849,7 @@ function demarrerPollingSignature() {
           const pageActive = document.querySelector('.page.active')?.id;
           if (pageActive === 'page-historique') {
             await chargerHistorique();
+            chargerDevisRelance();
           } else {
             // Silencieux — recharger en arrière-plan pour badge accueil
             fetch('/api/ca-complet').then(r=>r.json()).then(d=>{ historiqueData=d; }).catch(()=>{});
@@ -3991,6 +3992,7 @@ async function marquerRefuse(num) {
     if (data.success) {
       showToast(`❌ Devis ${num} marqué refusé`, '📊');
       chargerHistorique();
+      chargerDevisRelance();
     }
   } catch(e) { showToast('Erreur: ' + e.message, '❌'); }
 }
@@ -4016,6 +4018,7 @@ async function supprimerDoc(num) {
     if (res.ok && data.success) {
       showToast('🗑️ Supprimé', '✅');
       chargerHistorique();
+      chargerDevisRelance();
     } else {
       console.error('Suppression échouée:', data);
       showToast('❌ ' + (data.error || 'Erreur suppression'), '⚠️');
@@ -4509,7 +4512,7 @@ async function validerPopupSig() {
   try {
     const res = await fetch('/api/signature', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ num:currentDevisNum, signature:popupSigCanvas.toDataURL('image/png') }) });
     const data = await res.json();
-    if (data.success) { showToast('✅ Signature enregistrée !', '✍️'); fermerPopupSig(); chargerHistorique(); }
+    if (data.success) { showToast('✅ Signature enregistrée !', '✍️'); fermerPopupSig(); chargerHistorique(); chargerDevisRelance(); }
     else document.getElementById('popup-sig-status').textContent = '❌ Erreur';
   } catch(e) { document.getElementById('popup-sig-status').textContent = '❌ ' + e.message; }
 }
