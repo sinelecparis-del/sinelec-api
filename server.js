@@ -198,9 +198,10 @@ function authMiddleware(req, res, next) {
   if (publicExact.includes(req.path) || publicPrefixes.some(r => req.path.startsWith(r))) return next();
   const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
   if (!verifierToken(token)) return res.status(401).json({ error: 'Non autorisé', code: 'UNAUTHORIZED' });
-  // Accès sous-traitant désactivé (26/09/2026) — coupe aussi les tokens déjà
-  // émis avant expiration, pas seulement les nouvelles connexions.
-  if (getRoleFromToken(token) === 'soustraitant') {
+  // Accès sous-traitant et standardiste désactivés (26/09/2026) — coupe aussi
+  // les tokens déjà émis avant expiration, pas seulement les nouvelles connexions.
+  const roleBloque = getRoleFromToken(token);
+  if (roleBloque === 'soustraitant' || roleBloque === 'standardiste') {
     return res.status(403).json({ error: 'Accès désactivé', code: 'FORBIDDEN_ROLE' });
   }
   next();
@@ -262,9 +263,7 @@ app.post('/api/login', (req, res) => {
   if (inputPwd === adminPwd) {
     return res.json({ success: true, token: genererToken('admin'), role: 'admin', expiresIn: TOKEN_EXPIRY });
   }
-  if (inputPwd === stdPwd) {
-    return res.json({ success: true, token: genererToken('standardiste'), role: 'standardiste', expiresIn: TOKEN_EXPIRY });
-  }
+  // Accès standardiste désactivé à la demande de Diahe (26/09/2026), comme le sous-traitant.
   // Accès sous-traitant désactivé à la demande de Diahe (26/09/2026) — le mot
   // de passe n'ouvre plus de session, quelle que soit sa valeur.
   return res.status(401).json({ error: 'Mot de passe incorrect' });
