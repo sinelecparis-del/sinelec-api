@@ -1041,7 +1041,7 @@ doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
       // Email NON envoyé automatiquement — cliquer Envoyer manuellement
     }
 
-    res.json({ success: true, num, pdf_b64, email_client: email });
+    res.json({ success: true, num, pdf_b64, email_client: email, total_ht });
   } catch(error) {
     const msg = error.message || String(error);
     console.error('❌ /api/generer error:', msg);
@@ -1917,9 +1917,14 @@ async function traiterPaiementRecu(num, mode_paiement) {
           try {
             const prenom = extractPrenom(doc.client || '');
             const smsAvis = `Bonjour ${prenom}, votre règlement SINELEC a bien été enregistré ✅ Si vous avez 30 secondes, un avis Google nous aiderait énormément 👉 https://g.page/r/CSw-MABnFUAYEAE/review — L'équipe SINELEC Paris ⚡`;
-            await envoyerSMS(doc.telephone, smsAvis);
-            await supabase.from('historique').update({ sms_avis_envoye: true, sms_avis_date: new Date().toISOString(), sms_avis_statut: 'envoye_auto' }).eq('num', num);
-            console.log(`✅ SMS avis auto: ${num} → ${doc.telephone}`);
+            const msgIdAvis = await envoyerSMS(doc.telephone, smsAvis);
+            if (msgIdAvis) {
+              await supabase.from('historique').update({ sms_avis_envoye: true, sms_avis_date: new Date().toISOString(), sms_avis_statut: 'envoye_auto' }).eq('num', num);
+              console.log(`✅ SMS avis auto: ${num} → ${doc.telephone}`);
+            } else {
+              await supabase.from('historique').update({ sms_avis_statut: 'echec_auto' }).eq('num', num);
+              console.error(`❌ SMS avis auto ÉCHOUÉ: ${num} → ${doc.telephone}`);
+            }
           } catch(e) { console.error('SMS avis error:', e.message); }
         }
       } catch(e) { console.error('traiterPaiementRecu chain error:', e.message); }
@@ -1962,7 +1967,10 @@ app.post('/api/envoyer-lien-signature/:num', async (req, res) => {
     const prenom = extractPrenom(doc.client || '');
     const montant = parseFloat(doc.total_ht || 0).toFixed(0);
     const msg = 'Bonjour ' + prenom + ', votre devis SINELEC n°' + num + ' (' + montant + '€) est prêt. Signez-le ici : ' + lienSig + ' — SINELEC ⚡';
-    await envoyerSMS(tel, msg);
+    const msgId = await envoyerSMS(tel, msg);
+    if (!msgId) {
+      return res.status(502).json({ success: false, error: 'Échec envoi SMS (Brevo) — le lien n\'a pas été envoyé au client', lien: lienSig, telephone: tel });
+    }
     await supabase.from('historique').update({ sms_signature_envoye: true, sms_signature_date: new Date().toISOString() }).eq('num', num);
     res.json({ success: true, lien: lienSig, telephone: tel });
   } catch(e) {
@@ -1996,6 +2004,10 @@ app.post('/api/envoyer-sms-avis/:num', async (req, res) => {
     const msg = `Bonjour ${prenom}, merci pour votre confiance ! Un avis Google nous aiderait beaucoup : https://g.page/r/CSw-MABnFUAYEAE/review — SINELEC ⚡`;
     const msgId = await envoyerSMS(doc.telephone, msg);
     const now = new Date().toISOString();
+    if (!msgId) {
+      await supabase.from('historique').update({ sms_avis_statut: 'echec', sms_avis_date: now }).eq('num', num);
+      return res.status(502).json({ success: false, error: 'Échec envoi SMS (Brevo) — avis non envoyé au client' });
+    }
     await supabase.from('historique').update({
       sms_avis_envoye: true,
       sms_avis_date: now,
@@ -4590,13 +4602,14 @@ app.post('/api/relances/lancer', authMiddleware, async (req, res) => {
     const { data: devis } = await supabase.from('historique')
       .select('*').eq('type', 'devis').eq('statut', 'envoye').lte('created_at', since);
     let nb = 0;
+    let nbEchecs = 0;
     for (const d of (devis || [])) {
       if (d.telephone) {
-        await envoyerSMS(d.telephone, `Bonjour ${extractPrenom(d.client)}, votre devis SINELEC n°${d.num} de ${parseFloat(d.total_ht||0).toFixed(0)}€ attend votre validation. 📞 07 87 38 86 22`);
-        nb++;
+        const msgId = await envoyerSMS(d.telephone, `Bonjour ${extractPrenom(d.client)}, votre devis SINELEC n°${d.num} de ${parseFloat(d.total_ht||0).toFixed(0)}€ attend votre validation. 📞 07 87 38 86 22`);
+        if (msgId) nb++; else nbEchecs++;
       }
     }
-    res.json({ success: true, nb_relances: nb });
+    res.json({ success: true, nb_relances: nb, nb_echecs: nbEchecs });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -5330,6 +5343,8 @@ IMPORTANT : Réponds UNIQUEMENT avec la description, sans introduction ni guille
             result={success:false,error:genData.error||'Erreur génération'};
           } else {
             const num = genData.num;
+            // Total authoritatif renvoyé par /api/generer (seule source de vérité, calculée à partir des prestations réellement enregistrées)
+            const totalConfirme = (genData.total_ht !== undefined && genData.total_ht !== null) ? genData.total_ht : totalNet;
             // Étape 2 : Envoyer l'email avec le PDF + intro commerciale (validée par Diahe si fournie, sinon générée par IA)
             const prenomClient = (client||'').split(' ').slice(-1)[0] || client;
             let introIA = '';
@@ -5340,7 +5355,7 @@ IMPORTANT : Réponds UNIQUEMENT avec la description, sans introduction ni guille
 
 Client : ${prenomClient}
 Prestations du devis : ${listePrestations}
-Montant : ${totalNet}€ HT
+Montant : ${totalConfirme}€ HT
 
 Écris 3 à 4 phrases courtes, à la première personne ("j'ai retenu...", "je vous propose..."), qui :
 - mentionnent un détail technique CONCRET tiré des prestations ci-dessus (pas générique)
@@ -5365,7 +5380,7 @@ Réponds UNIQUEMENT avec le texte de l'intro, sans guillemets ni préambule.`;
 
             const msgCommercial = messageValide || introIA || `Bonjour ${prenomClient},
 
-Veuillez trouver ci-joint votre devis n° ${num} d'un montant de ${totalNet} € HT.
+Veuillez trouver ci-joint votre devis n° ${num} d'un montant de ${totalConfirme} € HT.
 
 Ce devis est valable 30 jours. Pour l'accepter, vous pouvez le signer directement en ligne via le bouton ci-dessous.
 
@@ -5386,7 +5401,7 @@ Une question, un ajustement à faire ? Je suis dispo par tél ou par mail.
               const envData=await envRes.json();
               console.log(`📧 MCP email devis ${num}:`, envData.message||envData.error||'ok');
             } catch(eEnv){ console.error('MCP envoi email:', eEnv.message); }
-            result={success:true,num,client,total_ht:totalNet,email_envoye:email,message:`✅ Devis ${num} créé et envoyé à ${email}`};
+            result={success:true,num,client,total_ht:totalConfirme,email_envoye:email,message:`✅ Devis ${num} créé et envoyé à ${email}`};
           }
         }
         else if(name==='creer_facture'){
@@ -5437,9 +5452,10 @@ IMPORTANT : Réponds UNIQUEMENT avec la description, sans introduction ni guille
             result={success:false,error:genData.error||'Erreur génération'};
           } else {
             const num = genData.num;
+            const totalConfirme = (genData.total_ht !== undefined && genData.total_ht !== null) ? genData.total_ht : totalNet;
             const msgCommercial = `Bonjour,
 
-Veuillez trouver ci-joint votre facture n° ${num} d'un montant de ${totalNet} € HT.
+Veuillez trouver ci-joint votre facture n° ${num} d'un montant de ${totalConfirme} € HT.
 
 Merci de bien vouloir procéder au règlement selon les modalités habituelles (CB, virement, espèces).
 
@@ -5453,7 +5469,7 @@ SINELEC Paris
                 body:JSON.stringify({ email, pdfB64: genData.pdf_b64, message: msgCommercial, sujet: `Facture SINELEC ${num} — ${objet||'Travaux électriques'}`, cc: CONFIG?.email?.sender_email || 'sinelec.paris@gmail.com' })
               });
             } catch(eEnv){ console.error('MCP envoi facture:', eEnv.message); }
-            result={success:true,num,client,total_ht:totalNet,email_envoye:email,message:`✅ Facture ${num} créée et envoyée à ${email}`};
+            result={success:true,num,client,total_ht:totalConfirme,email_envoye:email,message:`✅ Facture ${num} créée et envoyée à ${email}`};
           }
         }
         else if(name==='marquer_paye'){

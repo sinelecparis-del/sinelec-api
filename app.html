@@ -3799,7 +3799,9 @@ async function marquerTermine(num) {
       shootConfetti();
       const item = historiqueData.find(i => i.num === num);
       if (item) item.statut = 'paye';
-      afficherHistorique();
+      chargerHistorique();
+      chargerDevisRelance();
+      if (typeof chargerAccueil === 'function') chargerAccueil();
     } else {
       showToast('❌ ' + (data.error || 'Erreur'), '⚠️');
     }
@@ -3819,7 +3821,9 @@ async function annulerFacture(num) {
       showToast('❌ Facture annulée', '🗑️');
       const item = historiqueData.find(i => i.num === num);
       if (item) item.statut = 'annule';
-      afficherHistorique();
+      chargerHistorique();
+      chargerDevisRelance();
+      if (typeof chargerAccueil === 'function') chargerAccueil();
     }
   } catch(e) { showToast('❌ Erreur', '⚠️'); }
 }
@@ -3852,7 +3856,11 @@ function demarrerPollingSignature() {
             chargerDevisRelance();
           } else {
             // Silencieux — recharger en arrière-plan pour badge accueil
-            fetch('/api/ca-complet').then(r=>r.json()).then(d=>{ historiqueData=d; }).catch(()=>{});
+            fetch('/api/ca-complet').then(r=>r.json()).then(d=>{
+              historiqueData=d;
+              if (typeof chargerAccueil === 'function') chargerAccueil();
+              if (typeof verifierAlertesDevis === 'function') verifierAlertesDevis();
+            }).catch(()=>{});
           }
         }
       }
@@ -3874,7 +3882,9 @@ async function marquerSigne(num) {
       shootConfetti();
       const item = historiqueData.find(i => i.num === num);
       if (item) item.statut = 'signe';
-      afficherHistorique();
+      chargerHistorique();
+      chargerDevisRelance();
+      if (typeof chargerAccueil === 'function') chargerAccueil();
     } else {
       showToast('❌ ' + (data.error || 'Erreur'), '⚠️');
     }
@@ -4072,8 +4082,9 @@ async function marquerPaye(num, mode) {
       shootConfetti();
       const item = historiqueData.find(i => i.num === num);
       if (item) item.statut = 'paye';
-      afficherHistorique();
-      setTimeout(chargerHistorique, 2000);
+      chargerHistorique();
+      chargerDevisRelance();
+      if (typeof chargerAccueil === 'function') chargerAccueil();
     } else {
       showToast('❌ ' + (data.error || 'Erreur'), '⚠️');
     }
@@ -5935,6 +5946,8 @@ async function enregistrerLead(creerDevis) {
   }
   showToast(`✅ Lead enregistré — ${nom}`, '📞');
   fermerLead();
+  if (typeof chargerAgenda === 'function') chargerAgenda();
+  if (typeof chargerProchaineIntervention === 'function') chargerProchaineIntervention();
   if (creerDevis) switchPage('devis', document.querySelector('.sidebar-item[onclick*="devis"]'));
 }
 
@@ -5973,14 +5986,22 @@ async function verifierAlertesDevis() {
   try {
     const res = await fetch('/api/historique?type=devis');
     const data = await res.json();
-    const nb = data.filter(d => { const age=(new Date()-new Date(d.created_at))/3600000; return d.statut==='envoyé' && age>48; }).length;
+    // Même filtre statut que chargerDevisRelance() (accents non garantis en base)
+    const nb = data.filter(d => {
+      const age=(new Date()-new Date(d.created_at))/3600000;
+      return ['envoye','envoyé'].includes((d.statut||'').toLowerCase()) && age>48;
+    }).length;
     const histoTab = document.querySelector('.sidebar-item[onclick*="historique"]');
-    if (histoTab && nb > 0) {
-      const badge = histoTab.querySelector('.notif-badge') || document.createElement('span');
+    if (!histoTab) return;
+    const existing = histoTab.querySelector('.notif-badge');
+    if (nb > 0) {
+      const badge = existing || document.createElement('span');
       badge.className = 'notif-badge';
       badge.textContent = nb;
       badge.style.cssText = 'background:#ef4444;color:#fff;border-radius:10px;padding:2px 6px;font-size:10px;font-weight:800;margin-left:4px;';
-      if (!histoTab.querySelector('.notif-badge')) histoTab.appendChild(badge);
+      if (!existing) histoTab.appendChild(badge);
+    } else if (existing) {
+      existing.remove();
     }
   } catch(e) {}
 }
@@ -7592,12 +7613,10 @@ const TIROIR_MOIS_NOMS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juil
 function ouvrirTiroirCA() {
   document.getElementById('tiroir-ca-overlay').classList.add('show');
   document.getElementById('tiroir-ca').classList.add('show');
-  // Utiliser le cache si dispo, sinon charger
-  if (tiroirDocsCache) {
-    renderTiroirCA(tiroirDocsCache, tiroirAnneeActive);
-  } else {
-    chargerTiroirCA();
-  }
+  // Affiche l'ancien cache instantanément si dispo (évite un écran vide), puis recharge toujours en frais —
+  // sinon le tiroir reste figé sur le 1er snapshot de la session (bug corrigé le 26/09)
+  if (tiroirDocsCache) renderTiroirCA(tiroirDocsCache, tiroirAnneeActive);
+  chargerTiroirCA();
 }
 
 function fermerTiroirCA() {
@@ -7606,14 +7625,12 @@ function fermerTiroirCA() {
 }
 
 async function chargerTiroirCA() {
-  if (!tiroirDocsCache) {
-    try {
-      const res = await fetch('/api/ca-complet');
-      tiroirDocsCache = await res.json();
-    } catch(e) {
-      console.error('Tiroir CA:', e);
-      return;
-    }
+  try {
+    const res = await fetch('/api/ca-complet');
+    tiroirDocsCache = await res.json();
+  } catch(e) {
+    console.error('Tiroir CA:', e);
+    return;
   }
   renderTiroirCA(tiroirDocsCache, tiroirAnneeActive);
 }
