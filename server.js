@@ -4451,6 +4451,32 @@ Garde uniquement les travaux électriques pertinents (max 5-6 recommandations).`
 });
 
 // ═══════════════════════════════════════════════════
+// API: SOLDE SMS BREVO (temps réel)
+// ═══════════════════════════════════════════════════
+app.get('/api/brevo-credits', async (req, res) => {
+  if (!BREVO_API_KEY) return res.status(500).json({ error: 'BREVO_API_KEY manquant' });
+  try {
+    const r = await fetch('https://api.brevo.com/v3/account', {
+      headers: { 'accept': 'application/json', 'api-key': BREVO_API_KEY }
+    });
+    if (!r.ok) return res.status(502).json({ error: `Brevo API ${r.status}` });
+    const data = await r.json();
+    const plans = Array.isArray(data.plan) ? data.plan : [];
+    // Brevo renvoie un tableau de plans — on cherche celui dont le type de crédit est SMS
+    const smsPlan = plans.find(p => String(p.creditsType || p.type || '').toLowerCase().includes('sms'));
+    res.json({
+      credits: smsPlan ? smsPlan.credits : null,
+      creditsType: smsPlan ? (smsPlan.creditsType || smsPlan.type) : null,
+      plans, // renvoyé brut aussi, utile si le format Brevo change
+      checkedAt: new Date().toISOString()
+    });
+  } catch(e) {
+    console.error('❌ /api/brevo-credits error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════
 // API: SANTÉ SYSTÈME
 // ═══════════════════════════════════════════════════
 async function verifierSante() {

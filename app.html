@@ -668,7 +668,7 @@ body {
 .acc-alerte-btn:hover { background:#b91c1c; }
 
 /* ══ KPI PREMIUM ══ */
-.obat-kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:13px; margin-bottom:16px; }
+.obat-kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:13px; margin-bottom:16px; }
 .obat-kpi {
   background:#fff; border-radius:14px; padding:18px 20px;
   border:1.5px solid #E4E7EF; position:relative; overflow:hidden;
@@ -1730,6 +1730,13 @@ table.histo-table tr:hover td { background:#fafbff; }
           style="display:none;width:100%;padding:8px;border:1px solid rgba(255,255,255,0.15);border-radius:10px;background:transparent;color:rgba(255,255,255,0.6);font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:7px;">
           Voir tous les devis en attente →
         </button>
+      </div>
+      <div class="obat-kpi k5" style="position:relative;cursor:default;">
+        <div class="obat-kpi-icon">📱</div>
+        <div class="obat-kpi-lbl">Solde SMS Brevo</div>
+        <div class="obat-kpi-val" id="acc-sms-credits">—</div>
+        <div class="obat-kpi-trend" id="acc-sms-credits-trend" style="color:#8896A8;">Chargement...</div>
+        <div class="obat-kpi-sub" id="acc-sms-maj">—</div>
       </div>
     </div>
 
@@ -3377,6 +3384,40 @@ function initialiserApp() {
   setTimeout(demarrerPollingSignature, 3000);
   setTimeout(demarrerPollingEmailOpens, 5000);
   setTimeout(demanderPermissionNotifs, 8000);
+  // Solde SMS Brevo — temps réel (chargé immédiatement puis toutes les 30s)
+  chargerCreditsSMS();
+  setInterval(chargerCreditsSMS, 30000);
+}
+
+async function chargerCreditsSMS() {
+  const elVal = document.getElementById('acc-sms-credits');
+  const elTrend = document.getElementById('acc-sms-credits-trend');
+  const elMaj = document.getElementById('acc-sms-maj');
+  if (!elVal) return; // page pas encore rendue
+  try {
+    const res = await fetch('/api/brevo-credits');
+    const data = await res.json();
+    if (!res.ok || data.credits === null || data.credits === undefined) {
+      elVal.textContent = '—';
+      if (elTrend) { elTrend.textContent = '⚠️ Indisponible'; elTrend.style.color = '#dc2626'; }
+      if (elMaj) elMaj.textContent = data.error || 'Erreur de lecture';
+      return;
+    }
+    const credits = Math.round(data.credits * 10) / 10;
+    elVal.textContent = credits.toLocaleString('fr-FR') + ' SMS';
+    if (elTrend) {
+      if (credits <= 10) { elTrend.textContent = '🔴 Solde critique — recharger'; elTrend.style.color = '#dc2626'; }
+      else if (credits <= 30) { elTrend.textContent = '🟠 Solde bas'; elTrend.style.color = '#E8A83C'; }
+      else { elTrend.textContent = '🟢 Solde OK'; elTrend.style.color = '#16a34a'; }
+    }
+    if (elMaj) {
+      const heure = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      elMaj.textContent = 'Mis à jour ' + heure;
+    }
+  } catch(e) {
+    elVal.textContent = '—';
+    if (elTrend) { elTrend.textContent = '⚠️ Erreur réseau'; elTrend.style.color = '#dc2626'; }
+  }
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
