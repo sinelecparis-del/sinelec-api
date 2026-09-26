@@ -4462,8 +4462,10 @@ app.get('/api/brevo-credits', async (req, res) => {
     if (!r.ok) return res.status(502).json({ error: `Brevo API ${r.status}` });
     const data = await r.json();
     const plans = Array.isArray(data.plan) ? data.plan : [];
-    // Brevo renvoie un tableau de plans — on cherche celui dont le type de crédit est SMS
-    const smsPlan = plans.find(p => String(p.creditsType || p.type || '').toLowerCase().includes('sms'));
+    // Brevo renvoie un tableau de plans — on cherche celui dont le "type" est sms
+    // (creditsType vaut "sendLimit" pour tous les plans, il ne sert pas à identifier le SMS)
+    const smsPlan = plans.find(p => String(p.type || '').toLowerCase() === 'sms')
+      || plans.find(p => String(p.creditsType || '').toLowerCase().includes('sms'));
     res.json({
       credits: smsPlan ? smsPlan.credits : null,
       creditsType: smsPlan ? (smsPlan.creditsType || smsPlan.type) : null,
