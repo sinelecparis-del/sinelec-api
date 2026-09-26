@@ -110,10 +110,25 @@ function cachePdf(num, buf) {
   setTimeout(() => _pdfCache.delete(num), 30 * 60 * 1000);
 }
 
-const APP_PASSWORD       = process.env.APP_PASSWORD       || 'sinelec2026';
-const STANDARD_PASSWORD  = process.env.STANDARD_PASSWORD  || 'standard2026';
-const SOUSTRAITANT_PASSWORD = process.env.SOUSTRAITANT_PASSWORD || 'mehdi2026';
-const SOUSTRAITANT_NOM      = process.env.SOUSTRAITANT_NOM      || 'Mehdi Traore';
+// SÉCURITÉ : aucun mot de passe/secret faible codé en dur. Si une variable
+// d'environnement critique manque, le serveur refuse de démarrer plutôt que
+// de retomber silencieusement sur une valeur devinable (le dépôt est public).
+function requireEnv(name) {
+  const v = process.env[name];
+  if (!v) {
+    console.error(`💥 Variable d'environnement requise manquante : ${name}`);
+    process.exit(1);
+  }
+  return v;
+}
+const APP_PASSWORD          = requireEnv('APP_PASSWORD');
+const STANDARD_PASSWORD     = requireEnv('STANDARD_PASSWORD');
+const SOUSTRAITANT_PASSWORD = requireEnv('SOUSTRAITANT_PASSWORD');
+const SOUSTRAITANT_NOM      = process.env.SOUSTRAITANT_NOM || 'Mehdi Traore';
+const MCP_API_KEY           = requireEnv('MCP_API_KEY');
+const WEBHOOK_SECRET        = requireEnv('WEBHOOK_SECRET');
+// JWT_SECRET : un aléatoire généré au démarrage si absent n'est pas une
+// faiblesse (imprévisible), juste gênant en cas de redémarrage — laissé tel quel.
 const JWT_SECRET   = process.env.JWT_SECRET   || crypto.randomBytes(32).toString('hex');
 const TOKEN_EXPIRY = 7 * 24 * 60 * 60 * 1000;
 
@@ -146,6 +161,21 @@ function verifierToken(token) {
 
 function genererTokenValidation(num) {
   return crypto.createHmac('sha256', JWT_SECRET).update('valider-envoi:' + num).digest('hex').slice(0, 32);
+}
+
+// SÉCURITÉ : les numéros de devis/facture (OS-YYYYMM-NNN) sont séquentiels et
+// donc devinables. On ne peut plus s'en servir seuls comme "clé" d'accès aux
+// pages publiques (/signer/:num). On attache à chaque document un jeton
+// aléatoire non-devinable, généré à la première fois où un lien est envoyé,
+// et on l'exige en query string (?token=...) sur les pages publiques.
+// Les liens déjà envoyés avant ce correctif (sans token en base) continuent
+// de fonctionner sans token — seuls les nouveaux envois sont protégés.
+async function getOrCreerLienToken(num) {
+  const { data } = await supabase.from('historique').select('lien_token').eq('num', num).single();
+  if (data?.lien_token) return data.lien_token;
+  const token = crypto.randomBytes(20).toString('hex');
+  await supabase.from('historique').update({ lien_token: token }).eq('num', num);
+  return token;
 }
 
 function blockStandardiste(req, res, next) {
@@ -1214,7 +1244,8 @@ app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
     }
 
     const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
-    const lienSig = `${appUrl}/api/track/click/${num}?redirect=/signer/${num}`;
+    const lienToken = await getOrCreerLienToken(num);
+    const lienSig = `${appUrl}/api/track/click/${num}?redirect=${encodeURIComponent(`/signer/${num}?token=${lienToken}`)}`;
     const docTypeLocal = num.startsWith('OS-') ? 'devis' : 'facture';
     let nbAvisGoogle = 106;
     try {
@@ -1337,7 +1368,7 @@ app.post('/api/envoyer/:num', authMiddleware, async (req, res) => {
 
     // SMS si demandé
     if (sms && telephone) {
-      const smsMsg = `Bonjour, votre devis SINELEC n°${num} est prêt. Signez-le ici : ${appUrl}/signer/${num} — SINELEC ⚡`;
+      const smsMsg = `Bonjour, votre devis SINELEC n°${num} est prêt. Signez-le ici : ${appUrl}/signer/${num}?token=${lienToken} — SINELEC ⚡`;
       await envoyerSMS(telephone, smsMsg);
     }
 
@@ -1524,6 +1555,22 @@ app.get('/signer/:num', async (req, res) => {
     <div style="font-size:48px;margin-bottom:16px">🔍</div>
     <h2 style="color:#1B2A4A;margin-bottom:8px">Document introuvable</h2>
     <p style="color:#666;margin-bottom:20px">Le devis <strong>${numClean}</strong> n'a pas été trouvé.</p>
+    <p style="color:#999;font-size:13px">Contactez SINELEC Paris<br>📞 07 87 38 86 22</p>
+    </div></body></html>`);
+  }
+  // SÉCURITÉ : num est séquentiel et devinable — si ce document a un lien
+  // protégé par jeton (tous les documents envoyés depuis ce correctif), on
+  // exige le bon token. Les documents envoyés avant ce correctif (lien_token
+  // absent en base) restent accessibles par num seul, pour ne pas casser les
+  // liens déjà reçus par des clients.
+  if (doc.lien_token && req.query.token !== doc.lien_token) {
+    console.error('⚠️ Tentative accès /signer avec token invalide/absent pour', doc.num);
+    return res.status(403).send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Lien invalide</title></head>
+    <body style="font-family:Arial;text-align:center;padding:60px;background:#f5f5f5;">
+    <div style="background:#fff;border-radius:16px;padding:40px;max-width:400px;margin:0 auto;box-shadow:0 4px 20px rgba(0,0,0,0.1)">
+    <div style="font-size:48px;margin-bottom:16px">🔒</div>
+    <h2 style="color:#1B2A4A;margin-bottom:8px">Lien invalide</h2>
+    <p style="color:#666;margin-bottom:20px">Ce lien de signature n'est pas valide. Utilisez le lien reçu par SMS ou email.</p>
     <p style="color:#999;font-size:13px">Contactez SINELEC Paris<br>📞 07 87 38 86 22</p>
     </div></body></html>`);
   }
@@ -2037,7 +2084,8 @@ app.post('/api/envoyer-lien-signature/:num', async (req, res) => {
     const tel = telephone || doc.telephone;
     if (!tel) return res.status(400).json({ error: 'Numero de telephone manquant' });
     const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
-    const lienSig = appUrl + '/signer/' + num;
+    const lienToken = await getOrCreerLienToken(num);
+    const lienSig = appUrl + '/signer/' + num + '?token=' + lienToken;
     const prenom = extractPrenom(doc.client || '');
     const montant = parseFloat(doc.total_ht || 0).toFixed(0);
     const msg = 'Bonjour ' + prenom + ', votre devis SINELEC n°' + num + ' (' + montant + '€) est prêt. Signez-le ici : ' + lienSig + ' — SINELEC ⚡';
@@ -3990,7 +4038,7 @@ app.get('/api/rapport/pdf/:num', (req, res) => {
 // ═══════════════════════════════════════════════════
 app.post('/api/webhook/lead-site', async (req, res) => {
   try {
-    if (req.headers['x-webhook-secret'] !== (process.env.WEBHOOK_SECRET || 'sinelec2026webhook')) {
+    if (req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
       return res.status(401).json({ error: 'Non autorisé' });
     }
     const lead = req.body?.record || req.body;
@@ -4829,7 +4877,8 @@ cron.schedule('0 9 * * *', async () => {
 
       const prenom = extractPrenom(d.client || '');
       const montant = parseFloat(d.total_ht || 0).toFixed(0);
-      const lien = `${appUrl}/signer/${d.num}`;
+      const lienToken = await getOrCreerLienToken(d.num);
+      const lien = `${appUrl}/signer/${d.num}?token=${lienToken}`;
 
       try {
         // ── J+7 : Rappel simple et professionnel ─────────────────
@@ -5160,7 +5209,7 @@ app.post('/oauth/token',express.urlencoded({extended:true}),express.json(),(req,
 const mcpAuth = (req,res,next)=>{
   const key = (req.headers['x-api-key']||'').trim();
   const auth = (req.headers['authorization']||'').replace(/^Bearer\s+/i,'').trim();
-  if(key === (process.env.MCP_API_KEY || 'sinelec2026')) return next();
+  if(key === MCP_API_KEY) return next();
   // IMPORTANT : n'accepter qu'un vrai token signé (issu de /api/login ou /oauth/token),
   // jamais "n'importe quelle chaîne de plus de 10 caractères" (ancien bug — accès total sans vérif)
   if(auth && verifierToken(auth)) return next();
