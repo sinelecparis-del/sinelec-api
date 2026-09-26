@@ -3285,6 +3285,22 @@ table.histo-table tr:hover td { background:#fafbff; }
 // ═══════════════════════════════════════════════════
 // AUTH
 // ═══════════════════════════════════════════════════
+// Échappe une valeur avant de l'insérer dans du innerHTML — empêche une donnée client
+// (nom, adresse, notes...) de casser le HTML/JS de la page (XSS stocké).
+function esc(v) {
+  return String(v ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+// Idem, pour une valeur insérée dans un attribut onclick="fn('${valeur}')" (toujours en
+// guillemets doubles dans ce fichier). Deux passes obligatoires dans cet ordre :
+// 1) échapper pour que ça reste une chaîne JS valide entre apostrophes (\\ puis ')
+// 2) échapper pour que ça reste un attribut HTML valide entre guillemets doubles (& < > ")
+// Échapper seulement l'un des deux ne suffit PAS : le navigateur décode le HTML avant de
+// lire le JS, donc un '&#39;' non précédé d'un '\' redeviendrait une vraie apostrophe et
+// casserait quand même la chaîne JS.
+function escJs(v) {
+  let s = String(v ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n').replace(/\r/g, '');
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
 const TOKEN_KEY = 'sinelec_token';
 function getToken() { return localStorage.getItem(TOKEN_KEY); }
 function saveToken(t) { localStorage.setItem(TOKEN_KEY, t); }
@@ -4644,8 +4660,8 @@ async function chargerMesInterventions() {
           <div style="background:#FBF7EC;border-radius:8px;padding:4px 9px;font-family:monospace;font-size:11px;font-weight:800;color:#C9962A;">${heure}</div>
           <div style="font-size:9px;font-weight:800;padding:2px 8px;border-radius:6px;${isDone?'background:#F0FDF4;color:#16a34a;':'background:#FEF3C7;color:#d97706;'}">${isDone?'✅ Terminé':'À faire'}</div>
         </div>
-        <div style="font-size:13px;font-weight:800;color:#1B2A4A;">${client}</div>
-        <div style="font-size:11px;color:#999;margin-top:2px;">📍 ${adresse || 'Adresse non renseignée'}</div>
+        <div style="font-size:13px;font-weight:800;color:#1B2A4A;">${esc(client)}</div>
+        <div style="font-size:11px;color:#999;margin-top:2px;">📍 ${esc(adresse) || 'Adresse non renseignée'}</div>
         ${!isDone ? `<div style="display:flex;gap:6px;margin-top:8px;">
           ${adresse ? `<a href="https://maps.google.com/?q=${adresseEnc}" target="_blank" style="flex:1;padding:7px;border-radius:8px;background:#EEF2FF;color:#3b82f6;font-size:10.5px;font-weight:800;text-align:center;text-decoration:none;">🗺 Maps</a>` : ''}
           ${tel ? `<a href="tel:${tel}" style="flex:1;padding:7px;border-radius:8px;background:#F0FDF4;color:#16a34a;font-size:10.5px;font-weight:800;text-align:center;text-decoration:none;">📞 Appel</a>` : ''}
@@ -4688,7 +4704,7 @@ async function chargerHistoriqueSt() {
           <div style="font-family:monospace;font-size:11px;font-weight:800;color:#999;">${d.num} · ${dateStr}</div>
           <div style="font-size:9px;font-weight:800;padding:2px 8px;border-radius:6px;background:${st.bg};color:${st.color};">${st.label}</div>
         </div>
-        <div style="font-size:13px;font-weight:800;color:#1B2A4A;">${d.client || ''}</div>
+        <div style="font-size:13px;font-weight:800;color:#1B2A4A;">${esc(d.client || '')}</div>
         <div style="font-size:11px;color:#999;margin-top:2px;">${d.total_ht || 0}€ HT · ${d.type === 'devis' ? 'Devis' : 'Facture'}</div>
       </div>`;
     }).join('');
@@ -4797,8 +4813,8 @@ function renderLeadsDuJourStd() {
     <div style="background:#fff;border-radius:12px;padding:12px 14px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,0.04);">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
         <div style="flex:1;min-width:0;">
-          <div style="font-size:13px;font-weight:800;color:#1B2A4A;">${l.client}</div>
-          <div style="font-size:11px;color:#999;margin-top:2px;">${l.type} · ${l.heure}</div>
+          <div style="font-size:13px;font-weight:800;color:#1B2A4A;">${esc(l.client)}</div>
+          <div style="font-size:11px;color:#999;margin-top:2px;">${esc(l.type)} · ${esc(l.heure)}</div>
           <div style="font-size:10px;font-weight:700;color:${urgColors[l.urgence]||'#16a34a'};margin-top:2px;">${urgLabels[l.urgence]||'✅ Normal'}</div>
         </div>
         <button onclick="renvoyerLeadStdWhatsApp(${i})" style="background:#25D36615;border:1px solid #25D36640;color:#25D366;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;">📲 Renvoyer</button>
@@ -5386,23 +5402,29 @@ function renderListeClients(liste) {
   if (!filtered.length) { container.innerHTML = '<div style="text-align:center;padding:40px;color:#999;">Aucun client trouvé</div>'; return; }
 
   container.innerHTML = filtered.map(c => {
-    const nom = c.nom || '—';
-    const tel = c.telephone || '';
-    const email = c.email || '';
-    const adresse = c.adresse || '';
-    const adresseEnc = encodeURIComponent(adresse);
+    const nomRaw = c.nom || '—';
+    const telRaw = c.telephone || '';
+    const emailRaw = c.email || '';
+    const adresseRaw = c.adresse || '';
+    // Toute donnée client passe par esc() (affichage HTML) ou escJs() (arguments onclick) —
+    // jamais insérée telle quelle : sinon un nom/adresse contenant du HTML/JS s'exécute
+    // dans la page dès que Diahe ouvre la fiche (XSS stocké).
+    const nom = esc(nomRaw), tel = esc(telRaw), email = esc(emailRaw), adresse = esc(adresseRaw);
+    const nomJs = escJs(nomRaw), telJs = escJs(telRaw), emailJs = escJs(emailRaw), adresseJs = escJs(adresseRaw);
+    const adresseEnc = encodeURIComponent(adresseRaw);
     const ca = Math.round(c._ca || c.ca_total || 0);
     const nbInter = c._interventions?.length || c.nb_interventions || 0;
-    const initiales = nom.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+    const initiales = nomRaw.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
     const isRegulier = nbInter >= 2;
     const isNouveau = nbInter < 2;
+    const idSafe = String(c.id || nomRaw).replace(/[^a-zA-Z0-9_-]/g, '') || 'x';
     return `
     <div style="background:#fff;border-bottom:1px solid #F5F2EE;overflow:hidden;">
       <!-- Header card -->
-      <div onclick="toggleFicheClient('fiche-${c.id||nom.replace(/\s/g,'')}',this)"
+      <div onclick="toggleFicheClient('fiche-${idSafe}',this)"
         style="padding:12px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:background .15s;"
         onmouseover="this.style.background='#FAFAF8'" onmouseout="this.style.background='#fff'">
-        <div style="width:38px;height:38px;border-radius:12px;background:linear-gradient(135deg,#1B2A4A,#243660);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:#C9962A;flex-shrink:0;">${initiales}</div>
+        <div style="width:38px;height:38px;border-radius:12px;background:linear-gradient(135deg,#1B2A4A,#243660);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:#C9962A;flex-shrink:0;">${esc(initiales)}</div>
         <div style="flex:1;min-width:0;">
           <div style="font-size:13px;font-weight:800;color:#1B2A4A;">${nom}</div>
           <div style="font-size:10.5px;color:#999;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${tel ? `📞 ${tel}` : ''}${email ? ` · ${email}` : ''}</div>
@@ -5412,11 +5434,11 @@ function renderListeClients(liste) {
           <div style="font-size:10px;color:#999;margin-top:1px;">${nbInter} inter.</div>
           ${isRegulier ? '<div style="display:inline-block;font-size:9px;font-weight:800;padding:2px 6px;border-radius:6px;margin-top:2px;background:#F0FDF4;color:#16a34a;">⭐ Régulier</div>' : '<div style="display:inline-block;font-size:9px;font-weight:800;padding:2px 6px;border-radius:6px;margin-top:2px;background:#EEF2FF;color:#3b82f6;">🆕 Nouveau</div>'}
         </div>
-        <span style="font-size:16px;color:#ccc;margin-left:6px;" id="arrow-${c.id||nom.replace(/\s/g,'')}">▾</span>
+        <span style="font-size:16px;color:#ccc;margin-left:6px;" id="arrow-${idSafe}">▾</span>
       </div>
 
       <!-- Fiche détaillée -->
-      <div id="fiche-${c.id||nom.replace(/\s/g,'')}" style="display:none;padding:0 16px 16px;border-top:1px solid var(--border);">
+      <div id="fiche-${idSafe}" style="display:none;padding:0 16px 16px;border-top:1px solid var(--border);">
         <div style="padding-top:14px;display:flex;flex-direction:column;gap:10px;">
 
           ${adresse ? `
@@ -5451,11 +5473,11 @@ function renderListeClients(liste) {
           </div>` : ''}
 
           <!-- Bouton nouveau devis -->
-          <button onclick="nouveauDevisClient('${nom}','${tel}','${email}','${adresse}')"
+          <button onclick="nouveauDevisClient('${nomJs}','${telJs}','${emailJs}','${adresseJs}')"
             style="width:100%;background:linear-gradient(135deg,var(--accent),var(--gold));color:#fff;border:none;border-radius:12px;padding:12px;font-size:13px;font-weight:800;cursor:pointer;margin-top:4px;">
             📋 Nouveau devis pour ce client
           </button>
-          <button onclick="ouvrirFicheClient('${c.id||''}','${nom}')"
+          <button onclick="ouvrirFicheClient('${escJs(String(c.id||''))}','${nomJs}')"
             style="width:100%;background:var(--glass);border:1.5px solid var(--border);color:var(--text);border-radius:12px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:0">
             📊 Historique complet
           </button>
@@ -6649,22 +6671,25 @@ async function chargerLeadsSite() {
 
     liste.innerHTML = data.map(lead => {
       const brouillon = lead.brouillon_devis || [];
+      // Un lead vient d'un formulaire PUBLIC du site — jamais faire confiance à son contenu :
+      // esc() partout en HTML, escJs()/id numérique brut uniquement dans les onclick.
+      const leadIdJs = escJs(String(lead.id));
       const lignesHTML = brouillon.map((p, i) => `
         <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center;" data-ligne="${i}">
-          <input type="text" value="${(p.nom||'').replace(/"/g,'&quot;')}" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px;" class="ls-nom">
-          <input type="number" value="${p.prix||0}" style="width:80px;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px;" class="ls-prix">€
-          <button onclick="this.parentElement.remove(); majTotalLead('${lead.id}')" style="background:none;border:none;color:var(--error);font-size:18px;cursor:pointer;">✕</button>
+          <input type="text" value="${esc(p.nom||'')}" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px;" class="ls-nom">
+          <input type="number" value="${esc(p.prix||0)}" style="width:80px;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px;" class="ls-prix">€
+          <button onclick="this.parentElement.remove(); majTotalLead('${leadIdJs}')" style="background:none;border:none;color:var(--error);font-size:18px;cursor:pointer;">✕</button>
         </div>`).join('');
 
       return `
-      <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px;" id="lead-${lead.id}">
-        <div style="font-size:14px;font-weight:700;margin-bottom:4px;">${lead.nom || 'Inconnu'}</div>
-        <div style="font-size:11.5px;color:var(--text-3);margin-bottom:8px;">${lead.telephone||''} · ${lead.email||''} · ${lead.adresse||''}</div>
-        <div style="font-size:12.5px;color:var(--text-2);background:#f8f8f8;padding:8px;border-radius:8px;margin-bottom:10px;">${lead.description||''}</div>
+      <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px;" id="lead-${esc(lead.id)}">
+        <div style="font-size:14px;font-weight:700;margin-bottom:4px;">${esc(lead.nom || 'Inconnu')}</div>
+        <div style="font-size:11.5px;color:var(--text-3);margin-bottom:8px;">${esc(lead.telephone||'')} · ${esc(lead.email||'')} · ${esc(lead.adresse||'')}</div>
+        <div style="font-size:12.5px;color:var(--text-2);background:#f8f8f8;padding:8px;border-radius:8px;margin-bottom:10px;">${esc(lead.description||'')}</div>
         <div class="ls-lignes">${lignesHTML}</div>
-        <button onclick="ajouterLignePrestation('${lead.id}')" style="background:none;border:1px dashed var(--border);border-radius:8px;padding:6px 10px;font-size:12px;color:var(--text-2);cursor:pointer;margin-bottom:10px;">+ Ajouter une ligne</button>
+        <button onclick="ajouterLignePrestation('${leadIdJs}')" style="background:none;border:1px dashed var(--border);border-radius:8px;padding:6px 10px;font-size:12px;color:var(--text-2);cursor:pointer;margin-bottom:10px;">+ Ajouter une ligne</button>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
-          <button onclick="creerDevisDepuisLead('${lead.id}')" style="flex:1;padding:12px;background:var(--accent);border:none;border-radius:10px;color:#1a1a1a;font-weight:800;font-size:13px;cursor:pointer;">✅ Créer et envoyer le devis</button>
+          <button onclick="creerDevisDepuisLead('${leadIdJs}')" style="flex:1;padding:12px;background:var(--accent);border:none;border-radius:10px;color:#1a1a1a;font-weight:800;font-size:13px;cursor:pointer;">✅ Créer et envoyer le devis</button>
         </div>
       </div>`;
     }).join('');
@@ -8346,7 +8371,7 @@ function renderTableauHistorique() {
         ···
         <div class="ht-dropdown" id="${moreId}">
           ${type === 'devis' && statut === 'envoye' ? `
-          <div class="ht-dropdown-item" onclick="renvoyerDevis('${item.num}','${(item.email||'').replace(/'/g,"\\'")}','${(item.client||'').replace(/'/g,"\\'")}')">📧 Renvoyer le devis</div>
+          <div class="ht-dropdown-item" onclick="renvoyerDevis('${item.num}','${escJs(item.email||'')}','${escJs(item.client||'')}')">📧 Renvoyer le devis</div>
           <div class="ht-dropdown-item" onclick="modifierDevis('${item.num}')" style="color:#E8B84B;font-weight:800;">✏️ Modifier le devis</div>
           <div class="ht-dropdown-item red" onclick="marquerRefuse('${item.num}')" style="font-weight:800;">❌ Marquer comme refusé</div>` : ''}
           ${type === 'devis' ? `<div class="ht-dropdown-item" onclick="convertirEnFacture('${item.num}')">💶 → Facture</div>` : ''}
@@ -8414,7 +8439,7 @@ function renderTableauHistorique() {
       onmouseover="this.style.background='#FAFAF8'" onmouseout="this.style.background='#fff'">
       <div style="width:36px;height:36px;border-radius:10px;background:${iconBg};display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">${docIcon}</div>
       <div style="flex:1;min-width:0;">
-        <div style="font-size:13px;font-weight:800;color:#1B2A4A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.client||'—'}</div>
+        <div style="font-size:13px;font-weight:800;color:#1B2A4A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(item.client||'—')}</div>
         <div style="font-size:10.5px;color:#999;margin-top:1px;display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
           <span>${item.num} · ${date}</span>
           ${item.email_ouvert ? `<span style="background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;border-radius:10px;padding:1px 6px;font-size:9px;font-weight:800;">👁️ Lu${item.nb_ouvertures > 1 ? ' ×'+item.nb_ouvertures : ''}</span>` : (item.email ? '<span style="background:#f3f4f6;color:#9ca3af;border-radius:10px;padding:1px 6px;font-size:9px;font-weight:700;">📧 Non lu</span>' : '')}

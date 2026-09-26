@@ -33,6 +33,15 @@ async function otpGet(num) {
   if (new Date() > new Date(data.expires_at)) return null;
   return data.code;
 }
+// Échappe une valeur avant insertion dans une page HTML générée côté serveur (ex: /signer/:num)
+function escHtml(v) {
+  return String(v ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+// Idem pour une valeur insérée dans un littéral JS entre apostrophes côté page générée serveur
+function escJsHtml(v) {
+  let s = String(v ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n').replace(/\r/g, '');
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
 async function otpDel(num) {
   await supabase.from('otp_signatures').update({ used: true }).eq('num', num).eq('used', false);
 }
@@ -242,9 +251,9 @@ app.get('/valider-envoi/:num', async (req, res) => {
     return res.send(`<html><body style="font-family:sans-serif;text-align:center;padding:60px;"><h2>Déjà traité</h2><p>Statut actuel : ${doc.statut}</p></body></html>`);
   }
   res.send(`<html><body style="font-family:sans-serif;max-width:420px;margin:60px auto;text-align:center;">
-    <h2>Valider l'envoi — ${num}</h2>
-    <p>Client : <b>${doc.client}</b><br>Montant : <b>${doc.total_ht}€ HT</b></p>
-    <form method="POST" action="/api/valider-envoi/${num}?token=${token}">
+    <h2>Valider l'envoi — ${escHtml(doc.num)}</h2>
+    <p>Client : <b>${escHtml(doc.client)}</b><br>Montant : <b>${doc.total_ht}€ HT</b></p>
+    <form method="POST" action="/api/valider-envoi/${encodeURIComponent(doc.num)}?token=${encodeURIComponent(token)}">
       <button type="submit" style="padding:14px 28px;background:#1B2A4A;color:#C9962A;border:none;border-radius:10px;font-size:16px;font-weight:800;cursor:pointer;">Confirmer l'envoi</button>
     </form>
   </body></html>`);
@@ -1519,17 +1528,22 @@ app.get('/signer/:num', async (req, res) => {
     </div></body></html>`);
   }
   const statut = (doc.statut || '').toLowerCase();
+  // À partir d'ici, on n'utilise plus jamais le "num" brut de l'URL (contrôlé par le visiteur) dans la
+  // page — uniquement doc.num, la valeur relue en base (garantie propre, générée par le serveur).
+  const numSur = escHtml(doc.num);
   if (['signe','signé'].includes(statut)) {
-    return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Déjà signé</title></head><body style="font-family:Arial;text-align:center;padding:40px;"><h2>✅ Devis déjà signé</h2><p>Le devis ${num} a déjà été signé. Merci !</p><p>📞 07 87 38 86 22</p></body></html>`);
+    return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Déjà signé</title></head><body style="font-family:Arial;text-align:center;padding:40px;"><h2>✅ Devis déjà signé</h2><p>Le devis ${numSur} a déjà été signé. Merci !</p><p>📞 07 87 38 86 22</p></body></html>`);
   }
   const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
   const telClient = (doc.telephone || '').replace(/(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 ** ** $5');
+  const clientSur = escHtml(doc.client || '');
+  const numJsSur = escJsHtml(doc.num);
   res.send(`<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Signature — ${num}</title>
+<title>Signature — ${numSur}</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#0f1929;min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:16px;font-family:'Segoe UI',Arial,sans-serif}
@@ -1588,8 +1602,8 @@ canvas{display:block;width:100%;height:150px;cursor:crosshair;touch-action:none}
   <div class="hdr">
     <div class="hdr-icon">⚡</div>
     <div class="hdr-title">Signature électronique</div>
-    <div class="hdr-num">${num} · ${(doc.total_ht||0).toFixed(2)} €</div>
-    <div class="hdr-client">${doc.client}</div>
+    <div class="hdr-num">${numSur} · ${(doc.total_ht||0).toFixed(2)} €</div>
+    <div class="hdr-client">${clientSur}</div>
   </div>
 
   <div class="steps" id="steps">
@@ -1653,8 +1667,8 @@ canvas{display:block;width:100%;height:150px;cursor:crosshair;touch-action:none}
 </div>
 
 <script>
-const NUM='${num}';
-const TEL='${doc.telephone||""}';
+const NUM='${numJsSur}';
+const TEL='${escJsHtml(doc.telephone||"")}';
 const APP='${appUrl}';
 
 // ── Étape 1 : cases à cocher ──
