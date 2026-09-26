@@ -61,7 +61,6 @@ async function otpEstVerifie(num) {
 }
 
 const express = require('express');
-const cors = require('cors');
 const cron = require('node-cron');
 const { createClient } = require('@supabase/supabase-js');
 const ws = require('ws');
@@ -94,7 +93,11 @@ const CONFIG = {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+// SÉCURITÉ : pas de CORS ouvert par défaut. app.html (admin) et les pages
+// publiques (/signer, /paiement-*) sont servies en même-origine, les leads
+// arrivent via un webhook Supabase (serveur à serveur, jamais depuis un
+// navigateur), et /mcp + /oauth/* ont déjà leurs propres en-têtes CORS
+// explicites ci-dessous, où c'est réellement nécessaire.
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(__dirname));

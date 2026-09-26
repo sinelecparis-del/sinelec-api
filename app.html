@@ -3468,7 +3468,7 @@ document.addEventListener('DOMContentLoaded', () => {
 function showToast(message, icon = '✓') {
   const toast = document.createElement('div');
   toast.className = 'toast';
-  toast.innerHTML = `<span style="font-size:20px;">${icon}</span><span>${message}</span>`;
+  toast.innerHTML = `<span style="font-size:20px;">${esc(icon)}</span><span>${esc(message)}</span>`;
   document.body.appendChild(toast);
   setTimeout(() => toast.classList.add('show'), 10);
   setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 500); }, 2500);
@@ -3561,7 +3561,7 @@ async function autocompleteAdresse(id, value) {
       const p = item.properties;
       const div = document.createElement('div');
       div.style.cssText = 'padding:11px 16px;cursor:pointer;font-size:13px;color:var(--text);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;';
-      div.innerHTML = `<span style="font-size:15px;">📍</span><div><div style="font-weight:600;">${p.name || p.label}</div><div style="font-size:11px;color:#8896A8;">${p.postcode} ${p.city}</div></div>`;
+      div.innerHTML = `<span style="font-size:15px;">📍</span><div><div style="font-weight:600;">${esc(p.name || p.label)}</div><div style="font-size:11px;color:#8896A8;">${esc(p.postcode)} ${esc(p.city)}</div></div>`;
       div.onmouseover = () => div.style.background = 'rgba(212,165,116,0.08)';
       div.onmouseout  = () => div.style.background = '';
       div.onclick = () => {
@@ -4579,11 +4579,11 @@ async function autocompleteRapAdresse(val) {
         const idf = ['75','77','78','91','92','93','94','95'].includes(dept);
         if (!idf) return '';
         const label = f.properties.label || '';
-        return `<div onclick="selectionnerRapAdresse('${label.replace(/'/g,"\\'")}',this)" 
+        return `<div onclick="selectionnerRapAdresse('${escJs(label)}',this)"
           style="padding:10px 12px;font-size:13px;color:#1B2A4A;cursor:pointer;border-bottom:1px solid #f5f5f5;display:flex;align-items:center;gap:8px;"
           onmouseover="this.style.background='#F5F2EE'" onmouseout="this.style.background='#fff'">
           <span style="color:#C9962A;font-size:11px;">📍</span>
-          <span>${label}</span>
+          <span>${esc(label)}</span>
         </div>`;
       }).filter(Boolean).join('');
     } catch(e) { sugg.innerHTML = ''; }
@@ -5047,33 +5047,34 @@ function afficherListeAgenda() {
   liste.innerHTML = intervs.map(iv => {
     const nom = iv.client || `${iv.prenom||''} ${iv.nom||''}`.trim() || 'Client';
     const adresseEnc = iv.adresse ? encodeURIComponent(iv.adresse) : '';
+    const idJs = escJs(iv.id||''), nomJs = escJs(nom), adresseJs = escJs(iv.adresse||''), telJs = escJs(iv.telephone||''), emailJs = escJs(iv.email||''), notesJs = escJs(iv.notes||''), typeJs = escJs(iv.type_intervention||''), assigneJs = escJs(iv.assigne_a||'');
     return `
     <div style="background:#ffffff;border:1px solid rgba(0,0,0,0.08);border-radius:16px;padding:16px;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
 
       <!-- Header -->
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
         <div>
-          <div style="font-size:15px;font-weight:800;color:#0a0a0a;">${nom}</div>
-          ${iv.adresse ? `<div style="font-size:12px;color:rgba(0,0,0,0.45);margin-top:2px;">📍 ${iv.adresse}</div>` : ''}
-          ${iv.type_intervention ? `<div style="font-size:12px;color:var(--accent);font-weight:600;margin-top:2px;">⚡ ${iv.type_intervention}</div>` : ''}
+          <div style="font-size:15px;font-weight:800;color:#0a0a0a;">${esc(nom)}</div>
+          ${iv.adresse ? `<div style="font-size:12px;color:rgba(0,0,0,0.45);margin-top:2px;">📍 ${esc(iv.adresse)}</div>` : ''}
+          ${iv.type_intervention ? `<div style="font-size:12px;color:var(--accent);font-weight:600;margin-top:2px;">⚡ ${esc(iv.type_intervention)}</div>` : ''}
         </div>
-        <span style="background:rgba(232,184,75,0.12);color:var(--accent-2);border:1px solid rgba(232,184,75,0.25);border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;">${iv.statut||'planifié'}</span>
+        <span style="background:rgba(232,184,75,0.12);color:var(--accent-2);border:1px solid rgba(232,184,75,0.25);border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;">${esc(iv.statut||'planifié')}</span>
       </div>
 
       <!-- Date + Heure modifiables -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
         <div>
           <div style="font-size:11px;font-weight:700;color:rgba(0,0,0,0.4);margin-bottom:4px;text-transform:uppercase;">📅 Date</div>
-          <input type="date" value="${iv.date_intervention||''}"
-            onchange="majAgendaChamp('${iv.id}','date_intervention',this.value)"
+          <input type="date" value="${esc(iv.date_intervention||'')}"
+            onchange="majAgendaChamp('${idJs}','date_intervention',this.value)"
             style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;font-weight:600;color:#0a0a0a;background:#f9f9f9;outline:none;cursor:pointer;"
             onfocus="this.style.borderColor='var(--accent)'"
             onblur="this.style.borderColor='rgba(0,0,0,0.1)'">
         </div>
         <div>
           <div style="font-size:11px;font-weight:700;color:rgba(0,0,0,0.4);margin-bottom:4px;text-transform:uppercase;">🕐 Heure</div>
-          <input type="time" value="${iv.heure||''}"
-            onchange="majAgendaChamp('${iv.id}','heure',this.value)"
+          <input type="time" value="${esc(iv.heure||'')}"
+            onchange="majAgendaChamp('${idJs}','heure',this.value)"
             style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;font-weight:600;color:#0a0a0a;background:#f9f9f9;outline:none;cursor:pointer;"
             onfocus="this.style.borderColor='var(--accent)'"
             onblur="this.style.borderColor='rgba(0,0,0,0.1)'">
@@ -5083,8 +5084,8 @@ function afficherListeAgenda() {
       <!-- Notes modifiables -->
       <div style="margin-bottom:12px;">
         <div style="font-size:11px;font-weight:700;color:rgba(0,0,0,0.4);margin-bottom:4px;text-transform:uppercase;">💬 Notes</div>
-        <input type="text" value="${(iv.notes||'').replace(/'/g,"&#39;")}"
-          onblur="majAgendaChamp('${iv.id}','notes',this.value)"
+        <input type="text" value="${esc(iv.notes||'')}"
+          onblur="majAgendaChamp('${idJs}','notes',this.value)"
           placeholder="Ajouter une note..."
           style="width:100%;padding:9px 12px;border:1.5px solid rgba(0,0,0,0.1);border-radius:10px;font-size:13px;color:#0a0a0a;background:#f9f9f9;outline:none;"
           onfocus="this.style.borderColor='var(--accent)'"
@@ -5093,14 +5094,14 @@ function afficherListeAgenda() {
 
       <!-- Actions -->
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        ${iv.telephone?`<a href="tel:${iv.telephone}" style="background:rgba(59,130,246,0.1);color:#3b82f6;border:1px solid rgba(59,130,246,0.3);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;text-decoration:none;">📞 ${iv.telephone}</a>`:''}
-        ${iv.adresse?`<a href="https://waze.com/ul?q=${adresseEnc}&navigate=yes" target="_blank" style="background:#1da46222;color:#1da462;border:1px solid #1da46244;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;text-decoration:none;">🔵 Waze</a>`:''}        <button onclick="partagerLeadWhatsApp('${(iv.client||'').replace(/'/g,"\'")}','${(iv.adresse||'').replace(/'/g,"\'")}','${iv.type_intervention||''}','${iv.date_intervention||''}','${iv.heure||''}','${(iv.telephone||'').replace(/'/g,"\'")}')" style="background:#25D36622;color:#25D366;border:1px solid #25D36644;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;">📲 WhatsApp</button>
-        ${iv.telephone?`<button onclick="smsDepartClient('${iv.telephone}','${(nom).replace(/'/g,"\'")}','${(iv.adresse||'').replace(/'/g,"\'")}' )" style="background:linear-gradient(135deg,#E8B84B,#C9962A);color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;">🚗 Je pars</button>`:''}
-        <button onclick="changerStatutIntervention('${iv.id}','terminé')" style="background:rgba(16,185,129,0.1);color:#10b981;border:1px solid rgba(16,185,129,0.3);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;">✅ Terminé</button>
-        ${(iv.statut||'').toLowerCase()==='lead'?`<button onclick="creerDevisFromLead('${iv.id}','${(iv.client||'').replace(/'/g,"\'")}','${(iv.adresse||'').replace(/'/g,"\'")}','${(iv.telephone||'').replace(/'/g,"\'")}','${(iv.email||'').replace(/'/g,"\'")}','${iv.type_intervention||''}')" style="background:linear-gradient(135deg,#1B2A4A,#243660);color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;">📋 Créer devis</button>`:''}
-        <button onclick="ouvrirNoteAgenda('${iv.id}','${(iv.notes||'').replace(/'/g,"\\'")}')" style="background:rgba(232,184,75,0.1);color:var(--accent);border:1px solid rgba(232,184,75,0.2);border-radius:8px;padding:7px 10px;font-size:12px;font-weight:700;cursor:pointer;" title="Ajouter une note">${iv.notes ? '📝' : '📝'}</button>
-      <button onclick="assignerSousTraitant('${iv.id}','${(iv.assigne_a||'')}')" style="background:${iv.assigne_a==='soustraitant'?'rgba(201,150,42,0.15);color:#C9962A;border:1px solid rgba(201,150,42,0.3)':'rgba(100,116,139,0.08);color:#64748b;border:1px solid rgba(100,116,139,0.2)'};border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;" title="Assigner au sous-traitant">${iv.assigne_a==='soustraitant'?'🔧 Assigné':'🔧 Assigner'}</button>
-        <button onclick="supprimerIntervention('${iv.id}')" style="background:rgba(239,68,68,0.08);color:#ef4444;border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;">🗑️</button>
+        ${iv.telephone?`<a href="tel:${esc(iv.telephone)}" style="background:rgba(59,130,246,0.1);color:#3b82f6;border:1px solid rgba(59,130,246,0.3);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;text-decoration:none;">📞 ${esc(iv.telephone)}</a>`:''}
+        ${iv.adresse?`<a href="https://waze.com/ul?q=${adresseEnc}&navigate=yes" target="_blank" style="background:#1da46222;color:#1da462;border:1px solid #1da46244;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;text-decoration:none;">🔵 Waze</a>`:''}        <button onclick="partagerLeadWhatsApp('${nomJs}','${adresseJs}','${typeJs}','${escJs(iv.date_intervention||'')}','${escJs(iv.heure||'')}','${telJs}')" style="background:#25D36622;color:#25D366;border:1px solid #25D36644;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;">📲 WhatsApp</button>
+        ${iv.telephone?`<button onclick="smsDepartClient('${telJs}','${nomJs}','${adresseJs}' )" style="background:linear-gradient(135deg,#E8B84B,#C9962A);color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;">🚗 Je pars</button>`:''}
+        <button onclick="changerStatutIntervention('${idJs}','terminé')" style="background:rgba(16,185,129,0.1);color:#10b981;border:1px solid rgba(16,185,129,0.3);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;">✅ Terminé</button>
+        ${(iv.statut||'').toLowerCase()==='lead'?`<button onclick="creerDevisFromLead('${idJs}','${nomJs}','${adresseJs}','${telJs}','${emailJs}','${typeJs}')" style="background:linear-gradient(135deg,#1B2A4A,#243660);color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;">📋 Créer devis</button>`:''}
+        <button onclick="ouvrirNoteAgenda('${idJs}','${notesJs}')" style="background:rgba(232,184,75,0.1);color:var(--accent);border:1px solid rgba(232,184,75,0.2);border-radius:8px;padding:7px 10px;font-size:12px;font-weight:700;cursor:pointer;" title="Ajouter une note">${iv.notes ? '📝' : '📝'}</button>
+      <button onclick="assignerSousTraitant('${idJs}','${assigneJs}')" style="background:${iv.assigne_a==='soustraitant'?'rgba(201,150,42,0.15);color:#C9962A;border:1px solid rgba(201,150,42,0.3)':'rgba(100,116,139,0.08);color:#64748b;border:1px solid rgba(100,116,139,0.2)'};border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;" title="Assigner au sous-traitant">${iv.assigne_a==='soustraitant'?'🔧 Assigné':'🔧 Assigner'}</button>
+        <button onclick="supprimerIntervention('${idJs}')" style="background:rgba(239,68,68,0.08);color:#ef4444;border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;">🗑️</button>
       </div>
     </div>`;
   }).join('');
@@ -5133,7 +5134,7 @@ async function smsDepartClient(tel, nom, adresse) {
         <div style="text-align:center;margin-bottom:20px;">
           <div style="font-size:32px;margin-bottom:8px;">🚗</div>
           <div style="font-size:17px;font-weight:800;color:var(--text);">Temps d'arrivée estimé ?</div>
-          <div style="font-size:13px;color:var(--text-3);margin-top:4px;">${nom}</div>
+          <div style="font-size:13px;color:var(--text-3);margin-top:4px;">${esc(nom)}</div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px;">
           <button id="t-10" style="padding:16px 8px;border-radius:14px;border:1.5px solid var(--border);background:rgba(255,255,255,0.6);font-size:15px;font-weight:800;cursor:pointer;color:var(--text);">10 min</button>
@@ -5276,10 +5277,10 @@ async function chargerClientsInactifs() {
           <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(239,68,68,0.1);">
             <div style="width:36px;height:36px;border-radius:10px;background:rgba(239,68,68,0.1);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#ef4444;flex-shrink:0;">${(c.client||'?')[0].toUpperCase()}</div>
             <div style="flex:1;min-width:0;">
-              <div style="font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${c.client}</div>
+              <div style="font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(c.client)}</div>
               <div style="font-size:11px;color:var(--text-3);">Dernière visite il y a ${moisDepuis(c.derniere)} · ${Math.round(c.ca)} € CA total</div>
             </div>
-            ${c.telephone ? `<a href="sms:${c.telephone}?&body=Bonjour%2C%20c%27est%20SINELEC%20Paris.%20Comment%20puis-je%20vous%20aider%20%3F%2007%2087%2038%2086%2022" style="padding:8px 12px;border-radius:9px;background:rgba(37,211,102,0.1);color:#16a34a;font-size:11px;font-weight:800;text-decoration:none;white-space:nowrap;border:1px solid rgba(37,211,102,0.2);">📱 SMS</a>` : ''}
+            ${c.telephone ? `<a href="sms:${esc(c.telephone)}?&body=Bonjour%2C%20c%27est%20SINELEC%20Paris.%20Comment%20puis-je%20vous%20aider%20%3F%2007%2087%2038%2086%2022" style="padding:8px 12px;border-radius:9px;background:rgba(37,211,102,0.1);color:#16a34a;font-size:11px;font-weight:800;text-decoration:none;white-space:nowrap;border:1px solid rgba(37,211,102,0.2);">📱 SMS</a>` : ''}
           </div>`).join('')}
         ${inactifs.length > 5 ? `<div style="text-align:center;font-size:11px;color:rgba(239,68,68,0.6);margin-top:10px;font-weight:700;">+ ${inactifs.length - 5} autres clients inactifs</div>` : ''}
       </div>`;
@@ -5319,14 +5320,14 @@ async function chargerDevisRelance() {
         ${urgents.slice(0, 6).map(d => {
           const age = ageJours(d);
           const montant = Math.round(parseFloat(d.total_ht||0)).toLocaleString('fr-FR');
-          return `<div onclick="allerSurDoc('${d.num}')" style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);cursor:pointer;">
+          return `<div onclick="allerSurDoc('${escJs(d.num)}')" style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);cursor:pointer;">
             <div style="font-size:10px;font-weight:800;padding:3px 8px;border-radius:6px;${badgeStyle(age)};flex-shrink:0;">J+${age}</div>
             <div style="flex:1;min-width:0;">
-              <div style="font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${d.client||'—'}</div>
-              <div style="font-size:10px;color:var(--text-3);">${d.num}</div>
+              <div style="font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(d.client||'—')}</div>
+              <div style="font-size:10px;color:var(--text-3);">${esc(d.num)}</div>
             </div>
             <div style="font-family:monospace;font-size:12px;font-weight:700;color:var(--text);flex-shrink:0;">${montant} €</div>
-            <button onclick="event.stopPropagation();marquerRefuse('${d.num}')" style="padding:5px 10px;border:1px solid rgba(239,68,68,0.2);border-radius:7px;background:rgba(239,68,68,0.06);color:#ef4444;font-size:10px;font-weight:800;cursor:pointer;flex-shrink:0;">❌</button>
+            <button onclick="event.stopPropagation();marquerRefuse('${escJs(d.num)}')" style="padding:5px 10px;border:1px solid rgba(239,68,68,0.2);border-radius:7px;background:rgba(239,68,68,0.06);color:#ef4444;font-size:10px;font-weight:800;cursor:pointer;flex-shrink:0;">❌</button>
           </div>`;
         }).join('')}
         ${recents.length ? `<div style="font-size:11px;color:var(--text-3);text-align:center;margin-top:8px;font-weight:600;">+ ${recents.length} devis récents (moins de 7 jours)</div>` : ''}
@@ -5594,18 +5595,18 @@ async function autocompleteClient(prefix, query, champ) {
         const badge = nb >= 2
           ? '<span style="background:#F0FDF4;color:#16a34a;font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;margin-left:6px;">⭐ ' + nb + ' inter.</span>'
           : '';
-        const nom_esc = (c.nom||'').replace(/'/g, "\'").replace(/"/g, '&quot;');
-        const tel_esc = (c.telephone||'').replace(/'/g, "\'");
-        const email_esc = (c.email||'').replace(/'/g, "\'");
-        const adr_esc = (c.adresse||'').replace(/'/g, "\'");
-        return `<div onclick="selectionnerClient('${prefix}','${nom_esc}','${tel_esc}','${email_esc}','${adr_esc}')"
+        const nom_esc = escJs(c.nom||'');
+        const tel_esc = escJs(c.telephone||'');
+        const email_esc = escJs(c.email||'');
+        const adr_esc = escJs(c.adresse||'');
+        return `<div onclick="selectionnerClient('${escJs(prefix)}','${nom_esc}','${tel_esc}','${email_esc}','${adr_esc}')"
           style="padding:12px 14px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;"
           onmouseenter="this.style.background='rgba(201,150,42,0.08)'"
           onmouseleave="this.style.background='transparent'">
-          <div style="width:34px;height:34px;background:linear-gradient(135deg,#C9962A,#E8B84B);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#1B2A4A;flex-shrink:0">${(c.nom||'?')[0]}</div>
+          <div style="width:34px;height:34px;background:linear-gradient(135deg,#C9962A,#E8B84B);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#1B2A4A;flex-shrink:0">${esc((c.nom||'?')[0])}</div>
           <div style="flex:1;min-width:0">
-            <div style="font-size:13px;font-weight:700;color:var(--text)">${c.nom}${badge}</div>
-            <div style="font-size:11px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.telephone ? '📞 '+c.telephone : ''} ${c.adresse ? '· '+c.adresse.substring(0,25) : ''}</div>
+            <div style="font-size:13px;font-weight:700;color:var(--text)">${esc(c.nom)}${badge}</div>
+            <div style="font-size:11px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.telephone ? '📞 '+esc(c.telephone) : ''} ${c.adresse ? '· '+esc(c.adresse.substring(0,25)) : ''}</div>
           </div>
         </div>`;
       }).join('');
@@ -5616,7 +5617,7 @@ async function autocompleteClient(prefix, query, champ) {
       const matches = clients.filter(c => (c.nom||'').toLowerCase().includes(q)).slice(0,6);
       if (!matches.length) { suggestEl.style.display = 'none'; return; }
       suggestEl.style.display = 'block';
-      suggestEl.innerHTML = matches.map(c => `<div onclick="selectionnerClient('${prefix}','${(c.nom||'').replace(/'/g,"\'")}','${(c.telephone||'').replace(/'/g,"\'")}','${(c.email||'').replace(/'/g,"\'")}','${(c.adresse||'').replace(/'/g,"\'")}') "style="padding:11px 14px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px;font-weight:600;color:var(--text)">${c.nom}</div>`).join('');
+      suggestEl.innerHTML = matches.map(c => `<div onclick="selectionnerClient('${escJs(prefix)}','${escJs(c.nom||'')}','${escJs(c.telephone||'')}','${escJs(c.email||'')}','${escJs(c.adresse||'')}') "style="padding:11px 14px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px;font-weight:600;color:var(--text)">${esc(c.nom)}</div>`).join('');
     }
   }, 200);
 }
@@ -5677,14 +5678,14 @@ async function rechercherClients(query) {
       results.innerHTML = data.map(c => {
         const nb = c.nb_interventions || 0;
         const badge = nb >= 2 ? `<span style="background:#F0FDF4;color:#16a34a;font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px">⭐ ${nb} inter.</span>` : '';
-        return `<div onclick="ouvrirFicheClient('${(c.id||'').replace(/'/g,"\'")}','${(c.nom||'').replace(/'/g,"\'")}')"
+        return `<div onclick="ouvrirFicheClient('${escJs(c.id||'')}','${escJs(c.nom||'')}')"
           style="padding:12px 14px;cursor:pointer;border-bottom:1px solid rgba(0,0,0,0.06);display:flex;align-items:center;gap:10px;"
           onmouseenter="this.style.background='rgba(201,150,42,0.08)'"
           onmouseleave="this.style.background='transparent'">
-          <div style="width:38px;height:38px;background:linear-gradient(135deg,#C9962A,#E8B84B);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#1B2A4A;flex-shrink:0">${(c.nom||'?')[0]}</div>
+          <div style="width:38px;height:38px;background:linear-gradient(135deg,#C9962A,#E8B84B);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#1B2A4A;flex-shrink:0">${esc((c.nom||'?')[0])}</div>
           <div style="flex:1">
-            <div style="font-size:13px;font-weight:700;color:var(--text)">${c.nom} ${badge}</div>
-            <div style="font-size:11px;color:var(--text-3)">${c.telephone ? '📞 '+c.telephone : ''} ${c.adresse ? '· '+(c.adresse||'').substring(0,30) : ''}</div>
+            <div style="font-size:13px;font-weight:700;color:var(--text)">${esc(c.nom)} ${badge}</div>
+            <div style="font-size:11px;color:var(--text-3)">${c.telephone ? '📞 '+esc(c.telephone) : ''} ${c.adresse ? '· '+esc((c.adresse||'').substring(0,30)) : ''}</div>
           </div>
           <div style="font-size:12px;font-weight:700;color:var(--accent)">${c.ca_total ? (c.ca_total).toFixed(0)+' €' : ''}</div>
         </div>`;
@@ -5758,10 +5759,10 @@ async function ouvrirFicheClient(id, nomFallback) {
       <!-- Header -->
       <div style="background:linear-gradient(135deg,#1B2A4A,#243660);padding:16px 20px 18px">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
-          <div style="width:48px;height:48px;background:linear-gradient(135deg,#C9962A,#E8B84B);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:#1B2A4A;flex-shrink:0">${initials}</div>
+          <div style="width:48px;height:48px;background:linear-gradient(135deg,#C9962A,#E8B84B);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:#1B2A4A;flex-shrink:0">${esc(initials)}</div>
           <div style="flex:1">
-            <div style="font-size:17px;font-weight:800;color:#fff">${data.nom || nomFallback}</div>
-            <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-top:2px">${data.adresse || ''}</div>
+            <div style="font-size:17px;font-weight:800;color:#fff">${esc(data.nom || nomFallback)}</div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-top:2px">${esc(data.adresse || '')}</div>
           </div>
           ${isRegulier ? '<div style="background:rgba(201,150,42,0.2);border:1px solid rgba(201,150,42,0.4);color:#C9962A;font-size:10px;font-weight:700;padding:4px 10px;border-radius:20px;white-space:nowrap">⭐ Régulier</div>' : ''}
         </div>
@@ -5784,9 +5785,9 @@ async function ouvrirFicheClient(id, nomFallback) {
       <!-- Contact -->
       <div style="padding:14px 16px;border-bottom:1px solid var(--border)">
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          ${data.telephone ? `<a href="tel:${data.telephone}" style="background:var(--glass);border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:600;color:var(--text);text-decoration:none;display:flex;align-items:center;gap:6px">📞 ${data.telephone}</a>` : ''}
-          ${data.email ? `<a href="mailto:${data.email}" style="background:var(--glass);border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:600;color:var(--text);text-decoration:none;display:flex;align-items:center;gap:6px">✉️ ${data.email}</a>` : ''}
-          ${data.adresse ? `<div onclick="window.open('https://waze.com/ul?q='+encodeURIComponent('${(data.adresse||'').replace(/'/g,"\'")}')+'&navigate=yes','_blank')" style="background:var(--glass);border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:600;color:var(--text);cursor:pointer;display:flex;align-items:center;gap:6px">🗺️ Waze</div>` : ''}
+          ${data.telephone ? `<a href="tel:${esc(data.telephone)}" style="background:var(--glass);border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:600;color:var(--text);text-decoration:none;display:flex;align-items:center;gap:6px">📞 ${esc(data.telephone)}</a>` : ''}
+          ${data.email ? `<a href="mailto:${esc(data.email)}" style="background:var(--glass);border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:600;color:var(--text);text-decoration:none;display:flex;align-items:center;gap:6px">✉️ ${esc(data.email)}</a>` : ''}
+          ${data.adresse ? `<div onclick="window.open('https://waze.com/ul?q='+encodeURIComponent('${escJs(data.adresse||'')}')+'&navigate=yes','_blank')" style="background:var(--glass);border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:600;color:var(--text);cursor:pointer;display:flex;align-items:center;gap:6px">🗺️ Waze</div>` : ''}
         </div>
       </div>
       <!-- Historique -->
@@ -5799,12 +5800,12 @@ async function ouvrirFicheClient(id, nomFallback) {
           return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">
             <div style="width:8px;height:8px;border-radius:50%;background:${scolor};flex-shrink:0"></div>
             <div style="flex:1">
-              <div style="font-size:12px;font-weight:700;color:var(--text);font-family:monospace">${h.num}</div>
-              <div style="font-size:10px;color:var(--text-3)">${(h.description||'').substring(0,40)||'Travaux électricité'}</div>
+              <div style="font-size:12px;font-weight:700;color:var(--text);font-family:monospace">${esc(h.num)}</div>
+              <div style="font-size:10px;color:var(--text-3)">${esc((h.description||'').substring(0,40)||'Travaux électricité')}</div>
             </div>
             <div style="text-align:right">
               <div style="font-size:13px;font-weight:800;color:var(--text)">${parseFloat(h.total_ht||0).toFixed(0)} €</div>
-              <div style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:8px;background:${sbg};color:${scolor};white-space:nowrap">${h.statut||''}</div>
+              <div style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:8px;background:${sbg};color:${scolor};white-space:nowrap">${esc(h.statut||'')}</div>
             </div>
           </div>`;
         }).join('') : '<div style="text-align:center;padding:20px;color:var(--text-3);font-size:13px">Aucun historique</div>'}
@@ -6392,7 +6393,7 @@ function afficherCampagnePreview(data) {
     <div style="background:var(--glass);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px;">
       <div style="font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--text-3);margin-bottom:8px">✉️ Message envoyé</div>
       <div style="background:#fff;border-radius:10px 10px 10px 3px;padding:12px;font-size:12px;color:#1B2A4A;line-height:1.6;">
-        Bonjour ${data.exemple_prenom}, c'est SINELEC, votre électricien à Paris ⚡ On espère que tout va bien depuis notre intervention. Si vous avez 30 secondes, un avis Google nous aiderait énormément : <span style="color:#3b82f6">g.page/r/CSw-MAB...</span> Merci ! — Diahe
+        Bonjour ${esc(data.exemple_prenom)}, c'est SINELEC, votre électricien à Paris ⚡ On espère que tout va bien depuis notre intervention. Si vous avez 30 secondes, un avis Google nous aiderait énormément : <span style="color:#3b82f6">g.page/r/CSw-MAB...</span> Merci ! — Diahe
       </div>
     </div>
     <div style="background:rgba(254,243,199,0.5);border:1.5px solid #F59E0B;border-radius:10px;padding:10px 12px;font-size:11.5px;color:#92400E;margin-bottom:12px;line-height:1.6">
@@ -7402,8 +7403,8 @@ async function autocompleteSchAdresse(val) {
       if (!features.length) { sugg.innerHTML = ''; return; }
       sugg.innerHTML = features.map(f => {
         const label = f.properties.label || '';
-        return `<div onclick="document.getElementById('sch-adresse').value='${label.replace(/'/g,"\\'")}';document.getElementById('sch-adresse-sugg').innerHTML=''"
-          style="padding:10px 12px;font-size:13px;color:#1B2A4A;cursor:pointer;border-bottom:1px solid #f5f5f5;">📍 ${label}</div>`;
+        return `<div onclick="document.getElementById('sch-adresse').value='${escJs(label)}';document.getElementById('sch-adresse-sugg').innerHTML=''"
+          style="padding:10px 12px;font-size:13px;color:#1B2A4A;cursor:pointer;border-bottom:1px solid #f5f5f5;">📍 ${esc(label)}</div>`;
       }).join('');
     } catch(e) { sugg.innerHTML = ''; }
   }, 280);
@@ -7575,31 +7576,32 @@ function renderAccueilDocs(docs, containerId, type) {
     const estAnnule = s === 'annule';
     let btns = [];
 
+    const numJs = escJs(item.num||'');
     // Toujours : aperçu + PDF
-    btns.push(`<div class="obat-doc-act" onclick="event.stopPropagation();previsualiserPDF('${item.num}')" title="Aperçu">👁️</div>`);
-    btns.push(`<div class="obat-doc-act" onclick="event.stopPropagation();telechargerPDF('${item.num}')" title="Télécharger PDF">⬇️</div>`);
+    btns.push(`<div class="obat-doc-act" onclick="event.stopPropagation();previsualiserPDF('${numJs}')" title="Aperçu">👁️</div>`);
+    btns.push(`<div class="obat-doc-act" onclick="event.stopPropagation();telechargerPDF('${numJs}')" title="Télécharger PDF">⬇️</div>`);
 
     if (type === 'devis') {
       if (!estSigne) {
-        btns.push(`<div class="obat-doc-act" onclick="event.stopPropagation();ouvrirPopupSig('${item.num}')" title="Signature client" style="font-size:11px;">✍️</div>`);
-        btns.push(`<div class="obat-doc-act" onclick="event.stopPropagation();convertirEnFacture('${item.num}')" title="→ Facture" style="font-size:11px;color:#16a34a;">→💶</div>`);
+        btns.push(`<div class="obat-doc-act" onclick="event.stopPropagation();ouvrirPopupSig('${numJs}')" title="Signature client" style="font-size:11px;">✍️</div>`);
+        btns.push(`<div class="obat-doc-act" onclick="event.stopPropagation();convertirEnFacture('${numJs}')" title="→ Facture" style="font-size:11px;color:#16a34a;">→💶</div>`);
       }
       if (estSigne) {
-        btns.push(`<div class="obat-doc-act" onclick="event.stopPropagation();convertirEnFacture('${item.num}')" title="Convertir en facture" style="font-size:11px;color:#16a34a;">→💶</div>`);
+        btns.push(`<div class="obat-doc-act" onclick="event.stopPropagation();convertirEnFacture('${numJs}')" title="Convertir en facture" style="font-size:11px;color:#16a34a;">→💶</div>`);
       }
     }
 
     if (type === 'factures' && !estPaye && !estAnnule) {
-      btns.push(`<div class="obat-doc-act" onclick="event.stopPropagation();marquerPaye('${item.num}','terminal')" title="Payé CB" style="font-size:11px;">💳</div>`);
-      btns.push(`<div class="obat-doc-act" onclick="event.stopPropagation();marquerPaye('${item.num}','especes')" title="Payé espèces" style="font-size:11px;">💶</div>`);
-      btns.push(`<div class="obat-doc-act" onclick="event.stopPropagation();genererLienPaiement('${item.num}')" title="Lien paiement CB" style="font-size:11px;">🔗</div>`);
-      btns.push(`<div class="obat-doc-act" onclick="event.stopPropagation();marquerTermine('${item.num}')" title="Marquer terminé" style="font-size:11px;color:#16a34a;">✅</div>`);
+      btns.push(`<div class="obat-doc-act" onclick="event.stopPropagation();marquerPaye('${numJs}','terminal')" title="Payé CB" style="font-size:11px;">💳</div>`);
+      btns.push(`<div class="obat-doc-act" onclick="event.stopPropagation();marquerPaye('${numJs}','especes')" title="Payé espèces" style="font-size:11px;">💶</div>`);
+      btns.push(`<div class="obat-doc-act" onclick="event.stopPropagation();genererLienPaiement('${numJs}')" title="Lien paiement CB" style="font-size:11px;">🔗</div>`);
+      btns.push(`<div class="obat-doc-act" onclick="event.stopPropagation();marquerTermine('${numJs}')" title="Marquer terminé" style="font-size:11px;color:#16a34a;">✅</div>`);
     }
 
     // SMS avis pour factures payées
     if (type === 'factures' && estPaye) {
       const smsOk = item.sms_avis_envoye;
-      btns.push(`<div class="obat-doc-act" onclick="event.stopPropagation();${smsOk ? '' : `envoyerSmsAvis('${item.num}',this)`}"
+      btns.push(`<div class="obat-doc-act" onclick="event.stopPropagation();${smsOk ? '' : `envoyerSmsAvis('${numJs}',this)`}"
         title="${smsOk ? '✅ SMS avis envoyé' : '📱 Envoyer SMS avis Google'}"
         style="font-size:11px;${smsOk ? 'color:#16a34a;' : 'color:#C9962A;'}">${smsOk ? '📱✅' : '📱'}</div>`);
     }
@@ -7609,12 +7611,12 @@ function renderAccueilDocs(docs, containerId, type) {
 
   el.innerHTML = docs.slice(0,6).map(item => `
     <div class="obat-doc-row${isHot(item)?' hot':''}"
-      onclick="switchPage('historique',null);setTimeout(()=>{const el=document.querySelector('[data-num=\\'${item.num}\\']');if(el)el.scrollIntoView({behavior:'smooth',block:'center'});},500);"
+      onclick="switchPage('historique',null);setTimeout(()=>{const el=document.querySelector('[data-num=\\'${escJs(item.num||'')}\\']');if(el)el.scrollIntoView({behavior:'smooth',block:'center'});},500);"
       title="Cliquer pour voir dans l'historique">
-      <div class="obat-doc-num">${item.num}</div>
+      <div class="obat-doc-num">${esc(item.num)}</div>
       <div class="obat-doc-info">
-        <div class="obat-doc-client">${item.client||'—'}</div>
-        <div class="obat-doc-desc">${prestNom(item).substring(0,38)}${prestNom(item).length>38?'...':''}</div>
+        <div class="obat-doc-client">${esc(item.client||'—')}</div>
+        <div class="obat-doc-desc">${esc(prestNom(item).substring(0,38))}${prestNom(item).length>38?'...':''}</div>
       </div>
       <div class="obat-doc-right">
         ${getBadge(item)}
@@ -7931,10 +7933,10 @@ async function chargerAccueil() {
         const e = etapeInfo(d);
         const montant = Math.round(parseFloat(d.total_ht || 0)).toLocaleString('fr-FR');
         const client = (d.client || '—').substring(0, 20);
-        return `<div onclick="allerSurDoc('${d.num}')" style="background:rgba(255,255,255,0.06);border-radius:10px;padding:8px 10px;display:flex;align-items:center;gap:9px;cursor:pointer;">
+        return `<div onclick="allerSurDoc('${escJs(d.num||'')}')" style="background:rgba(255,255,255,0.06);border-radius:10px;padding:8px 10px;display:flex;align-items:center;gap:9px;cursor:pointer;">
           <div style="width:30px;height:30px;border-radius:8px;background:${e.bg};border:1px solid ${e.border};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:${e.color};flex-shrink:0;text-align:center;line-height:1.2;">${e.label}</div>
           <div style="flex:1;min-width:0;">
-            <div style="font-size:12px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${client}</div>
+            <div style="font-size:12px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(client)}</div>
             <div style="font-size:10px;color:rgba(255,255,255,0.45);margin-top:1px;">${e.meta}</div>
           </div>
           <div style="font-family:monospace;font-size:11.5px;color:#C9962A;font-weight:700;flex-shrink:0;">${montant} €</div>
@@ -7979,10 +7981,10 @@ async function chargerAccueil() {
             .map(d => {
               const e = etapeRelance(d);
               return `
-            <div class="acc-alerte-chip" onclick="allerSurDoc('${d.num}')" title="Aller sur ce devis">
+            <div class="acc-alerte-chip" onclick="allerSurDoc('${escJs(d.num||'')}')" title="Aller sur ce devis">
               <span class="acc-alerte-chip-badge" style="background:${e.bg};color:${e.color};">${e.label}</span>
-              <span>${d.num}</span>
-              <span class="acc-alerte-chip-client">${(d.client||'').substring(0,22)} \u00b7 ${parseFloat(d.total_ht||0).toFixed(0)} \u20ac</span>
+              <span>${esc(d.num)}</span>
+              <span class="acc-alerte-chip-client">${esc((d.client||'').substring(0,22))} \u00b7 ${parseFloat(d.total_ht||0).toFixed(0)} \u20ac</span>
               <span>\u2192</span>
             </div>`;}).join('');
         }
@@ -8083,22 +8085,23 @@ async function chargerAccueil() {
         html += devisRelances.slice(0,3).map(d => {
           const pn = ((d.prestations||[{nom:'\u2014'}])[0]?.nom||'\u2014').substring(0,30);
           const jj = Math.floor(ageH(d)/24);
-          const tl = (d.telephone||'').replace(/'/g,"\\'");
-          const cl = (d.client||'').replace(/'/g,"\\'");
-          return `<div class="traiter-item" onclick="allerSurDoc('${d.num}')">
+          const tl = escJs(d.telephone||'');
+          const cl = escJs(d.client||'');
+          const numJs = escJs(d.num||'');
+          return `<div class="traiter-item" onclick="allerSurDoc('${numJs}')">
             <div class="traiter-dot orange"></div>
             <div class="traiter-info">
-              <div class="traiter-client">${d.client||'\u2014'}</div>
-              <div class="traiter-desc">${pn}</div>
+              <div class="traiter-client">${esc(d.client||'\u2014')}</div>
+              <div class="traiter-desc">${esc(pn)}</div>
             </div>
             <div class="traiter-right">
               <div class="traiter-montant">${parseFloat(d.total_ht||0).toFixed(0)} \u20ac</div>
               <div class="traiter-age" style="color:#dc2626;">Il y a ${jj} j</div>
             </div>
             <div class="traiter-actions">
-              <div class="traiter-act blue" onclick="event.stopPropagation();relancerDevis('${d.num}','${tl}','${cl}')" title="Relancer SMS">\uD83D\uDCF1</div>
-              <div class="traiter-act green" onclick="event.stopPropagation();convertirEnFacture('${d.num}')" title="Facture directe">\uD83D\uDCB6</div>
-              <div class="traiter-act" onclick="event.stopPropagation();previsualiserPDF('${d.num}')" title="Aper\u00e7u">\uD83D\uDC41\uFE0F</div>
+              <div class="traiter-act blue" onclick="event.stopPropagation();relancerDevis('${numJs}','${tl}','${cl}')" title="Relancer SMS">\uD83D\uDCF1</div>
+              <div class="traiter-act green" onclick="event.stopPropagation();convertirEnFacture('${numJs}')" title="Facture directe">\uD83D\uDCB6</div>
+              <div class="traiter-act" onclick="event.stopPropagation();previsualiserPDF('${numJs}')" title="Aper\u00e7u">\uD83D\uDC41\uFE0F</div>
             </div>
           </div>`;
         }).join('');
@@ -8115,13 +8118,13 @@ async function chargerAccueil() {
           return `<div class="traiter-item" onclick="switchPage('agenda',null)">
             <div class="traiter-dot vert"></div>
             <div style="background:#EFF4FF;border-radius:7px;padding:5px 8px;text-align:center;flex-shrink:0;min-width:44px;">
-              <div style="font-size:12px;font-weight:800;color:#1B2A4A;">${heure}</div>
+              <div style="font-size:12px;font-weight:800;color:#1B2A4A;">${esc(heure)}</div>
             </div>
             <div class="traiter-info">
-              <div class="traiter-client">${nom}</div>
-              <div class="traiter-desc">${iv.type_intervention||'Intervention'}</div>
+              <div class="traiter-client">${esc(nom)}</div>
+              <div class="traiter-desc">${esc(iv.type_intervention||'Intervention')}</div>
             </div>
-            ${iv.telephone ? `<a href="tel:${iv.telephone}" onclick="event.stopPropagation()" class="traiter-act" style="text-decoration:none;display:flex;align-items:center;justify-content:center;" title="Appeler">\uD83D\uDCDE</a>` : ''}
+            ${iv.telephone ? `<a href="tel:${esc(iv.telephone)}" onclick="event.stopPropagation()" class="traiter-act" style="text-decoration:none;display:flex;align-items:center;justify-content:center;" title="Appeler">\uD83D\uDCDE</a>` : ''}
           </div>`;
         }).join('');
       }
@@ -9530,41 +9533,42 @@ function ouvrirActionSheet(item) {
 
   // Construire les items
   const items = [];
+  const numJs = escJs(item.num||'');
 
   if (isObat) {
-    items.push({ icon:'⬇️', label:'Télécharger PDF OBAT', fn:`telechargerPDFObat('${item.num}')` });
+    items.push({ icon:'⬇️', label:'Télécharger PDF OBAT', fn:`telechargerPDFObat('${numJs}')` });
   } else {
-    items.push({ icon:'👁️', label:'Aperçu PDF', fn:`previsualiserPDF('${item.num}')` });
-    items.push({ icon:'⬇️', label:'Télécharger', fn:`telechargerPDF('${item.num}')` });
+    items.push({ icon:'👁️', label:'Aperçu PDF', fn:`previsualiserPDF('${numJs}')` });
+    items.push({ icon:'⬇️', label:'Télécharger', fn:`telechargerPDF('${numJs}')` });
     if (type === 'devis' && statut === 'envoye') {
-      items.push({ icon:'📧', label:'Renvoyer le devis', fn:`renvoyerDevis('${item.num}','${(item.email||'').replace(/'/g,"\'")}','${(item.client||'').replace(/'/g,"\'")}')` });
-      items.push({ icon:'✏️', label:'Modifier le devis', fn:`modifierDevis('${item.num}')`, gold:true });
+      items.push({ icon:'📧', label:'Renvoyer le devis', fn:`renvoyerDevis('${numJs}','${escJs(item.email||'')}','${escJs(item.client||'')}')` });
+      items.push({ icon:'✏️', label:'Modifier le devis', fn:`modifierDevis('${numJs}')`, gold:true });
     }
-    if (type === 'devis') items.push({ icon:'💶', label:'Convertir en facture', fn:`convertirEnFacture('${item.num}')` });
+    if (type === 'devis') items.push({ icon:'💶', label:'Convertir en facture', fn:`convertirEnFacture('${numJs}')` });
     if (type === 'devis') {
-      items.push({ icon:'✍️', label:'Signature client', fn:`ouvrirPopupSig('${item.num}')` });
-      if (!estSigne) items.push({ icon:'✅', label:'Marquer signé', fn:`marquerSigne('${item.num}')` });
+      items.push({ icon:'✍️', label:'Signature client', fn:`ouvrirPopupSig('${numJs}')` });
+      if (!estSigne) items.push({ icon:'✅', label:'Marquer signé', fn:`marquerSigne('${numJs}')` });
     }
     if (type === 'facture' && !estPaye && !estAnnule) {
-      items.push({ icon:'💳', label:'Payé — Terminal CB', fn:`marquerPaye('${item.num}','terminal')` });
-      items.push({ icon:'🏦', label:'Payé — Virement', fn:`marquerPaye('${item.num}','virement')` });
-      items.push({ icon:'💶', label:'Payé — Espèces', fn:`marquerPaye('${item.num}','especes')` });
-      items.push({ icon:'🔗', label:'Lien paiement CB', fn:`genererLienPaiement('${item.num}')` });
+      items.push({ icon:'💳', label:'Payé — Terminal CB', fn:`marquerPaye('${numJs}','terminal')` });
+      items.push({ icon:'🏦', label:'Payé — Virement', fn:`marquerPaye('${numJs}','virement')` });
+      items.push({ icon:'💶', label:'Payé — Espèces', fn:`marquerPaye('${numJs}','especes')` });
+      items.push({ icon:'🔗', label:'Lien paiement CB', fn:`genererLienPaiement('${numJs}')` });
     }
-    items.push({ icon:'📋', label:'Dupliquer', fn:`dupliquerDoc('${item.num}')` });
-    items.push({ icon:'👤', label:'Fiche client', fn:`creerFicheClient('${item.num}')` });
-    items.push({ icon:'🗑️', label:'Supprimer', fn:`supprimerDoc('${item.num}')`, red:true });
+    items.push({ icon:'📋', label:'Dupliquer', fn:`dupliquerDoc('${numJs}')` });
+    items.push({ icon:'👤', label:'Fiche client', fn:`creerFicheClient('${numJs}')` });
+    items.push({ icon:'🗑️', label:'Supprimer', fn:`supprimerDoc('${numJs}')`, red:true });
   }
 
   // Rendre les items
   const container = document.getElementById('as-items');
   if (container) {
     container.innerHTML = items.map(it => `
-      <div class="action-sheet-item ${it.red?'red':''}" 
+      <div class="action-sheet-item ${it.red?'red':''}"
            style="${it.gold?'color:#C9A84C;':''}"
            onclick="${it.fn};fermerActionSheet()">
         <span class="as-icon">${it.icon}</span>
-        ${it.label}
+        ${esc(it.label)}
       </div>`).join('');
   }
 
@@ -9900,11 +9904,11 @@ function afficherToutesInterventionsJour() {
     const isDone = statut === 'termine' || statut === 'terminé';
     const dotColor = isDone ? '#16a34a' : '#f59e0b';
     return `
-      <div onclick="allerSurIntervention('${iv.id||''}')" style="background:#fff;border-radius:12px;padding:11px 12px;margin-bottom:7px;display:flex;align-items:center;gap:11px;box-shadow:0 1px 3px rgba(0,0,0,0.04);cursor:pointer;">
-        <div style="background:#FBF7EC;border-radius:8px;padding:5px 9px;flex-shrink:0;font-family:monospace;font-size:12px;font-weight:800;color:#C9962A;">${heure}</div>
+      <div onclick="allerSurIntervention('${escJs(iv.id||'')}')" style="background:#fff;border-radius:12px;padding:11px 12px;margin-bottom:7px;display:flex;align-items:center;gap:11px;box-shadow:0 1px 3px rgba(0,0,0,0.04);cursor:pointer;">
+        <div style="background:#FBF7EC;border-radius:8px;padding:5px 9px;flex-shrink:0;font-family:monospace;font-size:12px;font-weight:800;color:#C9962A;">${esc(heure)}</div>
         <div style="flex:1;min-width:0;">
-          <div style="font-size:12.5px;font-weight:800;color:#1B2A4A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${client}</div>
-          <div style="font-size:10.5px;color:#999;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${type}</div>
+          <div style="font-size:12.5px;font-weight:800;color:#1B2A4A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(client)}</div>
+          <div style="font-size:10.5px;color:#999;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(type)}</div>
         </div>
         <div style="width:8px;height:8px;border-radius:50%;background:${dotColor};flex-shrink:0;"></div>
       </div>`;
