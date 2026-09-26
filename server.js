@@ -266,6 +266,34 @@ const supabase = createClient(
 let anthropic;
 try { anthropic = new Anthropic({ apiKey: (process.env.ANTHROPIC_API_KEY || '').trim() }); }
 catch(e) { console.error('⚠️ Anthropic init:', e.message); anthropic = null; }
+
+// Durée par défaut d'une intervention planifiée, pour la détection de chevauchement d'agenda (double-booking)
+const DUREE_RDV_MINUTES = 120;
+function heureEnMinutes(hhmm){
+  if(!hhmm) return null;
+  const m = String(hhmm).match(/^(\d{1,2}):(\d{2})/);
+  if(!m) return null;
+  return parseInt(m[1],10)*60 + parseInt(m[2],10);
+}
+// Vérifie si un rdv à date_intervention/heure chevaucherait un rdv "planifié" existant (fenêtre de 2h de part et d'autre)
+// excludeId : id à ignorer (utile pour modifier_rdv, pour ne pas se comparer à soi-même)
+async function verifierConflitAgenda(date_intervention, heure, excludeId){
+  if(!date_intervention || !heure) return null;
+  const minutesDemande = heureEnMinutes(heure);
+  if(minutesDemande===null) return null;
+  let q = supabase.from('agenda').select('id,client,heure,adresse').eq('date_intervention', date_intervention).eq('statut','planifié');
+  if(excludeId) q = q.neq('id', excludeId);
+  const{data,error} = await q;
+  if(error || !data) return null;
+  for(const rdv of data){
+    const m = heureEnMinutes(rdv.heure);
+    if(m===null) continue;
+    if(Math.abs(m - minutesDemande) < DUREE_RDV_MINUTES){
+      return rdv;
+    }
+  }
+  return null;
+}
 const BREVO_API_KEY = process.env.BREVO_API_KEY;
 const SUMUP_API_KEY = process.env.SUMUP_API_KEY;
 const SUMUP_MERCHANT_CODE = process.env.SUMUP_MERCHANT_CODE;
@@ -5149,25 +5177,47 @@ app.all('/mcp', mcpAuth, async(req,res)=>{
         else if(name==='creer_rdv'){
           const{client,telephone,email,adresse,date_intervention,heure,type_intervention,notes,statut,source,sms_rappel}=args||{};
           try {
+            const statutFinal = statut||'lead';
+            if(statutFinal==='planifié'){
+              const conflit = await verifierConflitAgenda(date_intervention, heure, null);
+              if(conflit){
+                result={success:false,error:`⚠️ Créneau déjà pris : ${conflit.client} est déjà planifié le ${date_intervention} à ${conflit.heure}${conflit.adresse?` (${conflit.adresse})`:''}. Choisis une heure à plus de 2h d'écart, ou confirme si tu veux quand même forcer.`};
+                return send({jsonrpc:'2.0',id,result:{content:[{type:'text',text:JSON.stringify(result,null,2)}]}});
+              }
+            }
             const notesCompletes = [notes, email?`Email: ${email}`:null, source?`Source: ${source}`:null].filter(Boolean).join(' | ');
             const{data,error}=await supabase.from('agenda').insert({
               client, telephone:telephone||'', adresse:adresse||'',
               date_intervention:date_intervention||null, heure:heure||null,
               type_intervention:type_intervention||'', notes:notesCompletes||'',
-              statut: statut||'lead',
+              statut: statutFinal,
               sms_rappel: sms_rappel!==undefined ? sms_rappel : true
             }).select().single();
-            if(error) throw error;
-            result={success:true,id:data.id,message:`✅ Entrée agenda créée pour ${client}${date_intervention?` le ${date_intervention}`:''}`};
+            if(error){
+              if(error.code==='23P01'){ result={success:false,error:`⚠️ Créneau déjà pris pour ce client à cette date/heure (détecté au dernier moment). Choisis un autre horaire.`}; }
+              else throw error;
+            } else {
+              result={success:true,id:data.id,message:`✅ Entrée agenda créée pour ${client}${date_intervention?` le ${date_intervention}`:''}`};
+            }
           } catch(e){ result={success:false,error:e.message}; }
         }
         else if(name==='modifier_rdv'){
           const{telephone,client,adresse,date_intervention,heure,notes,statut,sms_rappel}=args||{};
           try {
-            const{data:existants}=await supabase.from('agenda').select('id,client,date_intervention').eq('telephone',telephone).order('created_at',{ascending:false}).limit(1);
+            const{data:existants}=await supabase.from('agenda').select('id,client,date_intervention,heure,statut').eq('telephone',telephone).order('created_at',{ascending:false}).limit(1);
             if(!existants||existants.length===0){ result={success:false,error:`Aucune entrée agenda trouvée pour le téléphone ${telephone}`}; }
             else {
               const id=existants[0].id;
+              const dateFinale = date_intervention!==undefined ? date_intervention : existants[0].date_intervention;
+              const heureFinale = heure!==undefined ? heure : existants[0].heure;
+              const statutFinal = statut!==undefined ? statut : existants[0].statut;
+              if(statutFinal==='planifié' && (date_intervention!==undefined || heure!==undefined || statut!==undefined)){
+                const conflit = await verifierConflitAgenda(dateFinale, heureFinale, id);
+                if(conflit){
+                  result={success:false,error:`⚠️ Créneau déjà pris : ${conflit.client} est déjà planifié le ${dateFinale} à ${conflit.heure}${conflit.adresse?` (${conflit.adresse})`:''}. Choisis une heure à plus de 2h d'écart, ou confirme si tu veux quand même forcer.`};
+                  return send({jsonrpc:'2.0',id,result:{content:[{type:'text',text:JSON.stringify(result,null,2)}]}});
+                }
+              }
               const maj={};
               if(client!==undefined) maj.client=client;
               if(adresse!==undefined) maj.adresse=adresse;
@@ -5177,8 +5227,12 @@ app.all('/mcp', mcpAuth, async(req,res)=>{
               if(statut!==undefined) maj.statut=statut;
               if(sms_rappel!==undefined) maj.sms_rappel=sms_rappel;
               const{error}=await supabase.from('agenda').update(maj).eq('id',id);
-              if(error) throw error;
-              result={success:true,id,message:`✅ Entrée agenda mise à jour (était: ${existants[0].client})`};
+              if(error){
+                if(error.code==='23P01'){ result={success:false,error:`⚠️ Créneau déjà pris pour ce client à cette date/heure (détecté au dernier moment). Choisis un autre horaire.`}; }
+                else throw error;
+              } else {
+                result={success:true,id,message:`✅ Entrée agenda mise à jour (était: ${existants[0].client})`};
+              }
             }
           } catch(e){ result={success:false,error:e.message}; }
         }
