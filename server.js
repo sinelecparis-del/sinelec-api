@@ -36,6 +36,20 @@ async function otpGet(num) {
 async function otpDel(num) {
   await supabase.from('otp_signatures').update({ used: true }).eq('num', num).eq('used', false);
 }
+// Marque le code comme réellement vérifié par le client (distinct d'un simple 'used' qui peut
+// aussi venir de l'invalidation d'un ancien code lors d'une nouvelle demande OTP)
+async function otpMarquerVerifie(num) {
+  await supabase.from('otp_signatures').update({ used: true, verified_at: new Date().toISOString() }).eq('num', num).eq('used', false);
+}
+// Un devis est considéré "identité confirmée" si un code OTP a été vérifié avec succès
+// pour ce num dans les 30 dernières minutes (le temps de dessiner/valider la signature)
+async function otpEstVerifie(num) {
+  const seuil = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  const { data } = await supabase.from('otp_signatures')
+    .select('verified_at').eq('num', num).not('verified_at', 'is', null)
+    .gte('verified_at', seuil).order('verified_at', { ascending: false }).limit(1).maybeSingle();
+  return !!data;
+}
 
 const express = require('express');
 const cors = require('cors');
@@ -44,7 +58,7 @@ const { createClient } = require('@supabase/supabase-js');
 const ws = require('ws');
 const Anthropic = require('@anthropic-ai/sdk');
 const crypto = require('crypto');
-const { execSync } = require('child_process');
+const { execSync, execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const CONFIG = {
@@ -135,8 +149,11 @@ function blockStandardiste(req, res, next) {
 }
 
 function authMiddleware(req, res, next) {
-  const publicRoutes = ['/', '/health', '/api/login', '/signer/', '/paiement-confirme/', '/paiement-retour/', '/api/signature', '/api/otp-signature', '/api/verifier-otp', '/api/track/click/', '/api/track/open/', '/api/auth/check', '/api/test-pdf', '/api/test', '/api/webhook/lead-site', '/valider-envoi/', '/api/valider-envoi/'];
-  if (publicRoutes.some(r => req.path.startsWith(r))) return next();
+  // IMPORTANT : '/' matche TOUT chemin avec startsWith — ne jamais mettre '/' seul dans cette liste.
+  // Utiliser une égalité exacte pour la racine et le /health, startsWith uniquement pour les préfixes réels.
+  const publicExact = ['/', '/health', '/api/login', '/api/auth/check', '/api/test-pdf', '/api/test', '/api/webhook/lead-site'];
+  const publicPrefixes = ['/signer/', '/paiement-confirme/', '/paiement-retour/', '/api/signature', '/api/otp-signature', '/api/verifier-otp', '/api/track/click/', '/api/track/open/', '/valider-envoi/', '/api/valider-envoi/', '/mcp', '/oauth/', '/.well-known/'];
+  if (publicExact.includes(req.path) || publicPrefixes.some(r => req.path.startsWith(r))) return next();
   const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
   if (!verifierToken(token)) return res.status(401).json({ error: 'Non autorisé', code: 'UNAUTHORIZED' });
   next();
@@ -187,6 +204,10 @@ app.post('/api/deplacement/zone', (req, res) => {
 });
 
 app.post('/api/login', (req, res) => {
+  const ipLogin = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'inconnu';
+  if (!rateLimitOk('login:' + ipLogin, 15, 15 * 60 * 1000)) {
+    return res.status(429).json({ error: 'Trop de tentatives — réessayez dans quelques minutes' });
+  }
   const inputPwd  = String(req.body.password || '').trim();
   const adminPwd  = String(APP_PASSWORD).trim();
   const stdPwd    = String(STANDARD_PASSWORD).trim();
@@ -347,7 +368,7 @@ print('PDF_OK')
 `;
     fs.writeFileSync(testPy, pyScript);
     try {
-      const out = execSync(`python3 "${testPy}" "${testData}" "${testPdf}"`, { timeout: 30000, stdio: ['pipe','pipe','pipe'] });
+      const out = execFileSync('python3', [testPy, testData, testPdf], { timeout: 30000, stdio: ['pipe','pipe','pipe'] });
       const pdfExists = fs.existsSync(testPdf);
       const pdfSize = pdfExists ? fs.statSync(testPdf).size : 0;
       steps.push({ step: 'pdf_generation', ok: pdfExists, msg: pdfExists ? `${pdfSize} bytes` : 'non généré' });
@@ -379,7 +400,7 @@ app.get('/api/test', async (req, res) => {
   try {
     // Test Python
     try {
-      const { execSync } = require('child_process');
+      const { execSync, execFileSync } = require('child_process');
       execSync(`python3 -c "from reportlab.platypus import SimpleDocTemplate; print('ok')"`, { timeout: 10000 });
       diag.python = true;
     } catch(e) { diag.python_error = e.message.substring(0,200); }
@@ -486,6 +507,22 @@ async function envoyerSMS(to, message) {
     return null; 
   }
 }
+
+// ─── Limiteur de fréquence simple, en mémoire (une seule instance Railway) ───
+// Évite le brute-force du code OTP et le spam SMS (coût réel en crédits Brevo)
+const _rateLimitStore = new Map();
+function rateLimitOk(cle, maxTentatives, fenetreMs) {
+  const now = Date.now();
+  let entry = _rateLimitStore.get(cle);
+  if (!entry || now > entry.resetAt) entry = { count: 0, resetAt: now + fenetreMs };
+  entry.count++;
+  _rateLimitStore.set(cle, entry);
+  return entry.count <= maxTentatives;
+}
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of _rateLimitStore) if (now > v.resetAt) _rateLimitStore.delete(k);
+}, 10 * 60 * 1000);
 
 async function incrementerCompteur(type) {
   const { data, error } = await supabase.from('compteurs').select('valeur').eq('type', type).single();
@@ -1023,7 +1060,7 @@ doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
       fs.writeFileSync(pyPath, py, 'utf8');
       console.log('🐍 Python:', pyPath, '→', pdfPath);
       try {
-        execSync(`python3 "${pyPath}" "${detailsPath}" "${pdfPath}"`, {
+        execFileSync('python3', [pyPath, detailsPath, pdfPath], {
           timeout: 60000, stdio: ['pipe','pipe','pipe']
         });
       } catch(pyErr) {
@@ -1349,6 +1386,18 @@ app.post('/api/signature', async (req, res) => {
   try {
     const { num, signature, ip } = req.body;
     if (!num) return res.status(400).json({ error: 'num requis' });
+    // Deux façons légitimes de signer un devis :
+    // 1. Diahe (admin connecté à l'app) fait signer le client en direct sur son écran/téléphone
+    // 2. Le client signe seul via le lien /signer/:num — dans ce cas, l'identité doit avoir été
+    //    confirmée par le code OTP envoyé par SMS juste avant (sinon n'importe qui pourrait
+    //    forger une signature en connaissant seulement le numéro de devis)
+    const tokenAppel = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
+    if (!verifierToken(tokenAppel)) {
+      const otpOk = await otpEstVerifie(num);
+      if (!otpOk) {
+        return res.status(403).json({ error: "Identité non confirmée — veuillez d'abord valider le code reçu par SMS." });
+      }
+    }
     const sigPath = path.join('/tmp', `sig_${num}.png`);
     if (signature) {
       const b64 = signature.replace(/^data:image\/[a-z]+;base64,/, '');
@@ -1807,10 +1856,21 @@ app.delete('/api/historique/:num', async (req, res) => {
   } catch(error) { res.status(500).json({ error: error.message }); }
 });
 
+const STATUTS_AUTORISES = ['envoye','envoyé','signe','signé','paye','payé','annule','annulé','refuse','refusé','en_attente_validation'];
 app.patch('/api/historique/:num/statut', async (req, res) => {
   try {
     const { num } = req.params;
-    const updates = req.body;
+    // Liste blanche stricte — sans ça, n'importe quel champ (total_ht, prestations, email...) pouvait
+    // être réécrit en passant simplement un autre corps de requête sur cette même route
+    const updates = {};
+    if (req.body.statut !== undefined) {
+      if (!STATUTS_AUTORISES.includes(String(req.body.statut))) {
+        return res.status(400).json({ error: 'Statut invalide' });
+      }
+      updates.statut = req.body.statut;
+    }
+    if (req.body.date_intervention !== undefined) updates.date_intervention = req.body.date_intervention;
+    if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'Aucun champ autorisé fourni' });
     const { error } = await supabase.from('historique').update(updates).eq('num', num);
     if (error) throw error;
     res.json({ success: true });
@@ -1997,6 +2057,9 @@ app.post('/api/sms', authMiddleware, async (req, res) => {
 app.post('/api/envoyer-sms-avis/:num', async (req, res) => {
   try {
     const { num } = req.params;
+    if (!rateLimitOk('sms-avis:' + num, 3, 24 * 60 * 60 * 1000)) {
+      return res.status(429).json({ error: 'SMS avis déjà envoyé récemment pour ce devis' });
+    }
     const { data: doc } = await supabase.from('historique').select('*').eq('num', num).single();
     if (!doc) return res.status(404).json({ error: 'Document non trouvé' });
     if (!doc.telephone) return res.status(400).json({ error: 'Pas de téléphone pour ce client' });
@@ -2284,7 +2347,7 @@ doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
 `;
     fs.writeFileSync(pyPath, py, 'utf8');
     try {
-      execSync(`python3 "${pyPath}" "${detailsPath}" "${pdfPath}"`, {
+      execFileSync('python3', [pyPath, detailsPath, pdfPath], {
         timeout: 40000, stdio: ['pipe','pipe','pipe']
       });
     } catch(pyErr) {
@@ -2337,7 +2400,7 @@ story[-1].setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),MARINE),('TOPPADDING'
 doc.build(story); print('PDF_OK')
 `;
     fs.writeFileSync(pyPath, py, 'utf8');
-    execSync(`python3 "${pyPath}" "${detailsPath}" "${pdfPath}"`, { cwd: __dirname, timeout: 30000 });
+    execFileSync('python3', [pyPath, detailsPath, pdfPath], { cwd: __dirname, timeout: 30000 });
     if (!fs.existsSync(pdfPath)) throw new Error('PDF non généré');
     const buf = fs.readFileSync(pdfPath);
     const b64 = buf.toString('base64');
@@ -2548,7 +2611,7 @@ story.append(Table([[p('TVA non applicable, art. 293B du CGI',8,color=GRIS_SOFT)
 doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
 `;
     fs.writeFileSync(pyPath, py, 'utf8');
-    execSync(`python3 "${pyPath}" "${detailsPath}" "${pdfPath}"`, { cwd: __dirname, timeout: 40000 });
+    execFileSync('python3', [pyPath, detailsPath, pdfPath], { cwd: __dirname, timeout: 40000 });
     const pdfBuffer = fs.readFileSync(pdfPath);
     const pdf_b64 = pdfBuffer.toString('base64');
     try { fs.unlinkSync(pyPath); fs.unlinkSync(detailsPath); fs.unlinkSync(pdfPath); } catch(e) {}
@@ -3515,7 +3578,7 @@ doc.build(story, canvasmaker=lambda fn, **kw: SC(fn, **kw))
     fs.writeFileSync(pyPath, py, 'utf8');
     let pdf_b64 = null;
     try {
-      execSync(`python3 "${pyPath}" "${detailsPath}" "${pdfPath}"`, { timeout: 40000, stdio: ['pipe','pipe','pipe'] });
+      execFileSync('python3', [pyPath, detailsPath, pdfPath], { timeout: 40000, stdio: ['pipe','pipe','pipe'] });
       if (fs.existsSync(pdfPath)) {
         const buf = fs.readFileSync(pdfPath);
         if (buf.length > 500 && buf.subarray(0,4).toString('ascii') === '%PDF') {
@@ -3572,7 +3635,7 @@ app.post('/api/rapport/envoyer/:num', authMiddleware, async (req, res) => {
         const tmpPy     = `/tmp/_rap_resend_${num}.py`;
         const tmpPdf    = `/tmp/_rap_resend_${num}.pdf`;
         // Reconstruct minimal payload for regen
-        const { execSync } = require('child_process');
+        const { execSync, execFileSync } = require('child_process');
         const fs = require('fs');
         fs.writeFileSync(tmpDetails, JSON.stringify(payload));
         // Use existing Python script via direct call
@@ -3848,7 +3911,7 @@ print('PDF_OK')
     fs.writeFileSync(pyPath, py, 'utf8');
     let pdf_b64 = null;
     try {
-      execSync(`python3 "${pyPath}" "${detailsPath}" "${pdfPath}"`, { timeout: 40000, stdio: ['pipe','pipe','pipe'] });
+      execFileSync('python3', [pyPath, detailsPath, pdfPath], { timeout: 40000, stdio: ['pipe','pipe','pipe'] });
       if (fs.existsSync(pdfPath)) {
         const buf = fs.readFileSync(pdfPath);
         if (buf.length > 500 && buf.subarray(0,4).toString('ascii') === '%PDF') {
@@ -4643,6 +4706,9 @@ app.get('/api/track/open/:num', async (req, res) => {
 app.post('/api/otp-signature', async (req, res) => {
   try {
     const { num } = req.body;
+    if (!num || !rateLimitOk('otp-envoi:' + num, 5, 60 * 60 * 1000)) {
+      return res.status(429).json({ success: false, error: 'Trop de demandes de code pour ce devis — contactez SINELEC au 07 87 38 86 22.' });
+    }
     let { telephone } = req.body;
     if (!telephone) {
       const { data: doc } = await supabase.from('historique').select('telephone').eq('num', num).single();
@@ -4666,6 +4732,9 @@ app.post('/api/otp-signature', async (req, res) => {
 app.post('/api/verifier-otp', async (req, res) => {
   try {
     const { num, code } = req.body;
+    if (!num || !rateLimitOk('otp-verif:' + num, 8, 15 * 60 * 1000)) {
+      return res.status(429).json({ success: false, error: 'Trop de tentatives — demandez un nouveau code.' });
+    }
     const storedCode = await otpGet(num);
     const rows = storedCode ? [{ code: storedCode }] : [];
     if (!storedCode) return res.status(404).json({ success: false, error: 'Aucun code envoyé pour ce devis' });
@@ -4673,7 +4742,7 @@ app.post('/api/verifier-otp', async (req, res) => {
     const stored = String(storedCode).replace(/\D/g, '').trim();
     console.log('OTP check:', num, '| stored:', stored, '| entered:', entered);
     if (!stored || !entered || stored !== entered) return res.status(400).json({ success: false, error: 'Code incorrect' });
-    await otpDel(num);
+    await otpMarquerVerifie(num);
     res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -5052,13 +5121,18 @@ app.post('/oauth/token',express.urlencoded({extended:true}),express.json(),(req,
     if(!grant_type) return res.status(400).json({error:'invalid_request',error_description:'grant_type manquant'});
     if(grant_type!=='authorization_code') return res.status(400).json({error:'unsupported_grant_type'});
     if(!code) return res.status(400).json({error:'invalid_request',error_description:'code manquant'});
-    // Vérifier PKCE
+    // Vérifier PKCE — OBLIGATOIRE (un attaquant qui omet simplement code_challenge à l'étape
+    // /oauth/authorize ne doit pas pouvoir sauter cette vérification et obtenir un token admin)
     let codeData={};
     try{ codeData=JSON.parse(Buffer.from(code,'base64url').toString()); }catch(e){}
-    if(codeData.challenge && code_verifier){
-      const expectedChallenge=require('crypto').createHash('sha256').update(code_verifier).digest('base64url');
-      if(expectedChallenge!==codeData.challenge) return res.status(400).json({error:'invalid_grant',error_description:'PKCE invalide'});
+    if (!codeData.challenge || !code_verifier) {
+      return res.status(400).json({error:'invalid_grant',error_description:'PKCE requis (code_challenge/code_verifier manquant)'});
     }
+    if (!codeData.ts || (Date.now() - codeData.ts) > 5*60*1000) {
+      return res.status(400).json({error:'invalid_grant',error_description:'Code expiré'});
+    }
+    const expectedChallenge=require('crypto').createHash('sha256').update(code_verifier).digest('base64url');
+    if(expectedChallenge!==codeData.challenge) return res.status(400).json({error:'invalid_grant',error_description:'PKCE invalide'});
     const access_token = genererToken('admin');
     console.log('✅ MCP OAuth token généré');
     res.json({access_token,token_type:'Bearer',expires_in:86400,scope:''});
@@ -5072,8 +5146,10 @@ app.post('/oauth/token',express.urlencoded({extended:true}),express.json(),(req,
 const mcpAuth = (req,res,next)=>{
   const key = (req.headers['x-api-key']||'').trim();
   const auth = (req.headers['authorization']||'').replace(/^Bearer\s+/i,'').trim();
-  if(key==='sinelec2026') return next();
-  if(auth && auth.length>10) return next();
+  if(key === (process.env.MCP_API_KEY || 'sinelec2026')) return next();
+  // IMPORTANT : n'accepter qu'un vrai token signé (issu de /api/login ou /oauth/token),
+  // jamais "n'importe quelle chaîne de plus de 10 caractères" (ancien bug — accès total sans vérif)
+  if(auth && verifierToken(auth)) return next();
   return res.status(401).json({error:'unauthorized',error_description:'Authentication required'});
 };
 
