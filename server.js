@@ -5770,7 +5770,12 @@ app.all('/mcp', mcpAuth, async(req,res)=>{
         let result;
 
         if(name==='get_dashboard'){
-          const{data:f}=await supabase.from('historique').select('total_ht,created_at').eq('type','facture');
+          // Le CA ne doit compter que les factures réellement encaissées — exclut
+          // les annulées et les en-attente (sinon un doublon ou une facture pas
+          // encore payée gonfle artificiellement le chiffre, comme sur le
+          // dossier Tersier le 27/09/2026 où une facture doublon avait été
+          // comptée en plus de l'acompte+solde déjà réglés).
+          const{data:f}=await supabase.from('historique').select('total_ht,created_at').eq('type','facture').in('statut',['paye','payé','acquitte','acquitté']);
           const now=new Date(); const mk=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
           const fm=(f||[]).filter(x=>x.created_at?.startsWith(mk));
           const fa=(f||[]).filter(x=>x.created_at?.startsWith(''+now.getFullYear()));
