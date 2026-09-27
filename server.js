@@ -6126,14 +6126,25 @@ app.all('/mcp', mcpAuth, async(req,res)=>{
           // Auto-génération des descriptions détaillées via IA — se déclenche sauf si un vrai paragraphe complet est déjà fourni
           const prestationsFormatted = await Promise.all((prestations||[]).map(async p => {
             let desc = p.description || p.desc || '';
-            if (!desc || desc.length < 150) {
+            // Cas particulier : le simple "Déplacement" (frais de trajet/mise à
+            // disposition) n'est PAS une prestation technique — l'IA générique
+            // lui inventait à tort un discours de "diagnostic approfondi" /
+            // "tests de conformité", ce qui fait croire au client qu'un
+            // diagnostic complet est inclus dans les 85€. Bug remonté par Diahe
+            // le 28/09/2026 (devis Garcia OS-202609-313). On fixe une
+            // description honnête et courte, sans passer par l'IA.
+            const nomNorm = (p.nom||'').trim().toLowerCase();
+            if (!desc && nomNorm === 'déplacement') {
+              desc = `Frais de déplacement pour l'intervention de nos techniciens SINELEC Paris à votre adresse. Comprend le trajet et la mise à disposition sur site.`;
+            } else if (!desc || desc.length < 150) {
               try {
                 const prix = parseFloat(p.prix_unitaire)||0;
                 const prompt = `Tu es un expert électricien SINELEC Paris. Rédige une description professionnelle pour cette prestation dans un devis client.
 Prestation : "${p.nom}"${prix ? `\nPrix : ${prix}€` : ''}
 Format : 4-6 phrases, ~120-150 mots
 Style : Professionnel, technique, rassurant. Mentionne : main d'œuvre + fourniture + marques (Hager, Legrand ou Schneider Electric) + raccordement + mise en service + tests. Conforme NF C 15-100. Garantie décennale ORUS.
-IMPORTANT : Réponds UNIQUEMENT avec la description, sans introduction ni guillemets.`;
+IMPORTANT : Ne mentionne "diagnostic", "tests de conformité" ou "contrôle des circuits" QUE si la prestation elle-même est un diagnostic ou une recherche de panne — pas pour un simple déplacement/trajet.
+Réponds UNIQUEMENT avec la description, sans introduction ni guillemets.`;
                 const resp = await anthropic.messages.create({
                   model: 'claude-haiku-4-5-20251001',
                   max_tokens: 300,
@@ -6243,14 +6254,20 @@ Une question, un ajustement à faire ? Je suis dispo par tél ou par mail.
           const splitApporteurF = SPLITS_APPORTEUR_F[apporteur] || {diahe:100,partenaire:0};
           const prestationsFormatted = await Promise.all((prestations||[]).map(async p => {
             let desc = p.description || p.desc || '';
-            if (!desc || desc.length < 150) {
+            // Même correctif que creer_devis (28/09/2026) : pas de discours
+            // "diagnostic"/"tests" inventé pour un simple déplacement.
+            const nomNorm = (p.nom||'').trim().toLowerCase();
+            if (!desc && nomNorm === 'déplacement') {
+              desc = `Frais de déplacement pour l'intervention de nos techniciens SINELEC Paris à votre adresse. Comprend le trajet et la mise à disposition sur site.`;
+            } else if (!desc || desc.length < 150) {
               try {
                 const prix = parseFloat(p.prix_unitaire)||0;
                 const prompt = `Tu es un expert électricien SINELEC Paris. Rédige une description professionnelle pour cette prestation dans une facture client.
 Prestation : "${p.nom}"${prix ? `\nPrix : ${prix}€` : ''}
 Format : 4-6 phrases, ~120-150 mots
 Style : Professionnel, technique, rassurant. Mentionne : main d'œuvre + fourniture + marques (Hager, Legrand ou Schneider Electric) + raccordement + mise en service + tests. Conforme NF C 15-100. Garantie décennale ORUS.
-IMPORTANT : Réponds UNIQUEMENT avec la description, sans introduction ni guillemets.`;
+IMPORTANT : Ne mentionne "diagnostic", "tests de conformité" ou "contrôle des circuits" QUE si la prestation elle-même est un diagnostic ou une recherche de panne — pas pour un simple déplacement/trajet.
+Réponds UNIQUEMENT avec la description, sans introduction ni guillemets.`;
                 const resp = await anthropic.messages.create({
                   model: 'claude-haiku-4-5-20251001',
                   max_tokens: 300,
