@@ -2873,7 +2873,14 @@ function _parisParts(date) {
     hour: '2-digit', minute: '2-digit', hour12: false
   });
   const parts = Object.fromEntries(fmt.formatToParts(date).map(p => [p.type, p.value]));
-  return { y: +parts.year, m: +parts.month, d: +parts.day, h: +parts.hour, min: +parts.minute };
+  // Sur certaines versions d'ICU (confirmé sur le conteneur Railway, pas
+  // reproduit en local), hour12:false rend minuit "24" au lieu de "00" —
+  // bug trouvé le 28/09/2026 : à minuit pile, ça faisait croire au calcul
+  // qu'on était à 24h+ et ça excluait TOUT le jour même du calendrier
+  // (aucun créneau ne semblait "dans le futur"). On normalise ici.
+  let h = +parts.hour;
+  if (h === 24) h = 0;
+  return { y: +parts.year, m: +parts.month, d: +parts.day, h, min: +parts.minute };
 }
 
 async function creneauxDisponibles() {
