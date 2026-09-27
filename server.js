@@ -5750,6 +5750,17 @@ app.all('/mcp', mcpAuth, async(req,res)=>{
           {name:'envoyer_confirmation_rdv',description:'Envoie par SMS au client un lien de confirmation en 1 clic pour un creneau agenda deja cree (statut lead ou planifie). Le client clique, le RDV passe automatiquement en planifie et Diahe est notifie par email — evite de devoir traiter sa reponse manuellement.',inputSchema:{type:'object',required:['id'],properties:{
             id:{type:'string',description:'Id de l entree agenda (renvoye par creer_rdv)'},
             telephone:{type:'string',description:'Telephone du client (optionnel — sinon celui deja enregistre sur l entree agenda est utilise)'}
+          }}},
+          {name:'creer_rapport_intervention',description:'Genere le rapport d intervention PDF (fin de chantier) et l envoie par email au client. Description ecrite directement par l assistant a partir de ce que Diahe decrit du chantier — pas besoin de repasser par l app.',inputSchema:{type:'object',required:['client','adresse','description'],properties:{
+            client:{type:'string',description:'Nom complet du client'},
+            adresse:{type:'string',description:'Adresse du chantier'},
+            description:{type:'string',description:'Description professionnelle detaillee des travaux realises, materiels utilises, conformite NF C 15-100'},
+            email:{type:'string',description:'Email du client pour envoi du rapport (optionnel)'},
+            telephone:{type:'string',description:'Telephone du client (optionnel)'},
+            num_facture:{type:'string',description:'Numero de facture associee (optionnel)'},
+            nature_panne:{type:'string',description:'Nature de la panne/intervention (optionnel)'},
+            type_logement:{type:'string',description:'Type de logement/local (optionnel)'},
+            statut_install:{type:'string',description:'Statut de l installation apres intervention: ok, a_surveiller, non_conforme (optionnel, defaut ok)'}
           }}}
         ]}});
       }
@@ -6077,6 +6088,21 @@ SINELEC Paris
                 result={success:true,id,telephone:tel,lien,message:`✅ SMS de confirmation RDV envoyé à ${tel}`};
               }
             }
+          } catch(e){ result={success:false,error:e.message}; }
+        }
+        else if(name==='creer_rapport_intervention'){
+          const{client,adresse,description,email,telephone,num_facture,nature_panne,type_logement,statut_install}=args||{};
+          const token=genererToken('admin');
+          try {
+            const rapRes=await fetch(`${APP_URL_MCP}/api/rapport`,{
+              method:'POST',
+              headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
+              body:JSON.stringify({client,adresse,description,chantier:description,email:email||'',telephone:telephone||'',num_facture:num_facture||'',nature_panne:nature_panne||'',type_logement:type_logement||'',statut_install:statut_install||'ok',envoyer: !!email})
+            });
+            const rapData=await rapRes.json();
+            result = rapData.success!==false
+              ? {success:true,num:rapData.num,pdf_url:rapData.pdf_url,message:`✅ Rapport d'intervention ${rapData.num||''} généré${rapData.envoye?` et envoyé à ${email}`:''}`}
+              : {success:false,error:rapData.error||'Erreur génération rapport'};
           } catch(e){ result={success:false,error:e.message}; }
         }
         else{ result={error:`Outil inconnu: ${name}`}; }
