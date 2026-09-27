@@ -7693,10 +7693,12 @@ function renderTiroirCA(docs, annee) {
   const moisActuel = new Date().getMonth();
   const anneeActuelle = new Date().getFullYear();
 
-  // Calculer CA par mois pour cette année
+  // Calculer CA par mois pour cette année — factures payées uniquement
+  // (même correctif que la page d'accueil, cf. dossier Tersier 27/09/2026)
+  const normTiroir = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
   const moisData = TIROIR_MOIS_NOMS.map((nom, i) => {
     const mKey = `${annee}-${String(i+1).padStart(2,'0')}`;
-    const factMois = factures.filter(f => (f.created_at||'').startsWith(mKey));
+    const factMois = factures.filter(f => (f.created_at||'').startsWith(mKey) && ['paye','payee','acquitte'].includes(normTiroir(f.statut)));
     const ca = factMois.reduce((s,f) => s + parseFloat(f.total_ht||0), 0);
     return { nom, ca: Math.round(ca), nb: factMois.length, idx: i };
   });
@@ -7895,15 +7897,20 @@ async function chargerAccueil() {
     const annee   = now.getFullYear();
     const moisCle = `${annee}-${String(now.getMonth()+1).padStart(2,'0')}`;
 
+    // "CA encaissé" = argent réellement reçu — ne compte que les factures
+    // payées, jamais les en-attente ni les annulées (bug trouvé le
+    // 27/09/2026 sur le dossier Tersier : une facture doublon annulée
+    // gonflait quand même ce chiffre de 805€, plus une facture en attente
+    // de 276€, avant que ce filtre existe).
+    const facturesPayeesFn = f => ['paye','payee','acquitte'].includes(norm(f.statut));
     const caMois  = factures
-      .filter(f => (f.created_at||'').startsWith(moisCle))
+      .filter(f => (f.created_at||'').startsWith(moisCle) && facturesPayeesFn(f))
       .reduce((s,f) => s + parseFloat(f.total_ht||0), 0);
     const caAnnee = factures
-      .filter(f => (f.created_at||'').startsWith(String(annee)))
+      .filter(f => (f.created_at||'').startsWith(String(annee)) && facturesPayeesFn(f))
       .reduce((s,f) => s + parseFloat(f.total_ht||0), 0);
     const factMoisPaye = factures.filter(f =>
-      (f.created_at||'').startsWith(moisCle) &&
-      ['paye','payee','acquitte'].includes(norm(f.statut))
+      (f.created_at||'').startsWith(moisCle) && facturesPayeesFn(f)
     );
     const devisEnAttente = devis.filter(d => norm(d.statut) === 'envoye');
     const devisRelances  = devisEnAttente.filter(d => ageH(d) > 48);
@@ -8159,7 +8166,7 @@ async function chargerAccueil() {
       const mKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
       labels.push(d.toLocaleDateString('fr-FR', {month:'short'}));
       vals.push(Math.round(
-        factures.filter(f=>(f.created_at||'').startsWith(mKey))
+        factures.filter(f=>(f.created_at||'').startsWith(mKey) && ['paye','payee','acquitte'].includes((f.statut||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')))
                .reduce((s,f)=>s+parseFloat(f.total_ht||0),0)
       ));
     }
