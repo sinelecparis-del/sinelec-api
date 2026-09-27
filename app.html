@@ -7201,17 +7201,27 @@ async function envoyerRapport() {
   }
   const btn = document.getElementById('rap-btn-envoyer');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Envoi...'; }
+  // Bug trouvé le 27/09/2026 (dossier Tersier) : le bouton restait bloqué sur
+  // "⏳ Envoi..." sans jamais atteindre le serveur (aucune requête dans les
+  // logs Railway). Cause — on renvoyait tout le payload d'origine, photos
+  // avant/après en base64 non compressées incluses (plusieurs Mo chacune),
+  // pour un endpoint qui ne s'en sert même plus (il utilise le PDF déjà en
+  // cache côté serveur). Sur mobile/4G, l'upload de ces Mo inutiles pouvait
+  // bloquer très longtemps sans aucun retour visuel. Fix : on n'envoie plus
+  // que l'essentiel, + un timeout de 20s pour ne plus jamais rester coincé.
+  const _ctrlEnvoi = new AbortController();
+  const _timeoutEnvoi = setTimeout(() => _ctrlEnvoi.abort(), 20000);
   try {
-    // Utilise la route légère — le PDF est déjà en cache serveur, pas besoin de renvoyer les photos
     const res = await fetch(`/api/rapport/envoyer/${_rapportNumCache}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('sinelec_token') || '') },
-      body: JSON.stringify({ 
-        email: rapEmail, 
-        client: _rapportPayloadCache?.client || '',
-        payload: _rapportPayloadCache  // Pour régénérer si cache expiré
-      })
+      body: JSON.stringify({
+        email: rapEmail,
+        client: _rapportPayloadCache?.client || ''
+      }),
+      signal: _ctrlEnvoi.signal
     });
+    clearTimeout(_timeoutEnvoi);
     const data = await res.json();
     if (data.success) {
       showToast(`✅ Rapport envoyé à ${rapEmail || 'client'} !`, '📤');
@@ -7231,7 +7241,8 @@ async function envoyerRapport() {
       if (btn) { btn.disabled = false; btn.textContent = '📤 Envoyer au client'; }
     }
   } catch(e) {
-    showToast('❌ ' + e.message, '⚠️');
+    clearTimeout(_timeoutEnvoi);
+    showToast('❌ ' + (e.name === 'AbortError' ? 'Envoi trop long, réessaie' : e.message), '⚠️');
     if (btn) { btn.disabled = false; btn.textContent = '📤 Envoyer au client'; }
   }
 }
