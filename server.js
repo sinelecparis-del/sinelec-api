@@ -2899,6 +2899,15 @@ async function creneauxDisponibles() {
     if (!r.date_intervention || !r.heure) return;
     (busyByDay[r.date_intervention] ||= []).push(heureEnMinutes(r.heure));
   });
+  // Jours bloqués en entier (ex: Diahe en déplacement toute la journée) —
+  // entrées agenda statut='indisponible', ajouté le 28/09/2026 sur demande
+  // de Diahe (jour à Villepinte le 29/09) pour que le calendrier client
+  // n'affiche aucun créneau ces jours-là.
+  const { data: bloques } = await supabase.from('agenda')
+    .select('date_intervention')
+    .eq('statut', 'indisponible')
+    .gte('date_intervention', auj);
+  const joursBloques = new Set((bloques || []).map(r => r.date_intervention));
   const joursNoms = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
   const moisNoms = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
   const jours = [];
@@ -2907,6 +2916,7 @@ async function creneauxDisponibles() {
     const dayOfWeek = dAnchor.getUTCDay();
     if (dayOfWeek === 0) continue; // dimanche fermé
     const dateStr = dAnchor.toISOString().slice(0,10);
+    if (joursBloques.has(dateStr)) continue; // jour indisponible (Diahe en déplacement, etc.)
     const creneaux = [];
     for (let h = PLANIF_HEURE_DEBUT; h <= PLANIF_DERNIER_DEPART; h++) {
       const minutes = h * 60;
@@ -2939,6 +2949,12 @@ app.post('/api/planifier/:id/reserver', async (req, res) => {
     if (!rdv) return res.status(404).json({ error: 'Introuvable' });
     if (rdv.lien_token && token !== rdv.lien_token) return res.status(403).json({ error: 'Lien invalide' });
     if (rdv.confirme_par_client) return res.status(409).json({ error: 'Un créneau a déjà été choisi pour ce rendez-vous.' });
+
+    // Revérifie que le jour n'a pas été bloqué entre-temps (ex: Diahe en
+    // déplacement) — même logique que creneauxDisponibles()
+    const { data: journeeBloquee } = await supabase.from('agenda')
+      .select('id').eq('statut', 'indisponible').eq('date_intervention', date).maybeSingle();
+    if (journeeBloquee) return res.status(409).json({ error: `Ce jour n'est plus disponible. Merci d'en choisir un autre.` });
 
     // Revérifie le conflit au moment de la réservation (protège contre deux
     // clients qui cliqueraient sur le même créneau au même moment)
