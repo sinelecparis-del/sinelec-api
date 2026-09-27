@@ -2861,9 +2861,28 @@ const PLANIF_HEURE_DEBUT = 8;   // premier créneau proposé : 8h
 const PLANIF_DERNIER_DEPART = 18; // dernier créneau proposé : 18h (fin d'intervention ~19-20h)
 const PLANIF_NB_JOURS = 14;
 
+// Le serveur Railway tourne en UTC alors que Diahe et ses clients sont à
+// Paris (UTC+1/+2) — bug trouvé le 28/09/2026 en testant cette fonction :
+// mélanger now.toISOString() (UTC) et now.getHours()/getDate() (heure locale
+// du process, donc UTC sur Railway) décale "aujourd'hui" et le seuil "dans
+// les 2h" d'une journée/plusieurs heures dès qu'il est déjà demain à Paris
+// mais pas encore en UTC. On calcule donc explicitement en heure de Paris.
+function _parisParts(date) {
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false
+  });
+  const parts = Object.fromEntries(fmt.formatToParts(date).map(p => [p.type, p.value]));
+  return { y: +parts.year, m: +parts.month, d: +parts.day, h: +parts.hour, min: +parts.minute };
+}
+
 async function creneauxDisponibles() {
   const now = new Date();
-  const auj = now.toISOString().slice(0,10);
+  const { y, m, d, h: heureParis, min: minuteParis } = _parisParts(now);
+  // Ancrage = minuit du jour actuel à Paris, représenté comme UTC pur —
+  // sert uniquement à énumérer les jours/dates, jamais comme vrai instant.
+  const ancrage = new Date(Date.UTC(y, m - 1, d));
+  const auj = ancrage.toISOString().slice(0,10);
   const { data: planifies } = await supabase.from('agenda')
     .select('date_intervention,heure')
     .eq('statut', 'planifié')
@@ -2877,17 +2896,18 @@ async function creneauxDisponibles() {
   const moisNoms = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
   const jours = [];
   for (let i = 0; i < PLANIF_NB_JOURS; i++) {
-    const d = new Date(now); d.setDate(d.getDate() + i);
-    if (d.getDay() === 0) continue; // dimanche fermé
-    const dateStr = d.toISOString().slice(0,10);
+    const dAnchor = new Date(ancrage); dAnchor.setUTCDate(dAnchor.getUTCDate() + i);
+    const dayOfWeek = dAnchor.getUTCDay();
+    if (dayOfWeek === 0) continue; // dimanche fermé
+    const dateStr = dAnchor.toISOString().slice(0,10);
     const creneaux = [];
     for (let h = PLANIF_HEURE_DEBUT; h <= PLANIF_DERNIER_DEPART; h++) {
       const minutes = h * 60;
-      if (i === 0 && minutes < (now.getHours()*60 + now.getMinutes() + 120)) continue; // pas de créneau dans les 2h qui viennent aujourd'hui
+      if (i === 0 && minutes < (heureParis*60 + minuteParis + 120)) continue; // pas de créneau dans les 2h qui viennent aujourd'hui (heure de Paris)
       const occupe = (busyByDay[dateStr] || []).some(bm => Math.abs(bm - minutes) < DUREE_RDV_MINUTES);
       if (!occupe) creneaux.push(`${String(h).padStart(2,'0')}:00`);
     }
-    if (creneaux.length) jours.push({ date: dateStr, label: `${joursNoms[d.getDay()]} ${d.getDate()} ${moisNoms[d.getMonth()]}`, creneaux });
+    if (creneaux.length) jours.push({ date: dateStr, label: `${joursNoms[dayOfWeek]} ${dAnchor.getUTCDate()} ${moisNoms[dAnchor.getUTCMonth()]}`, creneaux });
   }
   return jours;
 }
