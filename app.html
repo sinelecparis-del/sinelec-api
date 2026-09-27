@@ -5363,10 +5363,27 @@ async function chargerClients() {
     const [resClients, resHisto] = await Promise.all([fetch('/api/clients'), fetch('/api/historique')]);
     clientsData = await resClients.json();
     const histo = await resHisto.json();
+    // Rattachement client → historique. AVANT : on prenait le 1er mot du nom
+    // ("M." pour "M. Benjamin Bosch") et on cherchait cette chaîne dans tout
+    // l'historique — comme la quasi-totalité des clients commencent par
+    // "M." ou "Mme", ça matchait presque toute la base pour chacun d'eux,
+    // donnant le même chiffre identique à tout le monde (bug trouvé le
+    // 27/09/2026, capture d'écran Diahe : 90 inter. / 19 373€ partout).
+    // Fix : priorité au téléphone (identifiant fiable), fallback sur le nom
+    // complet sans civilité, avec une longueur minimale pour éviter les
+    // faux positifs sur un nom trop court/générique.
+    const normTel = t => (t||'').replace(/[^0-9]/g,'').replace(/^33/,'0').slice(-9);
     clientsData = clientsData.map(c => {
-      const nomNorm = (c.nom||'').toLowerCase().split(' ')[0];
-      const interventions = (histo||[]).filter(h => ((h.client||'')+(h.prenom||'')).toLowerCase().includes(nomNorm));
-      const ca = interventions.filter(h=>h.type==='facture').reduce((s,h)=>s+parseFloat(h.total_ht||0),0);
+      const telNorm = normTel(c.telephone);
+      const nomFull = (c.nom||'').toLowerCase().replace(/^(m\.?|mme\.?|mr\.?|monsieur|madame)\s+/,'').trim();
+      const interventions = (histo||[]).filter(h => {
+        const hTel = normTel(h.telephone);
+        if (telNorm && hTel && hTel === telNorm) return true;
+        if (telNorm && hTel) return false; // le client a un tel connu et ça ne matche pas → pas de fallback nom
+        if (nomFull.length < 4) return false;
+        return ((h.client||'')+' '+(h.prenom||'')+' '+(h.nom||'')).toLowerCase().includes(nomFull);
+      });
+      const ca = interventions.filter(h=>h.type==='facture' && ['paye','payee','acquitte'].includes((h.statut||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''))).reduce((s,h)=>s+parseFloat(h.total_ht||0),0);
       return {...c, _interventions:interventions, _ca:ca};
     });
     renderListeClients(clientsData);
