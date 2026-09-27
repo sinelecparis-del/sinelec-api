@@ -3671,6 +3671,29 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.enums import TA_LEFT, TA_JUSTIFY, TA_CENTER
 import reportlab.pdfgen.canvas as pdfcanvas
+try:
+    from PIL import Image as PILImage
+except Exception:
+    PILImage = None
+
+# Compresse une photo (souvent 5-10 Mo brute depuis un téléphone) avant de
+# l'intégrer au PDF — sinon le PDF final peut dépasser 50 Mo (bug trouvé le
+# 27/09/2026, RAP-202609-023 à 55 Mo) et Brevo refuse l'envoi (limite 20 Mo),
+# donc le rapport ne partait jamais, sans que rien ne le signale à l'écran.
+def _photo_compressee(img_bytes, max_w=1400):
+    if not PILImage:
+        return img_bytes
+    try:
+        im = PILImage.open(io.BytesIO(img_bytes))
+        im = im.convert('RGB')
+        if im.width > max_w:
+            ratio = max_w / im.width
+            im = im.resize((max_w, int(im.height * ratio)))
+        out = io.BytesIO()
+        im.save(out, format='JPEG', quality=72, optimize=True)
+        return out.getvalue()
+    except Exception:
+        return img_bytes
 
 W, H = A4
 MARINE = colors.HexColor('#1B2A4A')
@@ -3954,7 +3977,7 @@ if photo_avant or photo_apres:
         if b64data:
             try:
                 raw = b64data.split(',')[-1]
-                img_bytes = base64.b64decode(raw)
+                img_bytes = _photo_compressee(base64.b64decode(raw))
                 img = RLImage(io.BytesIO(img_bytes), width=PHOTO_W, height=PHOTO_W * 0.7)
                 cell = [p(label, 8, 'Helvetica-Bold', GRIS), Spacer(1,0.05*cm), img]
             except:
