@@ -204,7 +204,7 @@ function authMiddleware(req, res, next) {
   // /api/test-pdf est un endpoint de diagnostic interne (révèle version python,
   // libs installées, chemins serveur) — pas de raison qu'il soit public.
   const publicExact = ['/', '/health', '/api/login', '/api/auth/check', '/api/webhook/lead-site'];
-  const publicPrefixes = ['/signer/', '/paiement-confirme/', '/paiement-retour/', '/api/confirmer-rdv/', '/api/signature', '/api/otp-signature', '/api/verifier-otp', '/api/track/click/', '/api/track/open/', '/valider-envoi/', '/api/valider-envoi/', '/mcp', '/oauth/', '/.well-known/'];
+  const publicPrefixes = ['/signer/', '/paiement-confirme/', '/paiement-retour/', '/api/confirmer-rdv/', '/planifier/', '/api/planifier/', '/api/signature', '/api/otp-signature', '/api/verifier-otp', '/api/track/click/', '/api/track/open/', '/valider-envoi/', '/api/valider-envoi/', '/mcp', '/oauth/', '/.well-known/'];
   if (publicExact.includes(req.path) || publicPrefixes.some(r => req.path.startsWith(r))) return next();
   const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
   if (!verifierToken(token)) return res.status(401).json({ error: 'Non autorisé', code: 'UNAUTHORIZED' });
@@ -2849,6 +2849,174 @@ app.get('/api/confirmer-rdv/:id', async (req, res) => {
   } catch(e) {
     console.error('❌ confirmer-rdv:', e.message);
     return res.send(pagePaiement({ icon:'⚠️', titre:'Erreur', couleur:'#dc2626', message:'Une erreur est survenue. Merci de nous contacter.' }));
+  }
+});
+
+// ═══════════════════════════════════════════════════
+// PLANIFICATION LIBRE — le client choisit lui-même son créneau
+// (demandé par Diahe le 28/09/2026, dossier Maud Fournier — calendrier
+// ouvert plutôt qu'un seul horaire proposé à confirmer)
+// ═══════════════════════════════════════════════════
+const PLANIF_HEURE_DEBUT = 8;   // premier créneau proposé : 8h
+const PLANIF_DERNIER_DEPART = 18; // dernier créneau proposé : 18h (fin d'intervention ~19-20h)
+const PLANIF_NB_JOURS = 14;
+
+async function creneauxDisponibles() {
+  const now = new Date();
+  const auj = now.toISOString().slice(0,10);
+  const { data: planifies } = await supabase.from('agenda')
+    .select('date_intervention,heure')
+    .eq('statut', 'planifié')
+    .gte('date_intervention', auj);
+  const busyByDay = {};
+  (planifies || []).forEach(r => {
+    if (!r.date_intervention || !r.heure) return;
+    (busyByDay[r.date_intervention] ||= []).push(heureEnMinutes(r.heure));
+  });
+  const joursNoms = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+  const moisNoms = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  const jours = [];
+  for (let i = 0; i < PLANIF_NB_JOURS; i++) {
+    const d = new Date(now); d.setDate(d.getDate() + i);
+    if (d.getDay() === 0) continue; // dimanche fermé
+    const dateStr = d.toISOString().slice(0,10);
+    const creneaux = [];
+    for (let h = PLANIF_HEURE_DEBUT; h <= PLANIF_DERNIER_DEPART; h++) {
+      const minutes = h * 60;
+      if (i === 0 && minutes < (now.getHours()*60 + now.getMinutes() + 120)) continue; // pas de créneau dans les 2h qui viennent aujourd'hui
+      const occupe = (busyByDay[dateStr] || []).some(bm => Math.abs(bm - minutes) < DUREE_RDV_MINUTES);
+      if (!occupe) creneaux.push(`${String(h).padStart(2,'0')}:00`);
+    }
+    if (creneaux.length) jours.push({ date: dateStr, label: `${joursNoms[d.getDay()]} ${d.getDate()} ${moisNoms[d.getMonth()]}`, creneaux });
+  }
+  return jours;
+}
+
+app.get('/api/planifier/:id/creneaux', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { data: rdv } = await supabase.from('agenda').select('id,lien_token,client,adresse').eq('id', id).single();
+    if (!rdv) return res.status(404).json({ error: 'Introuvable' });
+    if (rdv.lien_token && req.query.token !== rdv.lien_token) return res.status(403).json({ error: 'Lien invalide' });
+    const jours = await creneauxDisponibles();
+    res.json({ client: rdv.client, adresse: rdv.adresse, jours });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/planifier/:id/reserver', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { date, heure, token } = req.body;
+    if (!date || !heure) return res.status(400).json({ error: 'Date et heure requises' });
+    const { data: rdv } = await supabase.from('agenda').select('*').eq('id', id).single();
+    if (!rdv) return res.status(404).json({ error: 'Introuvable' });
+    if (rdv.lien_token && token !== rdv.lien_token) return res.status(403).json({ error: 'Lien invalide' });
+    if (rdv.confirme_par_client) return res.status(409).json({ error: 'Un créneau a déjà été choisi pour ce rendez-vous.' });
+
+    // Revérifie le conflit au moment de la réservation (protège contre deux
+    // clients qui cliqueraient sur le même créneau au même moment)
+    const conflit = await verifierConflitAgenda(date, heure, id);
+    if (conflit) return res.status(409).json({ error: `Ce créneau vient d'être pris. Merci d'en choisir un autre.` });
+
+    await supabase.from('agenda').update({
+      date_intervention: date, heure, statut: 'planifié',
+      confirme_par_client: true, date_confirmation: new Date().toISOString()
+    }).eq('id', id);
+
+    try {
+      await envoyerEmail('sinelec.paris@gmail.com', `✅ RDV planifié par le client — ${rdv.client || ''} — ${date} ${heure}`,
+        `<h3>✅ Rendez-vous planifié par le client</h3><p><strong>${rdv.client || 'Client'}</strong><br>${date} à ${heure}<br>${rdv.adresse || ''}<br>${rdv.type_intervention || ''}</p><p style="color:#888;font-size:12px;">Le client a choisi lui-même son créneau via le calendrier en ligne.</p>`);
+    } catch(e) { console.error('Notif planification RDV:', e.message); }
+
+    console.log(`✅ RDV planifié par le client: ${rdv.client} — ${date} ${heure}`);
+    res.json({ success: true, date, heure });
+  } catch(e) {
+    console.error('❌ planifier/reserver:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/planifier/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { data: rdv } = await supabase.from('agenda').select('*').eq('id', id).single();
+    if (!rdv) return res.send(pagePaiement({ icon:'❓', titre:'Lien introuvable', couleur:'#dc2626', message:'Ce lien de planification n\'existe pas ou plus.' }));
+    if (rdv.lien_token && req.query.token !== rdv.lien_token) {
+      return res.status(403).send(pagePaiement({ icon:'🔒', titre:'Lien invalide', couleur:'#dc2626', message:"Ce lien n'est pas valide. Utilisez le lien reçu par SMS ou email." }));
+    }
+    if (rdv.confirme_par_client) {
+      return res.send(pagePaiement({ icon:'✅', titre:'Déjà planifié', couleur:'#16a34a', message:`Votre rendez-vous du ${rdv.date_intervention || ''} à ${rdv.heure || ''} est déjà confirmé. À bientôt !` }));
+    }
+    const tokenQS = req.query.token || '';
+    res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Choisir mon créneau — SINELEC Paris</title>
+<style>
+  body{font-family:Arial,sans-serif;background:#f5f5f5;margin:0;padding:20px;}
+  .wrap{max-width:480px;margin:0 auto;}
+  .head{background:#1B2A4A;color:#fff;border-radius:16px 16px 0 0;padding:24px;text-align:center;}
+  .head h2{margin:0 0 4px;color:#E8B84B;}
+  .card{background:#fff;border-radius:0 0 16px 16px;padding:20px;box-shadow:0 4px 20px rgba(0,0,0,0.08);}
+  .jour{margin-bottom:16px;}
+  .jour-label{font-weight:700;font-size:13px;color:#1B2A4A;text-transform:capitalize;margin-bottom:8px;}
+  .creneaux{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+  .creneau{border:1.5px solid #e2e8f0;border-radius:10px;padding:10px 4px;text-align:center;font-weight:700;font-size:13px;cursor:pointer;color:#1B2A4A;background:#f9f9f9;}
+  .creneau:active{background:#1B2A4A;color:#fff;}
+  .foot{text-align:center;color:#888;font-size:13px;margin-top:18px;}
+  #loading, #ok, #err{text-align:center;padding:30px 10px;}
+  #err{color:#dc2626;display:none;}
+  #ok{display:none;}
+</style></head>
+<body><div class="wrap">
+  <div class="head"><h2>⚡ SINELEC Paris</h2><div>Choisissez votre créneau</div></div>
+  <div class="card">
+    <div id="loading">Chargement des disponibilités…</div>
+    <div id="ok"><div style="font-size:50px;">✅</div><h3 style="color:#16a34a;">Rendez-vous confirmé !</h3><p id="ok-msg"></p></div>
+    <div id="err"></div>
+    <div id="jours"></div>
+  </div>
+  <div class="foot">📞 07 87 38 86 22 · sinelec.paris@gmail.com</div>
+</div>
+<script>
+const ID = ${JSON.stringify(id)};
+const TOKEN = ${JSON.stringify(tokenQS)};
+fetch('/api/planifier/' + ID + '/creneaux?token=' + encodeURIComponent(TOKEN))
+  .then(r => r.json())
+  .then(data => {
+    document.getElementById('loading').style.display = 'none';
+    if (data.error) { document.getElementById('err').style.display='block'; document.getElementById('err').textContent = data.error; return; }
+    if (!data.jours || !data.jours.length) { document.getElementById('err').style.display='block'; document.getElementById('err').textContent = "Aucun créneau disponible pour le moment, merci de nous appeler."; return; }
+    const c = document.getElementById('jours');
+    c.innerHTML = data.jours.map(j => \`
+      <div class="jour">
+        <div class="jour-label">\${j.label}</div>
+        <div class="creneaux">\${j.creneaux.map(h => \`<div class="creneau" onclick="reserver('\${j.date}','\${h}',this)">\${h}</div>\`).join('')}</div>
+      </div>\`).join('');
+  })
+  .catch(() => { document.getElementById('loading').style.display='none'; document.getElementById('err').style.display='block'; document.getElementById('err').textContent = 'Erreur de chargement.'; });
+
+function reserver(date, heure, el) {
+  document.querySelectorAll('.creneau').forEach(c => c.style.pointerEvents = 'none');
+  el.style.background = '#1B2A4A'; el.style.color = '#fff';
+  fetch('/api/planifier/' + ID + '/reserver', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ date, heure, token: TOKEN })
+  }).then(r => r.json()).then(data => {
+    if (data.success) {
+      document.getElementById('jours').style.display = 'none';
+      document.getElementById('ok').style.display = 'block';
+      document.getElementById('ok-msg').textContent = 'Le ' + date + ' à ' + heure + '. Merci !';
+    } else {
+      alert(data.error || 'Erreur — réessayez');
+      document.querySelectorAll('.creneau').forEach(c => c.style.pointerEvents = 'auto');
+      el.style.background=''; el.style.color='';
+    }
+  }).catch(() => { alert('Erreur réseau — réessayez'); document.querySelectorAll('.creneau').forEach(c => c.style.pointerEvents = 'auto'); });
+}
+</script>
+</body></html>`);
+  } catch(e) {
+    console.error('❌ /planifier:', e.message);
+    res.send(pagePaiement({ icon:'⚠️', titre:'Erreur', couleur:'#dc2626', message:'Une erreur est survenue. Merci de nous contacter.' }));
   }
 });
 
@@ -5791,6 +5959,13 @@ app.all('/mcp', mcpAuth, async(req,res)=>{
             id:{type:'string',description:'Id de l entree agenda (renvoye par creer_rdv)'},
             telephone:{type:'string',description:'Telephone du client (optionnel — sinon celui deja enregistre sur l entree agenda est utilise)'}
           }}},
+          {name:'envoyer_lien_planification',description:'Envoie par SMS au client un lien de calendrier ouvert (14 prochains jours, lun-sam 8h-19h) pour qu il choisisse lui-meme son creneau en un clic, sans qu il faille lui proposer un horaire precis. Le creneau choisi bloque automatiquement les autres clients (pas de double-booking) et Diahe est notifie par email des que le client a choisi. Cree l entree agenda si id non fourni.',inputSchema:{type:'object',required:['client'],properties:{
+            id:{type:'string',description:'Id d une entree agenda existante (optionnel — si absent, une nouvelle entree "lead" est creee)'},
+            client:{type:'string',description:'Nom complet du client'},
+            telephone:{type:'string',description:'Telephone du client'},
+            adresse:{type:'string',description:'Adresse du chantier (optionnel)'},
+            type_intervention:{type:'string',description:'Type d intervention (optionnel)'}
+          }}},
           {name:'creer_rapport_intervention',description:'Genere le rapport d intervention PDF (fin de chantier) et l envoie par email au client. Description ecrite directement par l assistant a partir de ce que Diahe decrit du chantier — pas besoin de repasser par l app.',inputSchema:{type:'object',required:['client','adresse','description'],properties:{
             client:{type:'string',description:'Nom complet du client'},
             adresse:{type:'string',description:'Adresse du chantier'},
@@ -6131,6 +6306,38 @@ SINELEC Paris
                 const msg = `Bonjour ${prenom}, SINELEC Paris vous propose un rendez-vous le ${rdv.date_intervention||''} à ${rdv.heure||''}${rdv.adresse?` (${rdv.adresse})`:''}. Confirmez en 1 clic : ${lien} — SINELEC Paris ⚡`;
                 await envoyerSMS(tel, msg);
                 result={success:true,id,telephone:tel,lien,message:`✅ SMS de confirmation RDV envoyé à ${tel}`};
+              }
+            }
+          } catch(e){ result={success:false,error:e.message}; }
+        }
+        else if(name==='envoyer_lien_planification'){
+          const{id:idExistant,client,telephone,adresse,type_intervention}=args||{};
+          try {
+            if(!telephone && !idExistant){ result={success:false,error:'Téléphone requis pour créer l\'entrée agenda.'}; }
+            else {
+              let idRdv = idExistant;
+              if(!idRdv){
+                const{data,error}=await supabase.from('agenda').insert({
+                  client, telephone:telephone||'', adresse:adresse||'',
+                  type_intervention:type_intervention||'', statut:'lead', sms_rappel:true
+                }).select().single();
+                if(error) throw error;
+                idRdv = data.id;
+              }
+              const{data:rdv}=await supabase.from('agenda').select('*').eq('id',idRdv).single();
+              if(!rdv){ result={success:false,error:`Aucune entrée agenda avec l'id ${idRdv}`}; }
+              else {
+                const tel = telephone || rdv.telephone;
+                if(!tel){ result={success:false,error:'Aucun téléphone disponible pour ce RDV — précise-le.'}; }
+                else {
+                  const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
+                  const lienToken = await getOrCreerAgendaLienToken(idRdv);
+                  const lien = `${appUrl}/planifier/${idRdv}?token=${lienToken}`;
+                  const prenom = extractPrenom(rdv.client||client||'');
+                  const msg = `Bonjour ${prenom}, choisissez vous-même votre créneau pour l'intervention SINELEC en 1 clic : ${lien} — SINELEC Paris ⚡`;
+                  await envoyerSMS(tel, msg);
+                  result={success:true,id:idRdv,telephone:tel,lien,message:`✅ Lien de planification envoyé à ${tel}`};
+                }
               }
             }
           } catch(e){ result={success:false,error:e.message}; }
