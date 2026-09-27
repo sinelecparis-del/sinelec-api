@@ -4092,24 +4092,9 @@ app.post('/api/rapport/envoyer/:num', authMiddleware, async (req, res) => {
     const { email, client, payload } = req.body;
     if (!email) return res.status(400).json({ error: 'Email manquant' });
 
-    // Récupérer le PDF depuis le cache ou le régénérer si expiré
+    // Récupérer le PDF depuis le cache (expire après 30 min, ou vidé par un
+    // redéploiement du serveur — cache en mémoire, pas persistant)
     let pdfBuf = _pdfCache.get(num)?.buf;
-    if (!pdfBuf && payload) {
-      console.log(`⚠️ Cache vide pour ${num} — régénération depuis payload`);
-      try {
-        const tmpDetails = `/tmp/_rap_resend_${num}.json`;
-        const tmpPy     = `/tmp/_rap_resend_${num}.py`;
-        const tmpPdf    = `/tmp/_rap_resend_${num}.pdf`;
-        // Reconstruct minimal payload for regen
-        const { execSync, execFileSync } = require('child_process');
-        const fs = require('fs');
-        fs.writeFileSync(tmpDetails, JSON.stringify(payload));
-        // Use existing Python script via direct call
-        // For simplicity, just send without PDF if regen fails
-      } catch(regenErr) {
-        console.error('Regen failed:', regenErr.message);
-      }
-    }
 
     const dateStr = new Date().toLocaleDateString('fr-FR');
     const html = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;">
@@ -4125,9 +4110,13 @@ app.post('/api/rapport/envoyer/:num', authMiddleware, async (req, res) => {
     </div>`;
 
     if (!pdfBuf) {
-      console.error(`❌ PDF manquant pour ${num} — envoi email sans pièce jointe`);
-      await envoyerEmail(email, `Rapport d'intervention ${num} - SINELEC Paris`, html, null);
-      return res.json({ success: true, num, email, warning: 'PDF non joint — cache expiré' });
+      // Avant, ce cas envoyait quand même l'email SANS le PDF, en silence
+      // (bug remonté par Diahe le 27/09/2026 : rapport reçu sans pièce
+      // jointe après un redéploiement serveur qui avait vidé le cache).
+      // Un rapport sans PDF ne sert à rien — on bloque et on demande de
+      // régénérer la prévisualisation plutôt que d'envoyer du vide.
+      console.error(`❌ PDF manquant pour ${num} — envoi bloqué, cache expiré ou serveur redémarré`);
+      return res.status(410).json({ error: `Le PDF de ${num} n'est plus en mémoire (cache expiré ou serveur redémarré) — reclique sur "Prévisualiser le rapport" pour le régénérer avant d'envoyer.` });
     }
 
     const attachment = { content: pdfBuf.toString('base64'), name: `${num}.pdf` };
