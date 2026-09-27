@@ -10785,10 +10785,26 @@ async function generer(type) {
       // Le panier sera vidé seulement après envoi réussi (dans envoyerDepuisPreview)
       // Si modification d'un devis existant → supprimer l'ancien
       if (type === 'devis' && window._devisARemplacer && window._devisARemplacer !== data.num) {
+        // Bug trouvé le 27/09/2026 (dossier Conan Sarah) : cet appel visait
+        // /api/supprimer/:num qui n'existe pas côté serveur → 404 silencieux,
+        // l'ancien devis restait "signé" pour toujours et polluait le
+        // tableau "à facturer". La bonne route est /api/historique/:num.
+        // En plus, si la suppression échoue quand même (réseau, etc.), on
+        // annule l'ancien devis en secours pour qu'il ne reste jamais actif.
+        const ancienNum = window._devisARemplacer;
         try {
-          await fetch(`/api/supprimer/${window._devisARemplacer}`, { method: 'DELETE' });
-          showToast(`🗑️ Ancien devis ${window._devisARemplacer} supprimé`, '✅');
-        } catch(e) { /* non bloquant */ }
+          const rSup = await fetch(`/api/historique/${ancienNum}`, { method: 'DELETE' });
+          if (!rSup.ok) throw new Error('suppression échouée');
+          showToast(`🗑️ Ancien devis ${ancienNum} supprimé`, '✅');
+        } catch(e) {
+          try {
+            await fetch(`/api/historique/${ancienNum}/statut`, {
+              method: 'PATCH', headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({ statut: 'annule' })
+            });
+            showToast(`⚠️ Ancien devis ${ancienNum} annulé (suppression impossible)`, '⚠️');
+          } catch(e2) { /* dernier recours, non bloquant */ }
+        }
         window._devisARemplacer = null;
       }
       // Ouvrir la prévisualisation avec actions
