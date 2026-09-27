@@ -3598,7 +3598,14 @@ Travaux réalisés (résumé court) : "${chantier}"${client ? `\nClient : ${clie
 
 app.post('/api/rapport', authMiddleware, async (req, res) => {
   try {
-    const { client, adresse, chantier, description, email, telephone, photo_avant, photo_apres, type_logement, num_facture, nature_panne } = req.body;
+    const { client, adresse, chantier, description, email, telephone, photo_avant, photo_apres, photos, type_logement, num_facture, nature_panne } = req.body;
+    // Jusqu'à 6 photos, libres (pas forcément "avant/après") — demandé par
+    // Diahe le 27/09/2026 (ex: disjoncteur + BAES + prise changés sur la
+    // même intervention). On garde photo_avant/photo_apres en compat si
+    // jamais un vieil onglet encore ouvert les envoie encore.
+    const photosListe = Array.isArray(photos) && photos.length
+      ? photos.slice(0, 6)
+      : [photo_avant, photo_apres].filter(Boolean).map(b64 => ({ b64, label: '' }));
     const compteur = await incrementerCompteur('rapport');
     const annee = new Date().getFullYear();
     const mois = String(new Date().getMonth() + 1).padStart(2, '0');
@@ -3658,8 +3665,7 @@ app.post('/api/rapport', authMiddleware, async (req, res) => {
       statut_install,
       travaux,
       desc_full: descFull,
-      photo_avant: photo_avant || null,
-      photo_apres: photo_apres || null
+      photos: photosListe
     }));
 
     const py = `# -*- coding: utf-8 -*-
@@ -3672,9 +3678,10 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.enums import TA_LEFT, TA_JUSTIFY, TA_CENTER
 import reportlab.pdfgen.canvas as pdfcanvas
 try:
-    from PIL import Image as PILImage
+    from PIL import Image as PILImage, ImageOps as PILImageOps
 except Exception:
     PILImage = None
+    PILImageOps = None
 
 # Compresse une photo (souvent 5-10 Mo brute depuis un téléphone) avant de
 # l'intégrer au PDF — sinon le PDF final peut dépasser 50 Mo (bug trouvé le
@@ -3685,6 +3692,13 @@ def _photo_compressee(img_bytes, max_w=1400):
         return img_bytes
     try:
         im = PILImage.open(io.BytesIO(img_bytes))
+        # Un smartphone stocke souvent la photo "à plat" en mémoire et note
+        # la rotation à appliquer dans les métadonnées EXIF — le téléphone
+        # l'affiche donc à l'endroit, mais si on ignore ces métadonnées
+        # (ce qui était le cas ici), l'image ressort de travers une fois
+        # réencodée dans le PDF (bug remonté par Diahe le 27/09/2026).
+        if PILImageOps:
+            im = PILImageOps.exif_transpose(im)
         im = im.convert('RGB')
         if im.width > max_w:
             ratio = max_w / im.width
@@ -3719,8 +3733,7 @@ nature_panne  = d.get('nature_panne','')
 statut_install= d.get('statut_install','ok')
 travaux       = d.get('travaux',[])
 desc_full     = d.get('desc_full','')
-photo_avant   = d.get('photo_avant')
-photo_apres   = d.get('photo_apres')
+photos        = d.get('photos', [])
 
 def p(txt, sz=10, font='Helvetica', color=None, align=TA_LEFT, leading=None):
     color = color or MARINE
@@ -3967,13 +3980,18 @@ else:
     story.append(tbl)
 story.append(Spacer(1,0.18*cm))
 
-# 4. PHOTOS
-if photo_avant or photo_apres:
+# 4. PHOTOS — jusqu'à 6, libres (pas forcément "avant/après"), demandé par
+# Diahe le 27/09/2026 pour documenter plusieurs éléments changés sur une
+# même intervention (ex: disjoncteur + BAES + prise). Affichées par 2 par
+# ligne, autant de lignes que nécessaire.
+if photos:
     story.append(section_title(num_section+1, "PHOTOS D'INTERVENTION"))
     story.append(Spacer(1,0.08*cm))
-    photo_cols = []
     PHOTO_W = (CW - 0.4*cm) / 2
-    for label, b64data in [('📷 Avant intervention', photo_avant), ('📷 Après intervention', photo_apres)]:
+    photo_cells = []
+    for i, ph in enumerate(photos[:6]):
+        b64data = ph.get('b64') if isinstance(ph, dict) else ph
+        label = (ph.get('label') if isinstance(ph, dict) else '') or f'Photo {i+1}'
         if b64data:
             try:
                 raw = b64data.split(',')[-1]
@@ -3984,11 +4002,14 @@ if photo_avant or photo_apres:
                 cell = [p(label, 8, 'Helvetica-Bold', GRIS), p('Photo non disponible', 9, color=GRIS)]
         else:
             cell = [p(label, 8, 'Helvetica-Bold', GRIS), p('Aucune photo', 9, color=GRIS)]
-        photo_cols.append(cell)
-    if len(photo_cols) == 2:
-        pt = Table([[photo_cols[0], photo_cols[1]]], colWidths=[PHOTO_W, PHOTO_W])
-    else:
-        pt = Table([[photo_cols[0]]], colWidths=[PHOTO_W])
+        photo_cells.append(cell)
+    photo_rows = []
+    for i in range(0, len(photo_cells), 2):
+        pair = photo_cells[i:i+2]
+        if len(pair) == 1:
+            pair.append('')
+        photo_rows.append(pair)
+    pt = Table(photo_rows, colWidths=[PHOTO_W, PHOTO_W])
     pt.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),GRIS_L),
         ('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0')),
         ('LINEBETWEEN',(0,0),(0,-1),0.4,colors.HexColor('#e2e8f0')),
