@@ -3339,10 +3339,17 @@ app.get('/api/clients/:id/fiche', authMiddleware, async (req, res) => {
       .order('created_at', { ascending: false })
       .limit(50);
 
+    // "ca_total" et "nb_factures" = argent réellement encaissé — un devis
+    // non signé ou une facture pas encore payée n'est pas un gain, donc ça
+    // ne compte pas ici (bug remonté par Diahe le 27/09/2026 : un devis
+    // envoyé mais pas signé donnait l'impression d'un CA gagné). nb_devis
+    // reste informatif à part, jamais additionné au CA.
     const docs = histo || [];
-    const ca_total = docs.filter(d => d.type === 'facture').reduce((s, d) => s + parseFloat(d.total_ht || 0), 0);
+    const estPaye = d => ['paye','payé','payee','acquitte','acquitté'].includes((d.statut||'').toLowerCase());
+    const facturesPayees = docs.filter(d => d.type === 'facture' && estPaye(d));
+    const ca_total = facturesPayees.reduce((s, d) => s + parseFloat(d.total_ht || 0), 0);
     const nb_devis = docs.filter(d => d.type === 'devis').length;
-    const nb_factures = docs.filter(d => d.type === 'facture').length;
+    const nb_factures = facturesPayees.length;
 
     // Mise à jour stats
     await supabase.from('clients').update({
