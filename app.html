@@ -3627,8 +3627,13 @@ function afficherHistorique() {
   const container = document.getElementById('histo-cards');
   if (!container) return;
 
-  let filtered = historiqueData;
-  if (histoFiltreActif !== 'tous') filtered = historiqueData.filter(item => item.type === histoFiltreActif);
+  // Les devis refusés ne polluent plus la liste par défaut (demandé par
+  // Diahe le 28/09/2026) — marquer "Refusé" les retire de la vue courante.
+  let filtered = historiqueData.filter(item => {
+    const s = (item.statut || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+    return s !== 'refuse';
+  });
+  if (histoFiltreActif !== 'tous') filtered = filtered.filter(item => item.type === histoFiltreActif);
 
   if (filtered.length === 0) {
     container.innerHTML = `<div class="panier-empty">Aucun document trouvé</div>`;
