@@ -10217,7 +10217,7 @@ function appliquerUrgencePanier(urgence) {
   supprimerUrgencePanier();
   // Ajouter supplément urgence en premier
   const itemUrgence = {
-    nom: urgence.mode === 'we' ? 'Supplément urgence nuit/WE' : 'Supplément urgence soir',
+    designation: urgence.mode === 'we' ? 'Supplément urgence nuit/WE' : 'Supplément urgence soir',
     prixUnit: urgence.prix,
     qte: 1,
     desc: urgence.mode === 'we'
@@ -10401,6 +10401,12 @@ function addToPanier(prefix, nom, prix, categorie, desc) {
 }
 
 function renderPanier(prefix) {
+  // Bug corrigé le 28/09/2026 : renderPanierSections() existait et
+  // fonctionnait (numérotation 1./1.1/1.2) mais n'était jamais appelée —
+  // le rendu passait toujours par la liste simple, qui affichait les
+  // marqueurs de section bruts (sans "designation") comme des lignes
+  // "undefined". Repéré par Diahe sur le Mode sections numérotées.
+  if (prefix === 'd' && sectionsMode) { renderPanierSections(); return; }
   const panier = prefix === 'd' ? panierD : panierF;
   const itemsDiv = document.getElementById(`${prefix}-panier-items`);
   const countEl = document.getElementById(`${prefix}-count`);
