@@ -6157,7 +6157,12 @@ app.all('/mcp', mcpAuth, async(req,res)=>{
             // le 28/09/2026 (devis Garcia OS-202609-313). On fixe une
             // description honnête et courte, sans passer par l'IA.
             const nomNorm = (p.nom||'').trim().toLowerCase();
-            if (!desc && nomNorm === 'déplacement') {
+            // Élargi le 28/09/2026 (2e passage) : "Déplacement — Persan",
+            // "Déplacement — Noisy-le-Grand" etc. passaient à côté du
+            // correctif exact-match et repartaient sur le texte IA générique
+            // ("diagnostic", "tests de conformité") — repéré sur les devis
+            // Tersier et Delaunay le jour même.
+            if (!desc && nomNorm.startsWith('déplacement')) {
               desc = `Frais de déplacement pour l'intervention de nos techniciens SINELEC Paris à votre adresse. Comprend le trajet et la mise à disposition sur site.`;
             } else if (!desc || desc.length < 150) {
               try {
