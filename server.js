@@ -960,7 +960,7 @@ if doc_type=='facture' and not is_paye:
     band=Table([[p('\u23f3  PAIEMENT EN ATTENTE',11,'Helvetica-Bold',ORANGE,TA_CENTER)],[p('Merci de r\u00e9gler dans les meilleurs d\u00e9lais',8,'Helvetica',colors.HexColor('#9a3412'),TA_CENTER)]],colWidths=[18.2*cm])
     band.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),ORANGE_BG),('BOX',(0,0),(-1,-1),2.5,ORANGE),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10)]))
     story.append(band); story.append(Spacer(1,0.3*cm))
-    iban_t=Table([[p('\U0001f4b3  Comment r\u00e9gler ?',9,'Helvetica-Bold',MARINE),p('\u2022 Esp\u00e8ces  \u2022  CB SumUp  \u2022  Virement  \u2022  PayPal',8,'Helvetica',GRIS_SOFT,TA_RIGHT)],[p('IBAN : FR76 1695 8000 0174 2540 5920 931  \u2022  BIC : QNTOFRP1XXX',8,'Helvetica-Bold',MARINE),p('')]],colWidths=[13*cm,5.2*cm])
+    iban_t=Table([[p('Comment r\u00e9gler ?',9,'Helvetica-Bold',MARINE),p('\u2022 Esp\u00e8ces  \u2022  CB SumUp  \u2022  Virement  \u2022  PayPal',8,'Helvetica',GRIS_SOFT,TA_RIGHT)],[p('IBAN : FR76 1695 8000 0174 2540 5920 931  \u2022  BIC : QNTOFRP1XXX',8,'Helvetica-Bold',MARINE),p('')]],colWidths=[13*cm,5.2*cm])
     iban_t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),ORANGE_BG),('BOX',(0,0),(-1,-1),1.5,ORANGE),('LINEBELOW',(0,0),(-1,0),0.5,colors.HexColor('#fed7aa')),('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7)]))
     story.append(iban_t)
 elif doc_type=='facture' and is_paye:
@@ -969,7 +969,7 @@ elif doc_type=='facture' and is_paye:
     band=Table([[p('\u2705  PAIEMENT RE\u00c7U',11,'Helvetica-Bold',VERT_P,TA_CENTER)],[p('Le '+date_p+'  \u2022  '+mode_p,8,'Helvetica',colors.HexColor('#166534'),TA_CENTER)]],colWidths=[18.2*cm])
     band.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),VERT_BG),('BOX',(0,0),(-1,-1),2.5,VERT_P),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10)]))
     story.append(band); story.append(Spacer(1,0.3*cm))
-    recap=Table([[p('\U0001f9fe  R\u00e9capitulatif du r\u00e8glement',9,'Helvetica-Bold',MARINE),p('')],[p('Mode :',8,'Helvetica',GRIS_SOFT),p(mode_p,8,'Helvetica-Bold',MARINE,TA_RIGHT)],[p('Date :',8,'Helvetica',GRIS_SOFT),p(date_p,8,'Helvetica-Bold',MARINE,TA_RIGHT)],[p('Montant encaiss\u00e9 :',9,'Helvetica-Bold',VERT_P),p('%.2f \u20ac'%totalHT,10,'Helvetica-Bold',VERT_P,TA_RIGHT)]],colWidths=[9.1*cm,9.1*cm])
+    recap=Table([[p('R\u00e9capitulatif du r\u00e8glement',9,'Helvetica-Bold',MARINE),p('')],[p('Mode :',8,'Helvetica',GRIS_SOFT),p(mode_p,8,'Helvetica-Bold',MARINE,TA_RIGHT)],[p('Date :',8,'Helvetica',GRIS_SOFT),p(date_p,8,'Helvetica-Bold',MARINE,TA_RIGHT)],[p('Montant encaiss\u00e9 :',9,'Helvetica-Bold',VERT_P),p('%.2f \u20ac'%totalHT,10,'Helvetica-Bold',VERT_P,TA_RIGHT)]],colWidths=[9.1*cm,9.1*cm])
     recap.setStyle(TableStyle([('SPAN',(0,0),(1,0)),('BACKGROUND',(0,0),(-1,-1),VERT_BG),('BOX',(0,0),(-1,-1),1.5,VERT_P),('LINEABOVE',(0,3),(-1,3),1,colors.HexColor('#bbf7d0')),('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6)]))
     story.append(recap)
 story.append(Spacer(1,0.25*cm))
@@ -978,7 +978,7 @@ if doc_type=='devis' and totalHT>=400:
     BLEU_L=colors.HexColor('#EFF6FF'); BLEU_B=colors.HexColor('#BAE6FD'); BLEU_T=colors.HexColor('#0369A1')
     VERT_L2=colors.HexColor('#F0FDF4'); VERT_B2=colors.HexColor('#BBF7D0')
     # Header modalités
-    hdr_ac=Table([[p('\U0001f4b3  Modalit\u00e9s de paiement',10,'Helvetica-Bold',MARINE),p('Devis > 400 \u20ac',8,'Helvetica',GRIS_SOFT,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
+    hdr_ac=Table([[p('Modalit\u00e9s de paiement',10,'Helvetica-Bold',MARINE),p('Devis > 400 \u20ac',8,'Helvetica',GRIS_SOFT,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
     hdr_ac.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#F8F5EF')),('BOX',(0,0),(-1,-1),1,GRIS_LIGNE),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7)]))
     story.append(hdr_ac)
     # Cellule acompte
@@ -1000,20 +1000,20 @@ if doc_type=='devis' and totalHT>=400:
     ]))
     story.append(tl)
     # Modes de paiement
-    pm=Table([[p('\U0001f4b5 Esp\u00e8ces  \u2022  \U0001f3e6 Virement  \u2022  \U0001f4b3 CB  \u2022  \U0001f17f\ufe0f PayPal',9,'Helvetica',GRIS_SOFT,TA_CENTER)]],colWidths=[18.2*cm])
+    pm=Table([[p('Esp\u00e8ces  \u2022  Virement  \u2022  CB  \u2022  PayPal',9,'Helvetica',GRIS_SOFT,TA_CENTER)]],colWidths=[18.2*cm])
     pm.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#FDFCF9')),('BOX',(0,0),(-1,-1),1,GRIS_LIGNE),('LINEABOVE',(0,0),(-1,-1),1,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7)]))
     story.append(pm)
     story.append(Spacer(1,0.3*cm))
 else:
     # Devis < 400€ — paiement intégral à la fin
     VERT_L2=colors.HexColor('#F0FDF4'); VERT_B2=colors.HexColor('#BBF7D0')
-    hdr_ac2=Table([[p('\U0001f4b3  Modalit\u00e9s de paiement',10,'Helvetica-Bold',MARINE),p('',8,'Helvetica',GRIS_SOFT,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
+    hdr_ac2=Table([[p('Modalit\u00e9s de paiement',10,'Helvetica-Bold',MARINE),p('',8,'Helvetica',GRIS_SOFT,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
     hdr_ac2.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#F8F5EF')),('BOX',(0,0),(-1,-1),1,GRIS_LIGNE),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7)]))
     story.append(hdr_ac2)
     paiement_unique=Table([[p('\u2705  Paiement int\u00e9gral \u00e0 la fin des travaux',11,'Helvetica-Bold',MARINE),p('%.2f \u20ac'%totalHT,14,'Helvetica-Bold',OR_FONCE,TA_RIGHT)]],colWidths=[11.0*cm,7.2*cm])
     paiement_unique.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),VERT_L2),('BOX',(0,0),(-1,-1),1,GRIS_LIGNE),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('TOPPADDING',(0,0),(-1,-1),12),('BOTTOMPADDING',(0,0),(-1,-1),12)]))
     story.append(paiement_unique)
-    pm2=Table([[p('\U0001f4b5 Esp\u00e8ces  \u2022  \U0001f3e6 Virement  \u2022  \U0001f4b3 CB  \u2022  \U0001f17f\ufe0f PayPal',9,'Helvetica',GRIS_SOFT,TA_CENTER)]],colWidths=[18.2*cm])
+    pm2=Table([[p('Esp\u00e8ces  \u2022  Virement  \u2022  CB  \u2022  PayPal',9,'Helvetica',GRIS_SOFT,TA_CENTER)]],colWidths=[18.2*cm])
     pm2.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#FDFCF9')),('BOX',(0,0),(-1,-1),1,GRIS_LIGNE),('LINEABOVE',(0,0),(-1,-1),1,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7)]))
     story.append(pm2)
     story.append(Spacer(1,0.3*cm))
@@ -1067,7 +1067,7 @@ if doc_type=='devis':
         cert.setStyle(TableStyle([('BOX',(0,0),(-1,-1),1.5,VERT_S),('BACKGROUND',(0,0),(0,-1),VERT_BG_S),('BACKGROUND',(1,0),(1,-1),colors.white),('LINEAFTER',(0,0),(0,-1),1,VERT_L),('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),8),('TOPPADDING',(0,0),(-1,-1),12),('BOTTOMPADDING',(0,0),(-1,-1),12),('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
         story.append(cert)
     else:
-        sig_t=Table([[p('\u270d\ufe0f  Signature \u00e9lectronique uniquement \u2022 Loi n\u00b02000-230',8,'Helvetica-Bold',colors.HexColor('#16a34a'),TA_CENTER)]],colWidths=[18.2*cm])
+        sig_t=Table([[p('\u270d  Signature \u00e9lectronique uniquement \u2022 Loi n\u00b02000-230',8,'Helvetica-Bold',colors.HexColor('#16a34a'),TA_CENTER)]],colWidths=[18.2*cm])
         sig_t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f0fdf4')),('BOX',(0,0),(-1,-1),1.5,colors.HexColor('#16a34a')),('TOPPADDING',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
         story.append(sig_t)
 if doc_type=='devis':
@@ -1118,7 +1118,7 @@ if doc_type=='devis':
         sig_tbl.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#e2e8f0')),('LEFTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),8)]))
         story.append(sig_tbl)
     else:
-        notice=Table([[p('\u270d\ufe0f  En signant ce devis (\u00e9lectroniquement, code SMS), vous acceptez l\u2019int\u00e9gralit\u00e9 des pr\u00e9sentes conditions g\u00e9n\u00e9rales (Art. 1 \u00e0 13).',8,'Helvetica-Bold',MARINE,TA_CENTER)]],colWidths=[18.2*cm])
+        notice=Table([[p('\u270d  En signant ce devis (\u00e9lectroniquement, code SMS), vous acceptez l\u2019int\u00e9gralit\u00e9 des pr\u00e9sentes conditions g\u00e9n\u00e9rales (Art. 1 \u00e0 13).',8,'Helvetica-Bold',MARINE,TA_CENTER)]],colWidths=[18.2*cm])
         notice.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#FBF7EC')),('BOX',(0,0),(-1,-1),1.5,OR),('TOPPADDING',(0,0),(-1,-1),9),('BOTTOMPADDING',(0,0),(-1,-1),9)]))
         story.append(notice)
 doc.build(story,canvasmaker=lambda fn,**kw: SC(fn,**kw)); print('PDF_OK')
@@ -2621,7 +2621,7 @@ if doc_type=='facture' and not is_paye:
     band=Table([[p('\\u23f3  PAIEMENT EN ATTENTE',11,'Helvetica-Bold',ORANGE,TA_CENTER)],[p('Merci de r\\u00e9gler dans les meilleurs d\\u00e9lais',8,'Helvetica',colors.HexColor('#9a3412'),TA_CENTER)]],colWidths=[18.2*cm])
     band.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),ORANGE_BG),('BOX',(0,0),(-1,-1),2.5,ORANGE),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10)]))
     story.append(band); story.append(Spacer(1,0.3*cm))
-    iban_t=Table([[p('\\U0001f4b3  Comment r\\u00e9gler ?',9,'Helvetica-Bold',MARINE),p('\\u2022 Esp\\u00e8ces  \\u2022  CB SumUp  \\u2022  Virement  \\u2022  PayPal',8,'Helvetica',GRIS_SOFT,TA_RIGHT)],[p('IBAN : FR76 1695 8000 0174 2540 5920 931  \\u2022  BIC : QNTOFRP1XXX',8,'Helvetica-Bold',MARINE),p('')]],colWidths=[13*cm,5.2*cm])
+    iban_t=Table([[p('Comment r\\u00e9gler ?',9,'Helvetica-Bold',MARINE),p('\\u2022 Esp\\u00e8ces  \\u2022  CB SumUp  \\u2022  Virement  \\u2022  PayPal',8,'Helvetica',GRIS_SOFT,TA_RIGHT)],[p('IBAN : FR76 1695 8000 0174 2540 5920 931  \\u2022  BIC : QNTOFRP1XXX',8,'Helvetica-Bold',MARINE),p('')]],colWidths=[13*cm,5.2*cm])
     iban_t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),ORANGE_BG),('BOX',(0,0),(-1,-1),1.5,ORANGE),('LINEBELOW',(0,0),(-1,0),0.5,colors.HexColor('#fed7aa')),('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7)]))
     story.append(iban_t); story.append(Spacer(1,0.3*cm))
 elif doc_type=='facture' and is_paye:
@@ -2630,7 +2630,7 @@ elif doc_type=='facture' and is_paye:
     band=Table([[p('\\u2705  PAIEMENT RE\\u00c7U',11,'Helvetica-Bold',VERT_P,TA_CENTER)],[p('Le '+date_p+'  \\u2022  '+mode_p,8,'Helvetica',colors.HexColor('#166534'),TA_CENTER)]],colWidths=[18.2*cm])
     band.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),VERT_BG),('BOX',(0,0),(-1,-1),2.5,VERT_P),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10)]))
     story.append(band); story.append(Spacer(1,0.3*cm))
-    recap=Table([[p('\\U0001f9fe  R\\u00e9capitulatif du r\\u00e8glement',9,'Helvetica-Bold',MARINE),p('')],[p('Mode :',8,'Helvetica',GRIS_SOFT),p(mode_p,8,'Helvetica-Bold',MARINE,TA_RIGHT)],[p('Date :',8,'Helvetica',GRIS_SOFT),p(date_p,8,'Helvetica-Bold',MARINE,TA_RIGHT)],[p('Montant encaiss\\u00e9 :',9,'Helvetica-Bold',VERT_P),p('%.2f \\u20ac'%totalHT,10,'Helvetica-Bold',VERT_P,TA_RIGHT)]],colWidths=[9.1*cm,9.1*cm])
+    recap=Table([[p('R\\u00e9capitulatif du r\\u00e8glement',9,'Helvetica-Bold',MARINE),p('')],[p('Mode :',8,'Helvetica',GRIS_SOFT),p(mode_p,8,'Helvetica-Bold',MARINE,TA_RIGHT)],[p('Date :',8,'Helvetica',GRIS_SOFT),p(date_p,8,'Helvetica-Bold',MARINE,TA_RIGHT)],[p('Montant encaiss\\u00e9 :',9,'Helvetica-Bold',VERT_P),p('%.2f \\u20ac'%totalHT,10,'Helvetica-Bold',VERT_P,TA_RIGHT)]],colWidths=[9.1*cm,9.1*cm])
     recap.setStyle(TableStyle([('SPAN',(0,0),(1,0)),('BACKGROUND',(0,0),(-1,-1),VERT_BG),('BOX',(0,0),(-1,-1),1.5,VERT_P),('LINEABOVE',(0,3),(-1,3),1,colors.HexColor('#bbf7d0')),('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6)]))
     story.append(recap); story.append(Spacer(1,0.3*cm))
 if doc_type=='facture' and meta.get('isAcompteFacture'):
@@ -2643,7 +2643,7 @@ if doc_type=='facture' and meta.get('isAcompteFacture'):
 elif doc_type=='devis' and totalHT>=400:
     acompte=totalHT*0.4; solde=totalHT*0.6
     BLEU_L=colors.HexColor('#EFF6FF'); BLEU_T=colors.HexColor('#0369A1'); VERT_L2=colors.HexColor('#F0FDF4')
-    hdr_ac=Table([[p('\\U0001f4b3  Modalit\\u00e9s de paiement',10,'Helvetica-Bold',MARINE),p('Devis > 400 \\u20ac',8,'Helvetica',GRIS_SOFT,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
+    hdr_ac=Table([[p('Modalit\\u00e9s de paiement',10,'Helvetica-Bold',MARINE),p('Devis > 400 \\u20ac',8,'Helvetica',GRIS_SOFT,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
     hdr_ac.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#F8F5EF')),('BOX',(0,0),(-1,-1),1,GRIS_LIGNE),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7)]))
     story.append(hdr_ac)
     cell_ac=[p('ACOMPTE',8,'Helvetica-Bold',OR_FONCE),p('\\u00c0 la signature',8,'Helvetica',GRIS_SOFT),Spacer(1,4),p('%.2f \\u20ac'%acompte,16,'Helvetica-Bold',MARINE,TA_CENTER),p('40 %',9,'Helvetica-Bold',OR_FONCE,TA_CENTER)]
@@ -2652,18 +2652,18 @@ elif doc_type=='devis' and totalHT>=400:
     tl=Table([[cell_ac,cell_tx,cell_sl]],colWidths=[6.0*cm,6.2*cm,6.0*cm])
     tl.setStyle(TableStyle([('BACKGROUND',(0,0),(0,0),colors.HexColor('#FEF3C7')),('BACKGROUND',(1,0),(1,0),BLEU_L),('BACKGROUND',(2,0),(2,0),VERT_L2),('BOX',(0,0),(-1,-1),1,GRIS_LIGNE),('LINEBEFORE',(1,0),(1,0),1,GRIS_LIGNE),('LINEBEFORE',(2,0),(2,0),1,GRIS_LIGNE),('VALIGN',(0,0),(-1,-1),'TOP'),('ALIGN',(0,0),(-1,-1),'CENTER'),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),('LEFTPADDING',(0,0),(-1,-1),8),('RIGHTPADDING',(0,0),(-1,-1),8)]))
     story.append(tl)
-    pm=Table([[p('\\U0001f4b5 Esp\\u00e8ces  \\u2022  \\U0001f3e6 Virement  \\u2022  \\U0001f4b3 CB  \\u2022  \\U0001f17f\\ufe0f PayPal',9,'Helvetica',GRIS_SOFT,TA_CENTER)]],colWidths=[18.2*cm])
+    pm=Table([[p('Esp\\u00e8ces  \\u2022  Virement  \\u2022  CB  \\u2022  PayPal',9,'Helvetica',GRIS_SOFT,TA_CENTER)]],colWidths=[18.2*cm])
     pm.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#FDFCF9')),('BOX',(0,0),(-1,-1),1,GRIS_LIGNE),('LINEABOVE',(0,0),(-1,-1),1,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7)]))
     story.append(pm); story.append(Spacer(1,0.3*cm))
 elif doc_type=='devis':
     VERT_L2=colors.HexColor('#F0FDF4')
-    hdr_ac2=Table([[p('\\U0001f4b3  Modalit\\u00e9s de paiement',10,'Helvetica-Bold',MARINE),p('',8,'Helvetica',GRIS_SOFT,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
+    hdr_ac2=Table([[p('Modalit\\u00e9s de paiement',10,'Helvetica-Bold',MARINE),p('',8,'Helvetica',GRIS_SOFT,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
     hdr_ac2.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#F8F5EF')),('BOX',(0,0),(-1,-1),1,GRIS_LIGNE),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7)]))
     story.append(hdr_ac2)
     paiement_unique=Table([[p('\\u2705  Paiement int\\u00e9gral \\u00e0 la fin des travaux',11,'Helvetica-Bold',MARINE),p('%.2f \\u20ac'%totalHT,14,'Helvetica-Bold',OR_FONCE,TA_RIGHT)]],colWidths=[11.0*cm,7.2*cm])
     paiement_unique.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),VERT_L2),('BOX',(0,0),(-1,-1),1,GRIS_LIGNE),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('TOPPADDING',(0,0),(-1,-1),12),('BOTTOMPADDING',(0,0),(-1,-1),12)]))
     story.append(paiement_unique)
-    pm2=Table([[p('\\U0001f4b5 Esp\\u00e8ces  \\u2022  \\U0001f3e6 Virement  \\u2022  \\U0001f4b3 CB  \\u2022  \\U0001f17f\\ufe0f PayPal',9,'Helvetica',GRIS_SOFT,TA_CENTER)]],colWidths=[18.2*cm])
+    pm2=Table([[p('Esp\\u00e8ces  \\u2022  Virement  \\u2022  CB  \\u2022  PayPal',9,'Helvetica',GRIS_SOFT,TA_CENTER)]],colWidths=[18.2*cm])
     pm2.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#FDFCF9')),('BOX',(0,0),(-1,-1),1,GRIS_LIGNE),('LINEABOVE',(0,0),(-1,-1),1,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7)]))
     story.append(pm2); story.append(Spacer(1,0.3*cm))
 story.append(Table([[p('TVA non applicable, art. 293B du CGI',8,color=GRIS_SOFT),p('Paiement : Esp\\u00e8ces  \\u2022  Virement  \\u2022  CB (SumUp)',8,color=GRIS_SOFT,align=TA_RIGHT)]],colWidths=[9.5*cm,8.7*cm]))
