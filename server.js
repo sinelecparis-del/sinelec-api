@@ -3632,7 +3632,14 @@ app.get('/api/rentabilite/:mois', authMiddleware, async (req, res) => {
     const { mois } = req.params; // format: 2026-05
     const [annee, moisNum] = mois.split('-');
     const debut = `${mois}-01`;
-    const fin = `${mois}-31`;
+    // BUG corrigé le 28/09/2026 : fin codée en dur à "-31" cassait tout mois
+    // de moins de 31 jours (avril, juin, sept, nov = 30j, février = 28/29j)
+    // — la requête Supabase avec une date calendaire invalide (ex: "2026-09-31")
+    // ne renvoyait aucune ligne, donc CA et charges affichaient 0€ à tort.
+    // Repéré par Diahe : rentabilité septembre 2026 à 0€ alors que 4647,90€
+    // de factures payées existaient réellement ce mois-ci.
+    const dernierJour = new Date(parseInt(annee), parseInt(moisNum), 0).getDate();
+    const fin = `${mois}-${String(dernierJour).padStart(2,'0')}`;
 
     // CA du mois (factures payées)
     const { data: factures } = await supabase.from('historique')
