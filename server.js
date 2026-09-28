@@ -1528,6 +1528,25 @@ app.post('/api/signature', async (req, res) => {
         + '</div></div>';
       try { await envoyerEmail('sinelec.paris@gmail.com', '✍️ Signé — ' + (doc.client||'') + ' — ' + num + ' — ' + montant + '€', htmlDiahe, pdfAttachment); }
       catch(e) { console.error('Email Diahe signature:', e.message); }
+
+      // Lien de planification auto — UNIQUEMENT pour les devis "à planifier".
+      // Sur un devis "immediat" (Diahe en direct avec le client, intervention
+      // dans la foulée), on n'envoie rien : pas de calendrier à choisir.
+      if (doc.intervention_type === 'a_planifier' && doc.telephone) {
+        try {
+          const { data: agendaRow, error: agendaErr } = await supabase.from('agenda').insert({
+            client: doc.client, telephone: doc.telephone, adresse: doc.adresse || '',
+            type_intervention: doc.objet || '', statut: 'lead', sms_rappel: true
+          }).select().single();
+          if (agendaErr) throw agendaErr;
+          const lienToken = await getOrCreerAgendaLienToken(agendaRow.id);
+          const lien = `${appUrlLocal}/planifier/${agendaRow.id}?token=${lienToken}`;
+          const prenom = extractPrenom(doc.client || '');
+          const msgPlanif = `Bonjour ${prenom}, votre devis SINELEC est signé ✅ Choisissez vous-même votre créneau d'intervention en 1 clic : ${lien} — SINELEC Paris ⚡`;
+          await envoyerSMS(doc.telephone, msgPlanif);
+          console.log('✅ Lien de planification auto envoyé pour', num, '→', doc.telephone);
+        } catch(e) { console.error('❌ Envoi auto lien planification (signature):', e.message); }
+      }
     }
     res.json({ success: true });
   } catch(error) {
@@ -5973,7 +5992,8 @@ app.all('/mcp', mcpAuth, async(req,res)=>{
               description:{type:'string',description:'Description technique détaillée incluse dans le PDF — main d oeuvre, fourniture, marques, normes'}
             }}},
             remise:{type:'number',description:'Remise en % max 7%',default:0},
-            apporteur:{type:'string',description:'Apporteur d affaires interne — jamais visible du client, sert uniquement au suivi de CA/commission de Diahe',enum:['Aucun','Paris Express','M. Leblanc','Pierrot'],default:'Aucun'}
+            apporteur:{type:'string',description:'Apporteur d affaires interne — jamais visible du client, sert uniquement au suivi de CA/commission de Diahe',enum:['Aucun','Paris Express','M. Leblanc','Pierrot'],default:'Aucun'},
+            intervention_type:{type:'string',description:'immediat = Diahe est en direct avec le client, l intervention se fait dans la foulee de la signature, pas de planification. a_planifier = l intervention aura lieu plus tard, un lien de calendrier est envoye automatiquement au client des qu il signe.',enum:['immediat','a_planifier'],default:'immediat'}
           }}},
           {name:'creer_facture',description:'Cree une facture SINELEC complete, genere le PDF et l envoie au client par email avec lien de paiement.',inputSchema:{type:'object',required:['client','email','telephone','adresse','prestations'],properties:{
             client:{type:'string',description:'Nom complet ex: M. Dupont Jean'},
@@ -6117,7 +6137,7 @@ app.all('/mcp', mcpAuth, async(req,res)=>{
           } catch(e){ result={success:false,error:e.message}; }
         }
         else if(name==='creer_devis'){
-          const{client,email,telephone,adresse,prestations,objet,remise,apporteur,message:messageValide}=args||{};
+          const{client,email,telephone,adresse,prestations,objet,remise,apporteur,message:messageValide,intervention_type}=args||{};
           const token=genererToken('admin');
           const SPLITS_APPORTEUR = {'Paris Express':{diahe:80,partenaire:20},'M. Leblanc':{diahe:50,partenaire:50},'Pierrot':{diahe:50,partenaire:50}};
           const isPartenaire = !!(apporteur && apporteur!=='Aucun');
@@ -6177,7 +6197,8 @@ Réponds UNIQUEMENT avec la description, sans introduction ni guillemets.`;
               total_ht: totalNet,
               remise: parseFloat(remise)||0,
               partenaire: isPartenaire, nom_partenaire: isPartenaire ? apporteur : null,
-              part_diahe: splitApporteur.diahe, part_partenaire: splitApporteur.partenaire
+              part_diahe: splitApporteur.diahe, part_partenaire: splitApporteur.partenaire,
+              intervention_type: intervention_type || 'immediat'
             })
           });
           const genData=await genRes.json();
