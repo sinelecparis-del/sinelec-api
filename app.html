@@ -10379,7 +10379,23 @@ function addToPanier(prefix, nom, prix, categorie, desc) {
       for (let i = panierD.length - 1; i >= 0; i--) { if (panierD[i]._section) { targetIdx = i; break; } }
     }
     if (targetIdx < 0) {
-      showToast('Ajoutez d\u0027abord une section \u2795', '\u26a0\ufe0f'); return;
+      // Aucune section active : on propose d'en creer une, pre-remplie avec
+      // le nom de la categorie choisie (ex: "VMC & Ventilation"). Jamais
+      // automatique : Diahe modifie le titre a sa guise (ex: "Salon") ou
+      // annule pour ajouter la prestation sans section.
+      const titre = prompt('Creer une section pour cette prestation ? (modifiable, Annuler = sans section)', categorie || '');
+      if (titre && titre.trim()) {
+        const nbSections = panierD.filter(p => p._section).length;
+        panierD.push({ _section: true, titre: titre.trim(), sectionNum: nbSections + 1 });
+        targetIdx = panierD.length - 1;
+        sectionActiveIdx = targetIdx;
+        showToast(`Section ${nbSections + 1} creee`, '\ud83d\udccb');
+      } else {
+        panierD.push({ designation: nom, prixUnit: prix, qte: 1, categorie: categorie || 'Autre', desc: desc || '' });
+        renderPanier('d');
+        showToast(`\u2705 ${nom} ajoute (sans section)`, '\ud83d\uded2');
+        return;
+      }
     }
     // Insérer après la dernière prestation de cette section
     let insertAt = targetIdx + 1;

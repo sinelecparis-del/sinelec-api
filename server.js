@@ -741,15 +741,21 @@ app.post('/api/generer', async (req, res) => {
         (typeof prestations === 'string' ? JSON.parse(prestations) : []);
       let itemsData = [];
       let sectNum = 0; let itemNum = 0;
+      let curSectionObj = null; let curSectionTotal = 0;
       for (const p of prestationsInput) {
         if (p._section) {
-          sectNum++; itemNum = 0;
-          itemsData.push({ _section: true, titre: `${sectNum}. ${p.titre || 'Section ' + sectNum}` });
+          if (curSectionObj) curSectionObj.total = curSectionTotal;
+          sectNum++; itemNum = 0; curSectionTotal = 0;
+          curSectionObj = { _section: true, titre: `${sectNum}. ${p.titre || 'Section ' + sectNum}` };
+          itemsData.push(curSectionObj);
         } else {
           if (sectNum > 0) itemNum++;
-          itemsData.push({ designation: p.nom || '', qte: p.quantite || 1, prixUnit: p.prix || 0, total: (p.prix || 0) * (p.quantite || 1), details: p.desc ? [p.desc] : [] });
+          const ligneTotal = (p.prix || 0) * (p.quantite || 1);
+          curSectionTotal += ligneTotal;
+          itemsData.push({ designation: p.nom || '', qte: p.quantite || 1, prixUnit: p.prix || 0, total: ligneTotal, details: p.desc ? [p.desc] : [] });
         }
       }
+      if (curSectionObj) curSectionObj.total = curSectionTotal;
       // Variables client — déclarées AVANT jsonPayload
       const clientEsc = String(client || '').replace(/'/g, ' ');
       const clientTel = String(telephone || '').trim();
@@ -925,7 +931,9 @@ rows=[th]; sect_num=0; item_num=0
 for ligne in data:
     if ligne.get('_section'):
         sect_num+=1; item_num=0
-        rows.append([p(str(ligne.get('titre','Section')),9,'Helvetica-Bold',BLANC,sa=4),'','','','']); continue
+        sect_tot=float(ligne.get('total',0) or 0)
+        sect_tot_txt=(str(round(sect_tot))+' \u20ac') if sect_tot else ''
+        rows.append([p(str(ligne.get('titre','Section')),9,'Helvetica-Bold',BLANC,sa=4),'','','',p(sect_tot_txt,9,'Helvetica-Bold',BLANC,TA_RIGHT)]); continue
     item_num+=1
     sub_num=str(sect_num)+'.'+str(item_num) if sect_num>0 else str(item_num)
     nom=str(ligne.get('designation',''))
@@ -940,7 +948,7 @@ t=Table(rows,colWidths=COL,repeatRows=1)
 ts=[('BACKGROUND',(0,0),(-1,0),MARINE),('ROWBACKGROUNDS',(0,1),(-1,-1),[CREME,OR_PALE]),('LINEBELOW',(0,0),(-1,0),1.5,OR),('LINEBELOW',(0,-1),(-1,-1),1.5,MARINE),('LEFTPADDING',(0,0),(-1,-1),4),('RIGHTPADDING',(0,0),(-1,-1),4),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('VALIGN',(0,0),(-1,-1),'TOP'),('ALIGN',(2,0),(4,-1),'RIGHT')]
 for i,row in enumerate(rows):
     if i>0 and isinstance(row[1],str) and row[1]=='':
-        ts+=[('BACKGROUND',(0,i),(-1,i),colors.HexColor('#243660')),('SPAN',(0,i),(-1,i)),('TEXTCOLOR',(0,i),(-1,i),BLANC)]
+        ts+=[('BACKGROUND',(0,i),(-1,i),colors.HexColor('#243660')),('SPAN',(0,i),(3,i)),('TEXTCOLOR',(0,i),(-1,i),BLANC)]
 t.setStyle(TableStyle(ts))
 story.append(t)
 story.append(Spacer(1,0.4*cm))
@@ -2391,14 +2399,25 @@ app.get('/api/pdf/:num', async (req, res) => {
     // section stocké en base ressortait comme une ligne vide "OFFERT".
     // Même logique de numérotation qu'à la génération initiale (ligne ~741).
     let sectNumDl = 0;
-    const itemsArr = prestationsArr.map(p => {
-      if (p._section) { sectNumDl++; return { _section: true, titre: `${sectNumDl}. ${p.titre || 'Section ' + sectNumDl}` }; }
-      return {
-        designation: p.nom || p.designation || '', qte: p.quantite || 1,
-        prixUnit: p.prix || 0, total: (p.prix || 0) * (p.quantite || 1),
-        details: p.desc ? [p.desc] : []
-      };
-    });
+    let curSectionObjDl = null; let curSectionTotalDl = 0;
+    const itemsArr = [];
+    for (const p of prestationsArr) {
+      if (p._section) {
+        if (curSectionObjDl) curSectionObjDl.total = curSectionTotalDl;
+        sectNumDl++; curSectionTotalDl = 0;
+        curSectionObjDl = { _section: true, titre: `${sectNumDl}. ${p.titre || 'Section ' + sectNumDl}` };
+        itemsArr.push(curSectionObjDl);
+      } else {
+        const ligneTotalDl = (p.prix || 0) * (p.quantite || 1);
+        curSectionTotalDl += ligneTotalDl;
+        itemsArr.push({
+          designation: p.nom || p.designation || '', qte: p.quantite || 1,
+          prixUnit: p.prix || 0, total: ligneTotalDl,
+          details: p.desc ? [p.desc] : []
+        });
+      }
+    }
+    if (curSectionObjDl) curSectionObjDl.total = curSectionTotalDl;
     const datePaiement = data.date_paiement ? new Date(data.date_paiement).toLocaleDateString('fr-FR') : dateStr;
     const modePaiement = String(data.mode_paiement || 'Règlement reçu').replace(/'/g,' ').substring(0,30);
 
@@ -2573,7 +2592,9 @@ rows=[th]; sect_num=0; item_num=0
 for ligne in data:
     if ligne.get('_section'):
         sect_num+=1; item_num=0
-        rows.append([p(str(ligne.get('titre',f'Section {sect_num}')),9,'Helvetica-Bold',BLANC,sa=4),'','','','']); continue
+        sect_tot=float(ligne.get('total',0) or 0)
+        sect_tot_txt=(f'{round(sect_tot)} \\u20ac') if sect_tot else ''
+        rows.append([p(str(ligne.get('titre',f'Section {sect_num}')),9,'Helvetica-Bold',BLANC,sa=4),'','','',p(sect_tot_txt,9,'Helvetica-Bold',BLANC,TA_RIGHT)]); continue
     item_num+=1
     sub_num=f'{sect_num}.{item_num}' if sect_num>0 else str(item_num)
     nom=str(ligne.get('designation',''))
@@ -2588,7 +2609,7 @@ t=Table(rows,colWidths=COL,repeatRows=1)
 ts=[('BACKGROUND',(0,0),(-1,0),MARINE),('ROWBACKGROUNDS',(0,1),(-1,-1),[CREME,OR_PALE]),('LINEBELOW',(0,0),(-1,0),1.5,OR),('LINEBELOW',(0,-1),(-1,-1),1.5,MARINE),('LEFTPADDING',(0,0),(-1,-1),4),('RIGHTPADDING',(0,0),(-1,-1),4),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('VALIGN',(0,0),(-1,-1),'TOP'),('ALIGN',(2,0),(4,-1),'RIGHT')]
 for i,row in enumerate(rows):
     if i>0 and isinstance(row[1],str) and row[1]=='':
-        ts+=[('BACKGROUND',(0,i),(-1,i),colors.HexColor('#243660')),('SPAN',(0,i),(-1,i)),('TEXTCOLOR',(0,i),(-1,i),BLANC)]
+        ts+=[('BACKGROUND',(0,i),(-1,i),colors.HexColor('#243660')),('SPAN',(0,i),(3,i)),('TEXTCOLOR',(0,i),(-1,i),BLANC)]
 t.setStyle(TableStyle(ts))
 story.append(t)
 story.append(Spacer(1,0.4*cm))
