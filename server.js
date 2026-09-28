@@ -6014,6 +6014,9 @@ app.all('/mcp', mcpAuth, async(req,res)=>{
             num:{type:'string',description:'Numero de la facture ex: 202608-001'},
             mode_paiement:{type:'string',description:'Mode: terminal, virement, especes',default:'terminal'}
           }}},
+          {name:'annuler_devis',description:'Marque un devis comme annule (ex: remplace par une version revisee). Utile pour eviter d avoir plusieurs devis actifs (statut envoye) pour la meme adresse quand un devis a ete recree suite a une modification.',inputSchema:{type:'object',required:['num'],properties:{
+            num:{type:'string',description:'Numero du devis a annuler ex: OS-202609-318'}
+          }}},
           {name:'envoyer_sms_devis',description:'Renvoie par SMS (via Brevo) le lien de signature d un devis existant au telephone du client, sans creer de nouveau devis.',inputSchema:{type:'object',required:['num'],properties:{
             num:{type:'string',description:'Numero du devis ex: OS-202609-309'},
             telephone:{type:'string',description:'Telephone du client (optionnel — sinon celui deja enregistre sur le devis est utilise)'}
@@ -6436,6 +6439,20 @@ SINELEC Paris
             result = rapData.success!==false
               ? {success:true,num:rapData.num,pdf_url:rapData.pdf_url,message:`✅ Rapport d'intervention ${rapData.num||''} généré${rapData.envoye?` et envoyé à ${email}`:''}`}
               : {success:false,error:rapData.error||'Erreur génération rapport'};
+          } catch(e){ result={success:false,error:e.message}; }
+        }
+        else if(name==='annuler_devis'){
+          const{num}=args||{};
+          try {
+            const{data:existant}=await supabase.from('historique').select('num,statut').eq('num',num).single();
+            if(!existant){ result={success:false,error:`Aucun devis trouvé avec le numéro ${num}`}; }
+            else if(existant.statut==='signe'||existant.statut==='signé'||existant.statut==='paye'||existant.statut==='payé'){
+              result={success:false,error:`Le devis ${num} a le statut "${existant.statut}" — annulation refusée pour ne pas toucher à un devis déjà accepté/payé.`};
+            } else {
+              const{error}=await supabase.from('historique').update({statut:'annule'}).eq('num',num);
+              if(error) throw error;
+              result={success:true,num,message:`✅ Devis ${num} marqué annulé`};
+            }
           } catch(e){ result={success:false,error:e.message}; }
         }
         else{ result={error:`Outil inconnu: ${name}`}; }
