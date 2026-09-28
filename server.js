@@ -6194,6 +6194,24 @@ Réponds UNIQUEMENT avec la description, sans introduction ni guillemets.`;
           }));
           const totalHT = prestationsFormatted.reduce((s,p)=>s+(p.prix*p.quantite),0);
           const totalNet = Math.round(totalHT*(1-(parseFloat(remise)||0)/100));
+          // Alerte doublon — repéré 2x la même semaine (Tersier, Delaunay) :
+          // un devis modifié recrée un nouveau numéro sans que l'ancien
+          // "envoyé" soit retiré. On ne bloque pas la création (un même
+          // client peut avoir 2 chantiers différents), mais on renvoie
+          // l'alerte dans le résultat pour y penser tout de suite.
+          let alerteDoublon = null;
+          if (telephone) {
+            try {
+              const { data: doublons } = await supabase.from('historique')
+                .select('num,total_ht,created_at')
+                .eq('telephone', telephone)
+                .in('statut', ['envoye','envoyé'])
+                .order('created_at', { ascending: false });
+              if (doublons && doublons.length > 0) {
+                alerteDoublon = `⚠️ ${doublons.length} devis déjà "envoyé" pour ce téléphone : ${doublons.map(d=>`${d.num} (${d.total_ht}€)`).join(', ')} — penser à annuler_devis si celui-ci les remplace.`;
+              }
+            } catch(eDup){ console.error('Check doublon devis:', eDup.message); }
+          }
           // Étape 1 : Générer le devis (PDF + historique)
           const genRes=await fetch(`${APP_URL_MCP}/api/generer`,{
             method:'POST',
@@ -6273,6 +6291,7 @@ Une question, un ajustement à faire ? Je suis dispo par tél ou par mail.
               console.log(`📧 MCP email devis ${num}:`, envData.message||envData.error||'ok');
             } catch(eEnv){ console.error('MCP envoi email:', eEnv.message); }
             result={success:true,num,client,total_ht:totalConfirme,email_envoye:email,message:`✅ Devis ${num} créé et envoyé à ${email}`};
+            if (alerteDoublon) result.alerte = alerteDoublon;
           }
         }
         else if(name==='creer_facture'){
@@ -6283,10 +6302,11 @@ Une question, un ajustement à faire ? Je suis dispo par tél ou par mail.
           const splitApporteurF = SPLITS_APPORTEUR_F[apporteur] || {diahe:100,partenaire:0};
           const prestationsFormatted = await Promise.all((prestations||[]).map(async p => {
             let desc = p.description || p.desc || '';
-            // Même correctif que creer_devis (28/09/2026) : pas de discours
-            // "diagnostic"/"tests" inventé pour un simple déplacement.
+            // Même correctif que creer_devis (28/09/2026, élargi le même jour
+            // à startsWith pour couvrir "Déplacement — Ville") : pas de
+            // discours "diagnostic"/"tests" inventé pour un simple déplacement.
             const nomNorm = (p.nom||'').trim().toLowerCase();
-            if (!desc && nomNorm === 'déplacement') {
+            if (!desc && nomNorm.startsWith('déplacement')) {
               desc = `Frais de déplacement pour l'intervention de nos techniciens SINELEC Paris à votre adresse. Comprend le trajet et la mise à disposition sur site.`;
             } else if (!desc || desc.length < 150) {
               try {
