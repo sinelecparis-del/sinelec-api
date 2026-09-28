@@ -10633,7 +10633,10 @@ async function genererEtTelecharger(type) {
       if (!isNaN(idx) && panier[idx]) panier[idx].desc = ta.value;
     });
 
-    const prestations = panier.filter(p => !p._section).map(p => ({ nom: p.designation, prix: p.prixUnit||0, quantite: p.qte||1, desc: p.desc || '' }));
+    // Sections conservées le 28/09/2026 : le backend gère nativement les
+    // marqueurs {_section:true, titre} et génère les en-têtes numérotées
+    // dans le PDF (server.js /api/generer) — on ne les filtre plus.
+    const prestations = panier.map(p => p._section ? { _section: true, titre: p.titre || '' } : { nom: p.designation, prix: p.prixUnit||0, quantite: p.qte||1, desc: p.desc || '' });
 
     // Générer SANS email — pas d'envoi
     const res = await fetch('/api/generer', {
@@ -10815,12 +10818,14 @@ async function generer(type) {
   const totalBrut = panier.filter(p => !p._section).reduce((s, p) => s + (p.prixUnit||0) * (p.qte||1), 0);
   const remiseMontant = getRemise(prefix, totalBrut);
 
-  const prestationsAEnvoyer = panier.filter(item => !item._section).map(item => ({
+  // Sections conservées le 28/09/2026 (voir même correctif plus haut dans ce
+  // fichier) : le backend sait déjà générer les en-têtes numérotées dans le PDF.
+  const prestationsAEnvoyer = panier.map(item => item._section ? { _section: true, titre: item.titre || '' } : {
     nom: item.designation,
     prix: item.prixUnit||0,
     quantite: item.qte||1,
     desc: item.desc || ''
-  }));
+  });
 
   if (remiseMontant > 0) {
     const isPct = (prefix === 'd' ? remiseTypeD : remiseTypeF) === 'pct';

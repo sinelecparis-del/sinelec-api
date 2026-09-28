@@ -621,7 +621,10 @@ app.post('/api/generer', async (req, res) => {
       const mois = String(new Date().getMonth() + 1).padStart(2, '0');
       num = type === 'devis' ? `OS-${annee}${mois}-${String(compteur).padStart(3, '0')}` : `${annee}${mois}-${String(compteur).padStart(3, '0')}`;
     }
-    const sousTotal_ht = prestations.reduce((sum, p) => sum + (p.prix * p.quantite), 0);
+    // Exclut les marqueurs de section ({_section:true, titre}) du calcul —
+    // sinon p.prix/p.quantite undefined → NaN qui casse tout le total_ht.
+    // Repéré le 28/09/2026 en finissant de câbler le support sections.
+    const sousTotal_ht = prestations.reduce((sum, p) => p._section ? sum : sum + ((p.prix||0) * (p.quantite||1)), 0);
     let total_ht = sousTotal_ht;
     if (remise && parseFloat(remise) > 0) {
       const remiseMontant = Math.round(sousTotal_ht * (parseFloat(remise) / 100) * 100) / 100;
@@ -2383,11 +2386,19 @@ app.get('/api/pdf/:num', async (req, res) => {
     if (typeof prestationsArr === 'string') { try { prestationsArr = JSON.parse(prestationsArr); } catch(e) { prestationsArr = []; } }
     const clientEscDl = String(data.client || '').replace(/['"\\]/g, ' ');
     const addrPartsDl = (data.adresse || '').split(',');
-    const itemsArr = prestationsArr.map(p => ({
-      designation: p.nom || p.designation || '', qte: p.quantite || 1,
-      prixUnit: p.prix || 0, total: (p.prix || 0) * (p.quantite || 1),
-      details: p.desc ? [p.desc] : []
-    }));
+    // Sections préservées lors de la régénération du PDF (téléchargement
+    // ultérieur, pièce jointe après signature) — sans ça, un marqueur de
+    // section stocké en base ressortait comme une ligne vide "OFFERT".
+    // Même logique de numérotation qu'à la génération initiale (ligne ~741).
+    let sectNumDl = 0;
+    const itemsArr = prestationsArr.map(p => {
+      if (p._section) { sectNumDl++; return { _section: true, titre: `${sectNumDl}. ${p.titre || 'Section ' + sectNumDl}` }; }
+      return {
+        designation: p.nom || p.designation || '', qte: p.quantite || 1,
+        prixUnit: p.prix || 0, total: (p.prix || 0) * (p.quantite || 1),
+        details: p.desc ? [p.desc] : []
+      };
+    });
     const datePaiement = data.date_paiement ? new Date(data.date_paiement).toLocaleDateString('fr-FR') : dateStr;
     const modePaiement = String(data.mode_paiement || 'Règlement reçu').replace(/'/g,' ').substring(0,30);
 
