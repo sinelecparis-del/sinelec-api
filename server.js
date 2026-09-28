@@ -1480,7 +1480,15 @@ app.post('/api/signature', async (req, res) => {
     if (updErr) console.error('❌ Signature update error:', updErr.message);
     else console.log('✅ Signature sauvegardée pour', num, '| data length:', (signature||'').length);
 
-    // Emails avec PDF signé en pièce jointe
+    // Répondre tout de suite au client dès que la signature est enregistrée —
+    // la génération du PDF + les 2 emails (client + Diahe) prennent plusieurs
+    // secondes et bloquaient la page "Signature enregistrée" du client pendant
+    // tout ce temps, donnant l'impression que ça restait planté. Repéré par
+    // Diahe le 28/09/2026 (devis test OS-202609-323). Le PDF + emails partent
+    // maintenant en tâche de fond, sans faire attendre le client.
+    res.json({ success: true });
+
+    // Emails avec PDF signé en pièce jointe (tâche de fond, non bloquant)
     const { data: doc } = await supabase.from('historique').select('*').eq('num', num).single();
     if (doc) {
       // Générer le PDF signé via appel interne
@@ -1559,10 +1567,11 @@ app.post('/api/signature', async (req, res) => {
         } catch(e) { console.error('❌ Envoi auto lien planification (signature):', e.message); }
       }
     }
-    res.json({ success: true });
   } catch(error) {
-    console.error('❌ /api/signature error:', error.message);
-    res.status(500).json({ error: "Erreur lors de l'enregistrement de la signature. Contactez SINELEC au 07 87 38 86 22." });
+    // La réponse au client est déjà partie (res.json plus haut, dès la
+    // signature enregistrée) — une erreur ici ne concerne que la tâche de
+    // fond (PDF/emails/planification), pas la page de signature elle-même.
+    console.error('❌ /api/signature error (tâche de fond):', error.message);
   }
 });
 
