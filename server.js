@@ -3737,9 +3737,17 @@ app.get('/api/charges', authMiddleware, async (req, res) => {
 app.post('/api/charges', authMiddleware, async (req, res) => {
   try {
     const { categorie, montant, date, note } = req.body;
+    const dateFinale = date || new Date().toISOString().split('T')[0];
+    // Colonne "mois" (ex: "2026-09") NOT NULL sans défaut en base — jamais
+    // renseignée ici, donc TOUT ajout de charge échouait ("null value in
+    // column mois"). Pas utilisée dans les requêtes de /api/rentabilite
+    // (qui filtre par "date"), mais la contrainte NOT NULL bloque quand
+    // même l'insert si elle est absente. Repéré par Diahe le 29/09/2026
+    // en scannant un ticket (Matériel 77,63€).
+    const moisFinal = dateFinale.slice(0, 7);
     const { error } = await supabase.from('charges').insert({
       categorie, montant: parseFloat(montant),
-      date: date || new Date().toISOString().split('T')[0], note
+      date: dateFinale, mois: moisFinal, note
     });
     if (error) throw error;
     res.json({ success: true });
