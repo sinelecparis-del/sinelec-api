@@ -973,12 +973,12 @@ elif doc_type=='facture' and is_paye:
     recap.setStyle(TableStyle([('SPAN',(0,0),(1,0)),('BACKGROUND',(0,0),(-1,-1),VERT_BG),('BOX',(0,0),(-1,-1),1.5,VERT_P),('LINEABOVE',(0,3),(-1,3),1,colors.HexColor('#bbf7d0')),('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6)]))
     story.append(recap)
 story.append(Spacer(1,0.25*cm))
-if doc_type=='devis' and totalHT>=400:
+if doc_type=='devis':
     acompte=totalHT*0.4; solde=totalHT*0.6
     BLEU_L=colors.HexColor('#EFF6FF'); BLEU_B=colors.HexColor('#BAE6FD'); BLEU_T=colors.HexColor('#0369A1')
     VERT_L2=colors.HexColor('#F0FDF4'); VERT_B2=colors.HexColor('#BBF7D0')
     # Header modalités
-    hdr_ac=Table([[p('Modalit\u00e9s de paiement',10,'Helvetica-Bold',MARINE),p('Devis > 400 \u20ac',8,'Helvetica',GRIS_SOFT,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
+    hdr_ac=Table([[p('Modalit\u00e9s de paiement',10,'Helvetica-Bold',MARINE),p('',8,'Helvetica',GRIS_SOFT,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
     hdr_ac.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#F8F5EF')),('BOX',(0,0),(-1,-1),1,GRIS_LIGNE),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7)]))
     story.append(hdr_ac)
     # Cellule acompte
@@ -1003,19 +1003,6 @@ if doc_type=='devis' and totalHT>=400:
     pm=Table([[p('Esp\u00e8ces  \u2022  Virement  \u2022  CB  \u2022  PayPal',9,'Helvetica',GRIS_SOFT,TA_CENTER)]],colWidths=[18.2*cm])
     pm.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#FDFCF9')),('BOX',(0,0),(-1,-1),1,GRIS_LIGNE),('LINEABOVE',(0,0),(-1,-1),1,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7)]))
     story.append(pm)
-    story.append(Spacer(1,0.3*cm))
-else:
-    # Devis < 400€ — paiement intégral à la fin
-    VERT_L2=colors.HexColor('#F0FDF4'); VERT_B2=colors.HexColor('#BBF7D0')
-    hdr_ac2=Table([[p('Modalit\u00e9s de paiement',10,'Helvetica-Bold',MARINE),p('',8,'Helvetica',GRIS_SOFT,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
-    hdr_ac2.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#F8F5EF')),('BOX',(0,0),(-1,-1),1,GRIS_LIGNE),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7)]))
-    story.append(hdr_ac2)
-    paiement_unique=Table([[p('\u2705  Paiement int\u00e9gral \u00e0 la fin des travaux',11,'Helvetica-Bold',MARINE),p('%.2f \u20ac'%totalHT,14,'Helvetica-Bold',OR_FONCE,TA_RIGHT)]],colWidths=[11.0*cm,7.2*cm])
-    paiement_unique.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),VERT_L2),('BOX',(0,0),(-1,-1),1,GRIS_LIGNE),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('TOPPADDING',(0,0),(-1,-1),12),('BOTTOMPADDING',(0,0),(-1,-1),12)]))
-    story.append(paiement_unique)
-    pm2=Table([[p('Esp\u00e8ces  \u2022  Virement  \u2022  CB  \u2022  PayPal',9,'Helvetica',GRIS_SOFT,TA_CENTER)]],colWidths=[18.2*cm])
-    pm2.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#FDFCF9')),('BOX',(0,0),(-1,-1),1,GRIS_LIGNE),('LINEABOVE',(0,0),(-1,-1),1,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7)]))
-    story.append(pm2)
     story.append(Spacer(1,0.3*cm))
 story.append(Table([[p('TVA non applicable, art. 293B du CGI',8,color=GRIS_SOFT),p('Paiement : Esp\u00e8ces  \u2022  Virement  \u2022  CB (SumUp)',8,color=GRIS_SOFT,align=TA_RIGHT)]],colWidths=[9.5*cm,8.7*cm]))
 story.append(Spacer(1,0.3*cm))
@@ -1083,7 +1070,7 @@ if doc_type=='devis':
     GRIS_L=colors.HexColor('#f8fafc')
     cgv_arts=[
 ('Art. 1 \u2014 Devis et acceptation','Le devis est valable 30 jours \u00e0 compter de son \u00e9mission. La signature du devis, manuscrite ou \u00e9lectronique (avec v\u00e9rification par code SMS), vaut acceptation pleine et enti\u00e8re des prestations d\u00e9crites et des pr\u00e9sentes CGV, et a la m\u00eame valeur juridique qu\u2019une signature manuscrite (art. 1367 Code civil).'),
-('Art. 2 \u2014 Prix et paiement','TVA non applicable, art. 293B du CGI. Acompte de 40% \u00e0 la signature si le devis exc\u00e8de 400\u20ac, solde \u00e0 la fin des travaux. Paiement accept\u00e9 : esp\u00e8ces, virement, CB (SumUp), PayPal. Toute prestation suppl\u00e9mentaire ou modification fera l\u2019objet d\u2019un devis compl\u00e9mentaire accept\u00e9 pr\u00e9alablement, sauf urgence mettant en jeu la s\u00e9curit\u00e9.'),
+('Art. 2 \u2014 Prix et paiement','TVA non applicable, art. 293B du CGI. Acompte de 40% \u00e0 la signature, solde \u00e0 la fin des travaux. Paiement accept\u00e9 : esp\u00e8ces, virement, CB (SumUp), PayPal. Toute prestation suppl\u00e9mentaire ou modification fera l\u2019objet d\u2019un devis compl\u00e9mentaire accept\u00e9 pr\u00e9alablement, sauf urgence mettant en jeu la s\u00e9curit\u00e9.'),
 ('Art. 3 \u2014 R\u00e9alisation des travaux','Travaux r\u00e9alis\u00e9s conform\u00e9ment \u00e0 la norme NF C 15-100. Le client garantit un acc\u00e8s libre et s\u00e9curis\u00e9 \u00e0 l\u2019installation et informe SINELEC de toute contrainte (acc\u00e8s, horaires, sp\u00e9cificit\u00e9s) avant l\u2019intervention. SINELEC se r\u00e9serve le droit de refuser ou suspendre une intervention en cas de danger immediat ou de non-conformit\u00e9 grave d\u00e9couverte sur place, sans que cela n\u2019engage sa responsabilit\u00e9.'),
 ('Art. 4 \u2014 R\u00e9ception et r\u00e9serves (48h)','La r\u00e9ception des travaux intervient d\u00e8s leur ach\u00e8vement. La prise de possession ou l\u2019utilisation des installations par le client, m\u00eame sans paiement int\u00e9gral, vaut r\u00e9ception sans r\u00e9serve. Le client dispose de 48 heures \u00e0 compter de la fin de l\u2019intervention pour notifier par \u00e9crit (SMS, email) toute r\u00e9serve motiv\u00e9e. Pass\u00e9 ce d\u00e9lai, aucune r\u00e9clamation relative \u00e0 la qualit\u00e9 ou la conformit\u00e9 des travaux ne sera recevable, sauf vice cach\u00e9 relevant de la garantie d\u00e9cennale.'),
 ('Art. 5 \u2014 Valeur probante des \u00e9changes num\u00e9riques','Le client reconna\u00eet la pleine valeur probante des SMS, emails, photos horodat\u00e9es, du rapport d\u2019intervention et de la signature \u00e9lectronique (code OTP, horodatage, IP) comme preuve de la r\u00e9alisation, de la conformit\u00e9 et de l\u2019acceptation des travaux. Ces \u00e9l\u00e9ments pourront \u00eatre produits en cas de proc\u00e9dure amiable ou contentieuse.'),
@@ -1720,7 +1707,7 @@ canvas{display:block;width:100%;height:150px;cursor:crosshair;touch-action:none}
     <div class="cgv-box">
       <div class="cgv-text">
         <strong>1. Devis et acceptation</strong>Le devis est valable 30 jours. Toute commande implique l'acceptation sans réserve des présentes CGV. La signature vaut bon de commande.
-        <strong>2. Prix et paiement</strong>TVA non applicable art. 293B CGI. Acompte 40% à la signature si devis > 400€. Solde à la fin des travaux. CB, espèces, virement acceptés.
+        <strong>2. Prix et paiement</strong>TVA non applicable art. 293B CGI. Acompte 40% à la signature. Solde à la fin des travaux. CB, espèces, virement acceptés.
         <strong>3. Réalisation des travaux</strong>Travaux conformes NF C 15-100. Le client s'engage à fournir un accès sécurisé et à informer de toute contrainte particulière.
         <strong>4. Garanties</strong>Garantie décennale ORUS Assurances. Garantie parfait achèvement 1 an. Ne couvre pas les dégradations dues à une mauvaise utilisation.
         <strong>5. Rétractation</strong>Droit de rétractation 14 jours (art. L221-18 Code Conso). Ne s'applique pas en cas d'urgence confirmée.
@@ -2649,10 +2636,10 @@ if doc_type=='facture' and meta.get('isAcompteFacture'):
     solde_b=Table([[p('\\u26a0\\ufe0f  Solde restant d\\u00fb : '+solde_aff+('  \\u2014  Devis '+devis_ref if devis_ref else '')+'  \\u2014  \\u00e0 r\\u00e9gler \\u00e0 la fin des travaux',9,'Helvetica-Bold',colors.HexColor('#92400E'),TA_CENTER)]],colWidths=[18.2*cm])
     solde_b.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#FEF3C7')),('BOX',(0,0),(-1,-1),1,colors.HexColor('#F59E0B')),('TOPPADDING',(0,0),(-1,-1),9),('BOTTOMPADDING',(0,0),(-1,-1),9)]))
     story.append(solde_b); story.append(Spacer(1,0.3*cm))
-elif doc_type=='devis' and totalHT>=400:
+elif doc_type=='devis':
     acompte=totalHT*0.4; solde=totalHT*0.6
     BLEU_L=colors.HexColor('#EFF6FF'); BLEU_T=colors.HexColor('#0369A1'); VERT_L2=colors.HexColor('#F0FDF4')
-    hdr_ac=Table([[p('Modalit\\u00e9s de paiement',10,'Helvetica-Bold',MARINE),p('Devis > 400 \\u20ac',8,'Helvetica',GRIS_SOFT,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
+    hdr_ac=Table([[p('Modalit\\u00e9s de paiement',10,'Helvetica-Bold',MARINE),p('',8,'Helvetica',GRIS_SOFT,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
     hdr_ac.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#F8F5EF')),('BOX',(0,0),(-1,-1),1,GRIS_LIGNE),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7)]))
     story.append(hdr_ac)
     cell_ac=[p('ACOMPTE',8,'Helvetica-Bold',OR_FONCE),p('\\u00c0 la signature',8,'Helvetica',GRIS_SOFT),Spacer(1,4),p('%.2f \\u20ac'%acompte,16,'Helvetica-Bold',MARINE,TA_CENTER),p('40 %',9,'Helvetica-Bold',OR_FONCE,TA_CENTER)]
@@ -2664,17 +2651,6 @@ elif doc_type=='devis' and totalHT>=400:
     pm=Table([[p('Esp\\u00e8ces  \\u2022  Virement  \\u2022  CB  \\u2022  PayPal',9,'Helvetica',GRIS_SOFT,TA_CENTER)]],colWidths=[18.2*cm])
     pm.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#FDFCF9')),('BOX',(0,0),(-1,-1),1,GRIS_LIGNE),('LINEABOVE',(0,0),(-1,-1),1,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7)]))
     story.append(pm); story.append(Spacer(1,0.3*cm))
-elif doc_type=='devis':
-    VERT_L2=colors.HexColor('#F0FDF4')
-    hdr_ac2=Table([[p('Modalit\\u00e9s de paiement',10,'Helvetica-Bold',MARINE),p('',8,'Helvetica',GRIS_SOFT,TA_RIGHT)]],colWidths=[9.0*cm,9.2*cm])
-    hdr_ac2.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#F8F5EF')),('BOX',(0,0),(-1,-1),1,GRIS_LIGNE),('LEFTPADDING',(0,0),(-1,-1),10),('RIGHTPADDING',(0,0),(-1,-1),10),('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7)]))
-    story.append(hdr_ac2)
-    paiement_unique=Table([[p('\\u2705  Paiement int\\u00e9gral \\u00e0 la fin des travaux',11,'Helvetica-Bold',MARINE),p('%.2f \\u20ac'%totalHT,14,'Helvetica-Bold',OR_FONCE,TA_RIGHT)]],colWidths=[11.0*cm,7.2*cm])
-    paiement_unique.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),VERT_L2),('BOX',(0,0),(-1,-1),1,GRIS_LIGNE),('LEFTPADDING',(0,0),(-1,-1),14),('RIGHTPADDING',(0,0),(-1,-1),14),('TOPPADDING',(0,0),(-1,-1),12),('BOTTOMPADDING',(0,0),(-1,-1),12)]))
-    story.append(paiement_unique)
-    pm2=Table([[p('Esp\\u00e8ces  \\u2022  Virement  \\u2022  CB  \\u2022  PayPal',9,'Helvetica',GRIS_SOFT,TA_CENTER)]],colWidths=[18.2*cm])
-    pm2.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#FDFCF9')),('BOX',(0,0),(-1,-1),1,GRIS_LIGNE),('LINEABOVE',(0,0),(-1,-1),1,GRIS_LIGNE),('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7)]))
-    story.append(pm2); story.append(Spacer(1,0.3*cm))
 story.append(Table([[p('TVA non applicable, art. 293B du CGI',8,color=GRIS_SOFT),p('Paiement : Esp\\u00e8ces  \\u2022  Virement  \\u2022  CB (SumUp)',8,color=GRIS_SOFT,align=TA_RIGHT)]],colWidths=[9.5*cm,8.7*cm]))
 if is_signe:
     story.append(PageBreak())
@@ -2688,7 +2664,7 @@ if is_signe:
     GRIS_L=colors.HexColor('#f8fafc')
     cgv_arts=[
 ('Art. 1 \u2014 Devis et acceptation','Le devis est valable 30 jours \u00e0 compter de son \u00e9mission. La signature du devis, manuscrite ou \u00e9lectronique (avec v\u00e9rification par code SMS), vaut acceptation pleine et enti\u00e8re des prestations d\u00e9crites et des pr\u00e9sentes CGV, et a la m\u00eame valeur juridique qu\u2019une signature manuscrite (art. 1367 Code civil).'),
-('Art. 2 \u2014 Prix et paiement','TVA non applicable, art. 293B du CGI. Acompte de 40% \u00e0 la signature si le devis exc\u00e8de 400\u20ac, solde \u00e0 la fin des travaux. Paiement accept\u00e9 : esp\u00e8ces, virement, CB (SumUp), PayPal. Toute prestation suppl\u00e9mentaire ou modification fera l\u2019objet d\u2019un devis compl\u00e9mentaire accept\u00e9 pr\u00e9alablement, sauf urgence mettant en jeu la s\u00e9curit\u00e9.'),
+('Art. 2 \u2014 Prix et paiement','TVA non applicable, art. 293B du CGI. Acompte de 40% \u00e0 la signature, solde \u00e0 la fin des travaux. Paiement accept\u00e9 : esp\u00e8ces, virement, CB (SumUp), PayPal. Toute prestation suppl\u00e9mentaire ou modification fera l\u2019objet d\u2019un devis compl\u00e9mentaire accept\u00e9 pr\u00e9alablement, sauf urgence mettant en jeu la s\u00e9curit\u00e9.'),
 ('Art. 3 \u2014 R\u00e9alisation des travaux','Travaux r\u00e9alis\u00e9s conform\u00e9ment \u00e0 la norme NF C 15-100. Le client garantit un acc\u00e8s libre et s\u00e9curis\u00e9 \u00e0 l\u2019installation et informe SINELEC de toute contrainte (acc\u00e8s, horaires, sp\u00e9cificit\u00e9s) avant l\u2019intervention. SINELEC se r\u00e9serve le droit de refuser ou suspendre une intervention en cas de danger immediat ou de non-conformit\u00e9 grave d\u00e9couverte sur place, sans que cela n\u2019engage sa responsabilit\u00e9.'),
 ('Art. 4 \u2014 R\u00e9ception et r\u00e9serves (48h)','La r\u00e9ception des travaux intervient d\u00e8s leur ach\u00e8vement. La prise de possession ou l\u2019utilisation des installations par le client, m\u00eame sans paiement int\u00e9gral, vaut r\u00e9ception sans r\u00e9serve. Le client dispose de 48 heures \u00e0 compter de la fin de l\u2019intervention pour notifier par \u00e9crit (SMS, email) toute r\u00e9serve motiv\u00e9e. Pass\u00e9 ce d\u00e9lai, aucune r\u00e9clamation relative \u00e0 la qualit\u00e9 ou la conformit\u00e9 des travaux ne sera recevable, sauf vice cach\u00e9 relevant de la garantie d\u00e9cennale.'),
 ('Art. 5 \u2014 Valeur probante des \u00e9changes num\u00e9riques','Le client reconna\u00eet la pleine valeur probante des SMS, emails, photos horodat\u00e9es, du rapport d\u2019intervention et de la signature \u00e9lectronique (code OTP, horodatage, IP) comme preuve de la r\u00e9alisation, de la conformit\u00e9 et de l\u2019acceptation des travaux. Ces \u00e9l\u00e9ments pourront \u00eatre produits en cas de proc\u00e9dure amiable ou contentieuse.'),
