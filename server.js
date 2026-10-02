@@ -4294,15 +4294,29 @@ if photos:
     story.append(Spacer(1,0.18*cm))
     num_section += 1
 
-# CONFORMITÉ
+# CONFORMITÉ — ce bloc était codé en dur sur "conforme et sécurisée" quelle
+# que soit l'intervention, y compris quand le bandeau du haut dit
+# "INTERVENTION PARTIELLE — TRAVAUX COMPLÉMENTAIRES RECOMMANDÉS" : le
+# rapport se contredisait lui-même (bug trouvé par Diahe le 02/10/2026,
+# RAP-202610-035 — tableau carbonisé, câblage hors normes, travaux refusés,
+# et pourtant "installation conforme et sécurisée" écrit en vert juste en
+# dessous). Dangereux en cas de sinistre : ce document pourrait être lu
+# comme une attestation de sécurité délivrée par SINELEC. Fix : le texte et
+# la couleur suivent maintenant statut_install, comme la bande du haut.
 story.append(section_title(num_section+1, "ATTESTATION DE CONFORMITÉ"))
 story.append(Spacer(1,0.08*cm))
+if statut_install == 'ok':
+    conf_icon, conf_bg, conf_box, conf_text_color = '✅', colors.HexColor('#f0fdf4'), VERT, colors.HexColor('#166534')
+    conf_txt = "À l'issue de l'intervention, <b>l'installation électrique est déclarée conforme à la norme NF C 15-100</b> en vigueur. Les protections différentielles 30mA sont fonctionnelles, la mise à la terre est vérifiée et opérationnelle. L'installation est sécurisée pour une utilisation normale du logement."
+else:
+    conf_icon, conf_bg, conf_box, conf_text_color = '⚠️', colors.HexColor('#fffbeb'), ORANGE_B, colors.HexColor('#92400e')
+    conf_txt = "À l'issue de cette intervention, <b>l'installation électrique n'est pas déclarée conforme à la norme NF C 15-100</b>. Les anomalies constatées (voir ci-dessus) restent présentes : des travaux complémentaires ont été recommandés au client, qui les a refusés à ce stade. SINELEC décline toute responsabilité sur les risques liés aux non-conformités non traitées."
 conf = Table([[
-    p('✅', 16, 'Helvetica', VERT),
-    p("À l'issue de l'intervention, <b>l'installation électrique est déclarée conforme à la norme NF C 15-100</b> en vigueur. Les protections différentielles 30mA sont fonctionnelles, la mise à la terre est vérifiée et opérationnelle. L'installation est sécurisée pour une utilisation normale du logement.", 10, 'Helvetica', colors.HexColor('#166534'), align=TA_JUSTIFY, leading=15)
+    p(conf_icon, 16, 'Helvetica', conf_text_color),
+    p(conf_txt, 10, 'Helvetica', conf_text_color, align=TA_JUSTIFY, leading=15)
 ]], colWidths=[1*cm, CW - 1*cm])
-conf.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#f0fdf4')),
-    ('BOX',(0,0),(-1,-1),1.5,VERT),
+conf.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),conf_bg),
+    ('BOX',(0,0),(-1,-1),1.5,conf_box),
     ('LEFTPADDING',(0,0),(-1,-1),12),('RIGHTPADDING',(0,0),(-1,-1),12),
     ('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10),
     ('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
