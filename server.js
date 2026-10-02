@@ -100,6 +100,17 @@ const PORT = process.env.PORT || 3000;
 // explicites ci-dessous, où c'est réellement nécessaire.
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+// Filet de sécurité : si un payload dépasse quand même les 50mb (ex: photos
+// non compressées côté client), body-parser lève une erreur HTML par défaut
+// (PayloadTooLargeError) — sans ce handler, le frontend qui fait res.json()
+// plante sur du non-JSON et ça remonte comme un "bug" sans message clair
+// (trouvé le 02/10/2026, rapport d'intervention avec 6 photos brutes).
+app.use((err, req, res, next) => {
+  if (err && (err.type === 'entity.too.large' || err.status === 413)) {
+    return res.status(413).json({ success: false, error: 'Fichier(s) trop volumineux (photos non compressées ?). Réessaie avec moins de photos ou des photos plus légères.' });
+  }
+  next(err);
+});
 app.use(express.static(__dirname));
 
 // ═══════════════════════════════════════════════════
@@ -4358,8 +4369,9 @@ doc.build(story, canvasmaker=lambda fn, **kw: SC(fn, **kw))
         </div>
       </div>`;
       const attachment = pdf_b64 ? { content: pdf_b64, name: `${num}.pdf` } : null;
-      await envoyerEmail(email, `Rapport d'intervention ${num} - SINELEC Paris`, html, attachment);
-      console.log(`✅ Rapport envoyé: ${num} → ${email}`);
+      // Diahe reçoit une copie de chaque rapport envoyé — demandé le 02/10/2026.
+      await envoyerEmail(email, `Rapport d'intervention ${num} - SINELEC Paris`, html, attachment, ['sinelec.paris@gmail.com']);
+      console.log(`✅ Rapport envoyé: ${num} → ${email} (copie sinelec.paris@gmail.com)`);
     }
 
     const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
@@ -4403,8 +4415,9 @@ app.post('/api/rapport/envoyer/:num', authMiddleware, async (req, res) => {
     }
 
     const attachment = { content: pdfBuf.toString('base64'), name: `${num}.pdf` };
-    await envoyerEmail(email, `Rapport d'intervention ${num} - SINELEC Paris`, html, attachment);
-    console.log(`✅ Rapport envoyé avec PDF: ${num} → ${email} (${pdfBuf.length} bytes)`);
+    // Diahe reçoit une copie de chaque rapport envoyé — demandé le 02/10/2026.
+    await envoyerEmail(email, `Rapport d'intervention ${num} - SINELEC Paris`, html, attachment, ['sinelec.paris@gmail.com']);
+    console.log(`✅ Rapport envoyé avec PDF: ${num} → ${email} (${pdfBuf.length} bytes, copie sinelec.paris@gmail.com)`);
     res.json({ success: true, num, email });
   } catch(e) {
     console.error('❌ rapport/envoyer:', e.message);

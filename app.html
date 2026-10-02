@@ -7075,26 +7075,58 @@ let rapportPhotoAvant = null;
 let rapportPhotoApres = null;
 let rapportPhotosExtra = []; // photos 3 à 6, optionnelles — array de b64 (ou null pour un slot vide)
 
-function previewPhoto(type, input) {
+// Compresse une photo côté navigateur avant de la garder en mémoire/l'envoyer.
+// Bug trouvé le 02/10/2026 : les photos de téléphone (5-10 Mo brut chacune,
+// non compressées) partaient telles quelles dans le payload JSON de
+// /api/rapport. Au-delà de 5 photos, le total dépassait la limite de 50 Mo
+// du serveur → requête rejetée → le bouton "bug" sans erreur claire (le
+// serveur compressait déjà les photos pour le PDF, mais seulement APRÈS
+// réception — trop tard si la requête elle-même est trop grosse). Fix :
+// on redimensionne (max 1600px de large) et on recompresse en JPEG qualité
+// 0.75 dès la sélection, ce qui fait tomber chaque photo à quelques
+// centaines de Ko au lieu de plusieurs Mo.
+function _compresserPhotoRapport(file, maxW = 1600, quality = 0.75) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          let w = img.width, h = img.height;
+          if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        } catch (err) {
+          resolve(e.target.result); // fallback : photo brute plutôt que rien
+        }
+      };
+      img.onerror = () => resolve(e.target.result);
+      img.src = e.target.result;
+    };
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(file);
+  });
+}
+
+async function previewPhoto(type, input) {
   const file = input.files[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    const b64 = e.target.result;
-    if (type === 'avant') {
-      rapportPhotoAvant = b64;
-      document.getElementById('img-avant').src = b64;
-      document.getElementById('prev-avant').style.display = 'block';
-      document.getElementById('lbl-avant').style.display = 'none';
-    } else {
-      rapportPhotoApres = b64;
-      document.getElementById('img-apres').src = b64;
-      document.getElementById('prev-apres').style.display = 'block';
-      document.getElementById('lbl-apres').style.display = 'none';
-    }
-    renderPhotosExtra(); // met à jour la visibilité du bouton "+"
-  };
-  reader.readAsDataURL(file);
+  const b64 = await _compresserPhotoRapport(file);
+  if (!b64) return;
+  if (type === 'avant') {
+    rapportPhotoAvant = b64;
+    document.getElementById('img-avant').src = b64;
+    document.getElementById('prev-avant').style.display = 'block';
+    document.getElementById('lbl-avant').style.display = 'none';
+  } else {
+    rapportPhotoApres = b64;
+    document.getElementById('img-apres').src = b64;
+    document.getElementById('prev-apres').style.display = 'block';
+    document.getElementById('lbl-apres').style.display = 'none';
+  }
+  renderPhotosExtra(); // met à jour la visibilité du bouton "+"
 }
 
 function _totalPhotosRapport() {
@@ -7107,12 +7139,13 @@ function ajouterPhotoExtra() {
   renderPhotosExtra();
 }
 
-function previewPhotoExtra(i, input) {
+async function previewPhotoExtra(i, input) {
   const file = input.files[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => { rapportPhotosExtra[i] = e.target.result; renderPhotosExtra(); };
-  reader.readAsDataURL(file);
+  const b64 = await _compresserPhotoRapport(file);
+  if (!b64) return;
+  rapportPhotosExtra[i] = b64;
+  renderPhotosExtra();
 }
 
 function supprimerPhotoExtra(i) {
