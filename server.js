@@ -2055,6 +2055,20 @@ async function traiterPaiementRecu(num, mode_paiement) {
         const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
         const token = genererToken();
 
+        // Lien auto facture payée → agenda : évite les fiches qui restent
+        // bloquées sur "lead" alors que l'intervention est réglée.
+        if (doc.telephone) {
+          try {
+            const { data: rdvs } = await supabase.from('agenda')
+              .select('id,statut').eq('telephone', doc.telephone)
+              .order('created_at', { ascending: false }).limit(1);
+            if (rdvs && rdvs.length && !['terminé','annulé'].includes(rdvs[0].statut)) {
+              await supabase.from('agenda').update({ statut: 'terminé' }).eq('id', rdvs[0].id);
+              console.log(`✅ Agenda auto-terminé (paiement ${num}): ${doc.telephone}`);
+            }
+          } catch(e) { console.error('Agenda auto-terminé error:', e.message); }
+        }
+
         // PDF acquitté
         let pdf_b64 = null;
         try {
