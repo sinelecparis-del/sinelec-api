@@ -4761,6 +4761,48 @@ app.post('/api/webhook/lead-site', async (req, res) => {
     const lead = req.body?.record || req.body;
     if (!lead || !lead.id) return res.status(400).json({ error: 'Payload invalide' });
 
+    // Accusé de réception immédiat au client (SMS si mobile + e-mail si adresse) :
+    // premier contact rapide = avantage concurrentiel quand Diahe est sur chantier.
+    // Une seule fois par lead (colonne notifie) et une fois par contact/24h (spam, doublons de formulaire).
+    try {
+      const { data: rowLead } = await supabase.from('leads_site').select('notifie').eq('id', lead.id).maybeSingle();
+      if (!rowLead?.notifie) {
+        const heureParis = parseInt(new Date().toLocaleString('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', hour12: false }), 10);
+        const delai = (heureParis >= 22 || heureParis < 7) ? 'demain matin' : "dans l'heure";
+        const texteAccuse = `Bonjour, SINELEC Paris a bien recu votre demande de devis. Je vous rappelle ${delai}. Diahe - SINELEC Paris`;
+
+        const telNorm = String(lead.telephone || '').replace(/[\s.\-]/g, '');
+        const estMobile = /^(?:\+33|0033|0)[67]\d{8}$/.test(telNorm);
+        if (estMobile && rateLimitOk('accuse-lead-sms:' + telNorm, 1, 24 * 60 * 60 * 1000)) {
+          // envoyerSMS convertit "0..." en "+33..." : on lui donne déjà un E.164 propre (cas 0033... / +33...)
+          const telE164 = telNorm.startsWith('+') ? telNorm : telNorm.startsWith('0033') ? '+33' + telNorm.slice(4) : '+33' + telNorm.slice(1);
+          const idSms = await envoyerSMS(telE164, texteAccuse);
+          logSystem('lead_accuse_sms', `Accusé SMS lead ${lead.id}`, { lead_id: lead.id, telephone: telNorm }, !!idSms, idSms ? null : 'Échec envoi SMS');
+        }
+
+        const emailLead = String(lead.email || '').trim();
+        if (emailLead && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailLead) && rateLimitOk('accuse-lead-mail:' + emailLead.toLowerCase(), 1, 24 * 60 * 60 * 1000)) {
+          const htmlAccuse = `<div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;">
+            <div style="background:#1B2A4A;padding:20px;border-radius:12px 12px 0 0;text-align:center;">
+              <h2 style="color:#E8B84B;margin:0;">SINELEC Paris</h2>
+            </div>
+            <div style="padding:24px;border:1px solid #e8e8e8;border-top:none;border-radius:0 0 12px 12px;">
+              <p>Bonjour,</p>
+              <p>Nous avons bien reçu votre demande de devis. Je vous rappelle <strong>${delai}</strong>.</p>
+              <p>Pour toute urgence : <strong>07 87 38 86 22</strong></p>
+              <p>Cordialement,<br>Diahe — SINELEC Paris</p>
+            </div>
+          </div>`;
+          try {
+            await envoyerEmail(emailLead, 'Votre demande de devis — SINELEC Paris', htmlAccuse);
+            logSystem('lead_accuse_mail', `Accusé e-mail lead ${lead.id}`, { lead_id: lead.id }, true);
+          } catch (eMail) {
+            logSystem('lead_accuse_mail', `Accusé e-mail lead ${lead.id}`, { lead_id: lead.id }, false, eMail.message);
+          }
+        }
+      }
+    } catch (eAccuse) { console.error('Accusé lead-site:', eAccuse.message); }
+
     // Génération d'un brouillon de devis suggéré par IA, à partir de la description du lead
     let brouillonHTML = '';
     try {
