@@ -4753,6 +4753,20 @@ app.get('/api/rapport/pdf/:num', (req, res) => {
 // ═══════════════════════════════════════════════════
 // API: LEAD SITE → CLIENT + AGENDA
 // ═══════════════════════════════════════════════════
+// Numéro cliquable dans les emails de notification (lien tel: au format +33)
+function telLienHTML(tel) {
+  if (!tel) return '—';
+  const affiche = String(tel).replace(/[<>&"]/g, '');
+  let num = String(tel).replace(/[^0-9+]/g, '');
+  if (num.startsWith('+')) { /* déjà international */ }
+  else if (num.startsWith('0033')) num = '+' + num.slice(2);
+  else if (num.startsWith('33') && num.length === 11) num = '+' + num;
+  else if (num.startsWith('0') && num.length === 10) num = '+33' + num.slice(1);
+  else if (num.length === 9) num = '+33' + num;
+  if (!num) return affiche;
+  return `<a href="tel:${num}" style="color:#1a73e8;text-decoration:underline;">${affiche}</a>`;
+}
+
 app.post('/api/webhook/lead-site', async (req, res) => {
   try {
     if (req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
@@ -4852,7 +4866,7 @@ Si la description est trop vague pour proposer quoi que ce soit de fiable, répo
       </div>
       <div style="padding:20px;border:1px solid #e8e8e8;border-top:none;border-radius:0 0 12px 12px;">
         <p><strong>Nom :</strong> ${lead.nom || '—'}</p>
-        <p><strong>Téléphone :</strong> ${lead.telephone || '—'}</p>
+        <p><strong>Téléphone :</strong> ${telLienHTML(lead.telephone)}</p>
         <p><strong>Email :</strong> ${lead.email || '—'}</p>
         <p><strong>Adresse :</strong> ${lead.adresse || '—'}</p>
         <p><strong>Type de demande :</strong> ${lead.type_demande || '—'}</p>
@@ -4916,7 +4930,7 @@ app.post('/api/lead-devis', async (req, res) => {
       </div>
       <div style="padding:20px;border:1px solid #e8e8e8;border-top:none;border-radius:0 0 12px 12px;">
         <p><strong>Nom :</strong> ${nom || '—'}</p>
-        <p><strong>Téléphone :</strong> ${telephone || '—'}</p>
+        <p><strong>Téléphone :</strong> ${telLienHTML(telephone)}</p>
         <p><strong>Email :</strong> ${email || '—'}</p>
         <p><strong>Adresse :</strong> ${adresse || '—'}</p>
         <p><strong>Besoin :</strong> ${description || '—'}</p>
@@ -5881,7 +5895,7 @@ cron.schedule('15 * * * *', async () => {
         </div>
         <div style="padding:20px;border:1px solid #e8e8e8;border-top:none;border-radius:0 0 12px 12px;">
           <p><strong>Nom :</strong> ${lead.nom || '—'}</p>
-          <p><strong>Téléphone :</strong> ${lead.telephone || '—'}</p>
+          <p><strong>Téléphone :</strong> ${telLienHTML(lead.telephone)}</p>
           <p><strong>Email :</strong> ${lead.email || '—'}</p>
           <p><strong>Adresse :</strong> ${lead.adresse || '—'}</p>
           <p><strong>Type de demande :</strong> ${lead.type_demande || '—'}</p>
