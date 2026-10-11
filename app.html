@@ -4094,6 +4094,34 @@ async function convertirEnFacture(numDevis) {
   }, 400);
 }
 
+// Facture de SOLDE (60 %) : même principe que la facture d'acompte (lignes du devis × coefficient),
+// mais avec 0,6. À utiliser après la facture d'acompte de 40 %.
+// NB : volontairement sans le mot "acompte" dans la description, pour ne pas déclencher
+// le bandeau "Solde restant dû" réservé aux factures d'acompte.
+async function convertirEnSolde(numDevis) {
+  const devis = historiqueData.find(item => item.num === numDevis);
+  if (!devis) return;
+  switchPage('facture', document.querySelector('.sidebar-item[onclick*="facture"]'));
+  setTimeout(() => {
+    const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+    const parts = (devis.client || '').split(' ');
+    setVal('f-prenom', parts[0] || '');
+    setVal('f-client', parts.slice(1).join(' ') || devis.client || '');
+    setVal('f-tel', devis.telephone || '');
+    setVal('f-email', devis.email || '');
+    setVal('f-adresse', devis.adresse || '');
+    setVal('f-description', `Facture de solde (60 %) — devis ${numDevis}, 40 % déjà réglé`);
+    panierF = (devis.prestations || []).map(p => ({
+      designation: p.nom || p.designation || '',
+      prixUnit: Math.round(((p.prix || p.prixUnit || 0) * 0.6) * 100) / 100,
+      qte: p.quantite || p.qte || 1,
+      desc: p.desc || ''
+    }));
+    renderPanier('f');
+    showToast('✅ Solde 60 % prêt — vérifie le total puis génère', '🧾');
+  }, 400);
+}
+
 async function marquerPaye(num, mode) {
   const labels = { terminal:'CB Terminal SumUp', virement:'Virement bancaire', especes:'Espèces' };
   showToast('⏳ Enregistrement...', '💰');
@@ -8167,11 +8195,20 @@ async function chargerAccueil() {
     // 1. Son statut est 'signe'
     // 2. ET aucune facture du même client n'existe dans les 30 derniers jours
     // 3. ET le devis lui-même n'a pas été créé il y a plus de 60 jours (trop vieux = déjà traité)
+    // Une facture d'ACOMPTE ne compte pas comme "devis facturé" : le solde reste à facturer.
+    const estFactureAcompte = f => {
+      const n = String(f.num || '');
+      const desc = String(f.description || '');
+      const p0 = (Array.isArray(f.prestations) && f.prestations[0]) || {};
+      const nomP0 = String(p0.nom || p0.designation || '');
+      return n.startsWith('FA-') || /acompte/i.test(desc) || /acompte/i.test(nomP0);
+    };
     const clientsFactures = new Set(
       factures
+        .filter(f => !estFactureAcompte(f))
         .filter(f => {
           const age = (new Date() - new Date(f.created_at||f.date)) / (1000*3600*24);
-          return age < 30; // facture créée dans les 30 derniers jours
+          return age < 30; // facture (hors acompte) créée dans les 30 derniers jours
         })
         .map(f => (f.client||'').toLowerCase().trim())
     );
@@ -8543,7 +8580,8 @@ function renderTableauHistorique() {
             return `<div class="ht-dropdown-item" onclick="envoyerSmsAvis('${item.num}',this)" style="color:#C9962A;font-weight:800;">📱 Envoyer SMS avis Google</div>`;
           })() : ''}
           ${type === 'devis' && (item.statut === 'signe' || item.statut === 'signé') ? `
-          <div class="ht-dropdown-item" onclick="genererAcompte('${item.num}')" style="color:#4a90d9;font-weight:800;">🧾 Facture d'acompte 40%</div>` : ''}
+          <div class="ht-dropdown-item" onclick="genererAcompte('${item.num}')" style="color:#4a90d9;font-weight:800;">🧾 Facture d'acompte 40%</div>
+          <div class="ht-dropdown-item" onclick="convertirEnSolde('${item.num}')" style="color:#16a34a;font-weight:800;">🧾 Facture de solde 60%</div>` : ''}
           <div class="ht-dropdown-item" onclick="dupliquerDoc('${item.num}')">📋 Dupliquer</div>
           <div class="ht-dropdown-item" onclick="creerFicheClient('${item.num}')">👤 Fiche client</div>
           <div class="ht-dropdown-item red" onclick="supprimerDoc('${item.num}')">🗑️ Supprimer</div>
