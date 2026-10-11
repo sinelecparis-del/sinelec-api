@@ -4135,6 +4135,7 @@ async function convertirEnSolde(numDevis) {
       qte: 1,
       desc: `Déduction de l'acompte versé à la signature du devis ${numDevis}.`
     });
+    window._soldeOrigine = { num: numDevis, client: String(devis.client || '').trim() };
     renderPanier('f');
     showToast(`✅ Solde prêt : devis − acompte ${montantAcompte.toFixed(2)} € — vérifie puis génère`, '🧾');
   }, 400);
@@ -10962,11 +10963,13 @@ async function generer(type) {
         part_diahe: prefix === 'd' && apporteurActifD !== 'Aucun' ? SPLITS_APPORTEUR_UI[apporteurActifD].diahe : 100,
         part_partenaire: prefix === 'd' && apporteurActifD !== 'Aucun' ? SPLITS_APPORTEUR_UI[apporteurActifD].partenaire : 0,
         nom_partenaire: prefix === 'd' && apporteurActifD !== 'Aucun' ? apporteurActifD : null,
+        devis_origine: (type === 'facture' && window._soldeOrigine && (() => { const n = s => String(s||'').toLowerCase().replace(/^(m\.|mme|mr|madame|monsieur)\s+/,'').trim(); return n(client).includes(n(window._soldeOrigine.client)) || n(window._soldeOrigine.client).includes(n(client)); })()) ? window._soldeOrigine.num : undefined,
         intervention_type: type === 'devis' ? typeIntervention : 'immediat'
       })
     });
     const data = await res.json();
     if (data.success) {
+      if (type === 'facture') window._soldeOrigine = null;
       showToast(`✅ ${type === 'devis' ? 'Devis' : 'Facture'} ${data.num} généré !`, '⚡');
       // ⚠️ On ne vide PAS le panier ici — l'utilisateur peut revenir en arrière
       // Le panier sera vidé seulement après envoi réussi (dans envoyerDepuisPreview)

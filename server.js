@@ -616,7 +616,7 @@ async function chargerGrilleTarifaire() {
 app.post('/api/generer', async (req, res) => {
   if (!CONFIG.features.devis_factures) return res.status(403).json({ error: 'Feature désactivée' });
   try {
-    const { type, client, email, telephone, adresse, complement, codePostal, ville, prenom, description, prestations, partenaire, part_diahe, part_partenaire, nom_partenaire, intervention_type, siret_client, num_existant, remise } = req.body;
+    const { type, client, email, telephone, adresse, complement, codePostal, ville, prenom, description, prestations, partenaire, part_diahe, part_partenaire, nom_partenaire, intervention_type, siret_client, num_existant, remise, devis_origine: devisOrigineBody } = req.body;
 
     const roleGenerateur = getRoleFromToken(req.headers['authorization']?.replace('Bearer ', '') || req.query.token);
     const estSousTraitant = roleGenerateur === 'soustraitant';
@@ -660,11 +660,15 @@ app.post('/api/generer', async (req, res) => {
       source: 'app', role_createur: estSousTraitant ? 'soustraitant' : null,
       partenaire: isPartenaire, part_diahe: pdiahe, part_partenaire: ppartenaire,
       nom_partenaire: isPartenaire ? (nom_partenaire || 'Alopronto') : null,
-      intervention_type: intervention_type || 'immediat'
+      intervention_type: intervention_type || 'immediat',
+      ...(type === 'facture' && devisOrigineBody ? { devis_origine: devisOrigineBody } : {})
     };
     const { error: insertErr1 } = await supabase.from('historique').upsert(payloadComplet, { onConflict: 'num' });
     if (!insertErr1) {
       insertOk = true;
+      if (type === 'facture' && devisOrigineBody) {
+        await supabase.from('historique').update({ statut: 'facture' }).eq('num', devisOrigineBody).eq('statut', 'signe');
+      }
       console.log('✅ Historique inséré (complet):', num);
     } else {
       console.warn('⚠️ Insert complet échoué:', insertErr1.message, '— tentative payload minimal');
