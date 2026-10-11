@@ -4094,13 +4094,25 @@ async function convertirEnFacture(numDevis) {
   }, 400);
 }
 
-// Facture de SOLDE (60 %) : même principe que la facture d'acompte (lignes du devis × coefficient),
-// mais avec 0,6. À utiliser après la facture d'acompte de 40 %.
-// NB : volontairement sans le mot "acompte" dans la description, pour ne pas déclencher
-// le bandeau "Solde restant dû" réservé aux factures d'acompte.
+// Facture de SOLDE : lignes du devis à 100 % + ligne négative "Acompte déjà réglé".
+// Le client voit le prix réel de chaque prestation, puis la déduction de l'acompte.
+// NB : pas le mot "acompte" dans la description (sinon bandeau "Solde restant dû" des factures d'acompte).
 async function convertirEnSolde(numDevis) {
   const devis = historiqueData.find(item => item.num === numDevis);
   if (!devis) return;
+  const totalDevis = (devis.prestations || []).reduce((s, p) =>
+    s + (parseFloat(p.prix || p.prixUnit || 0) * (p.quantite || p.qte || 1)), 0);
+  // Retrouver la/les facture(s) d'acompte déjà émises pour ce devis
+  const estAcompte = f => {
+    const p0 = (Array.isArray(f.prestations) && f.prestations[0]) || {};
+    return String(f.num || '').startsWith('FA-') || /acompte/i.test(String(f.description || '')) || /acompte/i.test(String(p0.nom || p0.designation || ''));
+  };
+  const liee = f => f.devis_origine === numDevis || String(f.description || '').includes(numDevis) ||
+    (Array.isArray(f.prestations) && f.prestations.some(p => String(p.nom || p.designation || '').includes(numDevis)));
+  const acomptes = historiqueData.filter(f => f.type === 'facture' && estAcompte(f) && liee(f) && !/annul/i.test(String(f.statut || '')));
+  let montantAcompte = acomptes.reduce((s, f) => s + (parseFloat(f.total_ht) || 0), 0);
+  let refs = acomptes.map(f => f.num).join(', ');
+  if (!acomptes.length) { montantAcompte = Math.round(totalDevis * 0.4 * 100) / 100; refs = ''; }
   switchPage('facture', document.querySelector('.sidebar-item[onclick*="facture"]'));
   setTimeout(() => {
     const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
@@ -4110,15 +4122,21 @@ async function convertirEnSolde(numDevis) {
     setVal('f-tel', devis.telephone || '');
     setVal('f-email', devis.email || '');
     setVal('f-adresse', devis.adresse || '');
-    setVal('f-description', `Facture de solde (60 %) — devis ${numDevis}, 40 % déjà réglé`);
+    setVal('f-description', `Facture de solde — devis ${numDevis}`);
     panierF = (devis.prestations || []).map(p => ({
       designation: p.nom || p.designation || '',
-      prixUnit: Math.round(((p.prix || p.prixUnit || 0) * 0.6) * 100) / 100,
+      prixUnit: p.prix || p.prixUnit || 0,
       qte: p.quantite || p.qte || 1,
       desc: p.desc || ''
     }));
+    panierF.push({
+      designation: `Acompte 40 % déjà réglé${refs ? ' (facture ' + refs + ')' : ''}`,
+      prixUnit: -montantAcompte,
+      qte: 1,
+      desc: `Déduction de l'acompte versé à la signature du devis ${numDevis}.`
+    });
     renderPanier('f');
-    showToast('✅ Solde 60 % prêt — vérifie le total puis génère', '🧾');
+    showToast(`✅ Solde prêt : devis − acompte ${montantAcompte.toFixed(2)} € — vérifie puis génère`, '🧾');
   }, 400);
 }
 
