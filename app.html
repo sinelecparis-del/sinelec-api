@@ -2191,11 +2191,11 @@ table.histo-table tr:hover td { background:#fafbff; }
     <div id="d-bloc-particulier">
       <!-- Civilité -->
       <div class="civilite-group">
-        <button class="civilite-btn active" id="d-civ-m"   onclick="setCivilite('d','M.')">M.</button>
-        <button class="civilite-btn"        id="d-civ-mme" onclick="setCivilite('d','Mme')">Mme</button>
-        <button class="civilite-btn"        id="d-civ-aut" onclick="setCivilite('d','')">–</button>
+        <button class="civilite-btn"        id="d-civ-m"   onclick="setCivilite('d','M.',true)">M.</button>
+        <button class="civilite-btn"        id="d-civ-mme" onclick="setCivilite('d','Mme',true)">Mme</button>
+        <button class="civilite-btn"        id="d-civ-aut" onclick="setCivilite('d','',true)">–</button>
       </div>
-      <input type="hidden" id="d-civilite" value="M.">
+      <input type="hidden" id="d-civilite" value="">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
         <div class="input-group" style="margin-bottom:0;"><label>Prénom</label><input type="text" id="d-prenom" placeholder="MARIE" oninput="this.value=this.value.toUpperCase();autocompleteClient('d',this.value,'prenom')" autocomplete="off"></div>
         <div class="input-group" style="margin-bottom:0;position:relative;">
@@ -2381,11 +2381,11 @@ table.histo-table tr:hover td { background:#fafbff; }
     <div id="f-bloc-particulier">
       <!-- Civilité -->
       <div class="civilite-group">
-        <button class="civilite-btn active" id="f-civ-m"   onclick="setCivilite('f','M.')">M.</button>
-        <button class="civilite-btn"        id="f-civ-mme" onclick="setCivilite('f','Mme')">Mme</button>
-        <button class="civilite-btn"        id="f-civ-aut" onclick="setCivilite('f','')">–</button>
+        <button class="civilite-btn"        id="f-civ-m"   onclick="setCivilite('f','M.',true)">M.</button>
+        <button class="civilite-btn"        id="f-civ-mme" onclick="setCivilite('f','Mme',true)">Mme</button>
+        <button class="civilite-btn"        id="f-civ-aut" onclick="setCivilite('f','',true)">–</button>
       </div>
-      <input type="hidden" id="f-civilite" value="M.">
+      <input type="hidden" id="f-civilite" value="">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
         <div class="input-group" style="margin-bottom:0;"><label>Prénom</label><input type="text" id="f-prenom" placeholder="MARIE" oninput="this.value=this.value.toUpperCase();autocompleteClient('f',this.value,'prenom')" autocomplete="off"></div>
         <div class="input-group" style="margin-bottom:0;position:relative;">
@@ -10391,16 +10391,16 @@ function toggleModeNuitManuel() {
 let panierD = [];
 let panierF = [];
 
-function setCivilite(prefix, val) {
+function setCivilite(prefix, val, fromClick) {
   const el = document.getElementById(`${prefix}-civilite`);
-  if (el) el.value = val;
+  const key = val === 'M.' ? 'm' : val === 'Mme' ? 'mme' : 'aut';
+  // Optionnelle : aucun choix par défaut ; re-cliquer sur le bouton actif le désélectionne
+  const dejaActif = document.getElementById(`${prefix}-civ-${key}`)?.classList.contains('active');
+  const aucun = fromClick && dejaActif;
+  if (el) el.value = aucun ? '' : val;
   ['m','mme','aut'].forEach(k => {
     const btn = document.getElementById(`${prefix}-civ-${k}`);
-    if (btn) btn.classList.toggle('active',
-      (k === 'm' && val === 'M.') ||
-      (k === 'mme' && val === 'Mme') ||
-      (k === 'aut' && val === '')
-    );
+    if (btn) btn.classList.toggle('active', !aucun && k === key);
   });
 }
 
