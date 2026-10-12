@@ -4072,9 +4072,7 @@ async function convertirEnFacture(numDevis) {
   switchPage('facture', document.querySelector('.sidebar-item[onclick*="facture"]'));
   setTimeout(() => {
     const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
-    const parts = (devis.client || '').split(' ');
-    setVal('f-prenom', parts[0] || '');
-    setVal('f-client', parts.slice(1).join(' ') || devis.client || '');
+    remplirNomClient('f', devis.client || '');
     setVal('f-tel', devis.telephone || '');
     setVal('f-email', devis.email || '');
     setVal('f-adresse', devis.adresse || '');
@@ -4116,9 +4114,7 @@ async function convertirEnSolde(numDevis) {
   switchPage('facture', document.querySelector('.sidebar-item[onclick*="facture"]'));
   setTimeout(() => {
     const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
-    const parts = (devis.client || '').split(' ');
-    setVal('f-prenom', parts[0] || '');
-    setVal('f-client', parts.slice(1).join(' ') || devis.client || '');
+    remplirNomClient('f', devis.client || '');
     setVal('f-tel', devis.telephone || '');
     setVal('f-email', devis.email || '');
     setVal('f-adresse', devis.adresse || '');
@@ -5606,8 +5602,7 @@ function nouveauDevisClient(nom, tel, email, adresse) {
     const telEl    = document.getElementById('d-tel');
     const emailEl  = document.getElementById('d-email');
     const adresseEl= document.getElementById('d-adresse');
-    if (prenomEl) prenomEl.value = prenom;
-    if (clientEl) clientEl.value = nomFamille;
+    remplirNomClient('d', nom);
     if (telEl && tel) telEl.value = tel;
     if (emailEl && email) emailEl.value = email;
     if (adresseEl && adresse) adresseEl.value = adresse;
@@ -5728,8 +5723,7 @@ function selectionnerClient(prefix, nom, tel, email, adresse) {
   const adresseEl = document.getElementById(`${prefix}-adresse`);
   const suggestEl = document.getElementById(`${prefix}-client-suggestions`);
 
-  if (prenomEl)  prenomEl.value  = prenom.toUpperCase();
-  if (clientEl)  clientEl.value  = nomFamille.toUpperCase();
+  remplirNomClient(prefix, nom);
   if (telEl && tel)     telEl.value    = tel;
   if (emailEl && email) emailEl.value  = email;
   if (adresseEl && adresse) adresseEl.value = adresse;
@@ -10411,13 +10405,44 @@ function setClientType(prefix, type) {
   document.getElementById(`${prefix}-bloc-societe`).style.display = type === 'societe' ? 'block' : 'none';
 }
 
+// Sépare la civilité d'un nom complet ("M. LAURENT ZUBER M." → {civ:'M.', reste:'LAURENT ZUBER'})
+// pour qu'elle n'apparaisse qu'une seule fois sur les devis et factures.
+const CIV_TOKENS = { 'M.':'M.', 'MR':'M.', 'MR.':'M.', 'MONSIEUR':'M.', 'MME':'Mme', 'MME.':'Mme', 'MADAME':'Mme', 'MLLE':'Mme', 'MLLE.':'Mme' };
+function separerCivilite(texte) {
+  let civ = '';
+  const reste = String(texte || '').trim().split(/\s+/).filter(t => {
+    const c = CIV_TOKENS[t.toUpperCase()];
+    if (c) { if (!civ) civ = c; return false; }
+    return t.length > 0;
+  }).join(' ');
+  return { civ, reste };
+}
+
+// Pré-remplit civilité / prénom / nom à partir d'un nom complet enregistré
+function remplirNomClient(prefix, nomComplet, ordre) {
+  const { civ, reste } = separerCivilite(nomComplet);
+  const parts = reste.split(' ').filter(Boolean);
+  let prenom = '', nom = reste;
+  if (parts.length > 1) {
+    if (ordre === 'nom-prenom') { nom = parts[0]; prenom = parts.slice(1).join(' '); }
+    else { prenom = parts[0]; nom = parts.slice(1).join(' '); }
+  }
+  const pe = document.getElementById(`${prefix}-prenom`); if (pe) pe.value = prenom.toUpperCase();
+  const ce = document.getElementById(`${prefix}-client`); if (ce) ce.value = nom.toUpperCase();
+  setCivilite(prefix, civ ? civ : '');
+  if (!civ) { // aucune civilité connue → rien de sélectionné
+    ['m','mme','aut'].forEach(k => document.getElementById(`${prefix}-civ-${k}`)?.classList.remove('active'));
+  }
+}
+
 function getClientComplet(prefix) {
   const isSoc = document.getElementById(`${prefix}-bloc-particulier`)?.style.display === 'none';
   if (isSoc) return (document.getElementById(`${prefix}-societe`)?.value || '').trim();
-  const civ = (document.getElementById(`${prefix}-civilite`)?.value || '').trim();
-  const p   = (document.getElementById(`${prefix}-prenom`)?.value || '').trim();
-  const n   = (document.getElementById(`${prefix}-client`)?.value || '').trim();
-  return [civ, p, n].filter(Boolean).join(' ');
+  const civChoisie = (document.getElementById(`${prefix}-civilite`)?.value || '').trim();
+  const p = separerCivilite(document.getElementById(`${prefix}-prenom`)?.value);
+  const n = separerCivilite(document.getElementById(`${prefix}-client`)?.value);
+  const civ = civChoisie || p.civ || n.civ;
+  return [civ, p.reste, n.reste].filter(Boolean).join(' ');
 }
 
 function initCategories(prefix) {
@@ -10803,13 +10828,7 @@ async function modifierDevis(num) {
     const descEl     = document.getElementById('d-description');
 
     // Séparer prénom et nom si possible (ex: "DUPONT MARIE" → prenom=MARIE nom=DUPONT)
-    const clientParts = (doc.client || '').split(' ');
-    if (prenomEl && clientParts.length > 1) {
-      prenomEl.value  = clientParts.slice(1).join(' ');
-      if (clientEl) clientEl.value = clientParts[0];
-    } else {
-      if (clientEl) clientEl.value = doc.client || '';
-    }
+    remplirNomClient('d', doc.client || '');
     if (adresseEl) adresseEl.value  = doc.adresse  || '';
     if (telEl)     telEl.value      = doc.telephone || '';
     if (emailEl)   emailEl.value    = doc.email     || '';
