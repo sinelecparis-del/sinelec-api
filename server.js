@@ -2051,6 +2051,32 @@ async function traiterPaiementRecu(num, mode_paiement) {
     }).eq('num', num);
     if (error) throw error;
 
+    // 1b. Devis → "facturé" automatiquement quand ses factures sont soldées
+    try {
+      const { data: fac } = await supabase.from('historique').select('num,type,telephone,devis_origine').eq('num', num).single();
+      if (fac && fac.type === 'facture') {
+        let devisList = [];
+        if (fac.devis_origine) {
+          const { data } = await supabase.from('historique').select('num,total_ht,date_envoi').eq('num', fac.devis_origine).eq('type', 'devis').eq('statut', 'signe');
+          devisList = data || [];
+        } else if (fac.telephone) {
+          const { data } = await supabase.from('historique').select('num,total_ht,date_envoi').eq('telephone', fac.telephone).eq('type', 'devis').eq('statut', 'signe');
+          devisList = data || [];
+        }
+        for (const d of devisList) {
+          const { data: payees } = await supabase.from('historique').select('num,total_ht,devis_origine,date_envoi')
+            .eq('type', 'facture').eq('statut', 'paye').eq('telephone', fac.telephone || '');
+          const somme = (payees || [])
+            .filter(f => (f.devis_origine === d.num) || (!f.devis_origine && (!d.date_envoi || !f.date_envoi || f.date_envoi >= d.date_envoi)))
+            .reduce((t, f) => t + parseFloat(f.total_ht || 0), 0);
+          if (somme >= parseFloat(d.total_ht || 0) - 0.01) {
+            await supabase.from('historique').update({ statut: 'facture' }).eq('num', d.num).eq('statut', 'signe');
+            console.log(`✅ Devis ${d.num} passé en facturé (factures payées ${somme}€)`);
+          }
+        }
+      }
+    } catch (e) { console.error('Devis→facturé auto error:', e.message); }
+
     // 2. Chaîne automatique : facture acquittée + SMS avis
     setImmediate(async () => {
       try {
