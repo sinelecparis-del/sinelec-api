@@ -508,8 +508,22 @@ async function logSystem(type, message, data = null, success = true, error = nul
 function extractPrenom(clientStr) {
   const civilites = ['M.', 'Mme', 'Mr', 'Dr', 'Me', 'Pr'];
   const parts = (clientStr || '').trim().split(/\s+/);
-  const first = parts.find(p => !civilites.includes(p) && p.length > 0);
+  const civMaj = civilites.map(c => c.toUpperCase()).concat(['MR.', 'MME.', 'MLLE', 'MLLE.', 'MONSIEUR', 'MADAME']);
+  const first = parts.find(p => !civMaj.includes(p.toUpperCase()) && p.length > 0);
   return first || parts[0] || 'client';
+}
+
+// Texte unique de la demande d'avis Google (SMS auto après paiement + SMS manuel).
+// Sans emoji ni tiret long : reste en encodage GSM-7 → 1 seul SMS (≤160 caractères).
+const LIEN_AVIS_GOOGLE = 'https://g.page/r/CSw-MABnFUAYEAE/review';
+function prenomAffichage(clientStr) {
+  const brut = extractPrenom(clientStr);
+  if (!brut || brut === 'client' || /^(M\.?|MR\.?|MME\.?|MLLE\.?)$/i.test(brut)) return '';
+  return brut.toLowerCase().replace(/(^|[-'\s])(\p{L})/gu, (m, sep, l) => sep + l.toUpperCase());
+}
+function texteSmsAvis(clientStr) {
+  const p = prenomAffichage(clientStr);
+  return `Bonjour${p ? ' ' + p : ''}, merci de votre confiance ! Une phrase sur Google nous aiderait beaucoup : ${LIEN_AVIS_GOOGLE} L'équipe SINELEC Paris`;
 }
 
 async function envoyerEmail(to, subject, htmlContent, attachment = null, cc = null) {
@@ -2144,7 +2158,11 @@ async function traiterPaiementRecu(num, mode_paiement) {
                 <p>Votre règlement de <strong>${montantPaye} €</strong> pour la facture <strong>${num}</strong>${isAcompte ? ' (acompte 40%)' : ''} a bien été enregistré. Merci pour votre confiance !</p>
                 ${soldeLigne}
                 <p>Retrouvez ci-joint votre facture ${isAcompte ? "d'acompte" : 'acquittée'}.</p>
-                <p style="font-size:12px;color:#888;">⭐ <a href="https://g.page/r/CSw-MABnFUAYEAE/review">Laisser un avis Google</a></p>
+                <div style="margin:22px 0 6px;padding:16px;background:#FFF8E7;border-radius:10px;text-align:center;">
+                  <p style="margin:0 0 12px;font-size:14px;color:#1B2A4A;">Satisfait de l'intervention ? Une phrase sur Google nous aiderait beaucoup.</p>
+                  <a href="${LIEN_AVIS_GOOGLE}" style="display:inline-block;background:#1B2A4A;color:#E8B84B;text-decoration:none;font-weight:700;padding:12px 22px;border-radius:8px;">⭐ Laisser un avis Google</a>
+                  <p style="margin:10px 0 0;font-size:12px;color:#888;">L'équipe SINELEC Paris</p>
+                </div>
               </div>
             </div>`;
             await envoyerEmail(doc.email, `${titreMail} ${num} — SINELEC Paris`, html, pdf_b64 ? { content: pdf_b64, name: `${num}_acquittee.pdf` } : null);
@@ -2155,8 +2173,7 @@ async function traiterPaiementRecu(num, mode_paiement) {
         // SMS avis Google
         if (doc.telephone && !doc.sms_avis_envoye) {
           try {
-            const prenom = extractPrenom(doc.client || '');
-            const smsAvis = `Bonjour ${prenom}, votre règlement SINELEC a bien été enregistré ✅ Si vous avez 30 secondes, un avis Google nous aiderait énormément 👉 https://g.page/r/CSw-MABnFUAYEAE/review — L'équipe SINELEC Paris ⚡`;
+            const smsAvis = texteSmsAvis(doc.client || '');
             const msgIdAvis = await envoyerSMS(doc.telephone, smsAvis);
             if (msgIdAvis) {
               await supabase.from('historique').update({ sms_avis_envoye: true, sms_avis_date: new Date().toISOString(), sms_avis_statut: 'envoye_auto' }).eq('num', num);
@@ -2244,8 +2261,7 @@ app.post('/api/envoyer-sms-avis/:num', async (req, res) => {
     const { data: doc } = await supabase.from('historique').select('*').eq('num', num).single();
     if (!doc) return res.status(404).json({ error: 'Document non trouvé' });
     if (!doc.telephone) return res.status(400).json({ error: 'Pas de téléphone pour ce client' });
-    const prenom = extractPrenom(doc.client);
-    const msg = `Bonjour ${prenom}, merci pour votre confiance ! Un avis Google nous aiderait beaucoup : https://g.page/r/CSw-MABnFUAYEAE/review — SINELEC ⚡`;
+    const msg = texteSmsAvis(doc.client);
     const msgId = await envoyerSMS(doc.telephone, msg);
     const now = new Date().toISOString();
     if (!msgId) {
