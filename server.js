@@ -5246,7 +5246,7 @@ CONTEXTE : ${contexte || 'Installation électrique résidentielle Paris'}
 
 GRILLE TARIFAIRE SINELEC (prix TTC, TVA non applicable) :
 - Disjoncteur standard : 150€ | Différentiel 63A type A : 250€ | Parafoudre : 160€
-- Tableau 1 rangée : 1200€ | Tableau 2 rangées : 1700€ | Tableau 3 rangées : 2200€
+- Tableau 1 rangée : 1200€ | Tableau 2 rangées : 1600€ | Tableau 3 rangées : 2200€ | Tableau 4 rangées : 2600€
 - Prise standard : 90€ | Prise déplacement : 130€ | Interrupteur : 90€
 - Luminaire simple : 115€ | Spot encastré : 75€/u | Point DCL : 100€
 - Mise à la terre : 650€ | Liaison équipo SdB : 140€ | DAAF : 85€
