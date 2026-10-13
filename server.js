@@ -513,6 +513,26 @@ function extractPrenom(clientStr) {
   return first || parts[0] || 'client';
 }
 
+// Facture d'acompte ? Les acomptes ne sont pas toujours numérotés FA- : beaucoup
+// sont des factures normales dont l'unique ligne est « Acompte 40 % sur devis … ».
+// Une facture finale qui DÉDUIT un acompte (« Acompte … déjà réglé », montant négatif)
+// reste une facture finale.
+function estFactureAcompte(doc) {
+  if (!doc) return false;
+  if (String(doc.num || '').startsWith('FA-')) return true;
+  if (/facture d['’]acompte/i.test(String(doc.description || ''))) return true;
+  let lignes = doc.prestations;
+  if (typeof lignes === 'string') { try { lignes = JSON.parse(lignes); } catch (e) { lignes = []; } }
+  if (!Array.isArray(lignes)) return false;
+  const reelles = lignes.filter(l => l && !l._section);
+  if (!reelles.length) return false;
+  return reelles.every(l => {
+    const nom = String(l.nom || l.designation || '');
+    const prix = parseFloat(l.prix ?? l.prix_ht ?? l.total ?? 0);
+    return /acompte/i.test(nom) && !/d[ée]j[àa]\s+(r[ée]gl|vers|pay)/i.test(nom) && prix >= 0;
+  });
+}
+
 // Texte unique de la demande d'avis Google (SMS auto après paiement + SMS manuel).
 // Sans emoji ni tiret long : reste en encodage GSM-7 → 1 seul SMS (≤160 caractères).
 const LIEN_AVIS_GOOGLE = 'https://g.page/r/CSw-MABnFUAYEAE/review';
@@ -2098,10 +2118,12 @@ async function traiterPaiementRecu(num, mode_paiement) {
         if (!doc) return;
         const appUrl = process.env.APP_URL || 'https://sinelec-api-production.up.railway.app';
         const token = genererToken();
+        // Acompte = chantier pas encore fait : pas d'agenda « terminé », pas de demande d'avis
+        const isAcompte = estFactureAcompte(doc);
 
         // Lien auto facture payée → agenda : évite les fiches qui restent
         // bloquées sur "lead" alors que l'intervention est réglée.
-        if (doc.telephone) {
+        if (doc.telephone && !isAcompte) {
           try {
             const { data: rdvs } = await supabase.from('agenda')
               .select('id,statut').eq('telephone', doc.telephone)
@@ -2126,12 +2148,11 @@ async function traiterPaiementRecu(num, mode_paiement) {
         } catch(e) { console.error('PDF acquitté error:', e.message); }
 
         // Facture d'acompte : préciser le montant réglé et le solde restant dû
-        const isAcompte = num.startsWith('FA-');
         let montantSoldeMail = null;
         let devisRefMail = doc.devis_origine || '';
         if (isAcompte) {
           if (!devisRefMail) {
-            const m = String(doc.description||'').match(/devis\s+(\S+)/i);
+            const m = (String(doc.description||'') + ' ' + JSON.stringify(doc.prestations||'')).match(/devis\s+(OS-[\w-]+)/i);
             if (m) devisRefMail = m[1];
           }
           if (devisRefMail) {
@@ -2158,11 +2179,11 @@ async function traiterPaiementRecu(num, mode_paiement) {
                 <p>Votre règlement de <strong>${montantPaye} €</strong> pour la facture <strong>${num}</strong>${isAcompte ? ' (acompte 40%)' : ''} a bien été enregistré. Merci pour votre confiance !</p>
                 ${soldeLigne}
                 <p>Retrouvez ci-joint votre facture ${isAcompte ? "d'acompte" : 'acquittée'}.</p>
-                <div style="margin:22px 0 6px;padding:16px;background:#FFF8E7;border-radius:10px;text-align:center;">
+                ${isAcompte ? '' : `<div style="margin:22px 0 6px;padding:16px;background:#FFF8E7;border-radius:10px;text-align:center;">
                   <p style="margin:0 0 12px;font-size:14px;color:#1B2A4A;">Satisfait de l'intervention ? Une phrase sur Google nous aiderait beaucoup.</p>
                   <a href="${LIEN_AVIS_GOOGLE}" style="display:inline-block;background:#1B2A4A;color:#E8B84B;text-decoration:none;font-weight:700;padding:12px 22px;border-radius:8px;">⭐ Laisser un avis Google</a>
                   <p style="margin:10px 0 0;font-size:12px;color:#888;">L'équipe SINELEC Paris</p>
-                </div>
+                </div>`}
               </div>
             </div>`;
             await envoyerEmail(doc.email, `${titreMail} ${num} — SINELEC Paris`, html, pdf_b64 ? { content: pdf_b64, name: `${num}_acquittee.pdf` } : null);
@@ -2171,7 +2192,7 @@ async function traiterPaiementRecu(num, mode_paiement) {
         }
 
         // SMS avis Google
-        if (doc.telephone && !doc.sms_avis_envoye) {
+        if (doc.telephone && !doc.sms_avis_envoye && !isAcompte) {
           try {
             const smsAvis = texteSmsAvis(doc.client || '');
             const msgIdAvis = await envoyerSMS(doc.telephone, smsAvis);
