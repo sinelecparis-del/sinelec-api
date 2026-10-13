@@ -2175,7 +2175,7 @@ async function traiterPaiementRecu(num, mode_paiement) {
                 <h2 style="color:#E8B84B;margin:8px 0 0;">${titreMail}</h2>
               </div>
               <div style="padding:24px;border:1px solid #e8e8e8;border-top:none;border-radius:0 0 12px 12px;">
-                <p>Bonjour <strong>${extractPrenom(doc.client)}</strong>,</p>
+                <p>Bonjour${prenomAffichage(doc.client) ? ' <strong>' + prenomAffichage(doc.client) + '</strong>' : ''},</p>
                 <p>Votre règlement de <strong>${montantPaye} €</strong> pour la facture <strong>${num}</strong>${isAcompte ? ' (acompte 40%)' : ''} a bien été enregistré. Merci pour votre confiance !</p>
                 ${soldeLigne}
                 <p>Retrouvez ci-joint votre facture ${isAcompte ? "d'acompte" : 'acquittée'}.</p>
