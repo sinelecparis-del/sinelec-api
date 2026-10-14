@@ -650,7 +650,7 @@ async function chargerGrilleTarifaire() {
 app.post('/api/generer', async (req, res) => {
   if (!CONFIG.features.devis_factures) return res.status(403).json({ error: 'Feature désactivée' });
   try {
-    const { type, client, email, telephone, adresse, complement, codePostal, ville, prenom, description, prestations, partenaire, part_diahe, part_partenaire, nom_partenaire, intervention_type, siret_client, num_existant, remise, devis_origine: devisOrigineBody } = req.body;
+    const { type, client, email, telephone, adresse, complement, codePostal, ville, prenom, description, prestations, partenaire, part_diahe, part_partenaire, nom_partenaire, intervention_type, siret_client, num_existant, remise, devis_origine: devisOrigineBody, adresse_chantier } = req.body;
 
     const roleGenerateur = getRoleFromToken(req.headers['authorization']?.replace('Bearer ', '') || req.query.token);
     const estSousTraitant = roleGenerateur === 'soustraitant';
@@ -695,6 +695,7 @@ app.post('/api/generer', async (req, res) => {
       partenaire: isPartenaire, part_diahe: pdiahe, part_partenaire: ppartenaire,
       nom_partenaire: isPartenaire ? (nom_partenaire || 'Alopronto') : null,
       intervention_type: intervention_type || 'immediat',
+      adresse_chantier: String(adresse_chantier || '').trim() || null,
       ...(type === 'facture' && devisOrigineBody ? { devis_origine: devisOrigineBody } : {})
     };
     const { error: insertErr1 } = await supabase.from('historique').upsert(payloadComplet, { onConflict: 'num' });
@@ -817,6 +818,7 @@ app.post('/api/generer', async (req, res) => {
         .trim().replace(/'/g, ' ').replace(/"/g, ' ').replace(/\\/g, ' ')
         .replace(/\n/g, ' ').replace(/\r/g, ' ').substring(0, 120);
       const clientSiret = String(siret_client || '').trim().replace(/'/g, '').replace(/"/g, '').replace(/\\/g, '');
+      const chantierTxt = String(adresse_chantier || '').trim().replace(/'/g, ' ').replace(/"/g, ' ').replace(/\\/g, ' ').replace(/\n/g, ' ').replace(/\r/g, ' ').substring(0, 160);
 
       // JSON payload avec meta — toutes les données dynamiques hors du script Python
       const jsonPayload = {
@@ -827,6 +829,7 @@ app.post('/api/generer', async (req, res) => {
           clientNom: clientEsc,
           clientRue, clientVille: clientCPVille,
           clientTel, clientSiret,
+          chantier: chantierTxt,
           descObjet,
           isPaye: false, isSigne: false
         },
@@ -872,6 +875,7 @@ client_rue=meta.get('clientRue','')
 client_ville=meta.get('clientVille','')
 client_tel=meta.get('clientTel','')
 client_siret=meta.get('clientSiret','')
+chantier=meta.get('chantier','')
 desc_objet=meta.get('descObjet','Travaux electricite')
 is_paye=meta.get('isPaye',False)
 is_signe=meta.get('isSigne',False)
@@ -965,7 +969,10 @@ class SC(pdfcanvas.Canvas):
         self.restoreState()
 doc=SimpleDocTemplate(sys.argv[2],pagesize=A4,leftMargin=1.2*cm,rightMargin=1.0*cm,topMargin=5.6*cm,bottomMargin=1.6*cm)
 story=[]
-objet_b=Table([[p('OBJET DES TRAVAUX',7.5,'Helvetica-Bold',OR,sa=4)],[p(desc_objet,10,'Helvetica-Bold',MARINE)],[p('Conformes NF C 15-100  \u2022  Garantie decennale ORUS  \u2022  TVA non applicable art. 293B CGI',7.5,color=GRIS_SOFT)]],colWidths=[8.2*cm])
+objet_rows=[[p('OBJET DES TRAVAUX',7.5,'Helvetica-Bold',OR,sa=4)],[p(desc_objet,10,'Helvetica-Bold',MARINE)]]
+if chantier: objet_rows.append([p('Lieu d\u2019intervention : '+chantier,8.5,color=GRIS_TEXTE)])
+objet_rows.append([p('Conformes NF C 15-100  \u2022  Garantie decennale ORUS  \u2022  TVA non applicable art. 293B CGI',7.5,color=GRIS_SOFT)])
+objet_b=Table(objet_rows,colWidths=[8.2*cm])
 objet_b.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3),('LEFTPADDING',(0,0),(-1,-1),0),('LINEABOVE',(0,0),(0,0),2.5,MARINE),('TOPPADDING',(0,0),(0,0),10)]))
 client_lines=[p('DESTINATAIRE',7,'Helvetica-Bold',OR,sa=3),p(client_nom,11,'Helvetica-Bold',MARINE),p(client_rue,9,color=GRIS_TEXTE),p(client_ville,9,color=GRIS_TEXTE)]
 if client_tel: client_lines.append(p('Tel : '+client_tel,8.5,color=GRIS_SOFT))
@@ -6178,7 +6185,8 @@ app.all('/mcp', mcpAuth, async(req,res)=>{
             client:{type:'string',description:'Nom complet ex: M. Dupont Jean'},
             email:{type:'string',description:'Email du client pour envoi devis'},
             telephone:{type:'string',description:'Telephone obligatoire pour signature OTP'},
-            adresse:{type:'string',description:'Adresse complete'},
+            adresse:{type:'string',description:'Adresse complete (adresse de facturation du client)'},
+            adresse_chantier:{type:'string',description:'Adresse du chantier si differente de l adresse de facturation (optionnel). Affichee sur le PDF comme Lieu d intervention'},
             objet:{type:'string',description:'Objet du devis ex: Travaux electriques'},
             message:{type:'string',description:'Intro commerciale de l email, validee au prealable avec Diahe. Si absent, une intro est generee automatiquement par IA sans validation prealable.'},
             prestations:{type:'array',description:'Liste des prestations avec descriptions détaillées',items:{type:'object',required:['nom','prix_unitaire'],properties:{
@@ -6195,7 +6203,8 @@ app.all('/mcp', mcpAuth, async(req,res)=>{
             client:{type:'string',description:'Nom complet ex: M. Dupont Jean'},
             email:{type:'string',description:'Email du client pour envoi facture'},
             telephone:{type:'string',description:'Telephone du client'},
-            adresse:{type:'string',description:'Adresse complete'},
+            adresse:{type:'string',description:'Adresse complete (adresse de facturation du client)'},
+            adresse_chantier:{type:'string',description:'Adresse du chantier si differente de l adresse de facturation (optionnel). Affichee sur le PDF comme Lieu d intervention'},
             objet:{type:'string',description:'Objet de la facture ex: Travaux electriques'},
             prestations:{type:'array',description:'Liste des prestations avec descriptions détaillées',items:{type:'object',required:['nom','prix_unitaire'],properties:{
               nom:{type:'string',description:'Nom exact de la prestation'},
@@ -6336,7 +6345,7 @@ app.all('/mcp', mcpAuth, async(req,res)=>{
           } catch(e){ result={success:false,error:e.message}; }
         }
         else if(name==='creer_devis'){
-          const{client,email,telephone,adresse,prestations,objet,remise,apporteur,message:messageValide,intervention_type}=args||{};
+          const{client,email,telephone,adresse,adresse_chantier,prestations,objet,remise,apporteur,message:messageValide,intervention_type}=args||{};
           const token=genererToken('admin');
           const SPLITS_APPORTEUR = {'Paris Express':{diahe:80,partenaire:20},'M. Leblanc':{diahe:50,partenaire:50},'Pierrot':{diahe:50,partenaire:50}};
           const isPartenaire = !!(apporteur && apporteur!=='Aucun');
@@ -6413,7 +6422,7 @@ Réponds UNIQUEMENT avec la description, sans introduction ni guillemets.`;
             method:'POST',
             headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
             body:JSON.stringify({
-              type:'devis', client, email, telephone, adresse,
+              type:'devis', client, email, telephone, adresse, adresse_chantier,
               objet: objet||'Travaux électriques',
               prestations: prestationsFormatted,
               total_ht: totalNet,
@@ -6491,7 +6500,7 @@ Une question, un ajustement à faire ? Je suis dispo par tél ou par mail.
           }
         }
         else if(name==='creer_facture'){
-          const{client,email,telephone,adresse,prestations,objet,remise,apporteur}=args||{};
+          const{client,email,telephone,adresse,adresse_chantier,prestations,objet,remise,apporteur}=args||{};
           const token=genererToken('admin');
           const SPLITS_APPORTEUR_F = {'Paris Express':{diahe:80,partenaire:20},'M. Leblanc':{diahe:50,partenaire:50},'Pierrot':{diahe:50,partenaire:50}};
           const isPartenaireF = !!(apporteur && apporteur!=='Aucun');
@@ -6531,7 +6540,7 @@ Réponds UNIQUEMENT avec la description, sans introduction ni guillemets.`;
             method:'POST',
             headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
             body:JSON.stringify({
-              type:'facture', client, email, telephone, adresse,
+              type:'facture', client, email, telephone, adresse, adresse_chantier,
               objet: objet||'Travaux électriques',
               prestations: prestationsFormatted,
               total_ht: totalNet,

@@ -2221,6 +2221,10 @@ table.histo-table tr:hover td { background:#fafbff; }
       </div>
     </div>
     <div class="input-group">
+      <label>Adresse du chantier <span style="font-weight:500;opacity:.55;text-transform:none;">(si différente de la facturation)</span></label>
+      <input type="text" id="d-adresse-chantier" placeholder="Laisser vide si identique" autocomplete="off" onchange="appliquerDeplacementAuto()">
+    </div>
+    <div class="input-group">
       <label>Téléphone <span style="color:#ef4444;font-size:13px;" title="Obligatoire pour la signature">*</span></label>
       <div class="tel-row">
         <div class="tel-indicatif">🇫🇷 <select id="d-indicatif"><option value="+33">+33</option><option value="+32">🇧🇪 +32</option><option value="+41">🇨🇭 +41</option><option value="+1">🇺🇸 +1</option><option value="+44">🇬🇧 +44</option></select></div>
@@ -2409,6 +2413,10 @@ table.histo-table tr:hover td { background:#fafbff; }
         <input type="text" id="f-cp" placeholder="75008" maxlength="5" style="width:100%;padding:11px 13px;border:1.5px solid var(--border);border-radius:12px;font-size:14px;color:var(--text);background:rgba(255,255,255,0.65);outline:none;font-family:inherit;transition:border-color 0.3s;">
         <input type="text" id="f-ville" placeholder="Paris" style="width:100%;padding:11px 13px;border:1.5px solid var(--border);border-radius:12px;font-size:14px;color:var(--text);background:rgba(255,255,255,0.65);outline:none;font-family:inherit;transition:border-color 0.3s;">
       </div>
+    </div>
+    <div class="input-group">
+      <label>Adresse du chantier <span style="font-weight:500;opacity:.55;text-transform:none;">(si différente de la facturation)</span></label>
+      <input type="text" id="f-adresse-chantier" placeholder="Laisser vide si identique" autocomplete="off">
     </div>
     <div class="input-group">
       <label>Téléphone</label>
@@ -4077,6 +4085,7 @@ async function convertirEnFacture(numDevis) {
     setVal('f-tel', devis.telephone || '');
     setVal('f-email', devis.email || '');
     setVal('f-adresse', devis.adresse || '');
+    setVal('f-adresse-chantier', devis.adresse_chantier || '');
     setVal('f-description', devis.description || '');
     panierF = (devis.prestations || []).map(p => ({
       designation: p.nom || p.designation || '',
@@ -4119,6 +4128,7 @@ async function convertirEnSolde(numDevis) {
     setVal('f-tel', devis.telephone || '');
     setVal('f-email', devis.email || '');
     setVal('f-adresse', devis.adresse || '');
+    setVal('f-adresse-chantier', devis.adresse_chantier || '');
     setVal('f-description', `Facture de solde — devis ${numDevis}`);
     panierF = (devis.prestations || []).map(p => ({
       designation: p.nom || p.designation || '',
@@ -10332,8 +10342,10 @@ async function appliquerDeplacementAuto() {
   const adresseEl = document.getElementById('d-adresse');
   const cpEl = document.getElementById('d-cp');
   const villeEl = document.getElementById('d-ville');
-  const adresseComplete = `${adresseEl?.value || ''} ${cpEl?.value || ''} ${villeEl?.value || ''}`.trim();
-  if (!cpEl?.value || cpEl.value.length < 5) return;
+  const chantierTxt = (document.getElementById('d-adresse-chantier')?.value || '').trim();
+  const chantierCp = chantierTxt.match(/\b\d{5}\b/);
+  const adresseComplete = chantierCp ? chantierTxt : `${adresseEl?.value || ''} ${cpEl?.value || ''} ${villeEl?.value || ''}`.trim();
+  if (!chantierCp && (!cpEl?.value || cpEl.value.length < 5)) return;
 
   try {
     const res = await _originalFetch('/api/deplacement/zone', {
@@ -10346,7 +10358,7 @@ async function appliquerDeplacementAuto() {
 
     supprimerDeplacementPanier();
     const itemDeplacement = {
-      designation: `Déplacement — ${villeEl?.value || zone.cp || ''}`,
+      designation: `Déplacement — ${chantierCp ? (chantierTxt.split(chantierCp[0])[1] || '').replace(/^[\s,]+/, '').trim() || zone.cp || '' : (villeEl?.value || zone.cp || '')}`,
       prixUnit: zone.prix,
       qte: 1,
       categorie: 'Déplacement',
@@ -10422,6 +10434,8 @@ function separerCivilite(texte) {
 
 // Pré-remplit civilité / prénom / nom à partir d'un nom complet enregistré
 function remplirNomClient(prefix, nomComplet, ordre) {
+  // Nouveau client choisi : on vide l'adresse de chantier pour ne pas la reporter par erreur
+  { const _ch = document.getElementById(`${prefix}-adresse-chantier`); if (_ch) _ch.value = ''; }
   const { civ, reste } = separerCivilite(nomComplet);
   const parts = reste.split(' ').filter(Boolean);
   let prenom = '', nom = reste;
@@ -10774,7 +10788,7 @@ async function genererEtTelecharger(type) {
     const res = await fetch('/api/generer', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('sinelec_token') || '') },
-      body: JSON.stringify({ type, client, email: '', telephone, adresse, prenom, description: desc, prestations })
+      body: JSON.stringify({ type, client, email: '', telephone, adresse, adresse_chantier: (document.getElementById(`${prefix}-adresse-chantier`)?.value || '').trim(), prenom, description: desc, prestations })
     });
     const data = await res.json();
     if (!data.success) throw new Error(data.error || 'Erreur génération');
@@ -10977,6 +10991,7 @@ async function generer(type) {
         telephone: document.getElementById(`${prefix}-tel`)?.value.trim() || '',
         adresse,
         siret_client: getSiret(prefix),
+        adresse_chantier: (document.getElementById(`${prefix}-adresse-chantier`)?.value || '').trim(),
         description: document.getElementById(`${prefix}-description`)?.value.trim() || '',
         prestations: prestationsAEnvoyer,
         partenaire: prefix === 'd' ? (apporteurActifD !== 'Aucun') : false,
