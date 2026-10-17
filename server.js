@@ -6367,9 +6367,11 @@ app.all('/mcp', mcpAuth, async(req,res)=>{
             // correctif exact-match et repartaient sur le texte IA générique
             // ("diagnostic", "tests de conformité") — repéré sur les devis
             // Tersier et Delaunay le jour même.
-            if (!desc && nomNorm.startsWith('déplacement')) {
+            if (!desc && (nomNorm.startsWith('remise') || parseFloat(p.prix_unitaire) < 0)) {
+              desc = `Geste commercial accordé sur l'ensemble de la prestation.`;
+            } else if (!desc && nomNorm.startsWith('déplacement')) {
               desc = `Frais de déplacement pour l'intervention de nos techniciens SINELEC Paris à votre adresse. Comprend le trajet et la mise à disposition sur site.`;
-            } else if (!desc || desc.length < 150) {
+            } else if (!desc && !(parseFloat(p.prix_unitaire) < 0) && !nomNorm.startsWith('remise')) {
               try {
                 const prix = parseFloat(p.prix_unitaire)||0;
                 const prompt = `Tu es un expert électricien SINELEC Paris. Rédige une description professionnelle pour cette prestation dans un devis client.
@@ -6383,7 +6385,7 @@ Réponds UNIQUEMENT avec la description, sans introduction ni guillemets.`;
                   max_tokens: 300,
                   messages: [{ role: 'user', content: prompt }]
                 });
-                desc = resp.content[0].text.trim();
+                desc = resp.content[0].text.trim().replace(/^[#*\s]+/,'').replace(/\*\*/g,'');
                 console.log(`✅ Description générée pour: ${p.nom} (${desc.length} chars)`);
               } catch(descErr) {
                 console.error(`❌ Description IA échouée pour ${p.nom}:`, descErr.message);
@@ -6511,9 +6513,11 @@ Une question, un ajustement à faire ? Je suis dispo par tél ou par mail.
             // à startsWith pour couvrir "Déplacement — Ville") : pas de
             // discours "diagnostic"/"tests" inventé pour un simple déplacement.
             const nomNorm = (p.nom||'').trim().toLowerCase();
-            if (!desc && nomNorm.startsWith('déplacement')) {
+            if (!desc && (nomNorm.startsWith('remise') || parseFloat(p.prix_unitaire) < 0)) {
+              desc = `Geste commercial accordé sur l'ensemble de la prestation.`;
+            } else if (!desc && nomNorm.startsWith('déplacement')) {
               desc = `Frais de déplacement pour l'intervention de nos techniciens SINELEC Paris à votre adresse. Comprend le trajet et la mise à disposition sur site.`;
-            } else if (!desc || desc.length < 150) {
+            } else if (!desc && !(parseFloat(p.prix_unitaire) < 0) && !nomNorm.startsWith('remise')) {
               try {
                 const prix = parseFloat(p.prix_unitaire)||0;
                 const prompt = `Tu es un expert électricien SINELEC Paris. Rédige une description professionnelle pour cette prestation dans une facture client.
@@ -6527,7 +6531,7 @@ Réponds UNIQUEMENT avec la description, sans introduction ni guillemets.`;
                   max_tokens: 300,
                   messages: [{ role: 'user', content: prompt }]
                 });
-                desc = resp.content[0].text.trim();
+                desc = resp.content[0].text.trim().replace(/^[#*\s]+/,'').replace(/\*\*/g,'');
               } catch(descErr) {
                 desc = `Fourniture et pose : ${p.nom}. Main d'œuvre, matériaux et raccordement inclus. Conforme NF C 15-100.`;
               }
