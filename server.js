@@ -6181,8 +6181,11 @@ app.all('/mcp', mcpAuth, async(req,res)=>{
             source:{type:'string',enum:['manuel','site','whatsapp'],default:'manuel'},
             sms_rappel:{type:'boolean',description:'Active le SMS de rappel automatique la veille a 18h',default:true}
           }}},
-          {name:'modifier_rdv',description:'Modifie une entree agenda SINELEC existante (trouvee par telephone). Utiliser pour corriger un nom, changer un statut lead vers planifie, deplacer une date, etc. Toujours confirmer avec Diahe avant d appeler.',inputSchema:{type:'object',required:['telephone'],properties:{
-            telephone:{type:'string',description:'Telephone de la fiche a modifier — sert a la retrouver'},
+          {name:'modifier_rdv',description:'Modifie une entree agenda SINELEC existante, trouvee par telephone OU par nom du client (recherche_client, avec recherche_date si plusieurs RV). Utiliser pour corriger un nom, ajouter un telephone manquant (nouveau_telephone), changer un statut lead vers planifie, deplacer une date, etc. Toujours confirmer avec Diahe avant d appeler.',inputSchema:{type:'object',required:[],properties:{
+            telephone:{type:'string',description:'Telephone actuel de la fiche — sert a la retrouver (ou utiliser recherche_client si la fiche n a pas de telephone)'},
+            recherche_client:{type:'string',description:'Nom (ou partie du nom) du client pour retrouver la fiche quand il n y a pas de telephone'},
+            recherche_date:{type:'string',description:'Format YYYY-MM-DD — precise le RV a modifier si le client en a plusieurs'},
+            nouveau_telephone:{type:'string',description:'Nouveau numero a enregistrer sur la fiche (ex. numero obtenu apres la creation du RV)'},
             client:{type:'string'},
             adresse:{type:'string'},
             date_intervention:{type:'string',description:'Format YYYY-MM-DD'},
@@ -6320,23 +6323,41 @@ app.all('/mcp', mcpAuth, async(req,res)=>{
           } catch(e){ result={success:false,error:e.message}; }
         }
         else if(name==='modifier_rdv'){
-          const{telephone,client,adresse,date_intervention,heure,notes,statut,sms_rappel}=args||{};
+          const{telephone,recherche_client,recherche_date,nouveau_telephone,client,adresse,date_intervention,heure,notes,statut,sms_rappel}=args||{};
           try {
-            const{data:existants}=await supabase.from('agenda').select('id,client,date_intervention,heure,statut').eq('telephone',telephone).order('created_at',{ascending:false}).limit(1);
-            if(!existants||existants.length===0){ result={success:false,error:`Aucune entrée agenda trouvée pour le téléphone ${telephone}`}; }
+            // Recherche de la fiche : par téléphone, OU par nom du client (+ date optionnelle)
+            // → permet de modifier un RV créé sans téléphone (ex. pour ajouter le numéro plus tard)
+            let existants=[];
+            let erreurRecherche=null;
+            if(telephone){
+              const r=await supabase.from('agenda').select('id,client,date_intervention,heure,statut').eq('telephone',telephone).order('created_at',{ascending:false}).limit(1);
+              existants=r.data||[];
+              if(existants.length===0) erreurRecherche=`Aucune entrée agenda trouvée pour le téléphone ${telephone}`;
+            } else if(recherche_client){
+              let q=supabase.from('agenda').select('id,client,date_intervention,heure,statut').ilike('client','%'+String(recherche_client).replace(/[%_,]/g,'').trim()+'%').order('created_at',{ascending:false}).limit(5);
+              if(recherche_date) q=q.eq('date_intervention',recherche_date);
+              const r=await q;
+              existants=r.data||[];
+              if(existants.length===0) erreurRecherche=`Aucune entrée agenda trouvée pour « ${recherche_client} »${recherche_date?` le ${recherche_date}`:''}`;
+              else if(existants.length>1) erreurRecherche=`Plusieurs entrées pour « ${recherche_client} » : ${existants.map(e=>`${e.client} ${e.date_intervention||'sans date'} ${e.heure||''}`).join(' | ')}. Précise recherche_date pour en choisir une.`;
+            } else {
+              erreurRecherche='Indique le telephone de la fiche, ou recherche_client (nom du client, avec recherche_date si besoin).';
+            }
+            if(erreurRecherche){ result={success:false,error:erreurRecherche}; }
             else {
-              const id=existants[0].id;
+              const rdvId=existants[0].id;
               const dateFinale = date_intervention!==undefined ? date_intervention : existants[0].date_intervention;
               const heureFinale = heure!==undefined ? heure : existants[0].heure;
               const statutFinal = statut!==undefined ? statut : existants[0].statut;
               if(statutFinal==='planifié' && (date_intervention!==undefined || heure!==undefined || statut!==undefined)){
-                const conflit = await verifierConflitAgenda(dateFinale, heureFinale, id);
+                const conflit = await verifierConflitAgenda(dateFinale, heureFinale, rdvId);
                 if(conflit){
                   result={success:false,error:`⚠️ Créneau déjà pris : ${conflit.client} est déjà planifié le ${dateFinale} à ${conflit.heure}${conflit.adresse?` (${conflit.adresse})`:''}. Choisis une heure à plus de 2h d'écart, ou confirme si tu veux quand même forcer.`};
                   return send({jsonrpc:'2.0',id,result:{content:[{type:'text',text:JSON.stringify(result,null,2)}]}});
                 }
               }
               const maj={};
+              if(nouveau_telephone!==undefined) maj.telephone=String(nouveau_telephone).replace(/[^\d+]/g,'');
               if(client!==undefined) maj.client=client;
               if(adresse!==undefined) maj.adresse=adresse;
               if(date_intervention!==undefined) maj.date_intervention=date_intervention;
@@ -6344,12 +6365,12 @@ app.all('/mcp', mcpAuth, async(req,res)=>{
               if(notes!==undefined) maj.notes=notes;
               if(statut!==undefined) maj.statut=statut;
               if(sms_rappel!==undefined) maj.sms_rappel=sms_rappel;
-              const{error}=await supabase.from('agenda').update(maj).eq('id',id);
+              const{error}=await supabase.from('agenda').update(maj).eq('id',rdvId);
               if(error){
                 if(error.code==='23P01'){ result={success:false,error:`⚠️ Créneau déjà pris pour ce client à cette date/heure (détecté au dernier moment). Choisis un autre horaire.`}; }
                 else throw error;
               } else {
-                result={success:true,id,message:`✅ Entrée agenda mise à jour (était: ${existants[0].client})`};
+                result={success:true,id:rdvId,message:`✅ Entrée agenda mise à jour (était: ${existants[0].client})`};
               }
             }
           } catch(e){ result={success:false,error:e.message}; }
