@@ -577,7 +577,9 @@ async function envoyerEmail(to, subject, htmlContent, attachment = null, cc = nu
 
 async function envoyerSMS(to, message) {
   if (!to || String(to).length < 8) return null;
-  let num = String(to).replace(/[\s\-\.]/g, '');
+  // Ne garder que chiffres et "+" : un copier-coller WhatsApp/iPhone peut glisser des
+  // caractères invisibles (ex. U+202C) que le fournisseur SMS rejette ("Invalid telephone number")
+  let num = String(to).replace(/[^\d+]/g, '');
   if (num.startsWith('0')) num = '+33' + num.substring(1);
   if (!num.startsWith('+')) num = '+33' + num;
   
@@ -1839,8 +1841,16 @@ async function envoyerOTP(){
       const telMasq = TEL.replace(/(\\d{2})(\\d{2})(\\d{2})(\\d{2})(\\d{2})/,'$1 $2 ** ** $5');
       document.getElementById('sms-tel').textContent = 'Code envoyé au ' + (telMasq||'votre mobile');
       document.getElementById('sms-ok').style.display='flex';
+    } else {
+      var t = document.getElementById('sms-tel');
+      t.textContent = 'Envoi du code impossible. Appelez SINELEC au 07 87 38 86 22.';
+      t.style.color = '#dc2626';
     }
-  } catch(e){}
+  } catch(e){
+    var t2 = document.getElementById('sms-tel');
+    t2.textContent = 'Envoi du code impossible. Appelez SINELEC au 07 87 38 86 22.';
+    t2.style.color = '#dc2626';
+  }
 }
 
 async function renvoyerCode(){ await envoyerOTP(); }
@@ -5631,7 +5641,7 @@ app.post('/api/otp-signature', async (req, res) => {
     const expire_at = new Date(Date.now() + 15*60*1000).toISOString();
     // Stocké en base (table otp_signatures) — survit aux redéploiements du serveur
     await otpSet(num, code);
-    console.log('✅ OTP pour', num, '— code:', code);
+    console.log('✅ OTP généré pour', num);
     const smsResult = await envoyerSMS(telephone, 'Votre code SINELEC : ' + code + '. Valable 15 minutes.');
     if (!smsResult) return res.status(500).json({ success: false, error: "Impossible d'envoyer le SMS. Verifiez votre numero." });
     const telMasq = String(telephone).replace(/(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 ** ** $5');
@@ -5650,7 +5660,7 @@ app.post('/api/verifier-otp', async (req, res) => {
     if (!storedCode) return res.status(404).json({ success: false, error: 'Aucun code envoyé pour ce devis' });
     const entered = String(code).replace(/\D/g, '').trim();
     const stored = String(storedCode).replace(/\D/g, '').trim();
-    console.log('OTP check:', num, '| stored:', stored, '| entered:', entered);
+    console.log('OTP check:', num, '|', stored === entered ? 'ok' : 'incorrect');
     if (!stored || !entered || stored !== entered) return res.status(400).json({ success: false, error: 'Code incorrect' });
     await otpMarquerVerifie(num);
     res.json({ success: true });
