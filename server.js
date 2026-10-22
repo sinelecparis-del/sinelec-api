@@ -656,6 +656,9 @@ app.post('/api/generer', async (req, res) => {
 
     const roleGenerateur = getRoleFromToken(req.headers['authorization']?.replace('Bearer ', '') || req.query.token);
     const estSousTraitant = roleGenerateur === 'soustraitant';
+    // Source du client (stats par canal) — liste fermée, ignorée si absente
+    const CANAUX_CLIENT = ['local_services','fiche_google','site','bouche_a_oreille','client_existant','apporteur','autre'];
+    const canalClient = CANAUX_CLIENT.includes(req.body.canal_client) ? req.body.canal_client : null;
 
     // Si modification d'un devis existant → garder le même numéro sans incrémenter le compteur
     let num;
@@ -698,6 +701,7 @@ app.post('/api/generer', async (req, res) => {
       nom_partenaire: isPartenaire ? (nom_partenaire || 'Alopronto') : null,
       intervention_type: intervention_type || 'immediat',
       adresse_chantier: String(adresse_chantier || '').trim() || null,
+      ...(canalClient ? { canal_client: canalClient } : {}),
       ...(type === 'facture' && devisOrigineBody ? { devis_origine: devisOrigineBody } : {})
     };
     const { error: insertErr1 } = await supabase.from('historique').upsert(payloadComplet, { onConflict: 'num' });

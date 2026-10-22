@@ -1956,6 +1956,10 @@ table.histo-table tr:hover td { background:#fafbff; }
   <!-- Client -->
   <div class="section">
     <div class="section-title">👤 Client</div>
+    <div class="input-group" style="margin-bottom:10px;">
+      <label>Comment ce client vous a trouvé ? <span style="color:#ef4444;font-size:13px;">*</span></label>
+      <select id="dep-canal"><option value="">— Choisir —</option><option value="local_services">Annonce Google (Local Services)</option><option value="fiche_google">Fiche Google / Maps</option><option value="site">Site internet</option><option value="bouche_a_oreille">Bouche-à-oreille / recommandation</option><option value="client_existant">Client déjà venu</option><option value="apporteur">Apporteur d'affaires</option><option value="autre">Autre</option></select>
+    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
       <div class="input-group" style="margin-bottom:0;">
         <label>Prénom</label>
@@ -2187,6 +2191,10 @@ table.histo-table tr:hover td { background:#fafbff; }
       <div class="client-toggle-btn active" id="d-toggle-part" onclick="setClientType('d','particulier')">👤 Particulier</div>
       <div class="client-toggle-btn" id="d-toggle-soc" onclick="setClientType('d','societe')">🏢 Société</div>
     </div>
+    <div class="input-group" style="margin-top:4px;">
+      <label>Comment ce client vous a trouvé ? <span style="color:#ef4444;font-size:13px;">*</span></label>
+      <select id="d-canal"><option value="">— Choisir —</option><option value="local_services">Annonce Google (Local Services)</option><option value="fiche_google">Fiche Google / Maps</option><option value="site">Site internet</option><option value="bouche_a_oreille">Bouche-à-oreille / recommandation</option><option value="client_existant">Client déjà venu</option><option value="apporteur">Apporteur d'affaires</option><option value="autre">Autre</option></select>
+    </div>
 
     <div id="d-bloc-particulier">
       <!-- Civilité -->
@@ -2381,6 +2389,10 @@ table.histo-table tr:hover td { background:#fafbff; }
     <div class="client-toggle">
       <div class="client-toggle-btn active" id="f-toggle-part" onclick="setClientType('f','particulier')">👤 Particulier</div>
       <div class="client-toggle-btn" id="f-toggle-soc" onclick="setClientType('f','societe')">🏢 Société</div>
+    </div>
+    <div class="input-group" style="margin-top:4px;">
+      <label>Comment ce client vous a trouvé ? <span style="color:#ef4444;font-size:13px;">*</span></label>
+      <select id="f-canal"><option value="">— Choisir —</option><option value="local_services">Annonce Google (Local Services)</option><option value="fiche_google">Fiche Google / Maps</option><option value="site">Site internet</option><option value="bouche_a_oreille">Bouche-à-oreille / recommandation</option><option value="client_existant">Client déjà venu</option><option value="apporteur">Apporteur d'affaires</option><option value="autre">Autre</option></select>
     </div>
     <div id="f-bloc-particulier">
       <!-- Civilité -->
@@ -4082,6 +4094,7 @@ async function convertirEnFacture(numDevis) {
   setTimeout(() => {
     const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
     remplirNomClient('f', devis.client || '');
+    { const _cn = document.getElementById('f-canal'); if (_cn && devis.canal_client) _cn.value = devis.canal_client; }
     setVal('f-tel', devis.telephone || '');
     setVal('f-email', devis.email || '');
     setVal('f-adresse', devis.adresse || '');
@@ -4125,6 +4138,7 @@ async function convertirEnSolde(numDevis) {
   setTimeout(() => {
     const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
     remplirNomClient('f', devis.client || '');
+    { const _cn = document.getElementById('f-canal'); if (_cn && devis.canal_client) _cn.value = devis.canal_client; }
     setVal('f-tel', devis.telephone || '');
     setVal('f-email', devis.email || '');
     setVal('f-adresse', devis.adresse || '');
@@ -6332,6 +6346,7 @@ async function genererDepannageRapide() {
 
   if (!nom) { showToast('⚠️ Nom client obligatoire', '❌'); return; }
   if (!depForfaitSelectionne) { showToast('⚠️ Sélectionnez un forfait', '❌'); return; }
+  if (!canalObligatoire('dep')) return;
 
   const forfait = DEP_FORFAITS.find(f => f.id === depForfaitSelectionne);
 
@@ -6356,7 +6371,7 @@ async function genererDepannageRapide() {
       body: JSON.stringify({
         type: depType,
         client: [prenom, nom].filter(Boolean).join(' '),
-        prenom, telephone: tel, email, adresse, prestations,
+        prenom, telephone: tel, email, adresse, prestations, canal_client: lireCanal('dep') || null,
         partenaire: false, part_diahe: 100, part_partenaire: 0
       })
     });
@@ -6372,6 +6387,7 @@ async function genererDepannageRapide() {
       document.getElementById('dep-tel').value = '';
       document.getElementById('dep-email').value = '';
       document.getElementById('dep-adresse').value = '';
+      { const _cn = document.getElementById('dep-canal'); if (_cn) _cn.value = ''; }
       document.getElementById('dep-remise-box').style.display = 'none';
       document.getElementById('dep-type-box').style.display = 'none';
       document.getElementById('dep-btn-gen').style.display = 'none';
@@ -10432,10 +10448,26 @@ function separerCivilite(texte) {
   return { civ, reste };
 }
 
+// Source du client (statistiques par canal à partir de nov. 2026)
+function lireCanal(prefix) {
+  const el = document.getElementById(`${prefix}-canal`);
+  let v = el ? el.value : '';
+  if (!v && prefix === 'd' && typeof apporteurActifD !== 'undefined' && apporteurActifD && apporteurActifD !== 'Aucun') { v = 'apporteur'; if (el) el.value = v; }
+  return v;
+}
+function canalObligatoire(prefix) {
+  if (lireCanal(prefix)) return true;
+  showToast('📍 Indique comment le client t\'a trouvé', '❌');
+  const el = document.getElementById(`${prefix}-canal`);
+  if (el) { el.style.border = '2px solid #ef4444'; el.focus(); el.addEventListener('change', () => el.style.border = '', { once: true }); }
+  return false;
+}
+
 // Pré-remplit civilité / prénom / nom à partir d'un nom complet enregistré
 function remplirNomClient(prefix, nomComplet, ordre) {
   // Nouveau client choisi : on vide l'adresse de chantier pour ne pas la reporter par erreur
   { const _ch = document.getElementById(`${prefix}-adresse-chantier`); if (_ch) _ch.value = ''; }
+  { const _cn = document.getElementById(`${prefix}-canal`); if (_cn) _cn.value = ''; }
   const { civ, reste } = separerCivilite(nomComplet);
   const parts = reste.split(' ').filter(Boolean);
   let prenom = '', nom = reste;
@@ -10765,6 +10797,8 @@ async function genererEtTelecharger(type) {
     }
   }
 
+  if (!canalObligatoire(prefix)) return;
+
   const btn = document.getElementById('f-btn-dl');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Génération...'; }
 
@@ -10788,7 +10822,7 @@ async function genererEtTelecharger(type) {
     const res = await fetch('/api/generer', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('sinelec_token') || '') },
-      body: JSON.stringify({ type, client, email: '', telephone, adresse, adresse_chantier: (document.getElementById(`${prefix}-adresse-chantier`)?.value || '').trim(), prenom, description: desc, prestations })
+      body: JSON.stringify({ canal_client: lireCanal(prefix) || null, type, client, email: '', telephone, adresse, adresse_chantier: (document.getElementById(`${prefix}-adresse-chantier`)?.value || '').trim(), prenom, description: desc, prestations })
     });
     const data = await res.json();
     if (!data.success) throw new Error(data.error || 'Erreur génération');
@@ -10933,6 +10967,8 @@ async function generer(type) {
     return;
   }
 
+  if (!canalObligatoire(prefix)) return;
+
   if (type === 'devis' && !telVal) {
     showToast('📞 Téléphone obligatoire — nécessaire pour valider la signature du client', '❌');
     const telEl = document.getElementById(`${prefix}-tel`);
@@ -10999,7 +11035,8 @@ async function generer(type) {
         part_partenaire: prefix === 'd' && apporteurActifD !== 'Aucun' ? SPLITS_APPORTEUR_UI[apporteurActifD].partenaire : 0,
         nom_partenaire: prefix === 'd' && apporteurActifD !== 'Aucun' ? apporteurActifD : null,
         devis_origine: (type === 'facture' && window._soldeOrigine && (() => { const n = s => String(s||'').toLowerCase().replace(/^(m\.|mme|mr|madame|monsieur)\s+/,'').trim(); return n(client).includes(n(window._soldeOrigine.client)) || n(window._soldeOrigine.client).includes(n(client)); })()) ? window._soldeOrigine.num : undefined,
-        intervention_type: type === 'devis' ? typeIntervention : 'immediat'
+        intervention_type: type === 'devis' ? typeIntervention : 'immediat',
+        canal_client: lireCanal(prefix) || null
       })
     });
     const data = await res.json();
