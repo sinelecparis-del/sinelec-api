@@ -5708,7 +5708,7 @@ async function envoyerSauvegardeHebdo() {
   for (const t of TABLES_SAUVEGARDE) donnees[t] = await lireTableComplete(t);
 
   const b64 = txt => Buffer.from(txt, 'utf8').toString('base64');
-  const piecesJson = [{ name: `sinelec-sauvegarde-${date}.json`, content: b64(JSON.stringify({ date, donnees }, null, 1)) }];
+  const piecesJson = [{ name: `sinelec-sauvegarde-${date}.json.txt`, content: b64(JSON.stringify({ date, donnees }, null, 1)) }];
   const piecesCsv = TABLES_SAUVEGARDE.map(t => ({ name: `${t}-${date}.csv`, content: b64(versCsv(donnees[t])) }));
 
   const resume = TABLES_SAUVEGARDE.map(t => `<li>${t} : <b>${donnees[t].length}</b> lignes</li>`).join('');
@@ -5729,7 +5729,7 @@ async function envoyerSauvegardeHebdo() {
     if (!res.ok) throw new Error('Brevo: ' + (await res.text()).slice(0, 300));
   };
   // 2 emails pour rester sous la limite de taille des pièces jointes
-  await envoyer('Sauvegarde SINELEC OS (1/2) : fichier complet', 'Fichier <b>.json</b> = restauration complète de la base.', piecesJson);
+  await envoyer('Sauvegarde SINELEC OS (1/2) : fichier complet', 'Fichier <b>.json.txt</b> = restauration complète de la base (contenu JSON, extension .txt exigée par l\'envoi d\'email).', piecesJson);
   await envoyer('Sauvegarde SINELEC OS (2/2) : tableaux Excel', 'Un fichier <b>.csv</b> par table, ouvrable dans Excel.', piecesCsv);
   return Object.fromEntries(TABLES_SAUVEGARDE.map(t => [t, donnees[t].length]));
 }
