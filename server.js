@@ -5674,6 +5674,79 @@ app.post('/api/verifier-otp', async (req, res) => {
 // ═══════════════════════════════════════════════════
 // CRON JOBS
 // ═══════════════════════════════════════════════════
+// Sauvegarde hebdomadaire (dimanche 20h) : copie des données par email
+// Tables : historique (devis/factures), clients, leads_site, grille_tarifaire
+// Pièces jointes : 1 JSON complet (restauration) + 1 CSV par table (lecture Excel)
+// ═══════════════════════════════════════════════════
+const TABLES_SAUVEGARDE = ['historique', 'clients', 'leads_site', 'grille_tarifaire'];
+
+async function lireTableComplete(table) {
+  const lignes = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase.from(table).select('*').range(from, from + 999);
+    if (error) throw new Error(`${table}: ${error.message}`);
+    lignes.push(...(data || []));
+    if (!data || data.length < 1000) break;
+  }
+  return lignes;
+}
+
+function versCsv(lignes) {
+  if (!lignes.length) return '﻿';
+  const cols = [...new Set(lignes.flatMap(l => Object.keys(l)))];
+  const cell = v => {
+    if (v === null || v === undefined) return '';
+    const s = typeof v === 'object' ? JSON.stringify(v) : String(v);
+    return /[";\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  return '﻿' + [cols.join(';'), ...lignes.map(l => cols.map(c => cell(l[c])).join(';'))].join('\r\n');
+}
+
+async function envoyerSauvegardeHebdo() {
+  const date = new Date().toLocaleDateString('fr-CA', { timeZone: 'Europe/Paris' }); // AAAA-MM-JJ
+  const donnees = {};
+  for (const t of TABLES_SAUVEGARDE) donnees[t] = await lireTableComplete(t);
+
+  const b64 = txt => Buffer.from(txt, 'utf8').toString('base64');
+  const piecesJson = [{ name: `sinelec-sauvegarde-${date}.json`, content: b64(JSON.stringify({ date, donnees }, null, 1)) }];
+  const piecesCsv = TABLES_SAUVEGARDE.map(t => ({ name: `${t}-${date}.csv`, content: b64(versCsv(donnees[t])) }));
+
+  const resume = TABLES_SAUVEGARDE.map(t => `<li>${t} : <b>${donnees[t].length}</b> lignes</li>`).join('');
+  const envoyer = async (sujet, intro, pieces) => {
+    const html = `<div style="font-family:Arial,sans-serif;max-width:560px">
+      <h2 style="color:#0B1F3A">💾 ${sujet}</h2><ul>${resume}</ul>
+      <p>${intro}<br>À ranger dans Drive : <i>SINELEC – Sauvegardes</i>.</p></div>`;
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: { 'accept': 'application/json', 'api-key': BREVO_API_KEY, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        sender: { name: CONFIG.email.sender_name, email: CONFIG.email.sender_email },
+        to: [{ email: CONFIG?.email?.sender_email || 'sinelec.paris@gmail.com' }],
+        subject: `💾 ${sujet} — ${date}`,
+        htmlContent: html, attachment: pieces, trackOpens: 0, trackClicks: 0,
+      }),
+    });
+    if (!res.ok) throw new Error('Brevo: ' + (await res.text()).slice(0, 300));
+  };
+  // 2 emails pour rester sous la limite de taille des pièces jointes
+  await envoyer('Sauvegarde SINELEC OS (1/2) : fichier complet', 'Fichier <b>.json</b> = restauration complète de la base.', piecesJson);
+  await envoyer('Sauvegarde SINELEC OS (2/2) : tableaux Excel', 'Un fichier <b>.csv</b> par table, ouvrable dans Excel.', piecesCsv);
+  return Object.fromEntries(TABLES_SAUVEGARDE.map(t => [t, donnees[t].length]));
+}
+
+// Envoi à la demande (protégé par le login de l'app, comme le reste de /api)
+app.post('/api/sauvegarde-maintenant', authMiddleware, async (req, res) => {
+  try { res.json({ success: true, lignes: await envoyerSauvegardeHebdo() }); }
+  catch (e) { console.error('Sauvegarde:', e.message); res.status(500).json({ error: e.message }); }
+});
+
+// Chaque dimanche à 20h (heure de Paris)
+cron.schedule('0 20 * * 0', async () => {
+  try { await envoyerSauvegardeHebdo(); console.log('💾 Sauvegarde hebdo envoyée'); }
+  catch (e) { console.error('❌ Cron sauvegarde:', e.message); }
+}, { timezone: 'Europe/Paris' });
+
+// ═══════════════════════════════════════════════════
 // Récap quotidien à 7h : agenda du jour + argent réel en jeu + top devis à relancer
 // Règle validée par Diahe (27/09/2026) : chiffres réels uniquement (devis non
 // expirés), et ceci est informatif — les relances restent gérées par le cron

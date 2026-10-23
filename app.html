@@ -2911,6 +2911,10 @@ table.histo-table tr:hover td { background:#fafbff; }
     <button onclick="importerDevisExterne()" class="btn-gen" style="margin-top:12px;width:100%;">📥 Importer dans l'historique</button>
   </div>
 
+  <div class="section"><div class="section-title">💾 Sauvegarde des données</div>
+    <div style="font-size:13px;color:var(--text-3);margin-bottom:12px;">Une copie (devis, factures, clients, grille) est envoyée automatiquement par email chaque dimanche à 20h.</div>
+    <button id="btn-sauvegarde" onclick="sauvegarderMaintenant()" class="btn-gen">💾 Envoyer une sauvegarde maintenant</button>
+  </div>
   <div class="section"><div class="section-title">⚙️ Grille tarifaire</div><div id="params-grid"></div><button onclick="sauvegarderPrix()" class="btn-gen" style="margin-top:16px;">💾 Sauvegarder</button></div>
 </div></div>
 
@@ -6010,6 +6014,20 @@ function afficherParams() {
   container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-3);">⚙️ Grille tarifaire chargée depuis Supabase</div>';
 }
 
+async function sauvegarderMaintenant() {
+  const b = document.getElementById('btn-sauvegarde');
+  if (b) { b.disabled = true; b.textContent = '⏳ Envoi en cours…'; }
+  try {
+    const r = await fetch('/api/sauvegarde-maintenant', { method: 'POST' });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.success) throw new Error(d.error || 'Échec');
+    showToast('Sauvegarde envoyée par email (2 messages)', '💾');
+  } catch (e) {
+    showToast('Sauvegarde impossible : ' + e.message, '❌');
+  } finally {
+    if (b) { b.disabled = false; b.textContent = '💾 Envoyer une sauvegarde maintenant'; }
+  }
+}
 function sauvegarderPrix() { showToast('✅ Prix sauvegardés !', '💾'); }
 
 // ═══════════════════════════════════════════════════
